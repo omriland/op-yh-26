@@ -200,7 +200,14 @@ export function EventFormPage({
       if (!current || !currentLookups) return false
 
       const snapshot = JSON.stringify(current)
+      // Autosave often already flushed (e.g. after הקצאת כונן). Explicit
+      // שמירת אירוע must still confirm + leave the form.
       if (snapshot === baselineRef.current && current.id) {
+        if (options?.navigate) {
+          markSavedPulse()
+          show('האירוע נשמר', 'done')
+          onSaved(current.id)
+        }
         return true
       }
 
@@ -277,7 +284,7 @@ export function EventFormPage({
       if (stillDirty) {
         markSavedPulse()
         // Queue a follow-up save (do not call persistLatest from inside this run —
-        // that deadlocks the saveChain promise).
+        // that deadlocks the saveChain promise). Keep navigate/reveal flags.
         const followUp = { ...options, overnightOk: true as const }
         queueMicrotask(() => {
           void persistLatest(followUp)
@@ -410,7 +417,9 @@ export function EventFormPage({
     setDraft(next)
     setPickerQuery('')
     setPickerOpen(false)
-    void persistLatest({ revealErrors: true })
+    void persistLatest({ revealErrors: true }).then((ok) => {
+      if (ok) show('הכונן נוסף לאירוע', 'done')
+    })
   }
 
   function requestRemove(responder: ResponderDraft) {

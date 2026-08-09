@@ -258,10 +258,15 @@ export function hasEventMinimum(draft: EventFormDraft): boolean {
   return Object.keys(validateEventMinimum(draft)).length === 0
 }
 
-/** Draft while no responders are assigned; once assigned → in_progress (keep partial/done). */
+/**
+ * Derive stored event status from current assignments.
+ * Adding a new pending responder after `done` must reopen to `partial` —
+ * never freeze the previous status.
+ */
 export function deriveEventStatus(draft: EventFormDraft): EventStatus {
   if (draft.responders.length === 0) return 'draft'
-  if (draft.status === 'partial' || draft.status === 'done') return draft.status
+  if (draft.responders.every((row) => row.status === 'done')) return 'done'
+  if (draft.responders.some((row) => row.status === 'done')) return 'partial'
   return 'in_progress'
 }
 
