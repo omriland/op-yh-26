@@ -1,0 +1,52 @@
+# Screen — Admin (ניהול): Users, Vehicles, Roles, Closed Lists
+
+The unit's registry office. Admin-only. Two areas: `משתמשים` and `רשימות` (closed lists). Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
+
+## Navigation
+
+- Desktop sidebar section `ניהול`: items `משתמשים`, `רשימות`.
+- Mobile: tab `ניהול` → segmented control at top (two segments, secondary-chip style): `משתמשים` | `רשימות`.
+
+## משתמשים (Users)
+
+### List
+
+- Title `משתמשים` + primary `משתמש חדש`.
+- Search input (name / callsign / email).
+- Desktop table: שם מלא · או״ק (mono) · דוא״ל (LTR isolate) · טלפון (LTR isolate, mono) · תפקידים · רכבים (count). Roles column renders small neutral chips (`--type-caption`, secondary-chip chrome — NOT stamps): `מנהל` · `אחמ״ש` · `כונן`.
+- Mobile: user cards — avatar 40 + name + callsign, roles chips row, caption line with email.
+
+### Create / Edit user (dialog on desktop, full screen on mobile)
+
+Sections:
+
+1. `פרטים` — שם מלא (required) · דוא״ל (required; sends invite) · או״ק · טלפון.
+2. `תפקידים` — three checkboxes: `מנהל` / `אחמ״ש` / `כונן`. At least one required; combos allowed. Helper: `ניתן לשלב תפקידים.`
+3. `רכבים` — repeatable rows: לוחית רישוי (mono, LTR) + דגם + remove icon-button; ghost `הוספת רכב` below. A user may have several vehicles.
+
+Actions: primary `שמירת משתמש` / secondary `ביטול`. New-user success toast: `המשתמש נוצר ונשלחה הזמנה בדוא״ל`.
+
+Deactivation (not deletion) via overflow menu: `השבתת משתמש` → confirm `להשבית את המשתמש? הוא לא יוכל להתחבר, והנתונים ההיסטוריים יישמרו.`
+
+## רשימות (Closed lists)
+
+Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כבישים` · `סוגי רכב לטיפול`.
+
+### Layout
+
+- Desktop: list-of-lists at inline-start (240 px, nav-item styling) + selected list's items in the content area.
+- Mobile: the four lists as cards → tap opens the list's items full-screen.
+
+### Items view
+
+- Title = list name + primary `הוספת פריט`.
+- Items: simple rows, hairline-separated, 48 px: value text + overflow menu (עריכה / הסרה).
+- Add/edit: inline row editor (input + `שמירה` / `ביטול`) — no dialog needed for a single field.
+- Remove item in use by events: block with explanation `לא ניתן להסיר פריט שמשויך לאירועים קיימים.` (info banner, not error toast).
+- Empty list: `אין פריטים ברשימה זו. הפריט הראשון ישמש בטפסים מיד לאחר הוספתו.`
+
+## States
+
+- Loading: table/card skeletons per component spec.
+- Search no-results: `לא נמצאו משתמשים תואמים` + ghost `ניקוי חיפוש`.
+- All mutations get success/failure toasts per the copy rules in `05-rtl-language.md`.

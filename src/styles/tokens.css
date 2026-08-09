@@ -1,0 +1,188 @@
+/* Yahpaz design tokens — "רשומה" (Official Record)
+   Source of truth: design-system-design-instructions/02-color.md, 03-typography.md,
+   04-layout.md, 07-motion.md. Components consume the semantic layer only.
+   Any change to a color here must be mirrored in scripts/contrast-check.mjs. */
+
+:root {
+  /* ---- Raw palette: ink ramp (TEXT on Field) ---- */
+  --ink-900: #0f1b2d;
+  --ink-700: #22354e;
+  --ink-500: #445a73;
+  --ink-400: #5b6f86;
+  --ink-300: #8b9caf;
+  --ink-100: #dde4eb;
+  --ink-50: #eef2f6;
+
+  /* ---- Raw palette: navy ramp (Command SURFACES — archival navy, never near-black) ---- */
+  --navy-sunken: #122036;
+  --navy-page: #182a47;
+  --navy-raised: #213656;
+  --navy-overlay: #2a4168;
+
+  /* ---- Raw palette: paper ---- */
+  --paper-0: #ffffff;
+  --paper-50: #f6f8fa;
+  --paper-100: #edf1f5;
+
+  /* ---- Raw palette: record blue ---- */
+  --blue-800: #17416e;
+  --blue-700: #1d4e89;
+  --blue-600: #2e6cb4;
+  --blue-300: #8fbceb;
+  --blue-200: #a9cdf2;
+  --blue-100: #dce8f5;
+  --blue-50: #edf4fb;
+
+  /* ---- Raw palette: status inks ---- */
+  --green-field: #2e7d5b;
+  --green-field-tint: #e3f1ea;
+  --green-field-on-tint: #215c43;
+  --green-command: #66c79b;
+
+  --red-field: #b3382f;
+  --red-field-tint: #f9e9e7;
+  --red-field-on-tint: #93291f;
+  --red-command: #ef8177;
+  --red-command-on-tint: #f6a29a;
+
+  --amber-field: #b07c24;
+  --amber-field-tint: #f7eedc;
+  --amber-field-on-tint: #7a5410;
+  --amber-command: #e0b05c;
+
+  /* ---- Typography: full stacks only, never a bare family name ---- */
+  /* Display/titles share the UI face (Plex Sans Hebrew) — no separate serif letterhead. */
+  --font-display: 'IBM Plex Sans Hebrew', 'Heebo', 'Segoe UI', 'Arial Hebrew', 'Noto Sans Hebrew',
+    sans-serif;
+  --font-ui: 'IBM Plex Sans Hebrew', 'Heebo', 'Segoe UI', 'Arial Hebrew', 'Noto Sans Hebrew',
+    sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* ---- Spacing (4px base) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---- Radii ---- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-stamp: 3px;
+  --radius-full: 9999px;
+
+  /* ---- Layout ---- */
+  --content-max: 1120px;
+  --form-max: 720px;
+  --sidebar-width: 240px;
+  --appbar-height: 48px;
+  --tabbar-height: 56px;
+
+  /* ---- Motion ---- */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ---- Elevation (level 2 only; levels 0/1 are hairline-only) ---- */
+  --shadow-overlay: 0 8px 24px rgba(15, 27, 45, 0.16);
+}
+
+/* ============ שטח / Field theme ============
+   Also declared on :root so the document outside any themed container has a
+   valid default — otherwise --text-primary is undefined on <body> and every
+   element that inherits its color falls back to pure black. */
+:root,
+[data-theme='field'] {
+  --surface-page: var(--paper-50);
+  --surface-raised: var(--paper-0);
+  --surface-sunken: var(--paper-100);
+  --surface-overlay: var(--paper-0);
+
+  --text-primary: var(--ink-900);
+  --text-secondary: var(--ink-500);
+  --text-muted: var(--ink-400);
+  --text-on-accent: var(--paper-0);
+
+  --accent: var(--blue-700);
+  --accent-fill: var(--blue-700);
+  --accent-hover: var(--blue-800);
+  --accent-subtle: var(--blue-50);
+
+  --stroke-hairline: rgba(15, 27, 45, 0.12);
+  /* Meaning-bearing boundaries must hold 3:1 — never lower this opacity. */
+  --stroke-strong: rgba(15, 27, 45, 0.55);
+
+  --status-done: var(--green-field);
+  --status-done-tint: var(--green-field-tint);
+  --status-done-on-tint: var(--green-field-on-tint);
+
+  --status-alert: var(--red-field);
+  --status-alert-tint: var(--red-field-tint);
+  --status-alert-on-tint: var(--red-field-on-tint);
+
+  --status-partial: var(--amber-field);
+  --status-partial-tint: var(--amber-field-tint);
+  --status-partial-on-tint: var(--amber-field-on-tint);
+
+  --status-pending: var(--blue-700);
+  --status-pending-tint: var(--blue-50);
+  --status-pending-on-tint: var(--blue-700);
+
+  --status-draft: var(--ink-400);
+  --status-draft-tint: transparent;
+  --status-draft-on-tint: var(--ink-400);
+
+  color-scheme: light;
+}
+
+/* ============ מפקדה / Command theme ============
+   Status tints are exactly 8% of the ink over the local surface — higher washes
+   out the ink text. Alert text on its own tint uses the dedicated lighter value. */
+[data-theme='command'] {
+  --surface-page: var(--navy-page);
+  --surface-raised: var(--navy-raised);
+  --surface-sunken: var(--navy-sunken);
+  --surface-overlay: var(--navy-overlay);
+
+  --text-primary: #f2f6fa;
+  --text-secondary: #c3cedc;
+  --text-muted: #9fb0c4;
+  --text-on-accent: var(--paper-0);
+
+  --accent: var(--blue-300);
+  --accent-fill: var(--blue-600);
+  --accent-hover: var(--blue-200);
+  --accent-subtle: rgba(143, 188, 235, 0.14);
+
+  --stroke-hairline: rgba(242, 246, 250, 0.15);
+  --stroke-strong: rgba(242, 246, 250, 0.45);
+
+  --status-done: var(--green-command);
+  --status-done-tint: rgba(102, 199, 155, 0.08);
+  --status-done-on-tint: var(--green-command);
+
+  --status-alert: var(--red-command);
+  --status-alert-tint: rgba(239, 129, 119, 0.08);
+  --status-alert-on-tint: var(--red-command-on-tint);
+
+  --status-partial: var(--amber-command);
+  --status-partial-tint: rgba(224, 176, 92, 0.08);
+  --status-partial-on-tint: var(--amber-command);
+
+  --status-pending: var(--blue-300);
+  --status-pending-tint: rgba(143, 188, 235, 0.08);
+  --status-pending-on-tint: var(--blue-300);
+
+  --status-draft: #9fb0c4;
+  --status-draft-tint: rgba(159, 176, 196, 0.08);
+  --status-draft-on-tint: #9fb0c4;
+
+  color-scheme: dark;
+}

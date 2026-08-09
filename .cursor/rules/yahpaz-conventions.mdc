@@ -1,0 +1,14 @@
+---
+description: Yahpaz product and stack conventions
+alwaysApply: true
+---
+
+# Yahpaz conventions
+
+- Hebrew-only UI, full RTL (`lang=he`, `dir=rtl`)
+- Stack: Vite + React + TS, Supabase (Auth/Postgres/RLS), Netlify, Resend (pending domain slot)
+- Roles: `admin` | `shift_lead` | `responder` (combo allowed)
+- Events: event-level fields + per-responder `event_responders`; viewer-relative status
+- Visual language: **"רשומה" (Official Record) design system — single source of truth: `design-system-design-instructions/`** (read `00-how-to-use.md` first, follow its contract). The old hebrew-card-manager / Responders TLV reference is dead — do not use it.
+- Spec: `docs/superpowers/specs/2026-08-09-yahpaz-volunteers-events-design.md`
+- Do not commit secrets (`.env.local`, API tokens pasted in chat)

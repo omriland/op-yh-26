@@ -1,0 +1,132 @@
+import { useEffect, useState } from 'react'
+import { LogOut } from 'lucide-react'
+import { useAuth, type AppRole } from '../lib/auth'
+import { supabase } from '../lib/supabase'
+import { formatPlate, monoClass } from '../lib/format'
+import { Avatar } from '../components/ui/Avatar'
+import { Button } from '../components/ui/Button'
+import { Ledger, LedgerRow } from '../components/ui/Ledger'
+import { Skeleton } from '../components/ui/Skeleton'
+
+const ROLE_LABELS: Record<AppRole, string> = {
+  admin: 'מנהל',
+  shift_lead: 'אחמ״ש',
+  responder: 'כונן',
+}
+
+type Vehicle = { id: string; plate_number: string; model: string }
+
+export function ProfilePage() {
+  const { profile, roles, signOut } = useAuth()
+  const [vehicles, setVehicles] = useState<Vehicle[] | null>(null)
+
+  useEffect(() => {
+    if (!profile) return
+    let active = true
+
+    supabase
+      .from('vehicles')
+      .select('id, plate_number, model')
+      .eq('user_id', profile.id)
+      .then(({ data }) => {
+        if (active) setVehicles((data as Vehicle[] | null) ?? [])
+      })
+
+    return () => {
+      active = false
+    }
+  }, [profile])
+
+  if (!profile) {
+    return (
+      <div>
+        <h1 className="t-title">פרופיל</h1>
+        <div
+          className="card stack-3"
+          style={{ marginBlockStart: 'var(--space-10)' }}
+          aria-busy="true"
+          aria-label="טוען פרופיל"
+        >
+          <Skeleton height={40} width="55%" />
+          <Skeleton height={24} />
+          <Skeleton height={24} width="70%" />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <h1 className="t-title">פרופיל</h1>
+
+      <div className="stack-4" style={{ marginBlockStart: 'var(--space-10)' }}>
+        <section className="card stack-4">
+          <div className="responder-card__head">
+            <Avatar name={profile.full_name} size="lg" />
+            <span className="responder-card__identity">
+              <span className="t-section">{profile.full_name}</span>
+              <span className="t-caption text-muted" style={{ display: 'block' }}>
+                או״ק <span className={monoClass(profile.callsign)}>{profile.callsign}</span>
+              </span>
+            </span>
+          </div>
+
+          <Ledger>
+            <LedgerRow label="דוא״ל" value={profile.email} isolate />
+            <LedgerRow label="טלפון" value={profile.phone ?? undefined} numeric isolate />
+          </Ledger>
+
+          <div>
+            <p className="t-label text-secondary" style={{ marginBlockEnd: 'var(--space-2)' }}>
+              תפקידים
+            </p>
+            <div className="tags">
+              {roles.length === 0 ? (
+                <span className="t-body text-muted">—</span>
+              ) : (
+                roles.map((role) => (
+                  <span key={role} className="tag">
+                    {ROLE_LABELS[role]}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="form-section">
+            <h2 className="form-section__heading">רכבים</h2>
+          </div>
+          <div style={{ marginBlockStart: 'var(--space-4)' }}>
+            {vehicles === null ? (
+              <Skeleton height={24} />
+            ) : vehicles.length === 0 ? (
+              <p className="t-body text-muted">לא רשומים רכבים. פנו למנהל המערכת להוספת רכב.</p>
+            ) : (
+              <Ledger>
+                {vehicles.map((vehicle) => (
+                  <LedgerRow
+                    key={vehicle.id}
+                    label={vehicle.model}
+                    value={formatPlate(vehicle.plate_number)}
+                    numeric
+                    isolate
+                  />
+                ))}
+              </Ledger>
+            )}
+          </div>
+        </section>
+
+        <Button
+          variant="secondary"
+          onClick={() => void signOut()}
+          icon={<LogOut size={20} strokeWidth={1.75} className="icon-mirror" />}
+        >
+          התנתקות
+        </Button>
+      </div>
+    </div>
+  )
+}

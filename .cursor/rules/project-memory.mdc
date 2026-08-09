@@ -1,0 +1,14 @@
+---
+description: Always read and update project memory during Yahpaz work
+alwaysApply: true
+---
+
+# Project memory (mandatory)
+
+Before exploring code or making changes in this repo, **read** `.cursor/memory/MEMORY.md`.
+
+After any session that changes facts (infra, schema, decisions, URLs, accounts, status), **update** `.cursor/memory/MEMORY.md` in the same turn — keep it current, concise, and factual. Do not invent; only record what was decided or verified.
+
+If memory contradicts the live codebase, trust the codebase, then fix the memory.
+
+Visual source of truth: `design-system-design-instructions/` ("רשומה"). The old `hebrew-card-manager` / Responders TLV reference is dead — do not use it.

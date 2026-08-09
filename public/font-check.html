@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <title>בדיקת גופן</title>
+    <style>
+      @font-face {
+        font-family: 'Frank Subset';
+        font-weight: 700;
+        src: url('/fonts/frank-ruhl-libre-hebrew-700-normal.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Frank Google';
+        font-weight: 700;
+        src: url('/fonts/frank-google-700.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'Noto Serif Hebrew';
+        font-weight: 700;
+        src: url('/fonts/noto-serif-hebrew-700.ttf') format('truetype');
+      }
+      body {
+        margin: 32px;
+        background: #182a47;
+        color: #f2f6fa;
+        font-family: system-ui, sans-serif;
+      }
+      .row {
+        margin-block: 20px;
+        padding-block-end: 16px;
+        border-block-end: 1px solid rgba(242, 246, 250, 0.15);
+      }
+      .label {
+        font-size: 12px;
+        opacity: 0.7;
+        margin-block-end: 6px;
+      }
+      .sample {
+        font-weight: 700;
+        font-size: 40px;
+        line-height: 1.2;
+      }
+    </style>
+  </head>
+  <body>
+    <p>השוואת גופנים לכותרת «אירועים»</p>
+    <div class="row">
+      <div class="label">1. Frank Ruhl Libre — fontsource subset (מה שהיה באפליקציה)</div>
+      <div class="sample" style="font-family: 'Frank Subset', serif">אירועים</div>
+    </div>
+    <div class="row">
+      <div class="label">2. Frank Ruhl Libre — קובץ מלא מ-Google</div>
+      <div class="sample" style="font-family: 'Frank Google', serif">אירועים</div>
+    </div>
+    <div class="row">
+      <div class="label">3. Noto Serif Hebrew 700 (סריף ברור יותר)</div>
+      <div class="sample" style="font-family: 'Noto Serif Hebrew', serif">אירועים</div>
+    </div>
+    <div class="row">
+      <div class="label">4. Arial (ברירת מחדל — כך זה נראה כשאין גופן)</div>
+      <div class="sample" style="font-family: Arial, sans-serif">אירועים</div>
+    </div>
+  </body>
+</html>

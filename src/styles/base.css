@@ -1,0 +1,216 @@
+/* Base layer: reset, document defaults, typography utilities, a11y primitives. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font: 400 16px/24px var(--font-ui);
+  color: var(--text-primary);
+  background: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+/* A themed subtree owns its text color. Without this, any element that does not
+   set color explicitly inherits <body>'s instead of the theme's — which reads as
+   black ink on Command navy. */
+[data-theme] {
+  color: var(--text-primary);
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: transparent;
+  cursor: pointer;
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- Type utilities (03-typography.md) ---- */
+
+.t-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 32px;
+}
+
+/* Screen letterhead — one per screen. */
+.t-title,
+h1.t-title {
+  font-family: var(--font-display) !important;
+  font-weight: 700 !important;
+  font-size: 22px;
+  line-height: 28px;
+  color: var(--text-primary);
+}
+
+.t-section {
+  font: 600 17px/24px var(--font-ui);
+}
+
+.t-body {
+  font: 400 16px/24px var(--font-ui);
+}
+
+.t-body-strong {
+  font: 600 16px/24px var(--font-ui);
+}
+
+.t-label {
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+}
+
+.t-caption {
+  font: 400 12px/16px var(--font-ui);
+}
+
+.t-stamp {
+  font: 700 12px/16px var(--font-ui);
+  letter-spacing: 0.06em;
+}
+
+.t-num {
+  font: 400 16px/24px var(--font-mono);
+}
+
+/* Registry numerals inside a line of body/caption text */
+.mono {
+  font-family: var(--font-mono);
+}
+
+.t-num-lg {
+  font: 500 20px/26px var(--font-mono);
+}
+
+@media (min-width: 1025px) {
+  .t-display {
+    font-size: 32px;
+    line-height: 38px;
+  }
+
+  .t-title,
+  h1.t-title {
+    font-size: 28px;
+    line-height: 34px;
+  }
+
+  .t-section {
+    font-size: 18px;
+    line-height: 26px;
+  }
+
+  .t-num-lg {
+    font-size: 22px;
+    line-height: 28px;
+  }
+}
+
+/* ---- Color utilities ---- */
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* ---- A11y primitives ---- */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-start: var(--space-2);
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--stroke-strong);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+/* Directional icons (arrows, send, undo) mirror in RTL — 05-rtl-language.md */
+.icon-mirror {
+  transform: scaleX(-1);
+}
+
+/* LTR isolate for plates, phones, emails, URLs (05-rtl-language.md) */
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---- Reduced motion (07-motion.md) ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
