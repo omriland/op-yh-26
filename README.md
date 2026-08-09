@@ -69,7 +69,7 @@ Edge secret already set for this project: `RESEND_API_KEY`, `INVITE_REDIRECT_TO`
 `http://localhost:5173/` — change to production when ready).
 
 Privileged invite/deactivate: Supabase Edge Function `admin-users` (service role stays
-server-side). Admin UI covers `משתמשים` + `רשימות` (districts / event types / roads /
+server-side). Admin UI covers `משתמשים` + `הגדרות` (districts / event types / roads /
 vehicle kinds) via RLS.
 
 ## Design system — "רשומה"

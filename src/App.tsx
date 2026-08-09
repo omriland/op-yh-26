@@ -57,7 +57,7 @@ function Gate() {
         })
         list.push({
           view: 'lists',
-          label: 'רשימות',
+          label: 'הגדרות',
           icon: NAV_ICONS.lists,
           section: 'ניהול',
         })

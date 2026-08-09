@@ -89,8 +89,8 @@ export function validateResponderFillDraft(
   const plate = plateDigits(draft.vehicle_plate)
   const allowed = new Set(allowedPlates.map(plateDigits).filter(Boolean))
 
-  if (start === 'invalid') errors.odometer_start = 'קמ התחלה חייב להיות מספר.'
-  if (end === 'invalid') errors.odometer_end = 'קמ סיום חייב להיות מספר.'
+  if (start === 'invalid') errors.odometer_start = 'ק"מ התחלה חייב להיות מספר.'
+  if (end === 'invalid') errors.odometer_end = 'ק"מ סיום חייב להיות מספר.'
 
   if (mode === 'complete') {
     if (!plate) errors.vehicle_plate = 'יש לבחור רכב.'
@@ -99,26 +99,30 @@ export function validateResponderFillDraft(
     } else if (allowed.size === 0) {
       errors.vehicle_plate = 'לא מקושר רכב למשתמש. פנו למנהל המערכת.'
     }
-    if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא קמ התחלה.'
-    if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא קמ סיום.'
-    if (
-      typeof start === 'number' &&
-      typeof end === 'number' &&
-      end < start
-    ) {
-      errors.odometer_end = 'קמ סיום חייב להיות גדול מקמ התחלה'
-    }
+    if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא ק"מ התחלה.'
+    if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא ק"מ סיום.'
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
-  } else if (
-    typeof start === 'number' &&
-    typeof end === 'number' &&
-    end < start
-  ) {
-    errors.odometer_end = 'קמ סיום חייב להיות גדול מקמ התחלה'
+  }
+
+  // Live + submit: start must be strictly lower than end once both are numbers.
+  if (typeof start === 'number' && typeof end === 'number' && end <= start) {
+    errors.odometer_end = 'ק"מ סיום חייב להיות גדול מק"מ התחלה'
   }
 
   return errors
+}
+
+/** Field-level odometer check for immediate UI feedback. */
+export function odometerRangeError(
+  odometerStart: string,
+  odometerEnd: string,
+): string | undefined {
+  const start = parseOptionalNumber(odometerStart)
+  const end = parseOptionalNumber(odometerEnd)
+  if (typeof start !== 'number' || typeof end !== 'number') return undefined
+  if (end <= start) return 'ק"מ סיום חייב להיות גדול מק"מ התחלה'
+  return undefined
 }
 
 export async function fetchResponderFillContext(

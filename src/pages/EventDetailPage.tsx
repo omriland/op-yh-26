@@ -346,12 +346,12 @@ function ResponderCard({
           isolate
         />
         <LedgerRow
-          label="קמ התחלה"
+          label='ק"מ התחלה'
           value={responder.odometer_start != null ? formatNumber(responder.odometer_start) : undefined}
           numeric
         />
         <LedgerRow
-          label="קמ סיום"
+          label='ק"מ סיום'
           value={responder.odometer_end != null ? formatNumber(responder.odometer_end) : undefined}
           numeric
         />

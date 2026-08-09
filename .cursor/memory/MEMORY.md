@@ -19,7 +19,7 @@ Repo: `yhpz-2026`
 | Netlify URL | https://yahpaz-2026.netlify.app |
 | Custom domain | **yahpz.com** (+ www) on Netlify; DNS on Cloudflare |
 | Cloudflare zone | `yahpz.com` id `0840a05bc431c56eb3479042a1e7f2ee` |
-| DNS records | A `@` → `75.2.60.1` (DNS only); CNAME `www` → `yahpaz-2026.netlify.app` (DNS only) |
+| DNS records | A `@` → `75.2.60.5` (DNS only; Netlify current apex LB); CNAME `www` → `yahpaz-2026.netlify.app` (DNS only) |
 | Resend | Blocked: free plan already has `send.responders-tlv.com` — need upgrade or remove that domain before adding `yahpz.com` |
 
 ## Auth / admin seed

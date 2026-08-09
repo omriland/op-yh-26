@@ -26,7 +26,7 @@ export function AdminSegmentBar({ view, onChange }: AdminSegmentBarProps) {
         aria-pressed={view === 'lists'}
         onClick={() => onChange('lists')}
       >
-        רשימות
+        הגדרות
       </button>
     </div>
   )

@@ -20,7 +20,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 
 ### Desktop (Command)
 
-- Sidebar: `אירועים` (active), `האירועים שלי` (if shift-lead and/or responder), section `ניהול` → `משתמשים`, `רשימות` (admin only).
+- Sidebar: `אירועים` (active), `האירועים שלי` (if shift-lead and/or responder), section `ניהול` → `משתמשים`, `הגדרות` (admin only).
 - Content: title row (title + `אירוע חדש` primary) → filter chips + search input (width 280, icon magnifier, placeholder `חיפוש לפי מספר אירוע, כביש או מיקום`) → **table**:
 
 | Column | Content | Notes |

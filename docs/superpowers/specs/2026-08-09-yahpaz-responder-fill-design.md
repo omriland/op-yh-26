@@ -52,8 +52,8 @@ Exit: back control and successful **סיום דיווח** return to `returnTo`. 
 | Field | Control | Required for complete | Notes |
 |---|---|---|---|
 | לוחית רישוי | select of user's linked vehicles | yes | Not free-text. Options from `vehicles` (plate · model). Prefill when exactly one. |
-| קמ התחלה | numeric mono | yes | |
-| קמ סיום | numeric mono | yes | Must be ≥ קמ התחלה; error `קמ סיום חייב להיות גדול מקמ התחלה` |
+| ק"מ התחלה | numeric mono | yes | |
+| ק"מ סיום | numeric mono | yes | Must be ≥ ק"מ התחלה; error `ק"מ סיום חייב להיות גדול מק"מ התחלה` |
 | נתיב נסיעה | text | yes | Placeholder `דרך צומת X וכביש Y וכו'` |
 | פירוט הטיפול | textarea min-height 120 | yes | |
 | הערות לטיפול | textarea | no | |
@@ -118,7 +118,7 @@ After successful participation update: `events.update({ status, updated_at })` w
 
 ## Out of scope
 
-- Lead editing **responder-owned** fields (לוחית / קמ / נתיב / פירוט) after done — still out of form per `event-form.md`; lead edits lead-owned fields via form. If product later needs lead to fix plate/route/etc., add an explicit lead path.
+- Lead editing **responder-owned** fields (לוחית / ק"מ / נתיב / פירוט) after done — still out of form per `event-form.md`; lead edits lead-owned fields via form. If product later needs lead to fix plate/route/etc., add an explicit lead path.
 - True URL routing / deep links.
 - DB trigger for event status (client only this slice).
 - Changing treated-vehicle / overnight behavior (separate bugs already addressed).

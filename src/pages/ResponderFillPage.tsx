@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import {
   completeResponderFill,
   fetchResponderFillContext,
+  odometerRangeError,
   saveResponderFillDraft,
   type ResponderFillContext,
   type ResponderFillDraft,
@@ -72,6 +73,21 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
 
   function patchDraft(patch: Partial<ResponderFillDraft>) {
     setDraft((current) => (current ? { ...current, ...patch } : current))
+  }
+
+  function patchOdometer(
+    field: 'odometer_start' | 'odometer_end',
+    value: string,
+  ) {
+    if (!draft) return
+    const next = { ...draft, [field]: value }
+    patchDraft({ [field]: value })
+    const rangeError = odometerRangeError(next.odometer_start, next.odometer_end)
+    setErrors((current) => ({
+      ...current,
+      odometer_start: undefined,
+      odometer_end: rangeError,
+    }))
   }
 
   async function onSaveDraft() {
@@ -201,7 +217,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   isolate
                 />
                 <LedgerRow
-                  label="קמ התחלה"
+                  label='ק"מ התחלה'
                   value={
                     draft.odometer_start
                       ? formatNumber(Number(draft.odometer_start))
@@ -210,7 +226,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   numeric
                 />
                 <LedgerRow
-                  label="קמ סיום"
+                  label='ק"מ סיום'
                   value={
                     draft.odometer_end ? formatNumber(Number(draft.odometer_end)) : undefined
                   }
@@ -246,28 +262,22 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   }}
                 />
                 <TextField
-                  label="קמ התחלה"
+                  label='ק"מ התחלה'
                   required
                   numeric
                   inputMode="decimal"
                   value={draft.odometer_start}
                   error={errors.odometer_start}
-                  onChange={(event) => {
-                    patchDraft({ odometer_start: event.target.value })
-                    setErrors((current) => ({ ...current, odometer_start: undefined }))
-                  }}
+                  onChange={(event) => patchOdometer('odometer_start', event.target.value)}
                 />
                 <TextField
-                  label="קמ סיום"
+                  label='ק"מ סיום'
                   required
                   numeric
                   inputMode="decimal"
                   value={draft.odometer_end}
                   error={errors.odometer_end}
-                  onChange={(event) => {
-                    patchDraft({ odometer_end: event.target.value })
-                    setErrors((current) => ({ ...current, odometer_end: undefined }))
-                  }}
+                  onChange={(event) => patchOdometer('odometer_end', event.target.value)}
                 />
                 <TextField
                   label="נתיב נסיעה"

@@ -80,8 +80,8 @@
 | שם כונן ואו״ק | `responder_id` | Shift-lead (multi from users) |
 | לוחית רישוי | `vehicle_plate` | Responder |
 | קילומטרים | `total_km` | Shift-lead |
-| קמ התחלה | `odometer_start` | Responder |
-| קמ סיום | `odometer_end` | Responder |
+| ק"מ התחלה | `odometer_start` | Responder |
+| ק"מ סיום | `odometer_end` | Responder |
 | נתיב נסיעה | `route` | Responder |
 | פירוט הטיפול | `treatment_detail` | Responder |
 | רכבים שטופלו | via `event_treated_vehicles` | Shift-lead |

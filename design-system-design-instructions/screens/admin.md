@@ -1,11 +1,11 @@
 # Screen — Admin (ניהול): Users, Vehicles, Roles, Closed Lists
 
-The unit's registry office. Admin-only. Two areas: `משתמשים` and `רשימות` (closed lists). Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
+The unit's registry office. Admin-only. Two areas: `משתמשים` and `הגדרות` (closed lists). Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
 
 ## Navigation
 
-- Desktop sidebar section `ניהול`: items `משתמשים`, `רשימות`.
-- Mobile: tab `ניהול` → segmented control at top (two segments, secondary-chip style): `משתמשים` | `רשימות`.
+- Desktop sidebar section `ניהול`: items `משתמשים`, `הגדרות`.
+- Mobile: tab `ניהול` → segmented control at top (two segments, secondary-chip style): `משתמשים` | `הגדרות`.
 
 ## משתמשים (Users)
 
@@ -28,7 +28,7 @@ Actions: primary `שמירת משתמש` / secondary `ביטול`. New-user succ
 
 Deactivation (not deletion) via overflow menu: `השבתת משתמש` → confirm `להשבית את המשתמש? הוא לא יוכל להתחבר, והנתונים ההיסטוריים יישמרו.`
 
-## רשימות (Closed lists)
+## הגדרות (Closed lists)
 
 Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כבישים` · `סוגי רכב לטיפול`.
 

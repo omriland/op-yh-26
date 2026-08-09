@@ -849,7 +849,7 @@ export function EventFormPage({
                               </div>
                               {lookups.vehicleKinds.length === 0 ? (
                                 <p className="t-caption text-muted">
-                                  אין סוגי רכב ברשימה הסגורה. הוסיפו פריטים במסך רשימות.
+                                  אין סוגי רכב ברשימה הסגורה. הוסיפו פריטים במסך הגדרות.
                                 </p>
                               ) : null}
                             </div>

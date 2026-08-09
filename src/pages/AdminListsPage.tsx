@@ -126,7 +126,7 @@ export function AdminListsPage() {
       {showPicker ? (
         <>
           <div className="row-between" style={{ marginBlockEnd: 'var(--space-2)' }}>
-            <h1 className="t-title">רשימות</h1>
+            <h1 className="t-title">הגדרות</h1>
           </div>
           <div className="stack-3">
             {CLOSED_LISTS.map((list) => (
@@ -145,7 +145,7 @@ export function AdminListsPage() {
       ) : (
         <div className={['lists-layout', isDesktop ? 'lists-layout--desktop' : ''].join(' ')}>
           {isDesktop ? (
-            <nav className="lists-nav" aria-label="רשימות סגורות">
+            <nav className="lists-nav" aria-label="הגדרות">
               {CLOSED_LISTS.map((list) => (
                 <button
                   key={list.key}
@@ -165,7 +165,7 @@ export function AdminListsPage() {
               <div className="lists-title-row">
                 {!isDesktop ? (
                   <IconButton
-                    label="חזרה לרשימות"
+                    label="חזרה להגדרות"
                     variant="ghost"
                     onClick={() => {
                       setSelectedKey(null)
@@ -176,7 +176,7 @@ export function AdminListsPage() {
                     <ArrowRight size={20} strokeWidth={1.75} />
                   </IconButton>
                 ) : null}
-                <h1 className="t-title">{selectedMeta?.label ?? 'רשימות'}</h1>
+                <h1 className="t-title">{selectedMeta?.label ?? 'הגדרות'}</h1>
               </div>
               {isDesktop ? (
                 <Button
