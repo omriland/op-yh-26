@@ -499,14 +499,7 @@ export function AdminUsersPage() {
                     setDraft(draftFromUser(user))
                   }}
                 >
-                  <td>
-                    <div className="stack-1">
-                      <span>{user.full_name}</span>
-                      {isInvitePending(user) ? (
-                        <span className="tag tag--pending">ממתין להרשמה</span>
-                      ) : null}
-                    </div>
-                  </td>
+                  <td>{user.full_name}</td>
                   <td className={monoClass(user.callsign)}>{user.callsign}</td>
                   <td>
                     <span className="ltr">{user.email}</span>
