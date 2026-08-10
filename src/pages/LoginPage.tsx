@@ -299,8 +299,15 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
               />
 
               <div className="login-setup__success">
-                <StampChip label="נשמר" tone="done" />
-                <h2 className="t-section">הסיסמה נשמרה</h2>
+                <StampChip
+                  label={
+                    passwordSetupReason === 'recovery' ? 'נשמר' : 'משתמש נוצר בהצלחה'
+                  }
+                  tone="done"
+                />
+                <h2 className="t-section">
+                  {passwordSetupReason === 'recovery' ? 'הסיסמה נשמרה' : 'ההרשמה הושלמה'}
+                </h2>
                 <p className="t-body" role="status">
                   {passwordSetupReason === 'recovery'
                     ? 'הסיסמה עודכנה בהצלחה. אפשר להמשיך למערכת.'

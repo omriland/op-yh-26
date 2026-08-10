@@ -208,7 +208,7 @@ export function AdminUsersPage() {
           setFormError(result.error)
           return
         }
-        show(result.message ?? 'המשתמש נוצר ונשלחה הזמנה בדוא״ל', 'done')
+        show(result.message ?? 'משתמש נוצר בהצלחה', 'done')
       } else {
         const result = await saveAdminUser({
           id: draft.id,

@@ -431,6 +431,6 @@ async function handleInvite(
   return json(200, {
     ok: true,
     user_id: userId,
-    message: "המשתמש נוצר ונשלחה הזמנה בדוא״ל",
+    message: "משתמש נוצר בהצלחה",
   });
 }
