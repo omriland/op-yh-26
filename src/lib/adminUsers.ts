@@ -1,4 +1,5 @@
 import type { AppRole } from './auth'
+import { compareAdminUsers } from './adminUserStatus'
 import { findDuplicatePlate, phoneDigits, plateDigits } from './format'
 import { supabase } from './supabase'
 
@@ -17,6 +18,8 @@ export type AdminUserRow = {
   phone: string | null
   active: boolean
   last_sign_in_at: string | null
+  /** Null until the invitee finishes registration (Auth email confirmed). */
+  email_confirmed_at: string | null
   roles: AppRole[]
   vehicles: AdminVehicle[]
 }
@@ -86,35 +89,49 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     supabase.rpc('admin_list_last_sign_in'),
   ])
 
-  const lastSignInByUser = new Map(
-    ((loginRows ?? []) as { user_id: string; last_sign_in_at: string | null }[]).map(
-      (row) => [row.user_id, row.last_sign_in_at],
-    ),
+  const authByUser = new Map(
+    (
+      (loginRows ?? []) as {
+        user_id: string
+        last_sign_in_at: string | null
+        email_confirmed_at: string | null
+      }[]
+    ).map((row) => [
+      row.user_id,
+      {
+        last_sign_in_at: row.last_sign_in_at,
+        email_confirmed_at: row.email_confirmed_at,
+      },
+    ]),
   )
 
-  const rows = (profiles ?? []).map((profile) => ({
-    id: profile.id,
-    full_name: profile.full_name,
-    email: profile.email,
-    callsign: profile.callsign,
-    phone: profile.phone,
-    active: profile.active !== false,
-    last_sign_in_at: lastSignInByUser.get(profile.id) ?? null,
-    roles: (roleRows ?? [])
-      .filter((row) => row.user_id === profile.id)
-      .map((row) => row.role as AppRole),
-    vehicles: (vehicleRows ?? [])
-      .filter((row) => row.user_id === profile.id)
-      .map((row) => ({
-        id: row.id as string,
-        plate_number: row.plate_number as string,
-        model: row.model as string,
-        archived: Boolean(row.archived),
-      })),
-  }))
+  const rows = (profiles ?? []).map((profile) => {
+    const auth = authByUser.get(profile.id)
+    return {
+      id: profile.id,
+      full_name: profile.full_name,
+      email: profile.email,
+      callsign: profile.callsign,
+      phone: profile.phone,
+      active: profile.active !== false,
+      last_sign_in_at: auth?.last_sign_in_at ?? null,
+      email_confirmed_at: auth?.email_confirmed_at ?? null,
+      roles: (roleRows ?? [])
+        .filter((row) => row.user_id === profile.id)
+        .map((row) => row.role as AppRole),
+      vehicles: (vehicleRows ?? [])
+        .filter((row) => row.user_id === profile.id)
+        .map((row) => ({
+          id: row.id as string,
+          plate_number: row.plate_number as string,
+          model: row.model as string,
+          archived: Boolean(row.archived),
+        })),
+    }
+  })
 
-  // Active users first (name order from the query); מושבתים at the end.
-  return rows.sort((a, b) => Number(b.active) - Number(a.active))
+  // Pending invitees → active confirmed → מושבתים; name within group.
+  return rows.sort(compareAdminUsers)
 }
 
 export function inviteAdminUser(input: InviteUserInput) {
@@ -136,6 +153,14 @@ export function setAdminUserActive(userId: string, active: boolean) {
 export function deleteAdminUser(userId: string) {
   return callAdminUsers({
     action: 'delete',
+    user_id: userId,
+  })
+}
+
+/** Regenerate invite link and resend the invite email (pending invitees only). */
+export function resendAdminInvite(userId: string) {
+  return callAdminUsers({
+    action: 'resend_invite',
     user_id: userId,
   })
 }

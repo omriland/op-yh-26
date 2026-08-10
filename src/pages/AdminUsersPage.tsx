@@ -6,11 +6,13 @@ import {
   deleteAdminVehicle,
   fetchAdminUsers,
   inviteAdminUser,
+  resendAdminInvite,
   saveAdminUser,
   setAdminUserActive,
   unarchiveAdminVehicle,
   type AdminUserRow,
 } from '../lib/adminUsers'
+import { isInvitePending } from '../lib/adminUserStatus'
 import { useAuth, type AppRole } from '../lib/auth'
 import {
   findDuplicatePlate,
@@ -260,6 +262,16 @@ export function AdminUsersPage() {
     setReloadKey((value) => value + 1)
   }
 
+  async function resendInvite(target: AdminUserRow) {
+    setMenuUserId(null)
+    const result = await resendAdminInvite(target.id)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    show(result.message ?? 'ההזמנה נשלחה מחדש.', 'done')
+  }
+
   async function confirmDeleteUser() {
     if (!confirmDelete) return
     const target = confirmDelete
@@ -487,7 +499,14 @@ export function AdminUsersPage() {
                     setDraft(draftFromUser(user))
                   }}
                 >
-                  <td>{user.full_name}</td>
+                  <td>
+                    <div className="stack-1">
+                      <span>{user.full_name}</span>
+                      {isInvitePending(user) ? (
+                        <span className="tag tag--pending">ממתין להרשמה</span>
+                      ) : null}
+                    </div>
+                  </td>
                   <td className={monoClass(user.callsign)}>{user.callsign}</td>
                   <td>
                     <span className="ltr">{user.email}</span>
@@ -515,7 +534,9 @@ export function AdminUsersPage() {
                     {user.vehicles.filter((vehicle) => !vehicle.archived).length}
                   </td>
                   <td>
-                    {user.last_sign_in_at ? (
+                    {isInvitePending(user) ? (
+                      <span className="text-muted">ממתין להרשמה</span>
+                    ) : user.last_sign_in_at ? (
                       formatLastLogin(user.last_sign_in_at)
                     ) : (
                       <span className="text-muted">טרם התחבר</span>
@@ -533,6 +554,14 @@ export function AdminUsersPage() {
                             setDraft(draftFromUser(user))
                           },
                         },
+                        ...(isInvitePending(user)
+                          ? [
+                              {
+                                label: 'שליחת הזמנה מחדש',
+                                onSelect: () => void resendInvite(user),
+                              },
+                            ]
+                          : []),
                         user.active
                           ? {
                               label: 'השבתת משתמש',
@@ -585,6 +614,9 @@ export function AdminUsersPage() {
                     {ROLE_LABEL[role]}
                   </span>
                 ))}
+                {isInvitePending(user) ? (
+                  <span className="tag tag--pending">ממתין להרשמה</span>
+                ) : null}
                 {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
               </div>
               <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>

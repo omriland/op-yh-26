@@ -25,7 +25,12 @@ type DeleteBody = {
   user_id: string;
 };
 
-type RequestBody = InviteBody | DeactivateBody | DeleteBody;
+type ResendInviteBody = {
+  action: "resend_invite";
+  user_id: string;
+};
+
+type RequestBody = InviteBody | DeactivateBody | DeleteBody | ResendInviteBody;
 
 const ALLOWED_ROLES: AppRole[] = ["admin", "shift_lead", "responder"];
 
@@ -107,6 +112,10 @@ Deno.serve(async (req: Request) => {
 
   if (body.action === "invite") {
     return handleInvite(adminClient, body);
+  }
+
+  if (body.action === "resend_invite") {
+    return handleResendInvite(adminClient, body);
   }
 
   return json(400, { error: "פעולה לא מוכרת." });
@@ -222,6 +231,100 @@ async function handleDeleteUser(
   }
 
   return json(200, { ok: true, message: "המשתמש נמחק." });
+}
+
+function buildInviteActionLink(
+  hashedToken: string,
+  verificationType: string,
+  redirectBase: string,
+): string {
+  const inviteUrl = new URL(redirectBase);
+  inviteUrl.searchParams.set("set_password", "1");
+  inviteUrl.searchParams.set("type", verificationType);
+  inviteUrl.searchParams.set("token_hash", hashedToken);
+  return inviteUrl.toString();
+}
+
+async function handleResendInvite(
+  adminClient: ReturnType<typeof createClient>,
+  body: ResendInviteBody,
+) {
+  const userId = trim(body.user_id);
+  if (!userId) {
+    return json(400, { error: "חסר מזהה משתמש." });
+  }
+
+  const { data: authData, error: authError } = await adminClient.auth.admin.getUserById(userId);
+  if (authError || !authData.user) {
+    return json(404, { error: "המשתמש לא נמצא." });
+  }
+
+  const authUser = authData.user;
+  if (authUser.email_confirmed_at) {
+    return json(400, { error: "המשתמש כבר השלים הרשמה. אין צורך בהזמנה מחדש." });
+  }
+
+  const email = (authUser.email ?? "").trim().toLowerCase();
+  if (!email) {
+    return json(400, { error: "למשתמש אין כתובת דוא״ל." });
+  }
+
+  const { data: profile, error: profileError } = await adminClient
+    .from("profiles")
+    .select("full_name, callsign, phone, active")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return json(404, { error: "הפרופיל לא נמצא." });
+  }
+
+  if (profile.active === false) {
+    return json(400, { error: "לא ניתן לשלוח הזמנה למשתמש מושבת. הפעילו אותו תחילה." });
+  }
+
+  const redirectBase = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
+  const fullName = trim(profile.full_name) || email;
+  const callsign = trim(profile.callsign);
+  const phone = trim(profile.phone ?? "") || "";
+
+  const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: {
+      data: {
+        full_name: fullName,
+        callsign,
+        phone,
+      },
+      redirectTo: redirectBase,
+    },
+  });
+
+  if (linkError) {
+    const message = linkError.message?.toLowerCase() ?? "";
+    if (message.includes("rate limit")) {
+      return json(429, { error: "נשלחו יותר מדי הזמנות. נסו שוב בעוד כמה דקות." });
+    }
+    return json(400, {
+      error: "יצירת קישור ההזמנה נכשלה. נסו שוב.",
+      detail: linkError.message,
+    });
+  }
+
+  const hashedToken = linkData.properties.hashed_token;
+  if (!hashedToken) {
+    return json(500, { error: "יצירת קישור ההזמנה נכשלה." });
+  }
+
+  const verificationType = linkData.properties.verification_type || "invite";
+  const actionLink = buildInviteActionLink(hashedToken, verificationType, redirectBase);
+  const mail = await sendInviteEmail(email, fullName, actionLink);
+  if (mail.error) {
+    return json(400, { error: mail.error, detail: mail.detail });
+  }
+
+  return json(200, { ok: true, message: "ההזמנה נשלחה מחדש." });
 }
 
 async function sendInviteEmail(to: string, fullName: string, actionLink: string) {
@@ -375,11 +478,7 @@ async function handleInvite(
 
   // Prefer Auth's verification_type so the SPA's verifyOtp matches the token.
   const verificationType = linkData.properties.verification_type || "invite";
-  const inviteUrl = new URL(redirectBase);
-  inviteUrl.searchParams.set("set_password", "1");
-  inviteUrl.searchParams.set("type", verificationType);
-  inviteUrl.searchParams.set("token_hash", hashedToken);
-  const actionLink = inviteUrl.toString();
+  const actionLink = buildInviteActionLink(hashedToken, verificationType, redirectBase);
 
   const mail = await sendInviteEmail(email, fullName, actionLink);
   if (mail.error) {
