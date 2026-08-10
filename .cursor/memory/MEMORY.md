@@ -90,10 +90,19 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Nav: personal top, כלים לאחמ״ש, ניהול; desktop sidebar on all list views
 
 
+## Fuel refund report (design approved 2026-08-10)
+
+- Spec: `docs/superpowers/specs/2026-08-10-yahpaz-fuel-refund-report-design.md`
+- Admin-only page **החזר דלק**; date range on `event_date`; all active users as rows
+- Source: `done` `event_responders` only (not shifts); client-side aggregation
+- Columns: sum km, chronological first `odometer_start`, last `odometer_end`, event count
+- Out of scope v1: money math, CSV, shift km, RPC/schema
+
 ## Open / next
 
 1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
-2. Later: add/verify `yahpz.com` on Resend when plan allows
+2. Implement fuel refund report per approved design
+3. Later: add/verify `yahpz.com` on Resend when plan allows
 
 ## Netlify CD
 
