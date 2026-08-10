@@ -137,10 +137,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setProfile(null)
         setRoles([])
-        if (event === 'SIGNED_OUT') {
-          clearPasswordSetupIntent()
-          setPasswordSetupReason(null)
-        }
+        // Do not clear password-setup intent on SIGNED_OUT. Invite verifyOtp
+        // signs out any prior session first; clearing here dropped users on the
+        // normal login screen (especially in a clean/incognito browser).
       }
       setLoading(false)
     })

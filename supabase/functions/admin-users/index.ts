@@ -373,9 +373,11 @@ async function handleInvite(
     return json(500, { error: "יצירת קישור ההזמנה נכשלה." });
   }
 
+  // Prefer Auth's verification_type so the SPA's verifyOtp matches the token.
+  const verificationType = linkData.properties.verification_type || "invite";
   const inviteUrl = new URL(redirectBase);
   inviteUrl.searchParams.set("set_password", "1");
-  inviteUrl.searchParams.set("type", "invite");
+  inviteUrl.searchParams.set("type", verificationType);
   inviteUrl.searchParams.set("token_hash", hashedToken);
   const actionLink = inviteUrl.toString();
 

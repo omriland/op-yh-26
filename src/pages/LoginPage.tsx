@@ -26,6 +26,7 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
     acknowledgePasswordSetup,
     passwordSetupReason,
     authBootstrapError,
+    session,
     profile,
     signOut,
   } = useAuth()
@@ -257,10 +258,22 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                 />
               </div>
 
-              <FormError message={error} />
+              <FormError message={error ?? authBootstrapError} />
+
+              {!session && !authBootstrapError ? (
+                <p className="t-body text-secondary" role="status">
+                  מאמתים את ההזמנה…
+                </p>
+              ) : null}
 
               <div className="login__actions">
-                <Button type="submit" block loading={busy} loadingLabel="שומר…">
+                <Button
+                  type="submit"
+                  block
+                  loading={busy}
+                  loadingLabel="שומר…"
+                  disabled={!session || Boolean(authBootstrapError)}
+                >
                   שמירת סיסמה
                 </Button>
                 <div className="login__links">

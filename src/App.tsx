@@ -114,7 +114,9 @@ function Gate() {
     )
   }
 
-  if (session && passwordSetupReason) {
+  // Invite/recovery gate is driven by intent, not by an existing session.
+  // verifyOtp may still be binding the session; never fall through to sign-in.
+  if (passwordSetupReason) {
     return <LoginPage forceSetPassword />
   }
 
