@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle, KeyRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { monoClass } from '../lib/format'
@@ -14,6 +14,7 @@ type LoginPageProps = {
   forceSetPassword?: boolean
 }
 
+const PLATFORM_NAME = 'אבן דרך'
 const UNIT_LINE = 'היחידה הארצית לפינוי צירים'
 
 export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
@@ -94,109 +95,126 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
     passwordSetupReason === 'recovery' ? 'איפוס גישה' : 'השלמת הרשמה'
 
   return (
-    <div className={['login', isSetupFlow ? 'login--setup' : ''].filter(Boolean).join(' ')}>
-      <section className="login__hero" data-theme="command">
-        <h1 className="t-display">יחפ״צ</h1>
-        <p className="t-body text-secondary">{UNIT_LINE}</p>
-        <span className="login__rule" aria-hidden="true" />
-      </section>
+    <div
+      className={['login', isSetupFlow ? 'login--setup' : ''].filter(Boolean).join(' ')}
+      data-theme="command"
+    >
+      <div className="login__stage">
+        <header className="login__masthead" aria-label={PLATFORM_NAME}>
+          <div className="login__lockup">
+            <h1 className="login__wordmark">{PLATFORM_NAME}</h1>
+            <span className="login__divider" aria-hidden="true" />
+            <p className="login__unit">{UNIT_LINE}</p>
+          </div>
+        </header>
 
-      <section className="login__panel" data-theme="field">
-        <div className={['login__card', isSetupFlow ? 'login__card--setup' : '', 'stack-4'].join(' ')}>
+        <div
+          className={['login__card', isSetupFlow ? 'login__card--setup' : ''].join(' ')}
+          data-theme="field"
+        >
           {mode === 'signin' ? (
-            <form className="stack-4" onSubmit={onSignIn} noValidate>
-              <h2 className="t-section">כניסה למערכת</h2>
+            <form className="login__form" onSubmit={onSignIn} noValidate>
+              <FormHeading>כניסה למערכת</FormHeading>
 
-              <TextField
-                label="דוא״ל"
-                type="email"
-                autoComplete="email"
-                inputMode="email"
-                isolate
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
+              <div className="login__fields">
+                <TextField
+                  label="דוא״ל"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  isolate
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
 
-              <PasswordField
-                label="סיסמה"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
+                <PasswordField
+                  label="סיסמה"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </div>
 
-              {error ? (
-                <p className="alert alert--error" role="alert">
-                  <AlertCircle size={20} strokeWidth={1.75} aria-hidden="true" />
-                  {error}
-                </p>
-              ) : null}
+              <FormError message={error} />
 
-              <Button type="submit" block loading={busy} loadingLabel="נכנס…">
-                כניסה
-              </Button>
-
-              <Button variant="ghost" block onClick={() => goTo('reset')}>
-                שכחתי סיסמה
-              </Button>
+              <div className="login__actions">
+                <Button type="submit" block loading={busy} loadingLabel="נכנס…">
+                  כניסה
+                </Button>
+                <div className="login__links">
+                  <Button variant="ghost" onClick={() => goTo('reset')}>
+                    שכחתי סיסמה
+                  </Button>
+                </div>
+              </div>
             </form>
           ) : null}
 
           {mode === 'reset' ? (
-            <form className="stack-4" onSubmit={onReset} noValidate>
-              <h2 className="t-section">איפוס סיסמה</h2>
-              <p className="t-body text-secondary">
+            <form className="login__form" onSubmit={onReset} noValidate>
+              <FormHeading>איפוס סיסמה</FormHeading>
+
+              <p className="login__lede t-body text-secondary">
                 הזינו את כתובת הדוא״ל שלכם ונשלח אליה קישור לאיפוס הסיסמה.
               </p>
 
-              <TextField
-                label="דוא״ל"
-                type="email"
-                autoComplete="email"
-                inputMode="email"
-                isolate
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
+              <div className="login__fields">
+                <TextField
+                  label="דוא״ל"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  isolate
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
 
-              {error ? (
-                <p className="alert alert--error" role="alert">
-                  <AlertCircle size={20} strokeWidth={1.75} aria-hidden="true" />
-                  {error}
-                </p>
-              ) : null}
+              <FormError message={error} />
 
-              <Button type="submit" block loading={busy} loadingLabel="שולח…">
-                שליחת קישור לאיפוס
-              </Button>
-
-              <Button variant="ghost" block onClick={() => goTo('signin')}>
-                חזרה לכניסה
-              </Button>
+              <div className="login__actions">
+                <Button type="submit" block loading={busy} loadingLabel="שולח…">
+                  שליחת קישור לאיפוס
+                </Button>
+                <div className="login__links">
+                  <Button variant="ghost" onClick={() => goTo('signin')}>
+                    חזרה לכניסה
+                  </Button>
+                </div>
+              </div>
             </form>
           ) : null}
 
           {mode === 'reset-sent' ? (
-            <div className="stack-4">
-              <h2 className="t-section">איפוס סיסמה</h2>
-              <p className="t-body">קישור לאיפוס סיסמה נשלח אל הכתובת שהזנתם.</p>
-              <Button variant="ghost" block onClick={() => goTo('signin')}>
-                חזרה לכניסה
-              </Button>
+            <div className="login__form">
+              <FormHeading>איפוס סיסמה</FormHeading>
+
+              <p className="alert alert--info" role="status">
+                קישור לאיפוס סיסמה נשלח אל הכתובת שהזנתם.
+              </p>
+
+              <div className="login__actions">
+                <div className="login__links">
+                  <Button variant="ghost" onClick={() => goTo('signin')}>
+                    חזרה לכניסה
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : null}
 
           {mode === 'set-password' ? (
-            <form className="stack-6" onSubmit={onSetPassword} noValidate>
+            <form className="login__form login__form--setup" onSubmit={onSetPassword} noValidate>
               <SetupWelcome
                 eyebrow={setupEyebrow}
                 name={displayName}
                 callsign={callsign}
               />
 
-              <div className="login-setup__intro stack-2">
+              <div className="login-setup__intro">
                 <div className="login-setup__title-row">
                   <span className="login-setup__icon" aria-hidden="true">
                     <KeyRound size={22} strokeWidth={1.75} />
@@ -206,7 +224,7 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                 <p className="t-body text-secondary">{setPasswordBody}</p>
               </div>
 
-              <div className="stack-4">
+              <div className="login__fields">
                 <PasswordField
                   label="סיסמה חדשה"
                   autoComplete="new-password"
@@ -224,62 +242,77 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                 />
               </div>
 
-              {error ? (
-                <p className="alert alert--error" role="alert">
-                  <AlertCircle size={20} strokeWidth={1.75} aria-hidden="true" />
-                  {error}
-                </p>
-              ) : null}
+              <FormError message={error} />
 
-              <div className="stack-3">
+              <div className="login__actions">
                 <Button type="submit" block loading={busy} loadingLabel="שומר…">
                   שמירת סיסמה
                 </Button>
-
-                <Button
-                  variant="ghost"
-                  block
-                  onClick={() => {
-                    void signOut()
-                  }}
-                >
-                  יציאה
-                </Button>
+                <div className="login__links">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      void signOut()
+                    }}
+                  >
+                    יציאה
+                  </Button>
+                </div>
               </div>
             </form>
           ) : null}
 
           {mode === 'password-set' ? (
-            <div className="stack-6">
+            <div className="login__form login__form--setup">
               <SetupWelcome
                 eyebrow="ההרשמה הושלמה"
                 name={displayName}
                 callsign={callsign}
               />
 
-              <div className="login-setup__success stack-3">
+              <div className="login-setup__success">
                 <StampChip label="נשמר" tone="done" />
                 <h2 className="t-section">הסיסמה נשמרה</h2>
                 <p className="t-body" role="status">
                   {passwordSetupReason === 'recovery'
                     ? 'הסיסמה עודכנה בהצלחה. אפשר להמשיך למערכת.'
-                    : 'ברוכים הבאים ליחפ״צ. ההרשמה הושלמה — אפשר להמשיך למערכת.'}
+                    : `ברוכים הבאים ל${PLATFORM_NAME}. ההרשמה הושלמה — אפשר להמשיך למערכת.`}
                 </p>
               </div>
 
-              <Button
-                block
-                onClick={() => {
-                  acknowledgePasswordSetup()
-                }}
-              >
-                המשך למערכת
-              </Button>
+              <div className="login__actions">
+                <Button
+                  block
+                  onClick={() => {
+                    acknowledgePasswordSetup()
+                  }}
+                >
+                  המשך למערכת
+                </Button>
+              </div>
             </div>
           ) : null}
         </div>
-      </section>
+      </div>
     </div>
+  )
+}
+
+function FormHeading({ children }: { children: ReactNode }) {
+  return (
+    <header className="login__form-head form-section">
+      <h2 className="form-section__heading login__heading">{children}</h2>
+    </header>
+  )
+}
+
+function FormError({ message }: { message: string | null }) {
+  if (!message) return null
+  return (
+    <p className="alert alert--error" role="alert">
+      <AlertCircle size={20} strokeWidth={1.75} aria-hidden="true" />
+      {message}
+    </p>
   )
 }
 

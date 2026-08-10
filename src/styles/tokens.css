@@ -51,11 +51,12 @@
   --amber-command: #e0b05c;
 
   /* ---- Typography: full stacks only, never a bare family name ---- */
-  /* Display/titles share the UI face (Plex Sans Hebrew) — no separate serif letterhead. */
+  /* Display/titles share the UI face (Plex Sans Hebrew). Brand mark is Suez One only. */
   --font-display: 'IBM Plex Sans Hebrew', 'Heebo', 'Segoe UI', 'Arial Hebrew', 'Noto Sans Hebrew',
     sans-serif;
   --font-ui: 'IBM Plex Sans Hebrew', 'Heebo', 'Segoe UI', 'Arial Hebrew', 'Noto Sans Hebrew',
     sans-serif;
+  --font-brand: 'Suez One', 'Frank Ruhl Libre', 'Times New Roman', 'Noto Serif Hebrew', serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* ---- Spacing (4px base) ---- */

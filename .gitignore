@@ -15,6 +15,7 @@ dist-ssr
 *.local
 .netlify
 .playwright-mcp/
+.superpowers/
 supabase/.temp/
 
 # Editor directories and files

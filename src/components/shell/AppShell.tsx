@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ClipboardList, ListChecks, ListTree, LogOut, UserRound, Users } from 'lucide-react'
 import { useAuth } from '../../lib/auth'
-import { useIsDesktop } from '../../lib/useMediaQuery'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 
@@ -76,11 +75,9 @@ function TopAppBar({
   onHome: () => void
 }) {
   const { profile, signOut } = useAuth()
-  const isDesktop = useIsDesktop()
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const wordmark = isDesktop ? 'היחידה הארצית לפינוי צירים' : 'יחפ״צ'
 
   useEffect(() => {
     if (!open) return
@@ -107,11 +104,13 @@ function TopAppBar({
     <header className="appbar" data-theme="command">
       <button
         type="button"
-        className={['appbar__wordmark', isDesktop ? 'appbar__wordmark--full' : ''].join(' ')}
+        className="appbar__brand"
         onClick={onHome}
         aria-label="חזרה למסך הראשי"
       >
-        {wordmark}
+        <span className="appbar__system">אבן דרך</span>
+        <span className="appbar__brand-rule" aria-hidden="true" />
+        <span className="appbar__unit">היחידה הארצית לפינוי צירים</span>
       </button>
       <div className="menu-anchor" ref={anchorRef}>
         <button
