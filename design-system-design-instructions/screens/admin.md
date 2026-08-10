@@ -4,8 +4,12 @@ The unit's registry office. Admin-only. Two areas: `משתמשים` and `הגד�
 
 ## Navigation
 
-- Desktop sidebar section `ניהול`: items `משתמשים`, `הגדרות`.
-- Mobile: tab `ניהול` → segmented control at top (two segments, secondary-chip style): `משתמשים` | `הגדרות`.
+- Desktop sidebar section `ניהול`: items `משתמשים`, `החזר דלק`, `הגדרות`.
+- Mobile tab bar (admin): `משתמשים` only among admin destinations; segmented control at top for `משתמשים` | `החזר דלק` | `הגדרות`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `משתמשים` (role-gated). Profile via app-bar menu.
+
+## החזר דלק (Fuel refund)
+
+Admin-only report. Date range (`מתאריך` / `עד תאריך`) on event **`created_at`** (when reported). Table of all active users: קילומטרים (`total_km` only) · אירועים. Odometers are not shown. See spec `docs/superpowers/specs/2026-08-10-yahpaz-fuel-refund-report-design.md`.
 
 ## משתמשים (Users)
 

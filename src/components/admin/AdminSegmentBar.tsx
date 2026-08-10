@@ -1,33 +1,32 @@
-type AdminSegment = 'users' | 'lists'
+type AdminSegment = 'users' | 'fuel_refund' | 'lists'
 
 type AdminSegmentBarProps = {
   view: AdminSegment
   onChange: (view: AdminSegment) => void
 }
 
+const SEGMENTS: { id: AdminSegment; label: string }[] = [
+  { id: 'users', label: 'משתמשים' },
+  { id: 'fuel_refund', label: 'החזר דלק' },
+  { id: 'lists', label: 'הגדרות' },
+]
+
 export function AdminSegmentBar({ view, onChange }: AdminSegmentBarProps) {
   return (
     <div className="chips admin-segments" role="tablist" aria-label="ניהול">
-      <button
-        type="button"
-        role="tab"
-        className="chip"
-        aria-selected={view === 'users'}
-        aria-pressed={view === 'users'}
-        onClick={() => onChange('users')}
-      >
-        משתמשים
-      </button>
-      <button
-        type="button"
-        role="tab"
-        className="chip"
-        aria-selected={view === 'lists'}
-        aria-pressed={view === 'lists'}
-        onClick={() => onChange('lists')}
-      >
-        הגדרות
-      </button>
+      {SEGMENTS.map((segment) => (
+        <button
+          key={segment.id}
+          type="button"
+          role="tab"
+          className="chip"
+          aria-selected={view === segment.id}
+          aria-pressed={view === segment.id}
+          onClick={() => onChange(segment.id)}
+        >
+          {segment.label}
+        </button>
+      ))}
     </div>
   )
 }

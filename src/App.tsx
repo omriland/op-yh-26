@@ -8,6 +8,7 @@ import { EventListSkeleton } from './components/ui/Skeleton'
 import { ToastProvider } from './components/ui/Toast'
 import { AdminListsPage } from './pages/AdminListsPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
+import { FuelRefundPage } from './pages/FuelRefundPage'
 import { EventDetailPage } from './pages/EventDetailPage'
 import { EventFormPage } from './pages/EventFormPage'
 import { EventsPage } from './pages/EventsPage'
@@ -17,6 +18,7 @@ import { ResponderFillPage } from './pages/ResponderFillPage'
 import { ShiftDetailPage } from './pages/ShiftDetailPage'
 import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
+import { ExceptionsPage } from './pages/ExceptionsPage'
 import { ShieldAlert } from 'lucide-react'
 import { Button } from './components/ui/Button'
 
@@ -73,6 +75,15 @@ function Gate() {
         icon: NAV_ICONS.shifts,
         section: 'כלים לאחמ״ש',
       })
+      // Desktop sidebar only — not on the mobile tab bar.
+      if (isDesktop) {
+        list.push({
+          view: 'exceptions',
+          label: 'חריגים',
+          icon: NAV_ICONS.exceptions,
+          section: 'כלים לאחמ״ש',
+        })
+      }
     }
 
     if (isAdmin) {
@@ -84,25 +95,61 @@ function Gate() {
           section: 'ניהול',
         })
         list.push({
+          view: 'fuel_refund',
+          label: 'החזר דלק',
+          icon: NAV_ICONS.fuel_refund,
+          section: 'ניהול',
+        })
+        list.push({
           view: 'lists',
           label: 'הגדרות',
           icon: NAV_ICONS.lists,
           section: 'ניהול',
         })
       } else {
+        // Mobile tab bar: משתמשים only; fuel/lists via segment control.
         list.push({
           view: 'users',
-          label: 'ניהול',
+          label: 'משתמשים',
           icon: NAV_ICONS.users,
-          section: 'ניהול',
-          alsoCurrentFor: ['lists'],
+          alsoCurrentFor: ['lists', 'fuel_refund'],
         })
       }
     }
 
-    list.push({ view: 'profile', label: 'פרופיל', icon: NAV_ICONS.profile })
+    // Profile: desktop sidebar only — mobile uses the app-bar user menu.
+    if (isDesktop) {
+      list.push({ view: 'profile', label: 'פרופיל', icon: NAV_ICONS.profile })
+    }
+
     return list
   }, [manages, hasMineList, isAdmin, isDesktop])
+
+  function isAllowedView(next: AppView): boolean {
+    switch (next) {
+      case 'mine':
+      case 'my_shifts':
+        return hasMineList
+      case 'events':
+      case 'shifts':
+      case 'exceptions':
+        return manages
+      case 'users':
+      case 'fuel_refund':
+      case 'lists':
+        return isAdmin
+      case 'profile':
+        return true
+    }
+  }
+
+  const fallbackView: AppView = hasMineList
+    ? 'mine'
+    : manages
+      ? 'events'
+      : isAdmin
+        ? 'users'
+        : 'profile'
 
   if (loading) {
     return (
@@ -122,20 +169,21 @@ function Gate() {
 
   if (!session) return <LoginPage />
 
-  const activeView: AppView = entries.some(
-    (entry) => entry.view === view || entry.alsoCurrentFor?.includes(view),
-  )
-    ? view
-    : (entries[0]?.view ?? 'profile')
+  // Role allowlist — not nav entries — so profile / fuel / lists / exceptions stay
+  // reachable when omitted from the mobile tab bar.
+  const activeView: AppView = isAllowedView(view) ? view : fallbackView
 
-  const isAdminView = activeView === 'users' || activeView === 'lists'
+  const isAdminView =
+    activeView === 'users' || activeView === 'lists' || activeView === 'fuel_refund'
   const onEvents = activeView === 'events' || activeView === 'mine'
   const onShifts = activeView === 'shifts' || activeView === 'my_shifts'
+  const onExceptions = activeView === 'exceptions'
   const scope: 'unit' | 'mine' = manages && activeView !== 'mine' ? 'unit' : 'mine'
   const shiftScope: 'unit' | 'mine' = manages && activeView !== 'my_shifts' ? 'unit' : 'mine'
 
   const immersiveSurface =
-    (onEvents && (eventSurface.kind === 'form' || eventSurface.kind === 'fill')) ||
+    ((onEvents || onExceptions) &&
+      (eventSurface.kind === 'form' || eventSurface.kind === 'fill')) ||
     (onShifts && (shiftSurface.kind === 'form' || shiftSurface.kind === 'detail'))
 
   // Desktop always keeps sidebar nav on list/admin/profile (fixes my-shifts with no navbar).
@@ -152,12 +200,7 @@ function Gate() {
   }
 
   function goHome() {
-    const home: AppView = hasMineList
-      ? 'mine'
-      : manages
-        ? 'events'
-        : (entries[0]?.view ?? 'profile')
-    navigate(home)
+    navigate(fallbackView)
   }
 
   return (
@@ -170,7 +213,7 @@ function Gate() {
       onHome={goHome}
       entries={entries}
     >
-      {onEvents && eventSurface.kind === 'form' ? (
+      {(onEvents || onExceptions) && eventSurface.kind === 'form' ? (
         <EventFormPage
           eventId={eventSurface.eventId}
           focusResponderId={eventSurface.focusResponderId}
@@ -191,7 +234,7 @@ function Gate() {
           onSaved={(id) => setEventSurface({ kind: 'detail', eventId: id })}
           onSavedAndCreateNew={() => setEventSurface({ kind: 'form' })}
         />
-      ) : onEvents && eventSurface.kind === 'fill' ? (
+      ) : (onEvents || onExceptions) && eventSurface.kind === 'fill' ? (
         <ResponderFillPage
           eventId={eventSurface.eventId}
           onBack={() =>
@@ -209,7 +252,7 @@ function Gate() {
             )
           }
         />
-      ) : onEvents && eventSurface.kind === 'detail' ? (
+      ) : (onEvents || onExceptions) && eventSurface.kind === 'detail' ? (
         <EventDetailPage
           eventId={eventSurface.eventId}
           onBack={() => setEventSurface({ kind: 'list' })}
@@ -264,11 +307,23 @@ function Gate() {
           <div className="stack-4">
             {!isDesktop ? (
               <AdminSegmentBar
-                view={activeView === 'lists' ? 'lists' : 'users'}
+                view={
+                  activeView === 'lists'
+                    ? 'lists'
+                    : activeView === 'fuel_refund'
+                      ? 'fuel_refund'
+                      : 'users'
+                }
                 onChange={navigate}
               />
             ) : null}
-            {activeView === 'lists' ? <AdminListsPage /> : <AdminUsersPage />}
+            {activeView === 'lists' ? (
+              <AdminListsPage />
+            ) : activeView === 'fuel_refund' ? (
+              <FuelRefundPage />
+            ) : (
+              <AdminUsersPage />
+            )}
           </div>
         ) : (
           <EmptyState
@@ -281,6 +336,11 @@ function Gate() {
             }
           />
         )
+      ) : onExceptions ? (
+        <ExceptionsPage
+          asTable={Boolean(commandShell)}
+          onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
+        />
       ) : onShifts ? (
         <ShiftsPage
           scope={shiftScope}

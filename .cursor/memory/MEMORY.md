@@ -37,6 +37,7 @@ Repo: `yhpz-2026`
 - Online fill-later (not true offline PWA)
 - Closed lists admin-managed: districts, event types, roads, vehicle kinds
 - UI HE/RTL only; EN column names in DB
+- **Kilometers for calculations / refunds:** only `event_responders.total_km` (lead-entered). `odometer_start` / `odometer_end` are logging only — never use them for sums, reports, or refunds.
 
 ### Event statuses
 
@@ -88,30 +89,30 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - No start/close lifecycle UI; save requires date + kind + vehicle; km auto from odometers
 - Admin-only delete; assigned responders edit on/after shift_date (future view-only)
 - Nav: personal top, כלים לאחמ״ש, ניהול; desktop sidebar on all list views
+- Mobile tab bar only: האירועים שלי · המשמרות שלי · אירועים · משמרות · משתמשים (role-gated). No profile / km exceptions / fuel / lists tabs — profile via app-bar; fuel+lists via admin segment; km exceptions desktop sidebar only.
 
 
-## Fuel refund report (design approved 2026-08-10)
+## Fuel refund report (shipped 2026-08-10; revised same day)
 
 - Spec: `docs/superpowers/specs/2026-08-10-yahpaz-fuel-refund-report-design.md`
-- Admin-only page **החזר דלק**; date range on `event_date`; all active users as rows
-- Source: `done` `event_responders` only (not shifts); client-side aggregation
-- Columns: sum km, chronological first `odometer_start`, last `odometer_end`, event count
-- Out of scope v1: money math, CSV, shift km, RPC/schema
+- Admin-only **החזר דלק** (`FuelRefundPage`, view `fuel_refund`)
+- Date filter: event **`created_at`** (when shift-lead reported), not `event_date`
+- Include only participations with lead-entered **`total_km` IS NOT NULL** (0 counts; null excluded)
+- **No filter** on event status, participation status, or cancelled — km entered is enough
+- All active users as rows; columns: כונן · קילומטרים · אירועים
+- Out of scope: money math, CSV, shift km
 
-## KM exceptions report (design approved 2026-08-10)
+## Exceptions hub (implemented 2026-08-10)
 
-- Spec: `docs/superpowers/specs/2026-08-10-yahpaz-km-exceptions-report-design.md`
-- Lead-tools page **דוח חריגי קמ** under כלים לאחמ״ש (`shift_lead` + `admin`)
-- Row = responder with `done` and `total_km >= 60` (hardcoded); cancelled events included
-- Client-side filter; tap opens event detail; no schema/RPC
-- Distinct from admin **החזר דלק** period summary
+- Nav **חריגים** under כלים לאחמ״ש (desktop; `shift_lead` + `admin`); AppView `exceptions`
+- Sub-tabs: **חריגי ק״מ** (live) · **אירועים כפולים** (placeholder `בקרוב`)
+- KM report: `done` + `total_km >= 60`; cancelled included; `kmExceptionsReport.ts`
+- Spec (KM): `docs/superpowers/specs/2026-08-10-yahpaz-km-exceptions-report-design.md`
 
 ## Open / next
 
 1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
-2. Implement fuel refund report per approved design
-3. Implement KM exceptions report per approved design
-4. Later: add/verify `yahpz.com` on Resend when plan allows
+2. Later: add/verify `yahpz.com` on Resend when plan allows
 
 ## Netlify CD
 

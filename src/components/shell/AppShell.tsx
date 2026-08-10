@@ -3,6 +3,8 @@ import {
   CalendarCheck,
   CalendarClock,
   ClipboardList,
+  Fuel,
+  Gauge,
   ListChecks,
   ListTree,
   LogOut,
@@ -13,7 +15,16 @@ import { useAuth } from '../../lib/auth'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 
-export type AppView = 'events' | 'mine' | 'shifts' | 'my_shifts' | 'users' | 'lists' | 'profile'
+export type AppView =
+  | 'events'
+  | 'mine'
+  | 'shifts'
+  | 'my_shifts'
+  | 'exceptions'
+  | 'users'
+  | 'fuel_refund'
+  | 'lists'
+  | 'profile'
 
 type NavEntry = {
   view: AppView
@@ -68,7 +79,9 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   mine: <ListChecks size={24} strokeWidth={1.75} aria-hidden="true" />,
   shifts: <CalendarClock size={24} strokeWidth={1.75} aria-hidden="true" />,
   my_shifts: <CalendarCheck size={24} strokeWidth={1.75} aria-hidden="true" />,
+  exceptions: <Gauge size={24} strokeWidth={1.75} aria-hidden="true" />,
   users: <Users size={24} strokeWidth={1.75} aria-hidden="true" />,
+  fuel_refund: <Fuel size={24} strokeWidth={1.75} aria-hidden="true" />,
   lists: <ListTree size={24} strokeWidth={1.75} aria-hidden="true" />,
   profile: <UserRound size={24} strokeWidth={1.75} aria-hidden="true" />,
 }
