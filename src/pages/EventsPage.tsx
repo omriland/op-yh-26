@@ -176,7 +176,7 @@ export function EventsPage({
           options={EVENT_FILTERS}
           value={filter}
           onChange={setFilter}
-          label="סינון לפי סטטוס"
+          label="סינון לפי סטטוס תיעוד"
         />
       ) : null}
 

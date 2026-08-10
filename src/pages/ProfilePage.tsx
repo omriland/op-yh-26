@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { supabase } from '../lib/supabase'
-import { formatPlate, monoClass } from '../lib/format'
+import { formatPhone, formatPlate, monoClass } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
@@ -14,7 +14,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   responder: 'כונן',
 }
 
-type Vehicle = { id: string; plate_number: string; model: string }
+type Vehicle = { id: string; plate_number: string; model: string; archived: boolean }
 
 export function ProfilePage() {
   const { profile, roles, signOut } = useAuth()
@@ -26,10 +26,17 @@ export function ProfilePage() {
 
     supabase
       .from('vehicles')
-      .select('id, plate_number, model')
+      .select('id, plate_number, model, archived')
       .eq('user_id', profile.id)
       .then(({ data }) => {
-        if (active) setVehicles((data as Vehicle[] | null) ?? [])
+        if (active) {
+          setVehicles(
+            ((data as Vehicle[] | null) ?? []).map((vehicle) => ({
+              ...vehicle,
+              archived: Boolean(vehicle.archived),
+            })),
+          )
+        }
       })
 
     return () => {
@@ -73,7 +80,12 @@ export function ProfilePage() {
 
           <Ledger>
             <LedgerRow label="דוא״ל" value={profile.email} isolate />
-            <LedgerRow label="טלפון" value={profile.phone ?? undefined} numeric isolate />
+            <LedgerRow
+              label="טלפון"
+              value={profile.phone ? formatPhone(profile.phone) : undefined}
+              numeric
+              isolate
+            />
           </Ledger>
 
           <div>
@@ -108,7 +120,9 @@ export function ProfilePage() {
                 {vehicles.map((vehicle) => (
                   <LedgerRow
                     key={vehicle.id}
-                    label={vehicle.model}
+                    label={
+                      vehicle.archived ? `${vehicle.model} (בארכיון)` : vehicle.model
+                    }
                     value={formatPlate(vehicle.plate_number)}
                     numeric
                     isolate

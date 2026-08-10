@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ClipboardList, ListChecks, ListTree, LogOut, UserRound, Users } from 'lucide-react'
+import {
+  CalendarCheck,
+  CalendarClock,
+  ClipboardList,
+  ListChecks,
+  ListTree,
+  LogOut,
+  UserRound,
+  Users,
+} from 'lucide-react'
 import { useAuth } from '../../lib/auth'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 
-export type AppView = 'events' | 'mine' | 'users' | 'lists' | 'profile'
+export type AppView = 'events' | 'mine' | 'shifts' | 'my_shifts' | 'users' | 'lists' | 'profile'
 
 type NavEntry = {
   view: AppView
@@ -57,6 +66,8 @@ export function AppShell({
 export const NAV_ICONS: Record<AppView, ReactNode> = {
   events: <ClipboardList size={24} strokeWidth={1.75} aria-hidden="true" />,
   mine: <ListChecks size={24} strokeWidth={1.75} aria-hidden="true" />,
+  shifts: <CalendarClock size={24} strokeWidth={1.75} aria-hidden="true" />,
+  my_shifts: <CalendarCheck size={24} strokeWidth={1.75} aria-hidden="true" />,
   users: <Users size={24} strokeWidth={1.75} aria-hidden="true" />,
   lists: <ListTree size={24} strokeWidth={1.75} aria-hidden="true" />,
   profile: <UserRound size={24} strokeWidth={1.75} aria-hidden="true" />,

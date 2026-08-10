@@ -502,7 +502,12 @@ textarea.field__input {
    ============================================================ */
 
 .form-section {
+  margin-block-start: var(--space-8);
   border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.form-section:first-child {
+  margin-block-start: 0;
 }
 
 .form-section__heading {
@@ -1675,9 +1680,64 @@ textarea.field__input {
   .dialog__footer {
     flex-direction: row;
     justify-content: flex-end;
+    align-items: center;
   }
 
   .dialog__footer .btn {
+    width: auto;
+  }
+}
+
+/* ============================================================
+   Desktop submit shortcut hint (⌘/Ctrl+Enter)
+   ============================================================ */
+
+.submit-shortcut-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.submit-shortcut-hint__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.submit-shortcut-hint__plus {
+  color: var(--text-muted);
+}
+
+.submit-shortcut-hint__kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1.5rem;
+  min-block-size: 1.5rem;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: 500 12px/16px var(--font-mono);
+}
+
+.submit-shortcut-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+@media (min-width: 1025px) {
+  .submit-shortcut-cluster {
+    align-items: flex-end;
+  }
+
+  .dialog__footer .submit-shortcut-cluster .btn {
     width: auto;
   }
 }
@@ -1782,15 +1842,38 @@ textarea.field__input {
 }
 
 .vehicle-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.vehicle-row__fields {
   display: grid;
   gap: var(--space-3);
   grid-template-columns: 1fr;
   align-items: end;
 }
 
+.vehicle-row__fields .icon-btn {
+  justify-self: start;
+}
+
+.vehicle-row__status {
+  margin: 0;
+}
+
+.vehicle-row--archived .vehicle-row__fields .field__input:disabled {
+  color: var(--text-secondary);
+}
+
 @media (min-width: 641px) {
-  .vehicle-row {
+  .vehicle-row__fields {
     grid-template-columns: 1fr 1fr auto;
+  }
+
+  .vehicle-row__fields .icon-btn {
+    justify-self: stretch;
+    align-self: end;
   }
 }
 

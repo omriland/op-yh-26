@@ -78,6 +78,42 @@ export function formatPlate(raw: string): string {
   return raw
 }
 
+/** Digits only — shared by plates and phones. */
+export function plateDigits(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
+/** Returns a duplicated plate (digits) for the same list, or null if all unique. */
+export function findDuplicatePlate(
+  vehicles: { plate_number: string }[],
+): string | null {
+  const seen = new Set<string>()
+  for (const vehicle of vehicles) {
+    const digits = plateDigits(vehicle.plate_number)
+    if (!digits) continue
+    if (seen.has(digits)) return digits
+    seen.add(digits)
+  }
+  return null
+}
+
+/** Digits only from a phone field (ignores spaces, hyphens, etc.). */
+export function phoneDigits(raw: string): string {
+  return plateDigits(raw).slice(0, 10)
+}
+
+/** 0501234567 → 050-1234567 (hyphen after the first three digits). */
+export function formatPhone(raw: string): string {
+  const digits = phoneDigits(raw)
+  if (digits.length <= 3) return digits
+  return `${digits.slice(0, 3)}-${digits.slice(3)}`
+}
+
+/** True when the value has exactly 10 digits. */
+export function isValidPhone(raw: string): boolean {
+  return phoneDigits(raw).length === 10
+}
+
 const HEBREW = /[\u0590-\u05FF]/
 
 /**

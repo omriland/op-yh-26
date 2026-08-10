@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, ListTree, Plus } from 'lucide-react'
 import {
   CLOSED_LISTS,
@@ -16,7 +16,9 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { OverflowMenu } from '../components/ui/OverflowMenu'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { TextField } from '../components/ui/TextField'
+import { SubmitShortcutHint } from '../components/ui/SubmitShortcutHint'
 import { useToast } from '../components/ui/Toast'
+import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
 type Editor =
   | { mode: 'create' }
@@ -300,8 +302,16 @@ function InlineEditor({
   onSave: () => void
   onCancel: () => void
 }) {
+  const formRef = useRef<HTMLFormElement>(null)
+
+  useDesktopFormSubmit(() => formRef.current?.requestSubmit(), {
+    enabled: !saving,
+    rootRef: formRef,
+  })
+
   return (
     <form
+      ref={formRef}
       className="list-inline-editor"
       onSubmit={(event) => {
         event.preventDefault()
@@ -316,9 +326,12 @@ function InlineEditor({
         required
       />
       <div className="list-inline-editor__actions">
-        <Button type="submit" loading={saving} loadingLabel="שומר…">
-          שמירה
-        </Button>
+        <div className="submit-shortcut-cluster">
+          <Button type="submit" loading={saving} loadingLabel="שומר…">
+            שמירה
+          </Button>
+          <SubmitShortcutHint />
+        </div>
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
           ביטול
         </Button>

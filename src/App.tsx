@@ -14,6 +14,9 @@ import { EventsPage } from './pages/EventsPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ResponderFillPage } from './pages/ResponderFillPage'
+import { ShiftDetailPage } from './pages/ShiftDetailPage'
+import { ShiftFormPage } from './pages/ShiftFormPage'
+import { ShiftsPage } from './pages/ShiftsPage'
 import { ShieldAlert } from 'lucide-react'
 import { Button } from './components/ui/Button'
 
@@ -23,19 +26,23 @@ type EventSurface =
   | { kind: 'form'; eventId?: string; focusResponderId?: string }
   | { kind: 'fill'; eventId: string; returnTo: 'list' | 'detail' }
 
+type ShiftSurface =
+  | { kind: 'list' }
+  | { kind: 'detail'; shiftId: string }
+  | { kind: 'form'; shiftId?: string }
+
 function Gate() {
   const { session, loading, roles, passwordSetupReason } = useAuth()
   const isDesktop = useIsDesktop()
-  const [view, setView] = useState<AppView>('events')
+  const [view, setView] = useState<AppView>('mine')
   const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
+  const [shiftSurface, setShiftSurface] = useState<ShiftSurface>({ kind: 'list' })
 
   const isAdmin = roles.includes('admin')
   const manages = isAdmin || roles.includes('shift_lead')
   const responds = roles.includes('responder')
   // Leads also go on events — same personal list/fill surface, not only the responder role.
   const hasMineList = responds || roles.includes('shift_lead')
-  const isAdminView = view === 'users' || view === 'lists'
-  const onEvents = view === 'events' || view === 'mine'
 
   const entries = useMemo(() => {
     const list: {
@@ -45,8 +52,29 @@ function Gate() {
       section?: string
       alsoCurrentFor?: AppView[]
     }[] = []
-    if (manages) list.push({ view: 'events', label: 'אירועים', icon: NAV_ICONS.events })
-    if (hasMineList) list.push({ view: 'mine', label: 'האירועים שלי', icon: NAV_ICONS.mine })
+
+    // Personal — top of nav for anyone who goes on calls.
+    if (hasMineList) {
+      list.push({ view: 'mine', label: 'האירועים שלי', icon: NAV_ICONS.mine })
+      list.push({ view: 'my_shifts', label: 'המשמרות שלי', icon: NAV_ICONS.my_shifts })
+    }
+
+    // Shift-lead tools (admins also get these via manages).
+    if (manages) {
+      list.push({
+        view: 'events',
+        label: 'אירועים',
+        icon: NAV_ICONS.events,
+        section: 'כלים לאחמ״ש',
+      })
+      list.push({
+        view: 'shifts',
+        label: 'משמרות',
+        icon: NAV_ICONS.shifts,
+        section: 'כלים לאחמ״ש',
+      })
+    }
+
     if (isAdmin) {
       if (isDesktop) {
         list.push({
@@ -66,10 +94,12 @@ function Gate() {
           view: 'users',
           label: 'ניהול',
           icon: NAV_ICONS.users,
+          section: 'ניהול',
           alsoCurrentFor: ['lists'],
         })
       }
     }
+
     list.push({ view: 'profile', label: 'פרופיל', icon: NAV_ICONS.profile })
     return list
   }, [manages, hasMineList, isAdmin, isDesktop])
@@ -90,30 +120,49 @@ function Gate() {
 
   if (!session) return <LoginPage />
 
-  const commandShell = isDesktop && (manages || (isAdmin && isAdminView))
-  const scope: 'unit' | 'mine' = manages && view !== 'mine' ? 'unit' : 'mine'
   const activeView: AppView = entries.some(
     (entry) => entry.view === view || entry.alsoCurrentFor?.includes(view),
   )
     ? view
-    : entries[0].view
+    : (entries[0]?.view ?? 'profile')
+
+  const isAdminView = activeView === 'users' || activeView === 'lists'
+  const onEvents = activeView === 'events' || activeView === 'mine'
+  const onShifts = activeView === 'shifts' || activeView === 'my_shifts'
+  const scope: 'unit' | 'mine' = manages && activeView !== 'mine' ? 'unit' : 'mine'
+  const shiftScope: 'unit' | 'mine' = manages && activeView !== 'my_shifts' ? 'unit' : 'mine'
+
+  const immersiveSurface =
+    (onEvents && (eventSurface.kind === 'form' || eventSurface.kind === 'fill')) ||
+    (onShifts && (shiftSurface.kind === 'form' || shiftSurface.kind === 'detail'))
+
+  // Desktop always keeps sidebar nav on list/admin/profile (fixes my-shifts with no navbar).
+  const shellWithSidebar = isDesktop && !immersiveSurface
+  const shellTheme: 'command' | 'field' =
+    shellWithSidebar && (manages || isAdminView) ? 'command' : 'field'
+  const shellNarrow = isDesktop && immersiveSurface
+  const commandShell = shellWithSidebar && shellTheme === 'command'
 
   function navigate(next: AppView) {
     setEventSurface({ kind: 'list' })
+    setShiftSurface({ kind: 'list' })
     setView(next)
   }
 
   function goHome() {
-    // Lead/admin → unit events; responder → mine; otherwise first nav entry.
-    const home: AppView = manages ? 'events' : hasMineList ? 'mine' : (entries[0]?.view ?? 'profile')
+    const home: AppView = hasMineList
+      ? 'mine'
+      : manages
+        ? 'events'
+        : (entries[0]?.view ?? 'profile')
     navigate(home)
   }
 
   return (
     <AppShell
-      theme={commandShell && eventSurface.kind !== 'fill' ? 'command' : 'field'}
-      withSidebar={commandShell && eventSurface.kind !== 'fill'}
-      narrow={(!commandShell || eventSurface.kind === 'fill') && isDesktop}
+      theme={shellTheme}
+      withSidebar={shellWithSidebar}
+      narrow={shellNarrow}
       view={activeView}
       onNavigate={navigate}
       onHome={goHome}
@@ -184,6 +233,27 @@ function Gate() {
               : undefined
           }
         />
+      ) : onShifts && shiftSurface.kind === 'form' ? (
+        <ShiftFormPage
+          shiftId={shiftSurface.shiftId}
+          onBack={() =>
+            setShiftSurface(
+              shiftSurface.shiftId
+                ? { kind: 'detail', shiftId: shiftSurface.shiftId }
+                : { kind: 'list' },
+            )
+          }
+          onSaved={(id) => setShiftSurface({ kind: 'detail', shiftId: id })}
+        />
+      ) : onShifts && shiftSurface.kind === 'detail' ? (
+        <ShiftDetailPage
+          shiftId={shiftSurface.shiftId}
+          canManage={manages}
+          isAdmin={isAdmin}
+          onBack={() => setShiftSurface({ kind: 'list' })}
+          onEdit={() => setShiftSurface({ kind: 'form', shiftId: shiftSurface.shiftId })}
+          onDeleted={() => setShiftSurface({ kind: 'list' })}
+        />
       ) : activeView === 'profile' ? (
         <ProfilePage />
       ) : isAdminView ? (
@@ -208,7 +278,18 @@ function Gate() {
             }
           />
         )
-      ) : (
+      ) : onShifts ? (
+        <ShiftsPage
+          scope={shiftScope}
+          canManage={manages && shiftScope === 'unit'}
+          onOpen={(shiftId) => setShiftSurface({ kind: 'detail', shiftId })}
+          onCreate={
+            manages && shiftScope === 'unit'
+              ? () => setShiftSurface({ kind: 'form' })
+              : undefined
+          }
+        />
+      ) : onEvents ? (
         <EventsPage
           scope={scope}
           asTable={Boolean(commandShell && scope === 'unit')}
@@ -221,7 +302,7 @@ function Gate() {
               : undefined
           }
         />
-      )}
+      ) : null}
     </AppShell>
   )
 }

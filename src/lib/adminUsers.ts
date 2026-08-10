@@ -1,5 +1,13 @@
 import type { AppRole } from './auth'
+import { findDuplicatePlate, phoneDigits, plateDigits } from './format'
 import { supabase } from './supabase'
+
+export type AdminVehicle = {
+  id: string
+  plate_number: string
+  model: string
+  archived: boolean
+}
 
 export type AdminUserRow = {
   id: string
@@ -9,7 +17,7 @@ export type AdminUserRow = {
   phone: string | null
   active: boolean
   roles: AppRole[]
-  vehicles: { id: string; plate_number: string; model: string }[]
+  vehicles: AdminVehicle[]
 }
 
 export type InviteUserInput = {
@@ -27,7 +35,7 @@ export type SaveUserInput = {
   callsign: string
   phone?: string | null
   roles: AppRole[]
-  vehicles: { id?: string; plate_number: string; model: string }[]
+  vehicles: { id?: string; plate_number: string; model: string; archived?: boolean }[]
 }
 
 async function callAdminUsers(body: Record<string, unknown>): Promise<{ ok: true; message?: string; user_id?: string } | { ok: false; error: string }> {
@@ -70,7 +78,10 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
 
   const [{ data: roleRows }, { data: vehicleRows }] = await Promise.all([
     supabase.from('user_roles').select('user_id, role').in('user_id', ids),
-    supabase.from('vehicles').select('id, user_id, plate_number, model').in('user_id', ids),
+    supabase
+      .from('vehicles')
+      .select('id, user_id, plate_number, model, archived')
+      .in('user_id', ids),
   ])
 
   return (profiles ?? []).map((profile) => ({
@@ -86,15 +97,20 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     vehicles: (vehicleRows ?? [])
       .filter((row) => row.user_id === profile.id)
       .map((row) => ({
-        id: row.id,
-        plate_number: row.plate_number,
-        model: row.model,
+        id: row.id as string,
+        plate_number: row.plate_number as string,
+        model: row.model as string,
+        archived: Boolean(row.archived),
       })),
   }))
 }
 
 export function inviteAdminUser(input: InviteUserInput) {
-  return callAdminUsers({ action: 'invite', ...input })
+  return callAdminUsers({
+    action: 'invite',
+    ...input,
+    phone: input.phone ? phoneDigits(input.phone) : null,
+  })
 }
 
 export function setAdminUserActive(userId: string, active: boolean) {
@@ -104,13 +120,43 @@ export function setAdminUserActive(userId: string, active: boolean) {
   })
 }
 
+export async function deleteAdminVehicle(
+  vehicleId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('vehicles').delete().eq('id', vehicleId)
+  if (error) return { error: 'מחיקת הרכב נכשלה.' }
+  return { error: null }
+}
+
+export async function archiveAdminVehicle(
+  vehicleId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ archived: true })
+    .eq('id', vehicleId)
+  if (error) return { error: 'העברת הרכב לארכיון נכשלה.' }
+  return { error: null }
+}
+
+export async function unarchiveAdminVehicle(
+  vehicleId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ archived: false })
+    .eq('id', vehicleId)
+  if (error) return { error: 'שחזור הרכב מהארכיון נכשל.' }
+  return { error: null }
+}
+
 export async function saveAdminUser(input: SaveUserInput): Promise<{ error: string | null }> {
   const { error: profileError } = await supabase
     .from('profiles')
     .update({
       full_name: input.full_name.trim(),
       callsign: input.callsign.trim(),
-      phone: input.phone?.trim() || null,
+      phone: input.phone ? phoneDigits(input.phone) || null : null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.id)
@@ -124,21 +170,91 @@ export async function saveAdminUser(input: SaveUserInput): Promise<{ error: stri
   const rolesSync = await syncUserRoles(input.id, input.roles)
   if (rolesSync.error) return rolesSync
 
-  const { error: deleteVehiclesError } = await supabase.from('vehicles').delete().eq('user_id', input.id)
-  if (deleteVehiclesError) {
+  const vehiclesSync = await syncUserVehicles(input.id, input.vehicles)
+  if (vehiclesSync.error) return vehiclesSync
+
+  return { error: null }
+}
+
+async function syncUserVehicles(
+  userId: string,
+  nextVehicles: SaveUserInput['vehicles'],
+): Promise<{ error: string | null }> {
+  if (findDuplicatePlate(nextVehicles)) {
+    return { error: 'לא ניתן לשייך את אותה לוחית רישוי יותר מפעם אחת לאותו משתמש.' }
+  }
+
+  const { data: existing, error: readError } = await supabase
+    .from('vehicles')
+    .select('id, plate_number, model, archived')
+    .eq('user_id', userId)
+
+  if (readError) {
     return { error: 'שמירת הרכבים נכשלה.' }
   }
 
-  const vehicles = input.vehicles.filter((v) => v.plate_number.trim() && v.model.trim())
-  if (vehicles.length > 0) {
-    const { error: insertVehiclesError } = await supabase.from('vehicles').insert(
-      vehicles.map((vehicle) => ({
-        user_id: input.id,
-        plate_number: vehicle.plate_number.replace(/\D/g, '') || vehicle.plate_number.trim(),
+  const existingRows = existing ?? []
+  const nextWithIds = nextVehicles.filter((vehicle) => vehicle.id)
+  const nextIds = new Set(nextWithIds.map((vehicle) => vehicle.id!))
+
+  for (const row of existingRows) {
+    if (!nextIds.has(row.id as string)) {
+      const { error } = await supabase.from('vehicles').delete().eq('id', row.id)
+      if (error) {
+        return { error: 'שמירת הרכבים נכשלה.' }
+      }
+    }
+  }
+
+  for (const vehicle of nextWithIds) {
+    if (vehicle.archived) {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ archived: true })
+        .eq('id', vehicle.id!)
+        .eq('user_id', userId)
+      if (error) {
+        return { error: 'שמירת הרכבים נכשלה.' }
+      }
+      continue
+    }
+
+    const plate = plateDigits(vehicle.plate_number) || vehicle.plate_number.trim()
+    const model = vehicle.model.trim()
+    if (!plate || !model) continue
+    const { error } = await supabase
+      .from('vehicles')
+      .update({
+        plate_number: plate,
+        model,
+        archived: false,
+      })
+      .eq('id', vehicle.id!)
+      .eq('user_id', userId)
+    if (error) {
+      if (error.code === '23505') {
+        return { error: 'לא ניתן לשייך את אותה לוחית רישוי יותר מפעם אחת לאותו משתמש.' }
+      }
+      return { error: 'שמירת הרכבים נכשלה.' }
+    }
+  }
+
+  const toInsert = nextVehicles.filter(
+    (vehicle) => !vehicle.id && vehicle.plate_number.trim() && vehicle.model.trim(),
+  )
+  if (toInsert.length > 0) {
+    const { error } = await supabase.from('vehicles').insert(
+      toInsert.map((vehicle) => ({
+        user_id: userId,
+        plate_number: plateDigits(vehicle.plate_number) || vehicle.plate_number.trim(),
         model: vehicle.model.trim(),
+        archived: false,
       })),
     )
-    if (insertVehiclesError) {
+    if (error) {
+      if (error.code === '23505') {
+        return { error: 'לא ניתן לשייך את אותה לוחית רישוי יותר מפעם אחת לאותו משתמש.' }
+      }
       return { error: 'שמירת הרכבים נכשלה.' }
     }
   }

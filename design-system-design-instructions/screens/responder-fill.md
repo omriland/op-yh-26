@@ -7,7 +7,7 @@ The responder's world. Optimized for one job: finish your part of the record, of
 Same event-card list component as `event-list.md`, filtered to the viewer's assignments, with one change: **the card's stamp reflects MY participation status**, not the event status. Shown to responders and to shift-lead/admin who also have a mine list.
 
 - Insight strip at top (accent rail + subtle tint): loud mono open-count only (no caption under the digit) + eyebrow `האירועים שלי` + `שלום, {first name}` + sentence `יש לך N אירועים לתעד.` (zero → `אין אירועים שממתינים לתיעוד.`).
-- Open assignments (`ממתין למילוי פרטים` / `טיוטה נשמרה`) sort first, then completed.
+- Open assignments (`ממתין לתיעוד שלך` / `טיוטה נשמרה`) sort first, then completed.
 - Card gains a footer row when open (full-width primary): `השלמת הפרטים שלי` when participation is `pending`; `המשך מילוי הפרטים` after `שמירת טיוטה` (`in_progress`). Stamp becomes `טיוטה נשמרה`.
 - Empty state: icon check-circle, `אין דיווחים שממתינים לך`, caption `כשתשובצו לאירוע, הוא יופיע כאן.`
 - Desktop responder-only: same list centered, max-width 720. No table view — this surface stays personal, not managerial.

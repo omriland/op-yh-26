@@ -1,5 +1,8 @@
+import { plateDigits } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
+
+export { plateDigits }
 
 export type ResponderFillDraft = {
   vehicle_plate: string
@@ -64,10 +67,6 @@ export function emptyResponderFillDraft(): ResponderFillDraft {
     treatment_detail: '',
     treatment_notes: '',
   }
-}
-
-export function plateDigits(value: string): string {
-  return value.replace(/\D/g, '')
 }
 
 function parseOptionalNumber(raw: string): number | null | 'invalid' {
@@ -147,7 +146,10 @@ export async function fetchResponderFillContext(
         )
         .eq('id', eventId)
         .maybeSingle(),
-      supabase.from('vehicles').select('plate_number, model').eq('user_id', userId),
+      supabase
+        .from('vehicles')
+        .select('plate_number, model, archived')
+        .eq('user_id', userId),
     ])
 
   if (eventError) throw new Error(eventError.message)
@@ -180,15 +182,20 @@ export async function fetchResponderFillContext(
   const mine = (row.responders ?? []).find((responder) => responder.responder_id === userId)
   if (!mine) return null
 
+  const existingPlate = mine.vehicle_plate ? plateDigits(mine.vehicle_plate) : ''
+
+  // Active vehicles only for new assignment; keep a currently saved plate even if archived.
   const vehicleOptions: ResponderVehicleOption[] = (vehicles ?? [])
     .map((vehicle) => ({
       plate: plateDigits(String(vehicle.plate_number ?? '')),
       model: String(vehicle.model ?? '').trim(),
+      archived: Boolean(vehicle.archived),
     }))
     .filter((vehicle) => vehicle.plate)
+    .filter((vehicle) => !vehicle.archived || vehicle.plate === existingPlate)
+    .map(({ plate, model }) => ({ plate, model }))
 
   const allowed = new Set(vehicleOptions.map((vehicle) => vehicle.plate))
-  const existingPlate = mine.vehicle_plate ? plateDigits(mine.vehicle_plate) : ''
   const selectedPlate =
     existingPlate && allowed.has(existingPlate)
       ? existingPlate

@@ -56,3 +56,22 @@ export function viewerStamp(
   }
   return eventStamp(status)
 }
+
+export type ShiftStatus = 'draft' | 'in_progress' | 'closed'
+
+const SHIFT_STAMPS: Record<ShiftStatus, StampDescriptor> = {
+  draft: { label: 'טיוטה', tone: 'draft' },
+  in_progress: { label: 'במשמרת', tone: 'pending' },
+  closed: { label: 'נסגרה', tone: 'done' },
+}
+
+export const SHIFT_FILTERS: { value: ShiftStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'הכול' },
+  { value: 'in_progress', label: 'במשמרת' },
+  { value: 'closed', label: 'נסגרה' },
+  { value: 'draft', label: 'טיוטה' },
+]
+
+export function shiftStamp(status: ShiftStatus): StampDescriptor {
+  return SHIFT_STAMPS[status]
+}

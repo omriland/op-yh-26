@@ -155,15 +155,36 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "יחפ״צ <onboarding@send.responders-tlv.com>",
+      from: "אבן דרך - יחפ״צ <onboarding@send.responders-tlv.com>",
       to: [to],
-      subject: "הזמנה למערכת יחפ״צ",
+      subject: 'הזמנה למערכת אבן דרך - יחפ״צ',
       html: `
-        <div dir="rtl" style="font-family: Arial, sans-serif; line-height: 1.5;">
-          <p>שלום ${fullName},</p>
-          <p>הוזמנתם למערכת יחפ״צ. לחצו על הקישור כדי להגדיר סיסמה ולהיכנס:</p>
-          <p><a href="${actionLink}">השלמת ההזמנה</a></p>
-          <p>אם לא ציפיתם להזמנה זו, ניתן להתעלם מההודעה.</p>
+        <div dir="rtl" lang="he" style="margin:0;padding:0;background:#F6F8FA;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FA;padding:24px 12px;">
+            <tr>
+              <td align="center">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#FFFFFF;border:1px solid #DDE4EB;">
+                  <tr>
+                    <td style="background:#182A47;padding:20px 24px;text-align:center;">
+                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:#F2F6FA;letter-spacing:0.02em;">אבן דרך</div>
+                      <div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#DDE4EB;margin-top:4px;">יחפ״צ · היחידה הארצית לפינוי צירים</div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:28px 24px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#0F1B2D;text-align:right;">
+                      <p style="margin:0 0 16px;">שלום ${fullName},</p>
+                      <p style="margin:0 0 16px;">הוזמנת למערכת 'אבן דרך' - מערכת הניהול של היחידה הארצית לפינוי צירים.</p>
+                      <p style="margin:0 0 24px;">לכניסה ראשונית למערכת והגדרת סיסמא, יש ללחוץ על הקישור.</p>
+                      <p style="margin:0 0 28px;text-align:center;">
+                        <a href="${actionLink}" style="display:inline-block;background:#1D4E89;color:#FFFFFF;text-decoration:none;padding:12px 28px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;border-radius:4px;">להשלמת הרישום</a>
+                      </p>
+                      <p style="margin:0;font-size:14px;color:#5B6F86;">אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
         </div>
       `,
     }),
@@ -198,10 +219,18 @@ async function handleInvite(
     return json(400, { error: "יש לבחור לפחות תפקיד אחד." });
   }
 
+  const seenPlates = new Set<string>();
   for (const vehicle of vehicles) {
     if (!trim(vehicle.plate_number) || !trim(vehicle.model)) {
       return json(400, { error: "לכל רכב נדרשים לוחית רישוי ודגם." });
     }
+    const plate = trim(vehicle.plate_number).replace(/\D/g, "") || trim(vehicle.plate_number);
+    if (seenPlates.has(plate)) {
+      return json(400, {
+        error: "לא ניתן לשייך את אותה לוחית רישוי יותר מפעם אחת לאותו משתמש.",
+      });
+    }
+    seenPlates.add(plate);
   }
 
   // App requires ?set_password=1 (or hash type=invite) so the SPA shows

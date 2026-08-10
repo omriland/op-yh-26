@@ -9,6 +9,7 @@ type CounterStepperProps = {
   onDelta?: (delta: number) => void
   min?: number
   max?: number
+  disabled?: boolean
 }
 
 export function CounterStepper({
@@ -18,8 +19,10 @@ export function CounterStepper({
   onDelta,
   min = 0,
   max = 99,
+  disabled = false,
 }: CounterStepperProps) {
   function bump(delta: number) {
+    if (disabled) return
     if (onDelta) {
       onDelta(delta)
       return
@@ -35,7 +38,7 @@ export function CounterStepper({
           type="button"
           className="stepper__btn"
           aria-label={`הפחתת ${label}`}
-          disabled={value <= min}
+          disabled={disabled || value <= min}
           onClick={() => bump(-1)}
         >
           <Minus size={18} strokeWidth={1.75} />
@@ -47,7 +50,7 @@ export function CounterStepper({
           type="button"
           className="stepper__btn"
           aria-label={`הוספת ${label}`}
-          disabled={value >= max}
+          disabled={disabled || value >= max}
           onClick={() => bump(1)}
         >
           <Plus size={18} strokeWidth={1.75} />

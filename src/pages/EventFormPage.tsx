@@ -33,7 +33,9 @@ import { TextField } from '../components/ui/TextField'
 import { TimeField } from '../components/ui/TimeField'
 import { Toggle } from '../components/ui/Toggle'
 import { EventListSkeleton } from '../components/ui/Skeleton'
+import { SubmitShortcutHint } from '../components/ui/SubmitShortcutHint'
 import { useToast } from '../components/ui/Toast'
+import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
 type EventFormPageProps = {
   eventId?: string
@@ -455,6 +457,13 @@ export function EventFormPage({
     await persistLatest({ navigate: true, revealErrors: true })
     setSaving(false)
   }
+
+  const dialogOpen =
+    leaveConfirm || removeTarget !== null || overnightPrompt !== null || pickerOpen
+
+  useDesktopFormSubmit(() => void persistExplicit(), {
+    enabled: loadState === 'ready' && Boolean(draft) && !saving && !dialogOpen,
+  })
 
   async function leaveForm() {
     if (dirty) {
@@ -882,6 +891,7 @@ export function EventFormPage({
             >
               שמירת אירוע
             </Button>
+            <SubmitShortcutHint />
           </div>
         </footer>
       </div>

@@ -63,10 +63,10 @@ The register is **official but human**: the tone of a professional duty log, not
 | Context | Status | Hebrew label |
 |---|---|---|
 | Event | `draft` | `טיוטה` |
-| Event | `in_progress` | `בטיפול` |
+| Event | `in_progress` | `ממתין לתיעוד` |
 | Event | `partial` | `הושלם חלקית` |
 | Event | `done` | `הושלם` |
-| My participation (responder viewing own open row) | `pending` | `ממתין למילוי פרטים` |
+| My participation (responder viewing own open row) | `pending` | `ממתין לתיעוד שלך` |
 | My participation (own draft saved) | `in_progress` | `טיוטה נשמרה` |
 | Participation (viewing another's open row) | `pending`/`in_progress` | `ממתין לכונן` |
 | Participation | `done` | `הושלם` |

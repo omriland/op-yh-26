@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 ## What this is
 
@@ -20,7 +20,7 @@ Repo: `yhpz-2026`
 | Custom domain | **yahpz.com** (+ www) on Netlify; DNS on Cloudflare |
 | Cloudflare zone | `yahpz.com` id `0840a05bc431c56eb3479042a1e7f2ee` |
 | DNS records | A `@` → `75.2.60.5` (DNS only; Netlify current apex LB); CNAME `www` → `yahpaz-2026.netlify.app` (DNS only) |
-| Resend | Blocked: free plan already has `send.responders-tlv.com` — need upgrade or remove that domain before adding `yahpz.com` |
+| Resend | Temp sender `send.responders-tlv.com` (choice 3); `yahpz.com` later when plan allows |
 
 ## Auth / admin seed
 
@@ -55,26 +55,54 @@ Repo: `yhpz-2026`
 
 ## Design reference
 
-Inspire UX/visuals from **`/Users/omrilandman/CursorProjects/hebrew-card-manager`** (Responders TLV):
-
-- Fonts: Varela Round, Assistant, Heebo
-- Ops tokens: `--ops-ink` `#0B1220`, `--ops-panel` `#141C2B`, `--ops-fog` `#E8EDF5`, `--ops-signal` `#3D8BFF`, `--ops-ok` `#3D9A6E`
-- Auth: dark hero + white login panel (desktop split); mobile dark gradient
-- Cards, mobile-first volunteer chrome
+Visual source of truth: **`design-system-design-instructions/`** ("רשומה"). Read `00-how-to-use.md` first. Old hebrew-card-manager / Responders TLV reference is dead.
 
 ## Current app state
 
-- Scaffold + Auth gate deployed; **UI restyled** to hebrew-card-manager ops language (dark hero login, ops-ink status bar, fog background, Varela/Assistant fonts)
-- `.cursor/` rules + `memory/MEMORY.md` in place (always-apply: read/update memory)
-- Full event/admin UI **not** built yet
+- App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
+- Core flows: auth, events, responder fill, admin users + closed lists
+- Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs
+- Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
+
+## Email (Resend)
+
+- Decision (2026-08-09): keep temporary sender `onboarding@send.responders-tlv.com` until Resend plan allows `yahpz.com` (choice 3).
+- Invites via Edge Function + Resend HTTP API (not Supabase SMTP mailer).
+- Invite copy (approved 2026-08-10): subject `הזמנה למערכת אבן דרך - יחפ״צ`; brand **אבן דרך**; CTA `להשלמת הרישום`; sender display `אבן דרך - יחפ״צ`. Deployed on Edge Function `admin-users`.
+
+## Shifts (design approved 2026-08-10; UX revise same day)
+
+- Spec: `docs/superpowers/specs/2026-08-10-yahpaz-shifts-design.md` (lifecycle UI superseded)
+- Independent Shift log + optional Event links (not Event parent)
+- `shift_kind`: morning / midday / reinforcement / escort / other (שם משמרת)
+- Vehicle: `patrol_north` | `patrol_center` | `personal` → label **רכב פרטי** (+ plate)
+- Form: single **שמירה**; no start/close/reopen; `total_km` computed via `computeTotalKm`
+- Assigned responders edit on/after `shift_date` (`canEditShiftByDate`); future → view-only; save with `syncResponders: false`
+- Admin delete via detail Dialog (`deleteShift`)
+- Out of scope v1: open signup roster, payroll, GPS
+
+## Shifts implementation notes (2026-08-10)
+
+- Schema: `20260810120000_shifts.sql`, peer RLS `20260810150000`, kind/delete/responder-edit `20260810160000`
+- `shift_kind`: בוקר / צהריים / תגבור / ליווי / אחר; vehicle personal label = רכב פרטי
+- No start/close lifecycle UI; save requires date + kind + vehicle; km auto from odometers
+- Admin-only delete; assigned responders edit on/after shift_date (future view-only)
+- Nav: personal top, כלים לאחמ״ש, ניהול; desktop sidebar on all list views
+
 
 ## Open / next
 
-0. **BLOCKED on design system docs** — Omri is writing MD design-instruction files; do **not** start further UI/feature work until he says those files are ready. Then build a proper design system from them.
-1. Resend domain for `yahpz.com` (plan limit)
-2. Supabase Auth Site URL / redirect URLs → `https://yahpz.com`
-3. Event list + create/edit flows; admin users + lookups UI
-4. Commit git history when Omri asks
+1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
+2. Later: add/verify `yahpz.com` on Resend when plan allows
+
+## Netlify CD
+
+- Linked (2026-08-09): GitHub `omriland/yhpz-2026`, branch `infra/bootstrap`
+- Build env set: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (all contexts); `NODE_VERSION=22`
+
+## Auth URLs
+
+- Set (2026-08-09): Site URL `https://yahpz.com`; redirects include yahpz.com, netlify.app, localhost:5173
 
 ## Do not
 

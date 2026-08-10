@@ -14,7 +14,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 
 - Top app bar (standard).
 - Title row: `אירועים` (`--type-title`) at inline-start; if role can create → primary button `אירוע חדש` (icon-plus + label) at inline-end. On narrow widths the button may compress to icon-only 44×44 with `aria-label="אירוע חדש"`.
-- Filter row: horizontally scrollable chips (`scrollbar-hide`), height 36 px, secondary-chip chrome: `הכול` · `בטיפול` · `הושלם חלקית` · `הושלם` · `טיוטה`. Active chip = `--accent-subtle` bg + `--accent` text + `--accent` border. These are filters, NOT stamps — they use normal chip chrome, not stamp styling.
+- Filter row: horizontally scrollable chips (`scrollbar-hide`), height 36 px, secondary-chip chrome: `הכול` · `ממתין לתיעוד` · `הושלם חלקית` · `הושלם` · `טיוטה`. Active chip = `--accent-subtle` bg + `--accent` text + `--accent` border. These are filters, NOT stamps — they use normal chip chrome, not stamp styling.
 - List: event cards (per `06-components.md`), gap `--space-3`, grouped by date with sticky group headers (`--type-label`, `--text-muted`, e.g. `היום · 09.08.2026`).
 - Bottom tab bar: `אירועים` (active) · `האירועים שלי` (if shift-lead and/or responder — leads also go on events) · `ניהול` (admin only) · `פרופיל`.
 
@@ -31,7 +31,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 | כביש / מיקום | road + location | truncate 1 line |
 | אחמ״ש | shift-lead name | |
 | כוננים | done-count fraction `2/3` | mono |
-| סטטוס | stamp chip | viewer-relative label |
+| סטטוס תיעוד | stamp chip | viewer-relative label |
 
 Row click → event detail. Sort default: `event_date` desc.
 
@@ -39,8 +39,8 @@ Row click → event detail. Sort default: `event_date` desc.
 
 - Event `done` → stamp `הושלם`.
 - Event `partial` viewed by shift-lead/admin → `הושלם חלקית`.
-- Event with viewer's own participation open → `ממתין למילוי פרטים` (overrides event-level label for that viewer).
-- Event `in_progress` → `בטיפול`; `draft` → `טיוטה` (visible to its lead + admin only).
+- Event with viewer's own participation open → `ממתין לתיעוד שלך` (overrides event-level label for that viewer).
+- Event `in_progress` → `ממתין לתיעוד`; `draft` → `טיוטה` (visible to its lead + admin only).
 
 ## States
 

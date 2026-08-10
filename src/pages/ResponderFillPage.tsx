@@ -20,7 +20,9 @@ import { StampChip } from '../components/ui/StampChip'
 import { TextAreaField } from '../components/ui/TextAreaField'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
+import { SubmitShortcutHint } from '../components/ui/SubmitShortcutHint'
 import { useToast } from '../components/ui/Toast'
+import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
 type ResponderFillPageProps = {
   eventId: string
@@ -139,6 +141,15 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
     show('הדיווח הושלם', 'done')
     onCompleted()
   }
+
+  useDesktopFormSubmit(() => void onComplete(), {
+    enabled:
+      loadState === 'ready' &&
+      Boolean(draft) &&
+      !readOnly &&
+      !completing &&
+      !savingDraft,
+  })
 
   if (loadState === 'denied') {
     return (
@@ -317,6 +328,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
               <Button loading={completing} loadingLabel="שומר…" onClick={() => void onComplete()}>
                 סיום דיווח
               </Button>
+              <SubmitShortcutHint />
               <Button
                 variant="secondary"
                 loading={savingDraft}

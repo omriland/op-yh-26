@@ -74,8 +74,8 @@ Statuses only. Never for categories, roles, or counts.
 |---|---|
 | `הושלם` | `--status-done` |
 | `הושלם חלקית` | `--status-partial` |
-| `בטיפול` | `--status-pending` |
-| `ממתין למילוי פרטים` / `ממתין לכונן` | `--status-pending` |
+| `ממתין לתיעוד` | `--status-pending` |
+| `ממתין לתיעוד שלך` / `ממתין לכונן` | `--status-pending` |
 | `טיוטה` | `--status-draft` + `border-style: dashed` |
 
 ## Ledger row (read-only data display)

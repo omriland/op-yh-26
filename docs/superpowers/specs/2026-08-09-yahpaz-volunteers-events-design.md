@@ -110,7 +110,7 @@
 ### Viewer labels (UI)
 
 - Responder whose row is `done` → הושלם
-- Responder whose row is open → ממתין למילוי פרטים
+- Responder whose row is open → ממתין לתיעוד שלך
 - Shift-lead while event ≠ `done` after lead save → הושלם חלקית
 - Event `done` → הושלם / נשמר
 

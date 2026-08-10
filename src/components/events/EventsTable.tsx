@@ -22,7 +22,7 @@ export function EventsTable({ events, stampFor, onOpen }: EventsTableProps) {
             <th scope="col">כביש / מיקום</th>
             <th scope="col">אחמ״ש</th>
             <th scope="col">כוננים</th>
-            <th scope="col">סטטוס</th>
+            <th scope="col">סטטוס תיעוד</th>
           </tr>
         </thead>
         <tbody>

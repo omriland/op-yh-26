@@ -1,14 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Plus, Search, Trash2, UserRound } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArchiveRestore, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import {
+  archiveAdminVehicle,
+  deleteAdminVehicle,
   fetchAdminUsers,
   inviteAdminUser,
   saveAdminUser,
   setAdminUserActive,
+  unarchiveAdminVehicle,
   type AdminUserRow,
 } from '../lib/adminUsers'
 import { useAuth, type AppRole } from '../lib/auth'
-import { monoClass } from '../lib/format'
+import {
+  findDuplicatePlate,
+  formatPhone,
+  formatPlate,
+  isValidPhone,
+  monoClass,
+  phoneDigits,
+} from '../lib/format'
+import { isVehicleAttachedToEvents } from '../lib/vehicles'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
@@ -18,7 +29,9 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { OverflowMenu } from '../components/ui/OverflowMenu'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
+import { SubmitShortcutHint } from '../components/ui/SubmitShortcutHint'
 import { useToast } from '../components/ui/Toast'
+import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
 const ROLE_OPTIONS: { role: AppRole; label: string }[] = [
   { role: 'admin', label: 'מנהל' },
@@ -32,7 +45,19 @@ const ROLE_LABEL: Record<AppRole, string> = {
   responder: 'כונן',
 }
 
-type DraftVehicle = { key: string; plate_number: string; model: string }
+type DraftVehicle = {
+  key: string
+  id?: string
+  plate_number: string
+  model: string
+  archived: boolean
+}
+
+const VEHICLE_DELETE_CONFIRM =
+  'האם למחוק את הרכב הזה? לא ניתן לשחזר אותו לאחר המחיקה.'
+
+const VEHICLE_ARCHIVE_CONFIRM =
+  'לא ניתן למחוק רכב זה כי הוא מקושר לאירוע קיים. האם להעביר אותו לארכיון כדי שאיש לא יוכל להשתמש בו יותר במערכת?'
 
 type Draft = {
   id?: string
@@ -61,12 +86,14 @@ function draftFromUser(user: AdminUserRow): Draft {
     full_name: user.full_name,
     email: user.email,
     callsign: user.callsign,
-    phone: user.phone ?? '',
+    phone: user.phone ? formatPhone(user.phone) : '',
     roles: [...user.roles],
     vehicles: user.vehicles.map((vehicle) => ({
       key: vehicle.id,
-      plate_number: vehicle.plate_number,
+      id: vehicle.id,
+      plate_number: formatPlate(vehicle.plate_number),
       model: vehicle.model,
+      archived: vehicle.archived,
     })),
   }
 }
@@ -84,6 +111,20 @@ export function AdminUsersPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState<AdminUserRow | null>(null)
   const [menuUserId, setMenuUserId] = useState<string | null>(null)
+  const [vehicleBusyKey, setVehicleBusyKey] = useState<string | null>(null)
+  const [vehicleConfirm, setVehicleConfirm] = useState<
+    null | { mode: 'delete' | 'archive'; vehicle: DraftVehicle }
+  >(null)
+  const draftRootRef = useRef<HTMLDivElement>(null)
+
+  useDesktopFormSubmit(() => void submitDraft(), {
+    enabled:
+      draft !== null &&
+      !saving &&
+      confirmDeactivate === null &&
+      vehicleConfirm === null,
+    rootRef: draftRootRef,
+  })
 
   useEffect(() => {
     let active = true
@@ -129,10 +170,20 @@ export function AdminUsersPage() {
       setFormError('יש לבחור לפחות תפקיד אחד.')
       return
     }
+    if (!isValidPhone(draft.phone)) {
+      setFormError('יש להזין מספר טלפון בן 10 ספרות.')
+      return
+    }
+    if (findDuplicatePlate(draft.vehicles)) {
+      setFormError('לא ניתן לשייך את אותה לוחית רישוי יותר מפעם אחת לאותו משתמש.')
+      return
+    }
     if (draft.id && draft.id === user?.id && !draft.roles.includes('admin')) {
       setFormError('לא ניתן להסיר מעצמך את תפקיד המנהל.')
       return
     }
+
+    const phone = phoneDigits(draft.phone)
 
     setSaving(true)
     try {
@@ -141,12 +192,14 @@ export function AdminUsersPage() {
           full_name: draft.full_name,
           email: draft.email,
           callsign: draft.callsign,
-          phone: draft.phone || null,
+          phone,
           roles: draft.roles,
-          vehicles: draft.vehicles.map((v) => ({
-            plate_number: v.plate_number,
-            model: v.model,
-          })),
+          vehicles: draft.vehicles
+            .filter((vehicle) => !vehicle.archived)
+            .map((v) => ({
+              plate_number: v.plate_number,
+              model: v.model,
+            })),
         })
         if (!result.ok) {
           setFormError(result.error)
@@ -158,9 +211,14 @@ export function AdminUsersPage() {
           id: draft.id,
           full_name: draft.full_name,
           callsign: draft.callsign,
-          phone: draft.phone || null,
+          phone,
           roles: draft.roles,
-          vehicles: draft.vehicles,
+          vehicles: draft.vehicles.map((vehicle) => ({
+            id: vehicle.id,
+            plate_number: vehicle.plate_number,
+            model: vehicle.model,
+            archived: vehicle.archived,
+          })),
         })
         if (result.error) {
           setFormError(result.error)
@@ -197,6 +255,102 @@ export function AdminUsersPage() {
     }
     show(result.message ?? 'המשתמש הופעל מחדש', 'done')
     setReloadKey((value) => value + 1)
+  }
+
+  async function requestRemoveVehicle(vehicle: DraftVehicle) {
+    if (!draft || vehicle.archived) return
+
+    // Unsaved row — confirm then drop from draft only.
+    if (!vehicle.id || !draft.id) {
+      setVehicleConfirm({ mode: 'delete', vehicle })
+      return
+    }
+
+    setVehicleBusyKey(vehicle.key)
+    setFormError(null)
+    try {
+      const attached = await isVehicleAttachedToEvents(
+        draft.id,
+        vehicle.id,
+        vehicle.plate_number,
+      )
+      setVehicleConfirm({ mode: attached ? 'archive' : 'delete', vehicle })
+    } catch {
+      setFormError('בדיקת קישור הרכב לאירועים נכשלה. נסו שוב.')
+    } finally {
+      setVehicleBusyKey(null)
+    }
+  }
+
+  async function confirmVehicleAction() {
+    if (!draft || !vehicleConfirm) return
+    const { mode, vehicle } = vehicleConfirm
+
+    if (!vehicle.id || !draft.id) {
+      setDraft({
+        ...draft,
+        vehicles: draft.vehicles.filter((row) => row.key !== vehicle.key),
+      })
+      setVehicleConfirm(null)
+      return
+    }
+
+    setSaving(true)
+    setFormError(null)
+    try {
+      if (mode === 'archive') {
+        const result = await archiveAdminVehicle(vehicle.id)
+        if (result.error) {
+          setFormError(result.error)
+          return
+        }
+        setDraft({
+          ...draft,
+          vehicles: draft.vehicles.map((row) =>
+            row.key === vehicle.key ? { ...row, archived: true } : row,
+          ),
+        })
+        show('הרכב הועבר לארכיון', 'done')
+      } else {
+        const result = await deleteAdminVehicle(vehicle.id)
+        if (result.error) {
+          setFormError(result.error)
+          return
+        }
+        setDraft({
+          ...draft,
+          vehicles: draft.vehicles.filter((row) => row.key !== vehicle.key),
+        })
+        show('הרכב נמחק', 'done')
+      }
+      setVehicleConfirm(null)
+      setReloadKey((value) => value + 1)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function unarchiveDraftVehicle(vehicle: DraftVehicle) {
+    if (!draft || !vehicle.id || !vehicle.archived) return
+    setVehicleBusyKey(vehicle.key)
+    setFormError(null)
+    try {
+      const result = await unarchiveAdminVehicle(vehicle.id)
+      if (result.error) {
+        setFormError(result.error)
+        return
+      }
+      setDraft({
+        ...draft,
+        vehicles: draft.vehicles.map((row) =>
+          row.key === vehicle.key ? { ...row, archived: false } : row,
+        ),
+      })
+      show('הרכב שוחזר מהארכיון', 'done')
+      setReloadKey((value) => value + 1)
+    } finally {
+      setVehicleBusyKey(null)
+    }
   }
 
   return (
@@ -315,7 +469,9 @@ export function AdminUsersPage() {
                   </td>
                   <td className="num">
                     {user.phone ? (
-                      <span className={`ltr ${monoClass(user.phone)}`}>{user.phone}</span>
+                      <span className={`ltr ${monoClass(user.phone)}`}>
+                        {formatPhone(user.phone)}
+                      </span>
                     ) : (
                       '—'
                     )}
@@ -330,7 +486,9 @@ export function AdminUsersPage() {
                       {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
                     </div>
                   </td>
-                  <td className="num mono">{user.vehicles.length}</td>
+                  <td className="num mono">
+                    {user.vehicles.filter((vehicle) => !vehicle.archived).length}
+                  </td>
                   <td onClick={(event) => event.stopPropagation()}>
                     <OverflowMenu
                       open={menuUserId === user.id}
@@ -410,14 +568,17 @@ export function AdminUsersPage() {
             <Button variant="secondary" disabled={saving} onClick={() => setDraft(null)}>
               ביטול
             </Button>
-            <Button loading={saving} onClick={() => void submitDraft()}>
-              שמירת משתמש
-            </Button>
+            <div className="submit-shortcut-cluster">
+              <Button loading={saving} onClick={() => void submitDraft()}>
+                שמירת משתמש
+              </Button>
+              <SubmitShortcutHint />
+            </div>
           </>
         }
       >
         {draft ? (
-          <div className="stack-8">
+          <div ref={draftRootRef} className="stack-8">
             <section className="stack-4">
               <div className="form-section">
                 <h3 className="form-section__heading">פרטים</h3>
@@ -448,9 +609,16 @@ export function AdminUsersPage() {
               <TextField
                 label="טלפון"
                 type="tel"
+                inputMode="numeric"
+                autoComplete="tel"
                 isolate
+                required
+                numeric
                 value={draft.phone}
-                onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
+                onChange={(event) =>
+                  setDraft({ ...draft, phone: formatPhone(event.target.value) })
+                }
+                hint="10 ספרות, למשל: 050-1234567"
               />
             </section>
 
@@ -490,40 +658,69 @@ export function AdminUsersPage() {
                 <h3 className="form-section__heading">רכבים</h3>
               </div>
               {draft.vehicles.map((vehicle, index) => (
-                <div key={vehicle.key} className="vehicle-row">
-                  <TextField
-                    label="לוחית רישוי"
-                    numeric
-                    isolate
-                    value={vehicle.plate_number}
-                    onChange={(event) => {
-                      const vehicles = [...draft.vehicles]
-                      vehicles[index] = { ...vehicle, plate_number: event.target.value }
-                      setDraft({ ...draft, vehicles })
-                    }}
-                  />
-                  <TextField
-                    label="דגם"
-                    value={vehicle.model}
-                    onChange={(event) => {
-                      const vehicles = [...draft.vehicles]
-                      vehicles[index] = { ...vehicle, model: event.target.value }
-                      setDraft({ ...draft, vehicles })
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label="הסרת רכב"
-                    onClick={() =>
-                      setDraft({
-                        ...draft,
-                        vehicles: draft.vehicles.filter((row) => row.key !== vehicle.key),
-                      })
-                    }
-                  >
-                    <Trash2 size={20} strokeWidth={1.75} />
-                  </button>
+                <div
+                  key={vehicle.key}
+                  className={[
+                    'vehicle-row',
+                    vehicle.archived ? 'vehicle-row--archived' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <div className="vehicle-row__fields">
+                    <TextField
+                      label="לוחית רישוי"
+                      numeric
+                      isolate
+                      disabled={vehicle.archived}
+                      value={vehicle.plate_number}
+                      onChange={(event) => {
+                        const vehicles = [...draft.vehicles]
+                        vehicles[index] = {
+                          ...vehicle,
+                          plate_number: formatPlate(event.target.value),
+                        }
+                        setDraft({ ...draft, vehicles })
+                      }}
+                    />
+                    <TextField
+                      label="דגם"
+                      disabled={vehicle.archived}
+                      value={vehicle.model}
+                      onChange={(event) => {
+                        const vehicles = [...draft.vehicles]
+                        vehicles[index] = { ...vehicle, model: event.target.value }
+                        setDraft({ ...draft, vehicles })
+                      }}
+                    />
+                    {vehicle.archived ? (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="שחזור מהארכיון"
+                        title="שחזור מהארכיון"
+                        disabled={vehicleBusyKey === vehicle.key}
+                        onClick={() => void unarchiveDraftVehicle(vehicle)}
+                      >
+                        <ArchiveRestore size={20} strokeWidth={1.75} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="הסרת רכב"
+                        disabled={vehicleBusyKey === vehicle.key}
+                        onClick={() => void requestRemoveVehicle(vehicle)}
+                      >
+                        <Trash2 size={20} strokeWidth={1.75} />
+                      </button>
+                    )}
+                  </div>
+                  {vehicle.archived ? (
+                    <p className="vehicle-row__status t-caption text-secondary">
+                      בארכיון — לא ניתן לשייך לאירועים חדשים
+                    </p>
+                  ) : null}
                 </div>
               ))}
               <Button
@@ -533,7 +730,12 @@ export function AdminUsersPage() {
                     ...draft,
                     vehicles: [
                       ...draft.vehicles,
-                      { key: `new-${Date.now()}`, plate_number: '', model: '' },
+                      {
+                        key: `new-${Date.now()}`,
+                        plate_number: '',
+                        model: '',
+                        archived: false,
+                      },
                     ],
                   })
                 }
@@ -572,6 +774,32 @@ export function AdminUsersPage() {
       >
         <p className="t-body">
           הוא לא יוכל להתחבר, והנתונים ההיסטוריים יישמרו.
+        </p>
+      </Dialog>
+
+      <Dialog
+        open={vehicleConfirm !== null}
+        title={vehicleConfirm?.mode === 'archive' ? 'העברה לארכיון' : 'מחיקת רכב'}
+        onClose={() => !saving && setVehicleConfirm(null)}
+        footer={
+          <>
+            <Button variant="secondary" disabled={saving} onClick={() => setVehicleConfirm(null)}>
+              ביטול
+            </Button>
+            <Button
+              variant={vehicleConfirm?.mode === 'archive' ? 'primary' : 'destructive'}
+              loading={saving}
+              onClick={() => void confirmVehicleAction()}
+            >
+              {vehicleConfirm?.mode === 'archive' ? 'העברה לארכיון' : 'מחיקה'}
+            </Button>
+          </>
+        }
+      >
+        <p className="t-body">
+          {vehicleConfirm?.mode === 'archive'
+            ? VEHICLE_ARCHIVE_CONFIRM
+            : VEHICLE_DELETE_CONFIRM}
         </p>
       </Dialog>
     </div>
