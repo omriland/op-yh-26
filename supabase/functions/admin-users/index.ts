@@ -20,7 +20,12 @@ type DeactivateBody = {
   user_id: string;
 };
 
-type RequestBody = InviteBody | DeactivateBody;
+type DeleteBody = {
+  action: "delete";
+  user_id: string;
+};
+
+type RequestBody = InviteBody | DeactivateBody | DeleteBody;
 
 const ALLOWED_ROLES: AppRole[] = ["admin", "shift_lead", "responder"];
 
@@ -96,6 +101,10 @@ Deno.serve(async (req: Request) => {
     return handleActiveState(adminClient, body);
   }
 
+  if (body.action === "delete") {
+    return handleDeleteUser(adminClient, user.id, body);
+  }
+
   if (body.action === "invite") {
     return handleInvite(adminClient, body);
   }
@@ -142,11 +151,97 @@ async function handleActiveState(
   });
 }
 
+async function handleDeleteUser(
+  adminClient: ReturnType<typeof createClient>,
+  actorId: string,
+  body: DeleteBody,
+) {
+  const userId = trim(body.user_id);
+  if (!userId) {
+    return json(400, { error: "חסר מזהה משתמש." });
+  }
+
+  if (userId === actorId) {
+    return json(400, { error: "לא ניתן למחוק את המשתמש המחובר כעת." });
+  }
+
+  const { data: profile, error: profileLookupError } = await adminClient
+    .from("profiles")
+    .select("id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileLookupError) {
+    return json(500, { error: "בדיקת המשתמש נכשלה. נסו שוב." });
+  }
+  if (!profile) {
+    return json(404, { error: "המשתמש לא נמצא." });
+  }
+
+  const [{ count: eventsAsLead }, { count: shiftsAsLead }] = await Promise.all([
+    adminClient
+      .from("events")
+      .select("id", { count: "exact", head: true })
+      .eq("shift_lead_id", userId),
+    adminClient
+      .from("shifts")
+      .select("id", { count: "exact", head: true })
+      .eq("shift_lead_id", userId),
+  ]);
+
+  if ((eventsAsLead ?? 0) > 0 || (shiftsAsLead ?? 0) > 0) {
+    return json(409, {
+      error:
+        "לא ניתן למחוק משתמש שהוא אחמ״ש על אירועים או משמרות. השביתו אותו או העבירו את האחריות קודם.",
+    });
+  }
+
+  // Drop participation rows so profile/auth delete is not blocked by FKs.
+  const { error: eventRespondersError } = await adminClient
+    .from("event_responders")
+    .delete()
+    .eq("responder_id", userId);
+  if (eventRespondersError) {
+    return json(500, { error: "מחיקת שיוכי האירועים נכשלה. נסו שוב." });
+  }
+
+  const { error: shiftRespondersError } = await adminClient
+    .from("shift_responders")
+    .delete()
+    .eq("responder_id", userId);
+  if (shiftRespondersError) {
+    return json(500, { error: "מחיקת שיוכי המשמרות נכשלה. נסו שוב." });
+  }
+
+  const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
+  if (deleteError) {
+    return json(400, {
+      error: "מחיקת המשתמש נכשלה. נסו שוב.",
+      detail: deleteError.message,
+    });
+  }
+
+  return json(200, { ok: true, message: "המשתמש נמחק." });
+}
+
 async function sendInviteEmail(to: string, fullName: string, actionLink: string) {
   const apiKey = Deno.env.get("RESEND_API_KEY");
   if (!apiKey) {
     return { error: "חסר מפתח Resend בשרת. פנו למנהל המערכת." };
   }
+
+  const text = [
+    "אבן דרך",
+    "יחפ״צ · היחידה הארצית לפינוי צירים",
+    "",
+    `שלום ${fullName},`,
+    "",
+    "הוזמנת למערכת 'אבן דרך' - מערכת הניהול של היחידה הארצית לפינוי צירים.",
+    "לכניסה ראשונית למערכת והגדרת סיסמה, יש ללחוץ על הקישור:",
+    actionLink,
+    "",
+    "אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה.",
+  ].join("\n");
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -155,9 +250,10 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "אבן דרך - יחפ״צ <onboarding@send.responders-tlv.com>",
+      from: "אבן דרך - יחפ״צ <invites@send.yahpz.com>",
       to: [to],
       subject: 'הזמנה למערכת אבן דרך - יחפ״צ',
+      text,
       html: `
         <div dir="rtl" lang="he" style="margin:0;padding:0;background:#F6F8FA;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FA;padding:24px 12px;">
@@ -174,9 +270,12 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
                     <td style="padding:28px 24px;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.6;color:#0F1B2D;text-align:right;">
                       <p style="margin:0 0 16px;">שלום ${fullName},</p>
                       <p style="margin:0 0 16px;">הוזמנת למערכת 'אבן דרך' - מערכת הניהול של היחידה הארצית לפינוי צירים.</p>
-                      <p style="margin:0 0 24px;">לכניסה ראשונית למערכת והגדרת סיסמא, יש ללחוץ על הקישור.</p>
+                      <p style="margin:0 0 24px;">לכניסה ראשונית למערכת והגדרת סיסמה, יש ללחוץ על הקישור.</p>
                       <p style="margin:0 0 28px;text-align:center;">
                         <a href="${actionLink}" style="display:inline-block;background:#1D4E89;color:#FFFFFF;text-decoration:none;padding:12px 28px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;border-radius:4px;">להשלמת הרישום</a>
+                      </p>
+                      <p style="margin:0 0 16px;font-size:13px;color:#5B6F86;word-break:break-all;">
+                        או העתיקו את הכתובת: ${actionLink}
                       </p>
                       <p style="margin:0;font-size:14px;color:#5B6F86;">אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה</p>
                     </td>
@@ -233,14 +332,11 @@ async function handleInvite(
     seenPlates.add(plate);
   }
 
-  // App requires ?set_password=1 (or hash type=invite) so the SPA shows
-  // password choice instead of treating the invite session as a normal login.
+  // First-party invite URL on yahpz.com (token_hash + verifyOtp in the SPA).
+  // Avoid linking to *.supabase.co — that mismatch drives Gmail spam placement.
   const redirectBase = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
-  const redirectUrl = new URL(redirectBase);
-  redirectUrl.searchParams.set("set_password", "1");
-  const redirectTo = redirectUrl.toString();
 
-  // generateLink creates the Auth user and returns the invite URL without using
+  // generateLink creates the Auth user and returns hashed_token without using
   // Supabase's built-in mailer (which is rate-limited until custom SMTP is on).
   const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
     type: "invite",
@@ -251,7 +347,7 @@ async function handleInvite(
         callsign,
         phone: phone ?? "",
       },
-      redirectTo,
+      redirectTo: redirectBase,
     },
   });
 
@@ -272,10 +368,16 @@ async function handleInvite(
     });
   }
 
-  const actionLink = linkData.properties.action_link;
-  if (!actionLink) {
+  const hashedToken = linkData.properties.hashed_token;
+  if (!hashedToken) {
     return json(500, { error: "יצירת קישור ההזמנה נכשלה." });
   }
+
+  const inviteUrl = new URL(redirectBase);
+  inviteUrl.searchParams.set("set_password", "1");
+  inviteUrl.searchParams.set("type", "invite");
+  inviteUrl.searchParams.set("token_hash", hashedToken);
+  const actionLink = inviteUrl.toString();
 
   const mail = await sendInviteEmail(email, fullName, actionLink);
   if (mail.error) {

@@ -132,6 +132,14 @@ export function setAdminUserActive(userId: string, active: boolean) {
   })
 }
 
+/** Hard-delete Auth user + profile. Blocked when user is lead on events/shifts. */
+export function deleteAdminUser(userId: string) {
+  return callAdminUsers({
+    action: 'delete',
+    user_id: userId,
+  })
+}
+
 export async function deleteAdminVehicle(
   vehicleId: string,
 ): Promise<{ error: string | null }> {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArchiveRestore, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import {
   archiveAdminVehicle,
+  deleteAdminUser,
   deleteAdminVehicle,
   fetchAdminUsers,
   inviteAdminUser,
@@ -110,6 +111,7 @@ export function AdminUsersPage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState<AdminUserRow | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<AdminUserRow | null>(null)
   const [menuUserId, setMenuUserId] = useState<string | null>(null)
   const [vehicleBusyKey, setVehicleBusyKey] = useState<string | null>(null)
   const [vehicleConfirm, setVehicleConfirm] = useState<
@@ -122,6 +124,7 @@ export function AdminUsersPage() {
       draft !== null &&
       !saving &&
       confirmDeactivate === null &&
+      confirmDelete === null &&
       vehicleConfirm === null,
     rootRef: draftRootRef,
   })
@@ -254,6 +257,27 @@ export function AdminUsersPage() {
       return
     }
     show(result.message ?? 'המשתמש הופעל מחדש', 'done')
+    setReloadKey((value) => value + 1)
+  }
+
+  async function confirmDeleteUser() {
+    if (!confirmDelete) return
+    const target = confirmDelete
+    if (target.id === user?.id) {
+      show('לא ניתן למחוק את המשתמש המחובר כעת.', 'alert')
+      setConfirmDelete(null)
+      return
+    }
+    setSaving(true)
+    const result = await deleteAdminUser(target.id)
+    setSaving(false)
+    setConfirmDelete(null)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    show(result.message ?? 'המשתמש נמחק', 'done')
+    if (draft?.id === target.id) setDraft(null)
     setReloadKey((value) => value + 1)
   }
 
@@ -519,6 +543,11 @@ export function AdminUsersPage() {
                               label: 'הפעלה מחדש',
                               onSelect: () => void reactivateUser(user),
                             },
+                        {
+                          label: 'מחיקת משתמש',
+                          danger: true,
+                          onSelect: () => setConfirmDelete(user),
+                        },
                       ]}
                     />
                   </td>
@@ -573,6 +602,18 @@ export function AdminUsersPage() {
         onClose={() => !saving && setDraft(null)}
         footer={
           <>
+            {draft?.id && draft.id !== user?.id ? (
+              <Button
+                variant="destructive"
+                disabled={saving}
+                onClick={() => {
+                  const row = users?.find((entry) => entry.id === draft.id)
+                  if (row) setConfirmDelete(row)
+                }}
+              >
+                מחיקה
+              </Button>
+            ) : null}
             <Button variant="secondary" disabled={saving} onClick={() => setDraft(null)}>
               ביטול
             </Button>
@@ -779,6 +820,29 @@ export function AdminUsersPage() {
       >
         <p className="t-body">
           הוא לא יוכל להתחבר, והנתונים ההיסטוריים יישמרו.
+        </p>
+      </Dialog>
+
+      <Dialog
+        open={confirmDelete !== null}
+        title={
+          confirmDelete ? `למחוק את המשתמש ${confirmDelete.full_name}?` : 'מחיקת משתמש'
+        }
+        onClose={() => !saving && setConfirmDelete(null)}
+        footer={
+          <>
+            <Button variant="secondary" disabled={saving} onClick={() => setConfirmDelete(null)}>
+              ביטול
+            </Button>
+            <Button variant="destructive" loading={saving} onClick={() => void confirmDeleteUser()}>
+              מחיקה
+            </Button>
+          </>
+        }
+      >
+        <p className="t-body">
+          המשתמש יימחק לצמיתות מאימות וממערכת המשתמשים. לא ניתן לשחזר — רק להזמין מחדש.
+          אם הוא אחמ״ש על אירועים או משמרות, המחיקה תיחסם.
         </p>
       </Dialog>
 
