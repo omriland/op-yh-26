@@ -2,30 +2,62 @@ import type { EmailOtpType } from '@supabase/supabase-js'
 import {
   markPasswordSetupRequired,
   readAuthTokenFromUrl,
+  readStashedAuthToken,
+  stashAuthToken,
+  clearStashedAuthToken,
   stripPasswordSetupFromUrl,
+  type AuthTokenFromUrl,
 } from './passwordSetup'
 import { supabase } from './supabase'
 
 /**
- * Exchange a first-party invite/recovery link (`?token_hash=&type=`) for a
- * session via verifyOtp, then strip the one-time params from the URL.
+ * Capture invite/recovery token_hash from the URL into sessionStorage and
+ * strip it immediately — do NOT verify yet.
  *
- * Works in a clean browser (incognito) and when another session is already
- * open: any prior session is signed out first so the invite token can bind.
+ * Email security scanners often open links and would burn a one-time OTP if
+ * we called verifyOtp on page load. The user must click to redeem.
  */
-export async function consumeAuthTokenFromUrl(): Promise<{ error: string | null }> {
+export function stashAuthTokenFromUrl(): boolean {
   const token = readAuthTokenFromUrl()
-  if (!token) return { error: null }
+  if (!token) return false
+
+  stashAuthToken(token)
+  markPasswordSetupRequired(token.type === 'recovery' ? 'recovery' : 'invite')
+  stripPasswordSetupFromUrl()
+  return true
+}
+
+/** True when a stashed OTP is waiting for an explicit user click. */
+export function hasStashedAuthToken(): boolean {
+  return readStashedAuthToken() !== null
+}
+
+/**
+ * Exchange the stashed invite/recovery token for a session (user-initiated).
+ */
+export async function redeemStashedAuthToken(): Promise<{ error: string | null }> {
+  const token = readStashedAuthToken()
+  if (!token) {
+    return { error: 'קישור ההזמנה אינו תקף או שפג תוקפו. בקשו הזמנה חדשה.' }
+  }
 
   markPasswordSetupRequired(token.type === 'recovery' ? 'recovery' : 'invite')
 
   const { data: existing } = await supabase.auth.getSession()
   if (existing.session) {
-    // Local sign-out only — do not clear password-setup intent (AuthProvider
-    // must keep the set-password gate across this transition).
     await supabase.auth.signOut({ scope: 'local' })
   }
 
+  const error = await verifyToken(token)
+  clearStashedAuthToken()
+
+  if (error) {
+    return { error: 'קישור ההזמנה אינו תקף או שפג תוקפו. בקשו הזמנה חדשה.' }
+  }
+  return { error: null }
+}
+
+async function verifyToken(token: AuthTokenFromUrl) {
   let error = (
     await supabase.auth.verifyOtp({
       token_hash: token.token_hash,
@@ -33,7 +65,6 @@ export async function consumeAuthTokenFromUrl(): Promise<{ error: string | null 
     })
   ).error
 
-  // generateLink(invite) occasionally verifies as signup depending on Auth version.
   if (error && token.type === 'invite') {
     error = (
       await supabase.auth.verifyOtp({
@@ -43,11 +74,5 @@ export async function consumeAuthTokenFromUrl(): Promise<{ error: string | null 
     ).error
   }
 
-  // Strip only after attempt — avoids verify loops on refresh with a spent token.
-  stripPasswordSetupFromUrl()
-
-  if (error) {
-    return { error: 'קישור ההזמנה אינו תקף או שפג תוקפו. בקשו הזמנה חדשה.' }
-  }
-  return { error: null }
+  return error
 }

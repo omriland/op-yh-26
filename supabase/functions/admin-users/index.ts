@@ -26,8 +26,10 @@ type DeleteBody = {
 };
 
 type ResendInviteBody = {
-  action: "resend_invite";
+  action: "resend_invite" | "copy_invite_link";
   user_id: string;
+  /** Default true for resend_invite, false for copy_invite_link. */
+  send_email?: boolean;
 };
 
 type RequestBody = InviteBody | DeactivateBody | DeleteBody | ResendInviteBody;
@@ -114,8 +116,8 @@ Deno.serve(async (req: Request) => {
     return handleInvite(adminClient, body);
   }
 
-  if (body.action === "resend_invite") {
-    return handleResendInvite(adminClient, body);
+  if (body.action === "resend_invite" || body.action === "copy_invite_link") {
+    return handlePrepareInviteLink(adminClient, body);
   }
 
   return json(400, { error: "פעולה לא מוכרת." });
@@ -245,7 +247,7 @@ function buildInviteActionLink(
   return inviteUrl.toString();
 }
 
-async function handleResendInvite(
+async function handlePrepareInviteLink(
   adminClient: ReturnType<typeof createClient>,
   body: ResendInviteBody,
 ) {
@@ -254,16 +256,14 @@ async function handleResendInvite(
     return json(400, { error: "חסר מזהה משתמש." });
   }
 
+  const sendEmail = body.send_email ?? body.action === "resend_invite";
+
   const { data: authData, error: authError } = await adminClient.auth.admin.getUserById(userId);
   if (authError || !authData.user) {
     return json(404, { error: "המשתמש לא נמצא." });
   }
 
   const authUser = authData.user;
-  if (authUser.email_confirmed_at) {
-    return json(400, { error: "המשתמש כבר השלים הרשמה. אין צורך בהזמנה מחדש." });
-  }
-
   const email = (authUser.email ?? "").trim().toLowerCase();
   if (!email) {
     return json(400, { error: "למשתמש אין כתובת דוא״ל." });
@@ -271,7 +271,7 @@ async function handleResendInvite(
 
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
-    .select("full_name, callsign, phone, active")
+    .select("full_name, callsign, phone, active, invite_pending")
     .eq("id", userId)
     .maybeSingle();
 
@@ -283,33 +283,73 @@ async function handleResendInvite(
     return json(400, { error: "לא ניתן לשלוח הזמנה למשתמש מושבת. הפעילו אותו תחילה." });
   }
 
+  if (!profile.invite_pending) {
+    return json(400, { error: "המשתמש כבר השלים הרשמה. אין צורך בהזמנה מחדש." });
+  }
+
   const redirectBase = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
   const fullName = trim(profile.full_name) || email;
   const callsign = trim(profile.callsign);
   const phone = trim(profile.phone ?? "") || "";
 
-  const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-    type: "invite",
-    email,
-    options: {
-      data: {
-        full_name: fullName,
-        callsign,
-        phone,
+  // Prefer a fresh invite token. If Auth already considers the user registered
+  // (common after an email-scanner burned the first OTP), fall back to recovery
+  // — same branded set-password URL shape in the SPA.
+  let linkData: Awaited<
+    ReturnType<typeof adminClient.auth.admin.generateLink>
+  >["data"] = null;
+  let linkError: { message: string } | null = null;
+
+  {
+    const attempt = await adminClient.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: {
+        data: {
+          full_name: fullName,
+          callsign,
+          phone,
+        },
+        redirectTo: redirectBase,
       },
-      redirectTo: redirectBase,
-    },
-  });
+    });
+    linkData = attempt.data;
+    linkError = attempt.error;
+  }
 
   if (linkError) {
     const message = linkError.message?.toLowerCase() ?? "";
     if (message.includes("rate limit")) {
       return json(429, { error: "נשלחו יותר מדי הזמנות. נסו שוב בעוד כמה דקות." });
     }
-    return json(400, {
-      error: "יצירת קישור ההזמנה נכשלה. נסו שוב.",
-      detail: linkError.message,
+    const alreadyRegistered =
+      message.includes("already") ||
+      message.includes("registered") ||
+      message.includes("exists");
+    if (!alreadyRegistered) {
+      return json(400, {
+        error: "יצירת קישור ההזמנה נכשלה. נסו שוב.",
+        detail: linkError.message,
+      });
+    }
+
+    const recovery = await adminClient.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo: redirectBase },
     });
+    if (recovery.error || !recovery.data) {
+      return json(400, {
+        error: "יצירת קישור ההזמנה נכשלה. נסו שוב.",
+        detail: recovery.error?.message,
+      });
+    }
+    linkData = recovery.data;
+    linkError = null;
+  }
+
+  if (!linkData) {
+    return json(500, { error: "יצירת קישור ההזמנה נכשלה." });
   }
 
   const hashedToken = linkData.properties.hashed_token;
@@ -319,12 +359,24 @@ async function handleResendInvite(
 
   const verificationType = linkData.properties.verification_type || "invite";
   const actionLink = buildInviteActionLink(hashedToken, verificationType, redirectBase);
-  const mail = await sendInviteEmail(email, fullName, actionLink);
-  if (mail.error) {
-    return json(400, { error: mail.error, detail: mail.detail });
+
+  await adminClient
+    .from("profiles")
+    .update({ invite_pending: true, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+
+  if (sendEmail) {
+    const mail = await sendInviteEmail(email, fullName, actionLink);
+    if (mail.error) {
+      return json(400, { error: mail.error, detail: mail.detail });
+    }
   }
 
-  return json(200, { ok: true, message: "ההזמנה נשלחה מחדש." });
+  return json(200, {
+    ok: true,
+    action_link: actionLink,
+    message: sendEmail ? "ההזמנה נשלחה מחדש." : "קישור ההזמנה הועתק.",
+  });
 }
 
 async function sendInviteEmail(to: string, fullName: string, actionLink: string) {
@@ -495,6 +547,7 @@ async function handleInvite(
       phone,
       email,
       active: true,
+      invite_pending: true,
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
@@ -530,6 +583,7 @@ async function handleInvite(
   return json(200, {
     ok: true,
     user_id: userId,
+    action_link: actionLink,
     message: "משתמש נוצר בהצלחה",
   });
 }

@@ -23,6 +23,7 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
     signIn,
     requestPasswordReset,
     updatePassword,
+    redeemInviteToken,
     acknowledgePasswordSetup,
     passwordSetupReason,
     authBootstrapError,
@@ -58,6 +59,14 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
     setBusy(false)
     if (result.error) setError(result.error)
     else setMode('reset-sent')
+  }
+
+  async function onRedeemInvite() {
+    setBusy(true)
+    setError(null)
+    const result = await redeemInviteToken()
+    setBusy(false)
+    if (result.error) setError(result.error)
   }
 
   async function onSetPassword(event: FormEvent) {
@@ -237,56 +246,78 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                   </span>
                   <h2 className="t-section">{setPasswordTitle}</h2>
                 </div>
-                <p className="t-body text-secondary">{setPasswordBody}</p>
-              </div>
-
-              <div className="login__fields">
-                <PasswordField
-                  label="סיסמה חדשה"
-                  autoComplete="new-password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-
-                <PasswordField
-                  label="אימות סיסמה"
-                  autoComplete="new-password"
-                  required
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                />
+                <p className="t-body text-secondary">
+                  {!session && !authBootstrapError
+                    ? passwordSetupReason === 'recovery'
+                      ? 'לחצו להמשך כדי לאמת את קישור האיפוס ולבחור סיסמה חדשה.'
+                      : 'לחצו להמשך כדי לאמת את ההזמנה ולבחור סיסמה. השלב הזה נדרש כדי שהקישור לא יישרף על ידי סורקי דוא״ל.'
+                    : setPasswordBody}
+                </p>
               </div>
 
               <FormError message={error ?? authBootstrapError} />
 
-              {!session && !authBootstrapError ? (
-                <p className="t-body text-secondary" role="status">
-                  מאמתים את ההזמנה…
-                </p>
-              ) : null}
-
-              <div className="login__actions">
-                <Button
-                  type="submit"
-                  block
-                  loading={busy}
-                  loadingLabel="שומר…"
-                  disabled={!session || Boolean(authBootstrapError)}
-                >
-                  שמירת סיסמה
-                </Button>
-                <div className="login__links">
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      void signOut()
-                    }}
-                  >
-                    יציאה
-                  </Button>
+              {!session ? (
+                <div className="login__actions">
+                  {!authBootstrapError ? (
+                    <Button
+                      type="button"
+                      block
+                      loading={busy}
+                      loadingLabel="מאמתים…"
+                      onClick={() => void onRedeemInvite()}
+                    >
+                      המשך להגדרת סיסמה
+                    </Button>
+                  ) : null}
+                  <div className="login__links">
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        void signOut()
+                      }}
+                    >
+                      יציאה
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div className="login__fields">
+                    <PasswordField
+                      label="סיסמה חדשה"
+                      autoComplete="new-password"
+                      required
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+
+                    <PasswordField
+                      label="אימות סיסמה"
+                      autoComplete="new-password"
+                      required
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                    />
+                  </div>
+
+                  <div className="login__actions">
+                    <Button type="submit" block loading={busy} loadingLabel="שומר…">
+                      שמירת סיסמה
+                    </Button>
+                    <div className="login__links">
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          void signOut()
+                        }}
+                      >
+                        יציאה
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </form>
           ) : null}
 

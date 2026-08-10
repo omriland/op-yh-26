@@ -1,5 +1,7 @@
 /** Session flag: invite/recovery URL was opened and password must be chosen. */
 const STORAGE_KEY = 'yahpaz:password-setup'
+/** One-time OTP parked until the user explicitly continues (anti-prefetch). */
+const TOKEN_STASH_KEY = 'yahpaz:pending-otp'
 
 export type PasswordSetupReason = 'invite' | 'recovery'
 
@@ -83,6 +85,27 @@ export function markPasswordSetupRequired(reason: PasswordSetupReason): void {
 
 export function clearPasswordSetupIntent(): void {
   sessionStorage.removeItem(STORAGE_KEY)
+  clearStashedAuthToken()
+}
+
+export function stashAuthToken(token: AuthTokenFromUrl): void {
+  sessionStorage.setItem(TOKEN_STASH_KEY, JSON.stringify(token))
+}
+
+export function readStashedAuthToken(): AuthTokenFromUrl | null {
+  const raw = sessionStorage.getItem(TOKEN_STASH_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as AuthTokenFromUrl
+    if (!parsed?.token_hash || !parsed?.type) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function clearStashedAuthToken(): void {
+  sessionStorage.removeItem(TOKEN_STASH_KEY)
 }
 
 /** Drop invite/reset query markers so refresh cannot reopen the gate. */

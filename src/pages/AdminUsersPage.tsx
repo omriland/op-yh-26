@@ -5,6 +5,7 @@ import {
   deleteAdminUser,
   deleteAdminVehicle,
   fetchAdminUsers,
+  copyAdminInviteLink,
   inviteAdminUser,
   resendAdminInvite,
   saveAdminUser,
@@ -210,7 +211,13 @@ export function AdminUsersPage() {
           setFormError(result.error)
           return
         }
-        show(result.message ?? 'משתמש נוצר בהצלחה', 'done')
+        const copied = await copyInviteLinkToClipboard(result.action_link)
+        show(
+          copied
+            ? 'משתמש נוצר בהצלחה וקישור ההזמנה הועתק.'
+            : (result.message ?? 'משתמש נוצר בהצלחה'),
+          'done',
+        )
       } else {
         const result = await saveAdminUser({
           id: draft.id,
@@ -262,6 +269,16 @@ export function AdminUsersPage() {
     setReloadKey((value) => value + 1)
   }
 
+  async function copyInviteLinkToClipboard(actionLink: string | undefined) {
+    if (!actionLink) return false
+    try {
+      await navigator.clipboard.writeText(actionLink)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async function resendInvite(target: AdminUserRow) {
     setMenuUserId(null)
     const result = await resendAdminInvite(target.id)
@@ -269,7 +286,27 @@ export function AdminUsersPage() {
       show(result.error, 'alert')
       return
     }
-    show(result.message ?? 'ההזמנה נשלחה מחדש.', 'done')
+    const copied = await copyInviteLinkToClipboard(result.action_link)
+    show(
+      copied
+        ? 'ההזמנה נשלחה מחדש וקישור ההזמנה הועתק.'
+        : (result.message ?? 'ההזמנה נשלחה מחדש.'),
+      'done',
+    )
+  }
+
+  async function copyInviteLink(target: AdminUserRow) {
+    setMenuUserId(null)
+    const result = await copyAdminInviteLink(target.id)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    const copied = await copyInviteLinkToClipboard(result.action_link)
+    show(
+      copied ? 'קישור ההזמנה הועתק.' : 'נוצר קישור הזמנה, אך ההעתקה נכשלה. נסו שוב.',
+      copied ? 'done' : 'alert',
+    )
   }
 
   async function confirmDeleteUser() {
@@ -552,6 +589,10 @@ export function AdminUsersPage() {
                               {
                                 label: 'שליחת הזמנה מחדש',
                                 onSelect: () => void resendInvite(user),
+                              },
+                              {
+                                label: 'העתקת קישור הזמנה',
+                                onSelect: () => void copyInviteLink(user),
                               },
                             ]
                           : []),

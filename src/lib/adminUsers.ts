@@ -18,8 +18,8 @@ export type AdminUserRow = {
   phone: string | null
   active: boolean
   last_sign_in_at: string | null
-  /** Null until the invitee finishes registration (Auth email confirmed). */
-  email_confirmed_at: string | null
+  /** True until the invitee sets a password in the app. */
+  invite_pending: boolean
   roles: AppRole[]
   vehicles: AdminVehicle[]
 }
@@ -42,7 +42,11 @@ export type SaveUserInput = {
   vehicles: { id?: string; plate_number: string; model: string; archived?: boolean }[]
 }
 
-async function callAdminUsers(body: Record<string, unknown>): Promise<{ ok: true; message?: string; user_id?: string } | { ok: false; error: string }> {
+async function callAdminUsers(
+  body: Record<string, unknown>,
+): Promise<
+  { ok: true; message?: string; user_id?: string; action_link?: string } | { ok: false; error: string }
+> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
   if (sessionError || !token) {
@@ -64,15 +68,26 @@ async function callAdminUsers(body: Record<string, unknown>): Promise<{ ok: true
     return { ok: false, error: 'הפעולה נכשלה. בדקו את החיבור ונסו שוב.' }
   }
 
-  const payload = data as { error?: string; message?: string; user_id?: string; ok?: boolean }
+  const payload = data as {
+    error?: string
+    message?: string
+    user_id?: string
+    action_link?: string
+    ok?: boolean
+  }
   if (payload?.error) return { ok: false, error: payload.error }
-  return { ok: true, message: payload.message, user_id: payload.user_id }
+  return {
+    ok: true,
+    message: payload.message,
+    user_id: payload.user_id,
+    action_link: payload.action_link,
+  }
 }
 
 export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id, full_name, email, callsign, phone, active')
+    .select('id, full_name, email, callsign, phone, active, invite_pending')
     .order('full_name')
 
   if (error) throw error
@@ -89,46 +104,34 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     supabase.rpc('admin_list_last_sign_in'),
   ])
 
-  const authByUser = new Map(
-    (
-      (loginRows ?? []) as {
-        user_id: string
-        last_sign_in_at: string | null
-        email_confirmed_at: string | null
-      }[]
-    ).map((row) => [
+  const lastSignInByUser = new Map(
+    ((loginRows ?? []) as { user_id: string; last_sign_in_at: string | null }[]).map((row) => [
       row.user_id,
-      {
-        last_sign_in_at: row.last_sign_in_at,
-        email_confirmed_at: row.email_confirmed_at,
-      },
+      row.last_sign_in_at,
     ]),
   )
 
-  const rows = (profiles ?? []).map((profile) => {
-    const auth = authByUser.get(profile.id)
-    return {
-      id: profile.id,
-      full_name: profile.full_name,
-      email: profile.email,
-      callsign: profile.callsign,
-      phone: profile.phone,
-      active: profile.active !== false,
-      last_sign_in_at: auth?.last_sign_in_at ?? null,
-      email_confirmed_at: auth?.email_confirmed_at ?? null,
-      roles: (roleRows ?? [])
-        .filter((row) => row.user_id === profile.id)
-        .map((row) => row.role as AppRole),
-      vehicles: (vehicleRows ?? [])
-        .filter((row) => row.user_id === profile.id)
-        .map((row) => ({
-          id: row.id as string,
-          plate_number: row.plate_number as string,
-          model: row.model as string,
-          archived: Boolean(row.archived),
-        })),
-    }
-  })
+  const rows = (profiles ?? []).map((profile) => ({
+    id: profile.id,
+    full_name: profile.full_name,
+    email: profile.email,
+    callsign: profile.callsign,
+    phone: profile.phone,
+    active: profile.active !== false,
+    last_sign_in_at: lastSignInByUser.get(profile.id) ?? null,
+    invite_pending: Boolean(profile.invite_pending),
+    roles: (roleRows ?? [])
+      .filter((row) => row.user_id === profile.id)
+      .map((row) => row.role as AppRole),
+    vehicles: (vehicleRows ?? [])
+      .filter((row) => row.user_id === profile.id)
+      .map((row) => ({
+        id: row.id as string,
+        plate_number: row.plate_number as string,
+        model: row.model as string,
+        archived: Boolean(row.archived),
+      })),
+  }))
 
   // Pending invitees → active confirmed → מושבתים; name within group.
   return rows.sort(compareAdminUsers)
@@ -162,6 +165,16 @@ export function resendAdminInvite(userId: string) {
   return callAdminUsers({
     action: 'resend_invite',
     user_id: userId,
+    send_email: true,
+  })
+}
+
+/** Regenerate invite link and return it for clipboard copy (no email). */
+export function copyAdminInviteLink(userId: string) {
+  return callAdminUsers({
+    action: 'copy_invite_link',
+    user_id: userId,
+    send_email: false,
   })
 }
 

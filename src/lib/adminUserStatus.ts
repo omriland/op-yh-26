@@ -1,9 +1,9 @@
-/** Invite not completed — Auth email not confirmed yet. */
+/** Invite not completed — profile still marked pending in the app. */
 export function isInvitePending(user: {
   active: boolean
-  email_confirmed_at: string | null
+  invite_pending: boolean
 }): boolean {
-  return user.active && !user.email_confirmed_at
+  return user.active && user.invite_pending
 }
 
 /**
@@ -11,12 +11,12 @@ export function isInvitePending(user: {
  * Stable name order within each group (caller should pre-sort by name).
  */
 export function compareAdminUsers(
-  a: { active: boolean; email_confirmed_at: string | null; full_name: string },
-  b: { active: boolean; email_confirmed_at: string | null; full_name: string },
+  a: { active: boolean; invite_pending: boolean; full_name: string },
+  b: { active: boolean; invite_pending: boolean; full_name: string },
 ): number {
   const rank = (user: typeof a) => {
     if (!user.active) return 2
-    if (!user.email_confirmed_at) return 0
+    if (user.invite_pending) return 0
     return 1
   }
   const byRank = rank(a) - rank(b)

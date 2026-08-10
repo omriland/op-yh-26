@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { consumeAuthTokenFromUrl } from './consumeAuthToken'
+import { redeemStashedAuthToken, stashAuthTokenFromUrl } from './consumeAuthToken'
 import {
   clearPasswordSetupIntent,
   getPasswordSetupReason,
@@ -43,6 +43,8 @@ type AuthState = {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>
   updatePassword: (password: string) => Promise<{ error: string | null }>
+  /** User-initiated invite/recovery OTP redeem (anti-prefetch). */
+  redeemInviteToken: () => Promise<{ error: string | null }>
   /** Leave the set-password gate after the success confirmation. */
   acknowledgePasswordSetup: () => void
   signOut: () => Promise<void>
@@ -80,9 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true
 
     void (async () => {
-      const tokenResult = await consumeAuthTokenFromUrl()
+      // Stash token only — never verifyOtp on load (email scanners burn OTPs).
+      stashAuthTokenFromUrl()
       if (!mounted) return
-      if (tokenResult.error) setAuthBootstrapError(tokenResult.error)
       setPasswordSetupReason(getPasswordSetupReason())
 
       const { data } = await supabase.auth.getSession()
@@ -182,10 +184,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return { error: 'שמירת הסיסמה נכשלה. נסו שוב.' }
     }
+
+    const {
+      data: { user: current },
+    } = await supabase.auth.getUser()
+    if (current?.id) {
+      await supabase
+        .from('profiles')
+        .update({ invite_pending: false, updated_at: new Date().toISOString() })
+        .eq('id', current.id)
+    }
+
     // Clear durable intent + URL so refresh cannot reopen the gate; keep React
     // reason until acknowledgePasswordSetup so the confirmation screen can show.
     clearPasswordSetupIntent()
     stripPasswordSetupFromUrl()
+    return { error: null }
+  }, [])
+
+  const redeemInviteToken = useCallback(async () => {
+    setAuthBootstrapError(null)
+    const result = await redeemStashedAuthToken()
+    if (result.error) {
+      setAuthBootstrapError(result.error)
+      setPasswordSetupReason(getPasswordSetupReason())
+      return result
+    }
+    const { data } = await supabase.auth.getSession()
+    setSession(data.session)
+    setPasswordSetupReason(getPasswordSetupReason())
+    if (data.session?.user) {
+      const loaded = await loadProfileAndRoles(data.session.user.id)
+      setProfile(loaded.profile)
+      setRoles(loaded.roles)
+    }
     return { error: null }
   }, [])
 
@@ -213,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       requestPasswordReset,
       updatePassword,
+      redeemInviteToken,
       acknowledgePasswordSetup,
       signOut,
     }),
@@ -226,6 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       requestPasswordReset,
       updatePassword,
+      redeemInviteToken,
       acknowledgePasswordSetup,
       signOut,
     ],
