@@ -16,7 +16,6 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { OverflowMenu } from '../components/ui/OverflowMenu'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { TextField } from '../components/ui/TextField'
-import { SubmitShortcutHint } from '../components/ui/SubmitShortcutHint'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
@@ -326,12 +325,9 @@ function InlineEditor({
         required
       />
       <div className="list-inline-editor__actions">
-        <div className="submit-shortcut-cluster">
-          <Button type="submit" loading={saving} loadingLabel="שומר…">
-            שמירה
-          </Button>
-          <SubmitShortcutHint />
-        </div>
+        <Button type="submit" loading={saving} loadingLabel="שומר…">
+          שמירה
+        </Button>
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
           ביטול
         </Button>

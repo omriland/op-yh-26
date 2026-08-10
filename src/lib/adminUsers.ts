@@ -92,7 +92,7 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     ),
   )
 
-  return (profiles ?? []).map((profile) => ({
+  const rows = (profiles ?? []).map((profile) => ({
     id: profile.id,
     full_name: profile.full_name,
     email: profile.email,
@@ -112,6 +112,9 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
         archived: Boolean(row.archived),
       })),
   }))
+
+  // Active users first (name order from the query); מושבתים at the end.
+  return rows.sort((a, b) => Number(b.active) - Number(a.active))
 }
 
 export function inviteAdminUser(input: InviteUserInput) {

@@ -1,3 +1,4 @@
+import { sortByRoadName } from './roadSort'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 
@@ -119,7 +120,8 @@ async function fetchLookup(table: 'districts' | 'event_types' | 'roads' | 'vehic
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
   if (error) throw new Error(error.message)
-  return (data ?? []) as LookupOption[]
+  const items = (data ?? []) as LookupOption[]
+  return table === 'roads' ? sortByRoadName(items) : items
 }
 
 export async function fetchEventLookups(): Promise<EventLookups> {

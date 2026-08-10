@@ -1,3 +1,4 @@
+import { sortByRoadName } from './roadSort'
 import { supabase } from './supabase'
 
 export type ClosedListKey = 'districts' | 'event_types' | 'roads' | 'vehicle_kinds'
@@ -50,7 +51,8 @@ export async function fetchClosedListItems(key: ClosedListKey): Promise<ClosedLi
     .order('name', { ascending: true })
 
   if (error) throw error
-  return (data ?? []) as ClosedListItem[]
+  const items = (data ?? []) as ClosedListItem[]
+  return key === 'roads' ? sortByRoadName(items) : items
 }
 
 export async function createClosedListItem(

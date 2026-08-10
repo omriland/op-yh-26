@@ -30,7 +30,6 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { OverflowMenu } from '../components/ui/OverflowMenu'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
-import { SubmitShortcutHint } from '../components/ui/SubmitShortcutHint'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
@@ -577,12 +576,9 @@ export function AdminUsersPage() {
             <Button variant="secondary" disabled={saving} onClick={() => setDraft(null)}>
               ביטול
             </Button>
-            <div className="submit-shortcut-cluster">
-              <Button loading={saving} onClick={() => void submitDraft()}>
-                שמירת משתמש
-              </Button>
-              <SubmitShortcutHint />
-            </div>
+            <Button loading={saving} onClick={() => void submitDraft()}>
+              שמירת משתמש
+            </Button>
           </>
         }
       >
