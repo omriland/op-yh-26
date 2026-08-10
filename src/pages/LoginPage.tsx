@@ -1,12 +1,10 @@
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle, KeyRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { monoClass } from '../lib/format'
-import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { StampChip } from '../components/ui/StampChip'
-import { SubmitShortcutHint } from '../components/ui/SubmitShortcutHint'
 import { PasswordField, TextField } from '../components/ui/TextField'
 
 type Mode = 'signin' | 'reset' | 'reset-sent' | 'set-password' | 'password-set'
@@ -35,22 +33,6 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const signInFormRef = useRef<HTMLFormElement>(null)
-  const resetFormRef = useRef<HTMLFormElement>(null)
-  const setPasswordFormRef = useRef<HTMLFormElement>(null)
-
-  useDesktopFormSubmit(() => signInFormRef.current?.requestSubmit(), {
-    enabled: mode === 'signin' && !busy,
-    rootRef: signInFormRef,
-  })
-  useDesktopFormSubmit(() => resetFormRef.current?.requestSubmit(), {
-    enabled: mode === 'reset' && !busy,
-    rootRef: resetFormRef,
-  })
-  useDesktopFormSubmit(() => setPasswordFormRef.current?.requestSubmit(), {
-    enabled: mode === 'set-password' && !busy,
-    rootRef: setPasswordFormRef,
-  })
 
   const isSetupFlow = mode === 'set-password' || mode === 'password-set'
   const displayName = profile?.full_name?.trim() || null
@@ -132,7 +114,6 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
         >
           {mode === 'signin' ? (
             <form
-              ref={signInFormRef}
               className="login__form"
               onSubmit={onSignIn}
               noValidate
@@ -166,7 +147,6 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                 <Button type="submit" block loading={busy} loadingLabel="נכנס…">
                   כניסה
                 </Button>
-                <SubmitShortcutHint />
                 <div className="login__links">
                   <Button variant="ghost" onClick={() => goTo('reset')}>
                     שכחתי סיסמה
@@ -178,7 +158,6 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
 
           {mode === 'reset' ? (
             <form
-              ref={resetFormRef}
               className="login__form"
               onSubmit={onReset}
               noValidate
@@ -208,7 +187,6 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                 <Button type="submit" block loading={busy} loadingLabel="שולח…">
                   שליחת קישור לאיפוס
                 </Button>
-                <SubmitShortcutHint />
                 <div className="login__links">
                   <Button variant="ghost" onClick={() => goTo('signin')}>
                     חזרה לכניסה
@@ -238,7 +216,6 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
 
           {mode === 'set-password' ? (
             <form
-              ref={setPasswordFormRef}
               className="login__form login__form--setup"
               onSubmit={onSetPassword}
               noValidate
@@ -283,7 +260,6 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                 <Button type="submit" block loading={busy} loadingLabel="שומר…">
                   שמירת סיסמה
                 </Button>
-                <SubmitShortcutHint />
                 <div className="login__links">
                   <Button
                     variant="ghost"

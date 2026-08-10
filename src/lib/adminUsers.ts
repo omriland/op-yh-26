@@ -16,6 +16,7 @@ export type AdminUserRow = {
   callsign: string
   phone: string | null
   active: boolean
+  last_sign_in_at: string | null
   roles: AppRole[]
   vehicles: AdminVehicle[]
 }
@@ -76,13 +77,20 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   const ids = (profiles ?? []).map((row) => row.id)
   if (ids.length === 0) return []
 
-  const [{ data: roleRows }, { data: vehicleRows }] = await Promise.all([
+  const [{ data: roleRows }, { data: vehicleRows }, { data: loginRows }] = await Promise.all([
     supabase.from('user_roles').select('user_id, role').in('user_id', ids),
     supabase
       .from('vehicles')
       .select('id, user_id, plate_number, model, archived')
       .in('user_id', ids),
+    supabase.rpc('admin_list_last_sign_in'),
   ])
+
+  const lastSignInByUser = new Map(
+    ((loginRows ?? []) as { user_id: string; last_sign_in_at: string | null }[]).map(
+      (row) => [row.user_id, row.last_sign_in_at],
+    ),
+  )
 
   return (profiles ?? []).map((profile) => ({
     id: profile.id,
@@ -91,6 +99,7 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     callsign: profile.callsign,
     phone: profile.phone,
     active: profile.active !== false,
+    last_sign_in_at: lastSignInByUser.get(profile.id) ?? null,
     roles: (roleRows ?? [])
       .filter((row) => row.user_id === profile.id)
       .map((row) => row.role as AppRole),

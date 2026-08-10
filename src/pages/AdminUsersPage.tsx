@@ -13,6 +13,7 @@ import {
 import { useAuth, type AppRole } from '../lib/auth'
 import {
   findDuplicatePlate,
+  formatLastLogin,
   formatPhone,
   formatPlate,
   isValidPhone,
@@ -447,6 +448,7 @@ export function AdminUsersPage() {
                 <th>טלפון</th>
                 <th>תפקידים</th>
                 <th>רכבים</th>
+                <th>כניסה אחרונה</th>
                 <th>
                   <span className="visually-hidden">פעולות</span>
                 </th>
@@ -488,6 +490,13 @@ export function AdminUsersPage() {
                   </td>
                   <td className="num mono">
                     {user.vehicles.filter((vehicle) => !vehicle.archived).length}
+                  </td>
+                  <td>
+                    {user.last_sign_in_at ? (
+                      formatLastLogin(user.last_sign_in_at)
+                    ) : (
+                      <span className="text-muted">טרם התחבר</span>
+                    )}
                   </td>
                   <td onClick={(event) => event.stopPropagation()}>
                     <OverflowMenu

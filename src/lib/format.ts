@@ -26,6 +26,23 @@ export function formatDateTime(value: string | Date): string {
   return dateTimeFormatter.format(toDate(value)).replace(/\//g, '.')
 }
 
+/**
+ * Last-login display: relative Hebrew wording inside the last 24 hours
+ * ("לפני 20 דקות", "לפני 3 שעות"), absolute `DD.MM.YYYY, HH:mm` beyond.
+ * Null when the user never signed in.
+ */
+export function formatLastLogin(value: string | null | undefined): string | null {
+  if (!value) return null
+  const date = toDate(value)
+  const elapsedMs = Date.now() - date.getTime()
+  if (elapsedMs < 0 || elapsedMs >= 86_400_000) return formatDateTime(date)
+  if (elapsedMs < 60_000) return 'עכשיו'
+  if (elapsedMs < 3_600_000) {
+    return relativeFormatter.format(-Math.floor(elapsedMs / 60_000), 'minute')
+  }
+  return relativeFormatter.format(-Math.floor(elapsedMs / 3_600_000), 'hour')
+}
+
 /** Hebrew relative wording for the last week, absolute date beyond it. */
 export function formatDayHeading(value: string | Date): string {
   const date = startOfDay(toDate(value))
