@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
+import { consumeAuthTokenFromUrl } from './consumeAuthToken'
 import {
   clearPasswordSetupIntent,
   getPasswordSetupReason,
@@ -15,6 +16,7 @@ import {
   stripPasswordSetupFromUrl,
   type PasswordSetupReason,
 } from './passwordSetup'
+import { passwordStrengthError } from './passwordRules'
 import { supabase } from './supabase'
 
 export type AppRole = 'admin' | 'shift_lead' | 'responder'
@@ -36,6 +38,8 @@ type AuthState = {
   loading: boolean
   /** Session exists from invite/recovery link — must choose a password first. */
   passwordSetupReason: PasswordSetupReason | null
+  /** Failed branded invite/recovery token exchange (shown on login). */
+  authBootstrapError: string | null
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>
   updatePassword: (password: string) => Promise<{ error: string | null }>
@@ -70,11 +74,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [passwordSetupReason, setPasswordSetupReason] = useState<PasswordSetupReason | null>(
     () => getPasswordSetupReason(),
   )
+  const [authBootstrapError, setAuthBootstrapError] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
 
-    supabase.auth.getSession().then(async ({ data }) => {
+    void (async () => {
+      const tokenResult = await consumeAuthTokenFromUrl()
+      if (!mounted) return
+      if (tokenResult.error) setAuthBootstrapError(tokenResult.error)
+      setPasswordSetupReason(getPasswordSetupReason())
+
+      const { data } = await supabase.auth.getSession()
       if (!mounted) return
       setSession(data.session)
       setPasswordSetupReason(getPasswordSetupReason())
@@ -94,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       setLoading(false)
-    })
+    })()
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, next) => {
       if (event === 'PASSWORD_RECOVERY') {
@@ -159,10 +170,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updatePassword = useCallback(async (password: string) => {
+    const strengthError = passwordStrengthError(password)
+    if (strengthError) return { error: strengthError }
+
     const { error } = await supabase.auth.updateUser({ password })
     if (error) {
       if (/weak|least|characters|short/i.test(error.message)) {
-        return { error: 'הסיסמה קצרה מדי. בחרו סיסמה באורך 6 תווים לפחות.' }
+        return {
+          error:
+            'הסיסמה אינה עומדת בדרישות. יש לכלול: 8 תווים לפחות, אות גדולה ותו מיוחד (למשל !).',
+        }
       }
       return { error: 'שמירת הסיסמה נכשלה. נסו שוב.' }
     }
@@ -193,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       roles,
       loading,
       passwordSetupReason,
+      authBootstrapError,
       signIn,
       requestPasswordReset,
       updatePassword,
@@ -205,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       roles,
       loading,
       passwordSetupReason,
+      authBootstrapError,
       signIn,
       requestPasswordReset,
       updatePassword,

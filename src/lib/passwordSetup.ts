@@ -3,6 +3,11 @@ const STORAGE_KEY = 'yahpaz:password-setup'
 
 export type PasswordSetupReason = 'invite' | 'recovery'
 
+export type AuthTokenFromUrl = {
+  token_hash: string
+  type: 'invite' | 'recovery' | 'signup' | 'magiclink' | 'email'
+}
+
 /**
  * Must run before createClient() processes the auth redirect hash.
  * Invite links sign the user in immediately; we persist intent so the UI
@@ -13,15 +18,25 @@ export type PasswordSetupReason = 'invite' | 'recovery'
  */
 export function capturePasswordSetupIntentFromUrl(): void {
   if (typeof window === 'undefined') return
+  capturePasswordSetupIntent(
+    window.location.hash.replace(/^#/, ''),
+    window.location.search,
+  )
+}
 
-  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-  const queryParams = new URLSearchParams(window.location.search)
+/** Pure helper — used by capturePasswordSetupIntentFromUrl and unit tests. */
+export function capturePasswordSetupIntent(hash: string, search: string): void {
+  const hashParams = new URLSearchParams(hash.replace(/^#/, ''))
+  const queryParams = new URLSearchParams(
+    search.startsWith('?') ? search.slice(1) : search,
+  )
   const type = hashParams.get('type') ?? queryParams.get('type')
   const hasAuthPayload =
     hashParams.has('access_token') ||
     hashParams.has('refresh_token') ||
     hashParams.has('code') ||
-    queryParams.has('code')
+    queryParams.has('code') ||
+    queryParams.has('token_hash')
 
   if (type === 'recovery') {
     sessionStorage.setItem(STORAGE_KEY, 'recovery')
@@ -38,6 +53,30 @@ export function capturePasswordSetupIntentFromUrl(): void {
   }
 }
 
+export function readAuthTokenFromUrl(): AuthTokenFromUrl | null {
+  if (typeof window === 'undefined') return null
+  return readAuthTokenFromSearch(window.location.search)
+}
+
+export function readAuthTokenFromSearch(search: string): AuthTokenFromUrl | null {
+  const queryParams = new URLSearchParams(
+    search.startsWith('?') ? search.slice(1) : search,
+  )
+  const token_hash = queryParams.get('token_hash')
+  const type = queryParams.get('type')
+  if (!token_hash || !type) return null
+  if (
+    type !== 'invite' &&
+    type !== 'recovery' &&
+    type !== 'signup' &&
+    type !== 'magiclink' &&
+    type !== 'email'
+  ) {
+    return null
+  }
+  return { token_hash, type }
+}
+
 export function markPasswordSetupRequired(reason: PasswordSetupReason): void {
   sessionStorage.setItem(STORAGE_KEY, reason)
 }
@@ -50,9 +89,16 @@ export function clearPasswordSetupIntent(): void {
 export function stripPasswordSetupFromUrl(): void {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
-  if (!url.searchParams.has('set_password') && !url.searchParams.has('type')) return
+  if (
+    !url.searchParams.has('set_password') &&
+    !url.searchParams.has('type') &&
+    !url.searchParams.has('token_hash')
+  ) {
+    return
+  }
   url.searchParams.delete('set_password')
   url.searchParams.delete('type')
+  url.searchParams.delete('token_hash')
   const next = `${url.pathname}${url.search}${url.hash}`
   window.history.replaceState(window.history.state, '', next || '/')
 }

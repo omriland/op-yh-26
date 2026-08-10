@@ -37,15 +37,14 @@ After records propagate, Netlify provisions TLS for `https://yahpz.com`.
 
 ### Email (Resend)
 
-**Temporary:** Invite emails send from verified Resend domain `send.responders-tlv.com`
-(`יחפ״צ <onboarding@send.responders-tlv.com>`) until `yahpz.com` can be added (free plan = 1 domain).
+Invite emails send from verified domain **`send.yahpz.com`**
+(`אבן דרך - יחפ״צ <noreply@send.yahpz.com>`). DNS: DKIM + SPF/MX on Cloudflare (zone `yahpz.com`).
 
 **How invites send:** Edge Function `admin-users` uses Auth `generateLink({ type: 'invite' })`
 then Resend’s HTTP API (secret `RESEND_API_KEY` on the Supabase project). This bypasses
 Supabase’s built-in mailer rate limit. Invite links create a session immediately — the SPA
 captures `type=invite` / `?set_password=1` and forces **בחירת סיסמה** before the app shell.
 Password-reset uses the same set-password gate (`PASSWORD_RECOVERY` / `set_password`).
-
 
 Optional Auth SMTP (Dashboard → Authentication → SMTP) for reset/confirm templates:
 
@@ -54,9 +53,9 @@ Optional Auth SMTP (Dashboard → Authentication → SMTP) for reset/confirm tem
 | Host | `smtp.resend.com` |
 | Port | `587` |
 | User | `resend` |
-| Pass | Resend API key **Yahpaz Auth SMTP** |
-| Sender email | `onboarding@send.responders-tlv.com` |
-| Sender name | `יחפ״צ` |
+| Pass | Resend API key scoped to `send.yahpz.com` |
+| Sender email | `noreply@send.yahpz.com` |
+| Sender name | `אבן דרך - יחפ״צ` |
 
 Auth URL config:
 
@@ -65,8 +64,7 @@ Auth URL config:
 | Site URL | `https://yahpz.com` |
 | Redirect URLs | `https://yahpz.com/**`, `https://yahpaz-2026.netlify.app/**`, `http://localhost:5173/**` |
 
-Edge secret already set for this project: `RESEND_API_KEY`, `INVITE_REDIRECT_TO` (local default
-`http://localhost:5173/` — change to production when ready).
+Edge secrets: `RESEND_API_KEY`, `INVITE_REDIRECT_TO=https://yahpz.com/`
 
 Privileged invite/deactivate: Supabase Edge Function `admin-users` (service role stays
 server-side). Admin UI covers `משתמשים` + `הגדרות` (districts / event types / roads /

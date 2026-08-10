@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle, KeyRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { monoClass } from '../lib/format'
+import { passwordStrengthError } from '../lib/passwordRules'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { StampChip } from '../components/ui/StampChip'
@@ -24,6 +25,7 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
     updatePassword,
     acknowledgePasswordSetup,
     passwordSetupReason,
+    authBootstrapError,
     profile,
     signOut,
   } = useAuth()
@@ -60,8 +62,9 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
   async function onSetPassword(event: FormEvent) {
     event.preventDefault()
     setError(null)
-    if (password.length < 6) {
-      setError('הסיסמה קצרה מדי. בחרו סיסמה באורך 6 תווים לפחות.')
+    const strengthError = passwordStrengthError(password)
+    if (strengthError) {
+      setError(strengthError)
       return
     }
     if (password !== confirmPassword) {
@@ -141,7 +144,7 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                 />
               </div>
 
-              <FormError message={error} />
+              <FormError message={error ?? authBootstrapError} />
 
               <div className="login__actions">
                 <Button type="submit" block loading={busy} loadingLabel="נכנס…">
