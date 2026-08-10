@@ -191,7 +191,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (current?.id) {
       await supabase
         .from('profiles')
-        .update({ invite_pending: false, updated_at: new Date().toISOString() })
+        .update({
+          invite_pending: false,
+          invite_token: null,
+          invite_token_expires_at: null,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', current.id)
     }
 

@@ -247,10 +247,10 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
                   <h2 className="t-section">{setPasswordTitle}</h2>
                 </div>
                 <p className="t-body text-secondary">
-                  {!session && !authBootstrapError
+                  {!session
                     ? passwordSetupReason === 'recovery'
                       ? 'לחצו להמשך כדי לאמת את קישור האיפוס ולבחור סיסמה חדשה.'
-                      : 'לחצו להמשך כדי לאמת את ההזמנה ולבחור סיסמה. השלב הזה נדרש כדי שהקישור לא יישרף על ידי סורקי דוא״ל.'
+                      : 'לחצו להמשך כדי לאמת את ההזמנה ולבחור סיסמה. אפשר ללחוץ שוב גם אם הקישור נפתח קודם — ההרשמה נסגרת רק אחרי בחירת סיסמה.'
                     : setPasswordBody}
                 </p>
               </div>
@@ -259,17 +259,15 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
 
               {!session ? (
                 <div className="login__actions">
-                  {!authBootstrapError ? (
-                    <Button
-                      type="button"
-                      block
-                      loading={busy}
-                      loadingLabel="מאמתים…"
-                      onClick={() => void onRedeemInvite()}
-                    >
-                      המשך להגדרת סיסמה
-                    </Button>
-                  ) : null}
+                  <Button
+                    type="button"
+                    block
+                    loading={busy}
+                    loadingLabel="מאמתים…"
+                    onClick={() => void onRedeemInvite()}
+                  >
+                    המשך להגדרת סיסמה
+                  </Button>
                   <div className="login__links">
                     <Button
                       variant="ghost"

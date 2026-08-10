@@ -1,7 +1,9 @@
 /** Session flag: invite/recovery URL was opened and password must be chosen. */
 const STORAGE_KEY = 'yahpaz:password-setup'
-/** One-time OTP parked until the user explicitly continues (anti-prefetch). */
+/** Legacy one-time Auth OTP parked until the user clicks continue. */
 const TOKEN_STASH_KEY = 'yahpaz:pending-otp'
+/** Durable invite URL secret — reusable until registration completes. */
+const INVITE_TOKEN_STASH_KEY = 'yahpaz:invite-token'
 
 export type PasswordSetupReason = 'invite' | 'recovery'
 
@@ -38,7 +40,8 @@ export function capturePasswordSetupIntent(hash: string, search: string): void {
     hashParams.has('refresh_token') ||
     hashParams.has('code') ||
     queryParams.has('code') ||
-    queryParams.has('token_hash')
+    queryParams.has('token_hash') ||
+    queryParams.has('invite_token')
 
   if (type === 'recovery') {
     sessionStorage.setItem(STORAGE_KEY, 'recovery')
@@ -79,6 +82,19 @@ export function readAuthTokenFromSearch(search: string): AuthTokenFromUrl | null
   return { token_hash, type }
 }
 
+export function readInviteTokenFromSearch(search: string): string | null {
+  const queryParams = new URLSearchParams(
+    search.startsWith('?') ? search.slice(1) : search,
+  )
+  const token = queryParams.get('invite_token')?.trim()
+  return token || null
+}
+
+export function readInviteTokenFromUrl(): string | null {
+  if (typeof window === 'undefined') return null
+  return readInviteTokenFromSearch(window.location.search)
+}
+
 export function markPasswordSetupRequired(reason: PasswordSetupReason): void {
   sessionStorage.setItem(STORAGE_KEY, reason)
 }
@@ -86,6 +102,7 @@ export function markPasswordSetupRequired(reason: PasswordSetupReason): void {
 export function clearPasswordSetupIntent(): void {
   sessionStorage.removeItem(STORAGE_KEY)
   clearStashedAuthToken()
+  clearStashedInviteToken()
 }
 
 export function stashAuthToken(token: AuthTokenFromUrl): void {
@@ -108,6 +125,18 @@ export function clearStashedAuthToken(): void {
   sessionStorage.removeItem(TOKEN_STASH_KEY)
 }
 
+export function stashInviteToken(token: string): void {
+  sessionStorage.setItem(INVITE_TOKEN_STASH_KEY, token)
+}
+
+export function readStashedInviteToken(): string | null {
+  return sessionStorage.getItem(INVITE_TOKEN_STASH_KEY)
+}
+
+export function clearStashedInviteToken(): void {
+  sessionStorage.removeItem(INVITE_TOKEN_STASH_KEY)
+}
+
 /** Drop invite/reset query markers so refresh cannot reopen the gate. */
 export function stripPasswordSetupFromUrl(): void {
   if (typeof window === 'undefined') return
@@ -115,13 +144,15 @@ export function stripPasswordSetupFromUrl(): void {
   if (
     !url.searchParams.has('set_password') &&
     !url.searchParams.has('type') &&
-    !url.searchParams.has('token_hash')
+    !url.searchParams.has('token_hash') &&
+    !url.searchParams.has('invite_token')
   ) {
     return
   }
   url.searchParams.delete('set_password')
   url.searchParams.delete('type')
   url.searchParams.delete('token_hash')
+  url.searchParams.delete('invite_token')
   const next = `${url.pathname}${url.search}${url.hash}`
   window.history.replaceState(window.history.state, '', next || '/')
 }

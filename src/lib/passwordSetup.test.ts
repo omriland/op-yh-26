@@ -4,6 +4,7 @@ import {
   clearPasswordSetupIntent,
   getPasswordSetupReason,
   readAuthTokenFromSearch,
+  readInviteTokenFromSearch,
 } from './passwordSetup'
 
 const store = new Map<string, string>()
@@ -32,6 +33,15 @@ describe('capturePasswordSetupIntent', () => {
     expect(getPasswordSetupReason()).toBe('invite')
   })
 
+  it('arms invite intent from durable invite_token query', () => {
+    stubSessionStorage()
+    capturePasswordSetupIntent(
+      '',
+      '?set_password=1&type=invite&invite_token=11111111-1111-1111-1111-111111111111',
+    )
+    expect(getPasswordSetupReason()).toBe('invite')
+  })
+
   it('arms recovery from type=recovery', () => {
     stubSessionStorage()
     capturePasswordSetupIntent('', '?type=recovery&token_hash=abc')
@@ -49,6 +59,16 @@ describe('readAuthTokenFromSearch', () => {
 
   it('returns null without token_hash', () => {
     expect(readAuthTokenFromSearch('?type=invite')).toBeNull()
+  })
+})
+
+describe('readInviteTokenFromSearch', () => {
+  it('reads durable invite_token', () => {
+    expect(
+      readInviteTokenFromSearch(
+        '?set_password=1&type=invite&invite_token=11111111-1111-1111-1111-111111111111',
+      ),
+    ).toBe('11111111-1111-1111-1111-111111111111')
   })
 })
 

@@ -32,7 +32,19 @@ type ResendInviteBody = {
   send_email?: boolean;
 };
 
-type RequestBody = InviteBody | DeactivateBody | DeleteBody | ResendInviteBody;
+type RedeemInviteBody = {
+  action: "redeem_invite";
+  invite_token: string;
+};
+
+type RequestBody =
+  | InviteBody
+  | DeactivateBody
+  | DeleteBody
+  | ResendInviteBody
+  | RedeemInviteBody;
+
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const ALLOWED_ROLES: AppRole[] = ["admin", "shift_lead", "responder"];
 
@@ -69,6 +81,20 @@ Deno.serve(async (req: Request) => {
     return json(500, { error: "הגדרות השרת חסרות. פנו למנהל המערכת." });
   }
 
+  const adminClient = createClient(supabaseUrl, serviceKey);
+
+  let body: RequestBody;
+  try {
+    body = (await req.json()) as RequestBody;
+  } catch {
+    return json(400, { error: "גוף הבקשה אינו תקין." });
+  }
+
+  // Public: durable invite_token is the secret. Mints a fresh Auth OTP each click.
+  if (body.action === "redeem_invite") {
+    return handleRedeemInvite(adminClient, body);
+  }
+
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return json(401, { error: "יש להתחבר מחדש." });
@@ -77,7 +103,6 @@ Deno.serve(async (req: Request) => {
   const userClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authHeader } },
   });
-  const adminClient = createClient(supabaseUrl, serviceKey);
 
   const {
     data: { user },
@@ -95,13 +120,6 @@ Deno.serve(async (req: Request) => {
 
   if (roleError || !isAdmin) {
     return json(403, { error: "אין לך הרשאה לפעולה זו." });
-  }
-
-  let body: RequestBody;
-  try {
-    body = (await req.json()) as RequestBody;
-  } catch {
-    return json(400, { error: "גוף הבקשה אינו תקין." });
   }
 
   if (body.action === "deactivate" || body.action === "reactivate") {
@@ -235,16 +253,150 @@ async function handleDeleteUser(
   return json(200, { ok: true, message: "המשתמש נמחק." });
 }
 
-function buildInviteActionLink(
-  hashedToken: string,
-  verificationType: string,
-  redirectBase: string,
-): string {
+/** Email / copy URL — durable app token, reusable until password is set. */
+function buildDurableInviteLink(inviteToken: string, redirectBase: string): string {
   const inviteUrl = new URL(redirectBase);
   inviteUrl.searchParams.set("set_password", "1");
-  inviteUrl.searchParams.set("type", verificationType);
-  inviteUrl.searchParams.set("token_hash", hashedToken);
+  inviteUrl.searchParams.set("type", "invite");
+  inviteUrl.searchParams.set("invite_token", inviteToken);
   return inviteUrl.toString();
+}
+
+function newInviteTokenRow() {
+  const inviteToken = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + INVITE_TTL_MS).toISOString();
+  return { inviteToken, expiresAt };
+}
+
+async function mintFreshAuthOtp(
+  adminClient: ReturnType<typeof createClient>,
+  email: string,
+  fullName: string,
+  callsign: string,
+  phone: string,
+  redirectBase: string,
+) {
+  const inviteAttempt = await adminClient.auth.admin.generateLink({
+    type: "invite",
+    email,
+    options: {
+      data: { full_name: fullName, callsign, phone },
+      redirectTo: redirectBase,
+    },
+  });
+
+  if (!inviteAttempt.error && inviteAttempt.data?.properties?.hashed_token) {
+    return {
+      token_hash: inviteAttempt.data.properties.hashed_token as string,
+      type: (inviteAttempt.data.properties.verification_type || "invite") as string,
+      error: null as string | null,
+    };
+  }
+
+  const message = inviteAttempt.error?.message?.toLowerCase() ?? "";
+  if (message.includes("rate limit")) {
+    return { token_hash: null, type: null, error: "rate_limit" as const };
+  }
+
+  const alreadyRegistered =
+    message.includes("already") ||
+    message.includes("registered") ||
+    message.includes("exists");
+
+  if (!alreadyRegistered && inviteAttempt.error) {
+    return {
+      token_hash: null,
+      type: null,
+      error: inviteAttempt.error.message,
+    };
+  }
+
+  const recovery = await adminClient.auth.admin.generateLink({
+    type: "recovery",
+    email,
+    options: { redirectTo: redirectBase },
+  });
+  if (recovery.error || !recovery.data?.properties?.hashed_token) {
+    return {
+      token_hash: null,
+      type: null,
+      error: recovery.error?.message ?? "recovery_failed",
+    };
+  }
+
+  return {
+    token_hash: recovery.data.properties.hashed_token as string,
+    type: (recovery.data.properties.verification_type || "recovery") as string,
+    error: null as string | null,
+  };
+}
+
+async function handleRedeemInvite(
+  adminClient: ReturnType<typeof createClient>,
+  body: RedeemInviteBody,
+) {
+  const inviteToken = trim(body.invite_token);
+  if (!inviteToken) {
+    return json(400, { error: "קישור ההזמנה אינו תקף או שפג תוקפו. בקשו הזמנה חדשה." });
+  }
+
+  const { data: profile, error: profileError } = await adminClient
+    .from("profiles")
+    .select(
+      "id, email, full_name, callsign, phone, active, invite_pending, invite_token_expires_at",
+    )
+    .eq("invite_token", inviteToken)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return json(400, { error: "קישור ההזמנה אינו תקף או שפג תוקפו. בקשו הזמנה חדשה." });
+  }
+
+  if (profile.active === false) {
+    return json(400, { error: "המשתמש מושבת. פנו למנהל המערכת." });
+  }
+
+  if (!profile.invite_pending) {
+    return json(400, { error: "ההרשמה כבר הושלמה. אפשר להתחבר עם הסיסמה שנבחרה." });
+  }
+
+  if (
+    profile.invite_token_expires_at &&
+    new Date(profile.invite_token_expires_at).getTime() < Date.now()
+  ) {
+    return json(400, { error: "קישור ההזמנה פג תוקף. בקשו הזמנה חדשה." });
+  }
+
+  const email = trim(profile.email).toLowerCase();
+  if (!email) {
+    return json(400, { error: "למשתמש אין כתובת דוא״ל." });
+  }
+
+  const redirectBase = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
+  const minted = await mintFreshAuthOtp(
+    adminClient,
+    email,
+    trim(profile.full_name) || email,
+    trim(profile.callsign),
+    trim(profile.phone ?? "") || "",
+    redirectBase,
+  );
+
+  if (minted.error === "rate_limit") {
+    return json(429, { error: "נשלחו יותר מדי בקשות. נסו שוב בעוד כמה דקות." });
+  }
+  if (!minted.token_hash || !minted.type) {
+    return json(400, {
+      error: "אימות ההזמנה נכשל. נסו שוב.",
+      detail: minted.error,
+    });
+  }
+
+  return json(200, {
+    ok: true,
+    token_hash: minted.token_hash,
+    type: minted.type,
+  });
 }
 
 async function handlePrepareInviteLink(
@@ -263,8 +415,7 @@ async function handlePrepareInviteLink(
     return json(404, { error: "המשתמש לא נמצא." });
   }
 
-  const authUser = authData.user;
-  const email = (authUser.email ?? "").trim().toLowerCase();
+  const email = (authData.user.email ?? "").trim().toLowerCase();
   if (!email) {
     return json(400, { error: "למשתמש אין כתובת דוא״ל." });
   }
@@ -289,81 +440,22 @@ async function handlePrepareInviteLink(
 
   const redirectBase = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
   const fullName = trim(profile.full_name) || email;
-  const callsign = trim(profile.callsign);
-  const phone = trim(profile.phone ?? "") || "";
+  const { inviteToken, expiresAt } = newInviteTokenRow();
+  const actionLink = buildDurableInviteLink(inviteToken, redirectBase);
 
-  // Prefer a fresh invite token. If Auth already considers the user registered
-  // (common after an email-scanner burned the first OTP), fall back to recovery
-  // — same branded set-password URL shape in the SPA.
-  let linkData: Awaited<
-    ReturnType<typeof adminClient.auth.admin.generateLink>
-  >["data"] = null;
-  let linkError: { message: string } | null = null;
-
-  {
-    const attempt = await adminClient.auth.admin.generateLink({
-      type: "invite",
-      email,
-      options: {
-        data: {
-          full_name: fullName,
-          callsign,
-          phone,
-        },
-        redirectTo: redirectBase,
-      },
-    });
-    linkData = attempt.data;
-    linkError = attempt.error;
-  }
-
-  if (linkError) {
-    const message = linkError.message?.toLowerCase() ?? "";
-    if (message.includes("rate limit")) {
-      return json(429, { error: "נשלחו יותר מדי הזמנות. נסו שוב בעוד כמה דקות." });
-    }
-    const alreadyRegistered =
-      message.includes("already") ||
-      message.includes("registered") ||
-      message.includes("exists");
-    if (!alreadyRegistered) {
-      return json(400, {
-        error: "יצירת קישור ההזמנה נכשלה. נסו שוב.",
-        detail: linkError.message,
-      });
-    }
-
-    const recovery = await adminClient.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: { redirectTo: redirectBase },
-    });
-    if (recovery.error || !recovery.data) {
-      return json(400, {
-        error: "יצירת קישור ההזמנה נכשלה. נסו שוב.",
-        detail: recovery.error?.message,
-      });
-    }
-    linkData = recovery.data;
-    linkError = null;
-  }
-
-  if (!linkData) {
-    return json(500, { error: "יצירת קישור ההזמנה נכשלה." });
-  }
-
-  const hashedToken = linkData.properties.hashed_token;
-  if (!hashedToken) {
-    return json(500, { error: "יצירת קישור ההזמנה נכשלה." });
-  }
-
-  const verificationType = linkData.properties.verification_type || "invite";
-  const actionLink = buildInviteActionLink(hashedToken, verificationType, redirectBase);
-
-  await adminClient
+  const { error: tokenError } = await adminClient
     .from("profiles")
-    .update({ invite_pending: true, updated_at: new Date().toISOString() })
+    .update({
+      invite_pending: true,
+      invite_token: inviteToken,
+      invite_token_expires_at: expiresAt,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", userId);
+
+  if (tokenError) {
+    return json(500, { error: "יצירת קישור ההזמנה נכשלה." });
+  }
 
   if (sendEmail) {
     const mail = await sendInviteEmail(email, fullName, actionLink);
@@ -487,12 +579,10 @@ async function handleInvite(
     seenPlates.add(plate);
   }
 
-  // First-party invite URL on yahpz.com (token_hash + verifyOtp in the SPA).
-  // Avoid linking to *.supabase.co — that mismatch drives Gmail spam placement.
+  // Create Auth user via generateLink (no Supabase mailer). Email uses a
+  // durable invite_token — Auth OTP is minted later on each redeem click.
   const redirectBase = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
 
-  // generateLink creates the Auth user and returns hashed_token without using
-  // Supabase's built-in mailer (which is rate-limited until custom SMTP is on).
   const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
     type: "invite",
     email,
@@ -523,21 +613,14 @@ async function handleInvite(
     });
   }
 
-  const hashedToken = linkData.properties.hashed_token;
-  if (!hashedToken) {
-    return json(500, { error: "יצירת קישור ההזמנה נכשלה." });
-  }
-
-  // Prefer Auth's verification_type so the SPA's verifyOtp matches the token.
-  const verificationType = linkData.properties.verification_type || "invite";
-  const actionLink = buildInviteActionLink(hashedToken, verificationType, redirectBase);
+  const userId = linkData.user.id;
+  const { inviteToken, expiresAt } = newInviteTokenRow();
+  const actionLink = buildDurableInviteLink(inviteToken, redirectBase);
 
   const mail = await sendInviteEmail(email, fullName, actionLink);
   if (mail.error) {
     return json(400, { error: mail.error, detail: mail.detail });
   }
-
-  const userId = linkData.user.id;
 
   const { error: profileError } = await adminClient
     .from("profiles")
@@ -548,6 +631,8 @@ async function handleInvite(
       email,
       active: true,
       invite_pending: true,
+      invite_token: inviteToken,
+      invite_token_expires_at: expiresAt,
       updated_at: new Date().toISOString(),
     })
     .eq("id", userId);
