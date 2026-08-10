@@ -98,11 +98,20 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Columns: sum km, chronological first `odometer_start`, last `odometer_end`, event count
 - Out of scope v1: money math, CSV, shift km, RPC/schema
 
+## KM exceptions report (design approved 2026-08-10)
+
+- Spec: `docs/superpowers/specs/2026-08-10-yahpaz-km-exceptions-report-design.md`
+- Lead-tools page **דוח חריגי קמ** under כלים לאחמ״ש (`shift_lead` + `admin`)
+- Row = responder with `done` and `total_km >= 60` (hardcoded); cancelled events included
+- Client-side filter; tap opens event detail; no schema/RPC
+- Distinct from admin **החזר דלק** period summary
+
 ## Open / next
 
 1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
 2. Implement fuel refund report per approved design
-3. Later: add/verify `yahpz.com` on Resend when plan allows
+3. Implement KM exceptions report per approved design
+4. Later: add/verify `yahpz.com` on Resend when plan allows
 
 ## Netlify CD
 
