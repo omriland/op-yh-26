@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { formatLastLogin } from './format'
+import { digitsOnly, formatLastLogin } from './format'
 
 const NOW = new Date('2026-08-10T12:00:00')
+
+describe('digitsOnly', () => {
+  it('keeps digits and strips letters, signs, and decimals', () => {
+    expect(digitsOnly('12a3.5')).toBe('1235')
+    expect(digitsOnly('-10 +2')).toBe('102')
+    expect(digitsOnly('')).toBe('')
+  })
+})
 
 describe('formatLastLogin', () => {
   beforeEach(() => {

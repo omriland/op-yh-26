@@ -14,6 +14,7 @@ export type EventListItem = {
   patrol_callsign: string | null
   location: string | null
   status: EventStatus
+  is_cancelled: boolean
   district: { name: string } | null
   event_type: { name: string } | null
   road: { name: string } | null
@@ -28,6 +29,7 @@ const EVENT_LIST_SELECT = `
   patrol_callsign,
   location,
   status,
+  is_cancelled,
   district:districts(name),
   event_type:event_types(name),
   road:roads(name),
@@ -99,6 +101,7 @@ const EVENT_DETAIL_SELECT = `
   location,
   notes,
   status,
+  is_cancelled,
   district:districts(name),
   event_type:event_types(name),
   road:roads(name),

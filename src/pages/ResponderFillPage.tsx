@@ -11,7 +11,13 @@ import {
   type ResponderFillErrors,
 } from '../lib/responderFill'
 import { participationStamp } from '../lib/status'
-import { formatDate, formatDateTime, formatNumber, formatPlate } from '../lib/format'
+import {
+  digitsOnly,
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  formatPlate,
+} from '../lib/format'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
@@ -209,6 +215,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
               numeric
             />
             <LedgerRow label="סוג אירוע" value={ctx.event_type_name ?? undefined} />
+            {ctx.is_cancelled ? <LedgerRow label="בוטל" value="כן" /> : null}
             <LedgerRow label="כביש" value={ctx.road_name ?? undefined} />
             <LedgerRow label="מיקום" value={ctx.location ?? undefined} />
             <LedgerRow label="אחמ״ש" value={ctx.shift_lead_name ?? undefined} />
@@ -275,19 +282,23 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   label='ק"מ התחלה'
                   required
                   numeric
-                  inputMode="decimal"
+                  inputMode="numeric"
                   value={draft.odometer_start}
                   error={errors.odometer_start}
-                  onChange={(event) => patchOdometer('odometer_start', event.target.value)}
+                  onChange={(event) =>
+                    patchOdometer('odometer_start', digitsOnly(event.target.value))
+                  }
                 />
                 <TextField
                   label='ק"מ סיום'
                   required
                   numeric
-                  inputMode="decimal"
+                  inputMode="numeric"
                   value={draft.odometer_end}
                   error={errors.odometer_end}
-                  onChange={(event) => patchOdometer('odometer_end', event.target.value)}
+                  onChange={(event) =>
+                    patchOdometer('odometer_end', digitsOnly(event.target.value))
+                  }
                 />
                 <TextField
                   label="נתיב נסיעה"

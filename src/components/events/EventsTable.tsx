@@ -2,6 +2,7 @@ import { StampChip } from '../ui/StampChip'
 import { formatDate, monoClass } from '../../lib/format'
 import { doneFraction, type EventListItem } from '../../lib/events'
 import type { StampDescriptor } from '../../lib/status'
+import { EventTypeLabel } from './EventTypeLabel'
 
 type EventsTableProps = {
   events: EventListItem[]
@@ -32,7 +33,9 @@ export function EventsTable({ events, stampFor, onOpen }: EventsTableProps) {
               <td className={`num ${monoClass(event.police_event_id)}`}>
                 {event.police_event_id ?? '—'}
               </td>
-              <td>{event.event_type?.name ?? '—'}</td>
+              <td>
+                <EventTypeLabel event={event} />
+              </td>
               <td className="truncate">
                 {[event.road?.name, event.location].filter(Boolean).join(' · ') || '—'}
               </td>

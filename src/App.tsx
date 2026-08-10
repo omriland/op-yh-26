@@ -189,6 +189,7 @@ function Gate() {
             })
           }
           onSaved={(id) => setEventSurface({ kind: 'detail', eventId: id })}
+          onSavedAndCreateNew={() => setEventSurface({ kind: 'form' })}
         />
       ) : onEvents && eventSurface.kind === 'fill' ? (
         <ResponderFillPage

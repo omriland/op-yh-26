@@ -37,6 +37,7 @@ export type ResponderFillContext = {
   event_date: string
   police_event_id: string | null
   event_type_name: string | null
+  is_cancelled: boolean
   road_name: string | null
   location: string | null
   shift_lead_name: string | null
@@ -134,7 +135,7 @@ export async function fetchResponderFillContext(
         .from('events')
         .select(
           `
-          id, status, event_date, police_event_id, location,
+          id, status, event_date, police_event_id, location, is_cancelled,
           event_type:event_types(name),
           road:roads(name),
           shift_lead:profiles(full_name, callsign),
@@ -162,6 +163,7 @@ export async function fetchResponderFillContext(
     event_date: string
     police_event_id: string | null
     location: string | null
+    is_cancelled: boolean
     event_type: { name: string } | null
     road: { name: string } | null
     shift_lead: { full_name: string; callsign: string } | null
@@ -210,6 +212,7 @@ export async function fetchResponderFillContext(
     event_date: row.event_date,
     police_event_id: row.police_event_id,
     event_type_name: row.event_type?.name ?? null,
+    is_cancelled: row.is_cancelled ?? false,
     road_name: row.road?.name ?? null,
     location: row.location,
     shift_lead_name: row.shift_lead

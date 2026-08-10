@@ -26,7 +26,7 @@ import {
   type ShiftKind,
   type ShiftVehicleType,
 } from '../lib/shifts'
-import { formatDate, formatPlate, monoClass } from '../lib/format'
+import { digitsOnly, formatDate, formatPlate, monoClass } from '../lib/format'
 import { supabase } from '../lib/supabase'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
@@ -75,6 +75,7 @@ function emptyDraft(): ShiftFormDraft {
     notes: '',
     event_type_counts: [],
     treated_vehicle_counts: [],
+    cancelled_count: 0,
   }
 }
 
@@ -236,6 +237,8 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
               vehicle_kind_id: row.vehicle_kind_id,
               count: row.count,
             })),
+            cancelled_count: existing.linked_events.filter((row) => row.event?.is_cancelled)
+              .length,
           }
           const meta = new Map<string, LinkableEvent>()
           for (const row of existing.linked_events) {
@@ -481,6 +484,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
       updateDraft({
         event_type_counts: rollups.event_type_counts,
         treated_vehicle_counts: rollups.treated_vehicle_counts,
+        cancelled_count: rollups.cancelled_count,
       })
       show('הסיכום עודכן מהאירועים המקושרים', 'done')
     } catch {
@@ -898,6 +902,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                 {eventTypes.length === 0 ? (
                   <p className="t-caption text-muted">אין סוגי אירוע ברשימה הסגורה.</p>
                 ) : null}
+                {draft.cancelled_count > 0 ? (
+                  <p className="t-body text-secondary">בוטל × {draft.cancelled_count}</p>
+                ) : null}
               </div>
 
               <div className="assignment-card__treated">
@@ -929,25 +936,29 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                 <TextField
                   label='ק"מ התחלה'
                   numeric
-                  inputMode="decimal"
+                  inputMode="numeric"
                   value={numberToInput(draft.odometer_start)}
                   onChange={(event) => {
-                    updateDraft({ odometer_start: parseOptionalNumber(event.target.value) })
+                    updateDraft({
+                      odometer_start: parseOptionalNumber(digitsOnly(event.target.value)),
+                    })
                   }}
                 />
                 <TextField
                   label='ק"מ סיום'
                   numeric
-                  inputMode="decimal"
+                  inputMode="numeric"
                   value={numberToInput(draft.odometer_end)}
                   onChange={(event) => {
-                    updateDraft({ odometer_end: parseOptionalNumber(event.target.value) })
+                    updateDraft({
+                      odometer_end: parseOptionalNumber(digitsOnly(event.target.value)),
+                    })
                   }}
                 />
                 <TextField
                   label="קילומטרים"
                   numeric
-                  inputMode="decimal"
+                  inputMode="numeric"
                   disabled
                   value={numberToInput(computedKm)}
                   onChange={() => undefined}

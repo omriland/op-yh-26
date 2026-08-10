@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar, ChevronDown, ChevronRight, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
+  applyCancelledChange,
   deriveEventStatus,
   emptyEventDraft,
   fetchAssignableUsers,
@@ -11,6 +12,7 @@ import {
   isOvernightEnd,
   mergeAssignmentIds,
   saveEventForm,
+  totalTreatedQuantity,
   validateEventMinimum,
   type AssignableUser,
   type EventFormDraft,
@@ -22,6 +24,7 @@ import { viewerStamp } from '../lib/status'
 import { monoClass } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
+import { Checkbox } from '../components/ui/Checkbox'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -42,28 +45,40 @@ type EventFormPageProps = {
   focusResponderId?: string
   onCancel: () => void
   onSaved: (eventId: string) => void
+  /** After save, stay on a blank create form for the next event. */
+  onSavedAndCreateNew: () => void
   /** Keep parent route in sync after the first autosave creates the row. */
   onEventId?: (eventId: string) => void
 }
 
 type SavePulse = 'idle' | 'saving' | 'saved' | 'error'
 
+type PersistOptions = {
+  navigate?: boolean
+  createNew?: boolean
+  revealErrors?: boolean
+  overnightOk?: boolean
+}
+
 export function EventFormPage({
   eventId,
   focusResponderId,
   onCancel,
   onSaved,
+  onSavedAndCreateNew,
   onEventId,
 }: EventFormPageProps) {
   const { user, profile, roles } = useAuth()
   const { show } = useToast()
-  const canManage = roles.includes('admin') || roles.includes('shift_lead')
+  const isAdmin = roles.includes('admin')
+  const canManage = isAdmin || roles.includes('shift_lead')
   const assignSearchRef = useRef<HTMLInputElement>(null)
 
   const [lookups, setLookups] = useState<EventLookups | null>(null)
   const [roster, setRoster] = useState<AssignableUser[]>([])
   const [draft, setDraft] = useState<EventFormDraft | null>(null)
   const [baseline, setBaseline] = useState<string>('')
+  const [previousIsCancelled, setPreviousIsCancelled] = useState(false)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied'>('loading')
   const [errors, setErrors] = useState<EventFormErrors>({})
   const [saving, setSaving] = useState(false)
@@ -73,7 +88,7 @@ export function EventFormPage({
   const [leaveConfirm, setLeaveConfirm] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<ResponderDraft | null>(null)
   const [overnightPrompt, setOvernightPrompt] = useState<{
-    options?: { navigate?: boolean; revealErrors?: boolean }
+    options?: PersistOptions
   } | null>(null)
 
   const draftRef = useRef<EventFormDraft | null>(null)
@@ -144,6 +159,7 @@ export function EventFormPage({
         draftRef.current = nextDraft
         seedOvernightConfirmed(nextDraft)
         setDraft(nextDraft)
+        setPreviousIsCancelled(nextDraft.is_cancelled)
         setBaseline(JSON.stringify(nextDraft))
         setLoadState('ready')
       })
@@ -188,11 +204,37 @@ export function EventFormPage({
     savedTimer.current = window.setTimeout(() => setSavePulse('idle'), 1600)
   }
 
-  function persistLatest(options?: {
-    navigate?: boolean
-    revealErrors?: boolean
-    overnightOk?: boolean
-  }): Promise<boolean> {
+  function resetToCreateForm() {
+    if (!profile) return
+    const fresh = emptyEventDraft({
+      full_name: profile.full_name,
+      callsign: profile.callsign,
+    })
+    overnightConfirmed.current.clear()
+    skipReloadForId.current = null
+    draftRef.current = fresh
+    setDraft(fresh)
+    setPreviousIsCancelled(false)
+    setErrors({})
+    const snapshot = JSON.stringify(fresh)
+    baselineRef.current = snapshot
+    setBaseline(snapshot)
+    setSavePulse('idle')
+  }
+
+  function finishAfterSave(eventIdSaved: string, options?: PersistOptions) {
+    show('האירוע נשמר', 'done')
+    if (options?.createNew) {
+      resetToCreateForm()
+      onSavedAndCreateNew()
+      return
+    }
+    if (options?.navigate) {
+      onSaved(eventIdSaved)
+    }
+  }
+
+  function persistLatest(options?: PersistOptions): Promise<boolean> {
     if (!user) return Promise.resolve(false)
 
     const run = async () => {
@@ -204,24 +246,23 @@ export function EventFormPage({
       // Autosave often already flushed (e.g. after הקצאת כונן). Explicit
       // שמירת אירוע must still confirm + leave the form.
       if (snapshot === baselineRef.current && current.id) {
-        if (options?.navigate) {
+        if (options?.navigate || options?.createNew) {
           markSavedPulse()
-          show('האירוע נשמר', 'done')
-          onSaved(current.id)
+          finishAfterSave(current.id, options)
         }
         return true
       }
 
       if (!hasEventMinimum(current)) {
         // Don't create a row until date + type + road are set; stay quiet on background autosave.
-        if (!current.id && !options?.navigate && !options?.revealErrors) {
+        if (!current.id && !options?.navigate && !options?.createNew && !options?.revealErrors) {
           setSavePulse('idle')
           return false
         }
         const fieldErrors = validateEventMinimum(current)
         setErrors(fieldErrors)
         setSavePulse('error')
-        if (options?.navigate || options?.revealErrors) {
+        if (options?.navigate || options?.createNew || options?.revealErrors) {
           show('יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.', 'alert')
           const first = document.querySelector('[aria-invalid="true"]')
           first?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -249,17 +290,25 @@ export function EventFormPage({
         draft: current,
         shiftLeadId: user.id,
         vehicleKinds: currentLookups.vehicleKinds,
+        isAdmin,
+        previousIsCancelled,
       })
 
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors)
         setSavePulse('error')
-        if (options?.navigate || options?.revealErrors || options?.overnightOk) {
+        if (
+          options?.navigate ||
+          options?.createNew ||
+          options?.revealErrors ||
+          options?.overnightOk
+        ) {
           show(result.error, 'alert')
         }
         return false
       }
       setErrors({})
+      setPreviousIsCancelled(current.is_cancelled)
 
       // Merge server ids into the *latest* draft — never replace with the pre-await
       // snapshot (stepper taps during save would otherwise get wiped).
@@ -276,6 +325,25 @@ export function EventFormPage({
         status: result.status,
         responders: mergeAssignmentIds(latest.responders, result.assignmentIds),
       }
+
+      if (options?.createNew) {
+        const stillDirty = JSON.stringify(nextDraft) !== JSON.stringify(savedWithIds)
+        if (stillDirty) {
+          draftRef.current = nextDraft
+          setDraft(nextDraft)
+          if (!current.id) skipReloadForId.current = result.eventId
+          markSavedPulse()
+          const followUp = { ...options, overnightOk: true as const }
+          queueMicrotask(() => {
+            void persistLatest(followUp)
+          })
+          return true
+        }
+        markSavedPulse()
+        finishAfterSave(result.eventId, options)
+        return true
+      }
+
       draftRef.current = nextDraft
       setDraft(nextDraft)
       if (!current.id) skipReloadForId.current = result.eventId
@@ -299,8 +367,7 @@ export function EventFormPage({
       markSavedPulse()
 
       if (options?.navigate) {
-        show('האירוע נשמר', 'done')
-        onSaved(result.eventId)
+        finishAfterSave(result.eventId, options)
       }
       return true
     }
@@ -358,7 +425,7 @@ export function EventFormPage({
     const kinds = lookupsRef.current?.vehicleKinds
     if (!kinds) return
     setDraft((current) => {
-      if (!current) return current
+      if (!current || current.is_cancelled) return current
       const next = {
         ...current,
         responders: current.responders.map((row) => {
@@ -457,6 +524,14 @@ export function EventFormPage({
     setSaving(false)
   }
 
+  async function persistAndCreateNew() {
+    if (!draft || !user || !lookups) return
+    setSaving(true)
+    setErrors({})
+    await persistLatest({ createNew: true, revealErrors: true })
+    setSaving(false)
+  }
+
   const dialogOpen =
     leaveConfirm || removeTarget !== null || overnightPrompt !== null || pickerOpen
 
@@ -546,20 +621,59 @@ export function EventFormPage({
             <span>חזרה</span>
           </button>
 
-          <div className="event-form__title-row">
+            <div className="event-form__title-row">
             <div className="event-form__title-block">
-              <h1 className="t-title">{title}</h1>
+              <div className="event-form__title-line">
+                <h1 className="t-title">{title}</h1>
+                <div
+                  className={[
+                    'event-form__cancelled',
+                    draft.is_cancelled ? 'event-form__cancelled--on' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <Checkbox
+                    id="event-is-cancelled"
+                    label="בוטל"
+                    checked={draft.is_cancelled}
+                    disabled={draft.is_cancelled && !isAdmin}
+                    onChange={(checked) => {
+                      const result = applyCancelledChange({
+                        next: checked,
+                        current: draft.is_cancelled,
+                        treatedTotal: totalTreatedQuantity(draft.responders),
+                        isAdmin,
+                      })
+                      if (!result.ok) {
+                        setErrors((current) => ({ ...current, form: result.error }))
+                        show(result.error, 'alert')
+                        return
+                      }
+                      setErrors((current) => ({ ...current, form: undefined }))
+                      updateDraft({ is_cancelled: result.is_cancelled })
+                      queueMicrotask(() => void persistLatest())
+                    }}
+                  />
+                </div>
+              </div>
               <p
                 className={[
                   't-caption',
-                  savePulse === 'error' ? 'field__hint--error' : 'text-muted',
+                  savePulse === 'error' || errors.form ? 'field__hint--error' : 'text-muted',
                 ].join(' ')}
                 aria-live="polite"
               >
-                {saveHint}
+                {errors.form
+                  ? errors.form
+                  : draft.is_cancelled && !isAdmin
+                    ? 'רק מנהל יכול לבטל סימון בוטל.'
+                    : saveHint}
               </p>
             </div>
-            <StampChip {...viewerStamp(displayStatus, null)} />
+            <div className="event-form__stamps">
+              <StampChip {...viewerStamp(displayStatus, null)} />
+            </div>
           </div>
         </header>
 
@@ -850,6 +964,7 @@ export function EventFormPage({
                                       key={kind.id}
                                       label={kind.name}
                                       value={quantity}
+                                      disabled={draft.is_cancelled}
                                       onDelta={(delta) => bumpTreated(responder.key, kind.id, delta)}
                                     />
                                   )
@@ -889,6 +1004,15 @@ export function EventFormPage({
               onClick={() => void persistExplicit()}
             >
               שמירת אירוע
+            </Button>
+            <Button
+              block
+              variant="secondary"
+              loading={saving}
+              loadingLabel="שומר…"
+              onClick={() => void persistAndCreateNew()}
+            >
+              שמירת אירוע ויצירת חדש
             </Button>
           </div>
         </footer>

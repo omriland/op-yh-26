@@ -25,6 +25,10 @@ export function eventStamp(status: EventStatus): StampDescriptor {
   return EVENT_STAMPS[status]
 }
 
+export function cancelledStamp(): StampDescriptor {
+  return { label: 'בוטל', tone: 'draft' }
+}
+
 export function participationStamp(status: ParticipationStatus, isViewer: boolean): StampDescriptor {
   if (status === 'done') return { label: 'הושלם', tone: 'done' }
   if (status === 'in_progress' && isViewer) {

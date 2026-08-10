@@ -3,6 +3,7 @@ import { Button } from '../ui/Button'
 import { formatDate, monoClass } from '../../lib/format'
 import type { StampDescriptor } from '../../lib/status'
 import type { EventListItem } from '../../lib/events'
+import { EventTypeLabel } from './EventTypeLabel'
 
 type EventCardProps = {
   event: EventListItem
@@ -20,7 +21,7 @@ export function EventCard({ event, stamp, onOpen, onFill, fillLabel }: EventCard
     <li className="card stack-3">
       <button type="button" className="event-card" onClick={() => onOpen(event.id)}>
         <span className="event-card__top">
-          <span className="t-section">{event.event_type?.name ?? 'אירוע'}</span>
+          <EventTypeLabel event={event} as="section" fallback="אירוע" />
           <StampChip {...stamp} />
         </span>
         <span className="t-body text-secondary">{place || '—'}</span>

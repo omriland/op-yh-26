@@ -138,6 +138,7 @@ export function ShiftDetailPage({
 
   const eventTypeCounts = shift.event_type_counts.filter((row) => row.count > 0)
   const treatedCounts = shift.treated_vehicle_counts.filter((row) => row.count > 0)
+  const cancelledCount = shift.linked_events.filter((row) => row.event?.is_cancelled).length
 
   async function confirmDeleteShift() {
     setDeleting(true)
@@ -301,6 +302,9 @@ export function ShiftDetailPage({
                     : '—'
                 }
               />
+              {cancelledCount > 0 ? (
+                <LedgerRow label="בוטל" value={`בוטל × ${cancelledCount}`} />
+              ) : null}
               <LedgerRow
                 label="רכבים שטופלו"
                 value={

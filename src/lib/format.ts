@@ -95,9 +95,14 @@ export function formatPlate(raw: string): string {
   return raw
 }
 
+/** Digits only — odometers, plates, phones. */
+export function digitsOnly(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
 /** Digits only — shared by plates and phones. */
 export function plateDigits(value: string): string {
-  return value.replace(/\D/g, '')
+  return digitsOnly(value)
 }
 
 /** Returns a duplicated plate (digits) for the same list, or null if all unique. */

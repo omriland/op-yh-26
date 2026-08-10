@@ -72,8 +72,60 @@ export type EventFormDraft = {
   road_id: string
   location: string
   notes: string
+  is_cancelled: boolean
   shift_lead: { full_name: string; callsign: string }
   responders: ResponderDraft[]
+}
+
+export const CANCELLED_TREATED_BLOCK =
+  'לא ניתן לסמן בוטל כל עוד רשומים רכבים שטופלו. נקו תחילה את הכמויות.'
+
+export const CANCELLED_CLEAR_ADMIN_ONLY = 'רק מנהל יכול לבטל סימון בוטל.'
+
+export function totalTreatedQuantity(
+  responders: { treated: { quantity: number }[] }[],
+): number {
+  return responders.reduce(
+    (sum, responder) =>
+      sum + responder.treated.reduce((inner, row) => inner + row.quantity, 0),
+    0,
+  )
+}
+
+export function applyCancelledChange(input: {
+  next: boolean
+  current: boolean
+  treatedTotal: number
+  isAdmin: boolean
+}): { ok: true; is_cancelled: boolean } | { ok: false; error: string } {
+  const { next, current, treatedTotal, isAdmin } = input
+  if (next === current) return { ok: true, is_cancelled: current }
+  if (next && treatedTotal > 0) return { ok: false, error: CANCELLED_TREATED_BLOCK }
+  if (!next && !isAdmin) return { ok: false, error: CANCELLED_CLEAR_ADMIN_ONLY }
+  return { ok: true, is_cancelled: next }
+}
+
+export type EventFormErrors = Partial<
+  Record<
+    'event_date' | 'police_event_id' | 'district_id' | 'event_type_id' | 'road_id' | 'form',
+    string
+  >
+>
+
+export function validateCancelledSave(input: {
+  is_cancelled: boolean
+  treatedTotal: number
+  isAdmin: boolean
+  previousIsCancelled: boolean
+}): EventFormErrors | null {
+  const { is_cancelled, treatedTotal, isAdmin, previousIsCancelled } = input
+  if (is_cancelled && treatedTotal > 0) {
+    return { form: CANCELLED_TREATED_BLOCK }
+  }
+  if (previousIsCancelled && !is_cancelled && !isAdmin) {
+    return { form: CANCELLED_CLEAR_ADMIN_ONLY }
+  }
+  return null
 }
 
 export type EventLookups = {
@@ -107,6 +159,7 @@ export function emptyEventDraft(lead: {
     road_id: '',
     location: '',
     notes: '',
+    is_cancelled: false,
     shift_lead: lead,
     responders: [],
   }
@@ -168,7 +221,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     .select(
       `
       id, status, event_date, police_event_id, district_id, patrol_callsign,
-      event_type_id, road_id, location, notes,
+      event_type_id, road_id, location, notes, is_cancelled,
       shift_lead:profiles(full_name, callsign),
       responders:event_responders(
         id, responder_id, started_at, ended_at, total_km, emergency_means, status,
@@ -196,6 +249,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     road_id: string | null
     location: string | null
     notes: string | null
+    is_cancelled: boolean
     shift_lead: { full_name: string; callsign: string } | null
     responders: LoadedResponder[]
   }
@@ -211,6 +265,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     road_id: row.road_id ?? '',
     location: row.location ?? '',
     notes: row.notes ?? '',
+    is_cancelled: row.is_cancelled ?? false,
     shift_lead: row.shift_lead ?? { full_name: '—', callsign: '—' },
     responders: (row.responders ?? []).map((responder) => ({
       key: responder.id,
@@ -239,13 +294,6 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     })),
   }
 }
-
-export type EventFormErrors = Partial<
-  Record<
-    'event_date' | 'police_event_id' | 'district_id' | 'event_type_id' | 'road_id' | 'form',
-    string
-  >
->
 
 /** Minimum to create/keep an event: date + event type + road. */
 export function validateEventMinimum(draft: EventFormDraft): EventFormErrors {
@@ -287,11 +335,13 @@ export async function saveEventForm(input: {
   draft: EventFormDraft
   shiftLeadId: string
   vehicleKinds: LookupOption[]
+  isAdmin: boolean
+  previousIsCancelled: boolean
 }): Promise<
   | { ok: true; eventId: string; status: EventStatus; assignmentIds: Record<string, string> }
   | { ok: false; error: string; fieldErrors?: EventFormErrors }
 > {
-  const { draft, shiftLeadId, vehicleKinds } = input
+  const { draft, shiftLeadId, vehicleKinds, isAdmin, previousIsCancelled } = input
 
   const fieldErrors = validateEventMinimum(draft)
   if (Object.keys(fieldErrors).length > 0) {
@@ -299,6 +349,20 @@ export async function saveEventForm(input: {
       ok: false,
       error: 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
       fieldErrors,
+    }
+  }
+
+  const cancelledErrors = validateCancelledSave({
+    is_cancelled: draft.is_cancelled,
+    treatedTotal: totalTreatedQuantity(draft.responders),
+    isAdmin,
+    previousIsCancelled,
+  })
+  if (cancelledErrors) {
+    return {
+      ok: false,
+      error: cancelledErrors.form ?? CANCELLED_TREATED_BLOCK,
+      fieldErrors: cancelledErrors,
     }
   }
 
@@ -313,6 +377,7 @@ export async function saveEventForm(input: {
     road_id: draft.road_id,
     location: draft.location.trim() || null,
     notes: draft.notes.trim() || null,
+    is_cancelled: draft.is_cancelled,
     status: nextStatus,
     updated_at: new Date().toISOString(),
   }
@@ -342,6 +407,7 @@ export async function saveEventForm(input: {
     eventDate: draft.event_date,
     responders: draft.responders,
     vehicleKinds,
+    isCancelled: draft.is_cancelled,
   })
   if (!sync.ok) return sync
 
@@ -353,11 +419,12 @@ async function syncResponders(input: {
   eventDate: string
   responders: ResponderDraft[]
   vehicleKinds: LookupOption[]
+  isCancelled: boolean
 }): Promise<
   | { ok: true; assignmentIds: Record<string, string> }
   | { ok: false; error: string }
 > {
-  const { eventId, eventDate, responders, vehicleKinds } = input
+  const { eventId, eventDate, responders, vehicleKinds, isCancelled } = input
 
   const { data: existing, error: existingError } = await supabase
     .from('event_responders')
@@ -447,27 +514,29 @@ async function syncResponders(input: {
       return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
     }
 
-    const treatedRows: {
-      event_responder_id: string
-      vehicle_kind_id: string
-      quantity: number
-    }[] = []
-    for (const kind of vehicleKinds) {
-      const quantity =
-        responder.treated.find((row) => row.vehicle_kind_id === kind.id)?.quantity ?? 0
-      if (quantity > 0) {
-        treatedRows.push({
-          event_responder_id: assignmentId,
-          vehicle_kind_id: kind.id,
-          quantity,
-        })
+    if (!isCancelled) {
+      const treatedRows: {
+        event_responder_id: string
+        vehicle_kind_id: string
+        quantity: number
+      }[] = []
+      for (const kind of vehicleKinds) {
+        const quantity =
+          responder.treated.find((row) => row.vehicle_kind_id === kind.id)?.quantity ?? 0
+        if (quantity > 0) {
+          treatedRows.push({
+            event_responder_id: assignmentId,
+            vehicle_kind_id: kind.id,
+            quantity,
+          })
+        }
       }
-    }
 
-    if (treatedRows.length > 0) {
-      const { error } = await supabase.from('event_treated_vehicles').insert(treatedRows)
-      if (error) {
-        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      if (treatedRows.length > 0) {
+        const { error } = await supabase.from('event_treated_vehicles').insert(treatedRows)
+        if (error) {
+          return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+        }
       }
     }
   }

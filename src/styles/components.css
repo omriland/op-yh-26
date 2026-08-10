@@ -450,6 +450,34 @@ textarea.field__input {
   font: 400 12px/16px var(--font-ui);
 }
 
+.event-type-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.event-type-label--section {
+  font: 600 17px/24px var(--font-ui);
+  color: var(--text-primary);
+}
+
+.event-type-label--cancelled .event-type-label__name {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.event-type-label__tag {
+  flex: none;
+  font: 600 12px/16px var(--font-ui);
+  letter-spacing: 0.02em;
+  color: var(--status-draft-on-tint);
+  background: var(--status-draft-tint);
+  border: 1px solid var(--status-draft);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+}
+
 /* ============================================================
    Ledger row
    ============================================================ */
@@ -2060,6 +2088,42 @@ textarea.field__input {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
+}
+
+.event-form__title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.event-form__cancelled .check-row {
+  min-height: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-page);
+  gap: var(--space-2);
+}
+
+.event-form__cancelled .check-row .t-body {
+  font: 600 13px/18px var(--font-ui);
+  letter-spacing: 0.02em;
+}
+
+.event-form__cancelled--on .check-row {
+  border-color: var(--status-draft);
+  background: var(--status-draft-tint);
+  color: var(--status-draft-on-tint);
+}
+
+.event-form__stamps,
+.event-stamps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 .event-form__title-block {

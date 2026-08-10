@@ -16,6 +16,7 @@ export type ShiftFormDraft = {
   notes: string
   event_type_counts: { event_type_id: string; count: number }[]
   treated_vehicle_counts: { vehicle_kind_id: string; count: number }[]
+  cancelled_count: number
 }
 
 export function computeTotalKm(
@@ -36,9 +37,11 @@ export type LinkableEvent = {
 export function suggestRollupsFromLinkedEvents(input: {
   eventTypeIds: (string | null)[]
   treated: { vehicle_kind_id: string; quantity: number }[]
+  cancelledFlags?: boolean[]
 }): {
   event_type_counts: { event_type_id: string; count: number }[]
   treated_vehicle_counts: { vehicle_kind_id: string; count: number }[]
+  cancelled_count: number
 } {
   const typeCounts = new Map<string, number>()
   for (const eventTypeId of input.eventTypeIds) {
@@ -54,6 +57,8 @@ export function suggestRollupsFromLinkedEvents(input: {
     )
   }
 
+  const cancelled_count = (input.cancelledFlags ?? []).filter(Boolean).length
+
   return {
     event_type_counts: [...typeCounts.entries()].map(([event_type_id, count]) => ({
       event_type_id,
@@ -63,6 +68,7 @@ export function suggestRollupsFromLinkedEvents(input: {
       vehicle_kind_id,
       count,
     })),
+    cancelled_count,
   }
 }
 
@@ -457,6 +463,7 @@ export async function loadLinkableEvents(excludeShiftId?: string): Promise<Linka
 export async function refreshRollups(eventIds: string[]): Promise<{
   event_type_counts: { event_type_id: string; count: number }[]
   treated_vehicle_counts: { vehicle_kind_id: string; count: number }[]
+  cancelled_count: number
 }> {
   if (eventIds.length === 0) {
     return suggestRollupsFromLinkedEvents({ eventTypeIds: [], treated: [] })
@@ -464,12 +471,13 @@ export async function refreshRollups(eventIds: string[]): Promise<{
 
   const { data: events, error: eventsError } = await supabase
     .from('events')
-    .select('event_type_id')
+    .select('event_type_id, is_cancelled')
     .in('id', eventIds)
 
   if (eventsError) throw new Error(eventsError.message)
 
   const eventTypeIds = (events ?? []).map((row) => row.event_type_id as string | null)
+  const cancelledFlags = (events ?? []).map((row) => Boolean(row.is_cancelled))
 
   const { data: responders, error: respondersError } = await supabase
     .from('event_responders')
@@ -491,5 +499,5 @@ export async function refreshRollups(eventIds: string[]): Promise<{
     treated = (treatedRows ?? []) as { vehicle_kind_id: string; quantity: number }[]
   }
 
-  return suggestRollupsFromLinkedEvents({ eventTypeIds, treated })
+  return suggestRollupsFromLinkedEvents({ eventTypeIds, treated, cancelledFlags })
 }

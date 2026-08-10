@@ -7,7 +7,7 @@ import {
   type EventDetail,
   type EventResponderDetail,
 } from '../lib/events'
-import { mineFillCtaLabel, participationStamp, viewerStamp } from '../lib/status'
+import { mineFillCtaLabel, cancelledStamp, participationStamp, viewerStamp } from '../lib/status'
 import {
   formatDate,
   formatEndTime,
@@ -157,7 +157,10 @@ export function EventDetailPage({
           <h1 className="t-title">{eventLabel}</h1>
           <p className="t-caption text-muted">{subLine.join(' · ')}</p>
         </div>
-        <StampChip {...viewerStamp(event.status, mine)} header />
+        <span className="event-stamps">
+          {event.is_cancelled ? <StampChip {...cancelledStamp()} header /> : null}
+          <StampChip {...viewerStamp(event.status, mine)} header />
+        </span>
       </div>
 
       {canEdit || canDelete ? (
@@ -200,6 +203,7 @@ export function EventDetailPage({
             <LedgerRow label="שלוחה" value={event.district?.name} />
             <LedgerRow label="או״ק ניידת" value={event.patrol_callsign ?? undefined} numeric />
             <LedgerRow label="סוג אירוע" value={event.event_type?.name} />
+            {event.is_cancelled ? <LedgerRow label="בוטל" value="כן" /> : null}
             <LedgerRow label="כביש" value={event.road?.name} />
             <LedgerRow label="מיקום" value={event.location ?? undefined} />
           </Ledger>

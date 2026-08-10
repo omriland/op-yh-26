@@ -114,6 +114,7 @@ export type ShiftLinkedEventDetail = {
   event: {
     event_date: string
     police_event_id: string | null
+    is_cancelled: boolean
     event_type: { name: string } | null
   } | null
 }
@@ -158,6 +159,7 @@ const SHIFT_DETAIL_SELECT = `
     event:events(
       event_date,
       police_event_id,
+      is_cancelled,
       event_type:event_types(name)
     )
   ),
