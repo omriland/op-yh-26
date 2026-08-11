@@ -31,7 +31,7 @@ import { Button, IconButton } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
-import { OverflowMenu } from '../components/ui/OverflowMenu'
+import { OverflowMenu, type OverflowMenuItem } from '../components/ui/OverflowMenu'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
@@ -100,6 +100,43 @@ function draftFromUser(user: AdminUserRow): Draft {
       archived: vehicle.archived,
     })),
   }
+}
+
+function buildUserMenuItems(
+  user: AdminUserRow,
+  actions: {
+    onEdit: () => void
+    onResendInvite: () => void
+    onCopyInviteLink: () => void
+    onDeactivate: () => void
+    onReactivate: () => void
+    onDelete: () => void
+  },
+): OverflowMenuItem[] {
+  return [
+    { label: 'עריכה', onSelect: actions.onEdit },
+    ...(isInvitePending(user)
+      ? [
+          { label: 'שליחת הזמנה מחדש', onSelect: actions.onResendInvite },
+          { label: 'העתקת קישור הזמנה', onSelect: actions.onCopyInviteLink },
+        ]
+      : []),
+    user.active
+      ? {
+          label: 'השבתת משתמש',
+          danger: true,
+          onSelect: actions.onDeactivate,
+        }
+      : {
+          label: 'הפעלה מחדש',
+          onSelect: actions.onReactivate,
+        },
+    {
+      label: 'מחיקת משתמש',
+      danger: true,
+      onSelect: actions.onDelete,
+    },
+  ]
 }
 
 export function AdminUsersPage() {
@@ -576,42 +613,17 @@ export function AdminUsersPage() {
                     <OverflowMenu
                       open={menuUserId === user.id}
                       onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
-                      items={[
-                        {
-                          label: 'עריכה',
-                          onSelect: () => {
-                            setFormError(null)
-                            setDraft(draftFromUser(user))
-                          },
+                      items={buildUserMenuItems(user, {
+                        onEdit: () => {
+                          setFormError(null)
+                          setDraft(draftFromUser(user))
                         },
-                        ...(isInvitePending(user)
-                          ? [
-                              {
-                                label: 'שליחת הזמנה מחדש',
-                                onSelect: () => void resendInvite(user),
-                              },
-                              {
-                                label: 'העתקת קישור הזמנה',
-                                onSelect: () => void copyInviteLink(user),
-                              },
-                            ]
-                          : []),
-                        user.active
-                          ? {
-                              label: 'השבתת משתמש',
-                              danger: true,
-                              onSelect: () => setConfirmDeactivate(user),
-                            }
-                          : {
-                              label: 'הפעלה מחדש',
-                              onSelect: () => void reactivateUser(user),
-                            },
-                        {
-                          label: 'מחיקת משתמש',
-                          danger: true,
-                          onSelect: () => setConfirmDelete(user),
-                        },
-                      ]}
+                        onResendInvite: () => void resendInvite(user),
+                        onCopyInviteLink: () => void copyInviteLink(user),
+                        onDeactivate: () => setConfirmDeactivate(user),
+                        onReactivate: () => void reactivateUser(user),
+                        onDelete: () => setConfirmDelete(user),
+                      })}
                     />
                   </td>
                 </tr>
@@ -623,41 +635,58 @@ export function AdminUsersPage() {
 
       {users && filtered.length > 0 && !isDesktop ? (
         <div className="stack-3">
-          {filtered.map((user) => (
-            <button
-              key={user.id}
-              type="button"
-              className={['card', 'user-card', !user.active ? 'is-muted' : ''].join(' ')}
-              onClick={() => {
-                setFormError(null)
-                setDraft(draftFromUser(user))
-              }}
-            >
-              <div className="responder-card__head">
-                <Avatar name={user.full_name} size="lg" />
-                <span className="responder-card__identity">
-                  <span className="t-section">{user.full_name}</span>
-                  <span className="t-caption text-muted">
-                    או״ק <span className={monoClass(user.callsign)}>{user.callsign}</span>
-                  </span>
-                </span>
+          {filtered.map((user) => {
+            const openEdit = () => {
+              setFormError(null)
+              setDraft(draftFromUser(user))
+            }
+            return (
+              <div
+                key={user.id}
+                className={['card', 'user-card', !user.active ? 'is-muted' : ''].join(' ')}
+              >
+                <div className="user-card__head">
+                  <button type="button" className="user-card__identity-btn" onClick={openEdit}>
+                    <Avatar name={user.full_name} size="lg" />
+                    <span className="user-card__identity">
+                      <span className="t-section">{user.full_name}</span>
+                      <span className="t-caption text-muted">
+                        או״ק <span className={monoClass(user.callsign)}>{user.callsign}</span>
+                      </span>
+                    </span>
+                  </button>
+                  <OverflowMenu
+                    open={menuUserId === user.id}
+                    onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
+                    items={buildUserMenuItems(user, {
+                      onEdit: openEdit,
+                      onResendInvite: () => void resendInvite(user),
+                      onCopyInviteLink: () => void copyInviteLink(user),
+                      onDeactivate: () => setConfirmDeactivate(user),
+                      onReactivate: () => void reactivateUser(user),
+                      onDelete: () => setConfirmDelete(user),
+                    })}
+                  />
+                </div>
+                <button type="button" className="user-card__details" onClick={openEdit}>
+                  <div className="tags">
+                    {user.roles.map((role) => (
+                      <span key={role} className="tag">
+                        {ROLE_LABEL[role]}
+                      </span>
+                    ))}
+                    {isInvitePending(user) ? (
+                      <span className="tag tag--pending">ממתין להרשמה</span>
+                    ) : null}
+                    {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
+                  </div>
+                  <p className="t-caption text-muted">
+                    <span className="ltr">{user.email}</span>
+                  </p>
+                </button>
               </div>
-              <div className="tags" style={{ marginBlockStart: 'var(--space-3)' }}>
-                {user.roles.map((role) => (
-                  <span key={role} className="tag">
-                    {ROLE_LABEL[role]}
-                  </span>
-                ))}
-                {isInvitePending(user) ? (
-                  <span className="tag tag--pending">ממתין להרשמה</span>
-                ) : null}
-                {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
-              </div>
-              <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
-                <span className="ltr">{user.email}</span>
-              </p>
-            </button>
-          ))}
+            )
+          })}
         </div>
       ) : null}
 
