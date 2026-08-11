@@ -1558,27 +1558,32 @@ textarea.field__input {
 
 /* ============================================================
    Toast
+   Mobile: top-center banner under app bar (RTL-safe flex center).
+   Desktop: bottom-inline-start. Spec: 06-components.md → Toast.
    ============================================================ */
 
 .toast-stack {
   position: fixed;
   z-index: 60;
-  inset-inline-start: 50%;
+  inset-inline: 0;
   inset-block-start: calc(var(--appbar-height) + var(--space-3));
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-2);
-  width: min(360px, calc(100% - var(--space-8)));
-  transform: translateX(-50%);
+  padding-inline: var(--space-4);
   pointer-events: none;
 }
 
 @media (min-width: 1025px) {
   .toast-stack {
     inset-inline-start: var(--space-6);
+    inset-inline-end: auto;
     inset-block-start: auto;
     inset-block-end: var(--space-6);
-    transform: none;
+    align-items: stretch;
+    padding-inline: 0;
+    width: min(360px, calc(100% - var(--space-12)));
   }
 }
 
@@ -1587,6 +1592,8 @@ textarea.field__input {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
+  width: 100%;
+  max-width: 360px;
   padding: var(--space-3) var(--space-4);
   border: 1px solid rgba(242, 246, 250, 0.15);
   border-inline-start-width: 3px;
@@ -1594,6 +1601,11 @@ textarea.field__input {
   background: #2a4168;
   color: #f2f6fa;
   box-shadow: var(--shadow-overlay);
+  animation: toast-in var(--duration-base) var(--ease-standard);
+}
+
+.toast--leaving {
+  animation: toast-out var(--duration-base) var(--ease-exit) forwards;
 }
 
 .toast--done {
@@ -1608,14 +1620,80 @@ textarea.field__input {
   border-inline-start-color: #8fbceb;
 }
 
+.toast__icon {
+  flex: none;
+  margin-block-start: 2px;
+}
+
 .toast__message {
   flex: 1;
+  min-width: 0;
+  margin: 0;
   font: 400 14px/20px var(--font-ui);
 }
 
 .toast__close {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-block: -10px;
+  margin-inline-end: -12px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: inherit;
+  cursor: pointer;
+}
+
+.toast__close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .toast__close:hover {
+    background: rgba(242, 246, 250, 0.1);
+  }
+}
+
+@media (min-width: 1025px) {
+  .toast__close {
+    width: 32px;
+    height: 32px;
+    margin-block: -4px;
+    margin-inline-end: -8px;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast--leaving {
+    animation: none;
+  }
 }
 
 /* ============================================================

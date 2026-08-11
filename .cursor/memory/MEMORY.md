@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## What this is
 
@@ -64,6 +64,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Core flows: auth, events, responder fill, admin users + closed lists
 - Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs
 - Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
+- Toasts: mobile top-center via flex (RTL-safe; no `translateX` centering); desktop bottom-inline-start. Spec: `docs/superpowers/specs/2026-08-11-mobile-toast-design.md`
 
 ## Email (Resend)
 
