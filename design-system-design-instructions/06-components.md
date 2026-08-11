@@ -132,7 +132,7 @@ Desktop: dialog, max-width 480 px (forms 640 px), radius `--radius-md`, elevatio
 
 ## Toast
 
-Position: top-center mobile, bottom-inline-start desktop. Elevation 2, radius `--radius-md`, padding `--space-3` `--space-4`, max-width 360 px. Always Command navy chrome (`#2A4168` = Command `--surface-overlay`, text `#F2F6FA`) in both themes + 3px inline-start bar in the Command-theme status color + icon. Auto-dismiss 4s (errors 6s, with close button). Copy: past-tense confirmation (`האירוע נשמר`).
+Position: **top-center mobile** (under the app bar, page gutters `--space-4`, stack centered with flex — never `translateX` centering, which breaks RTL), **bottom-inline-start desktop**. Elevation 2, radius `--radius-md`, padding `--space-3` `--space-4`, max-width 360 px (on phones this reads as a near-full-width banner). Always Command navy chrome (`#2A4168` = Command `--surface-overlay`, text `#F2F6FA`) in both themes + 3px inline-start bar in the Command-theme status color + icon. Motion: enter `translateY(−8px)→0` + opacity (`--duration-base`); exit opacity only. Auto-dismiss 4s (errors 6s, with close button — mobile hit target 44×44). Copy: past-tense confirmation (`האירוע נשמר`).
 
 ## Empty state
 
