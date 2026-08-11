@@ -934,7 +934,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
             <div className="form-section__fields">
               <div className="event-form__grid">
                 <TextField
-                  label='ק"מ התחלה'
+                  label='מד אוץ התחלה'
                   numeric
                   inputMode="numeric"
                   value={numberToInput(draft.odometer_start)}
@@ -945,7 +945,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   }}
                 />
                 <TextField
-                  label='ק"מ סיום'
+                  label='מד אוץ סיום'
                   numeric
                   inputMode="numeric"
                   value={numberToInput(draft.odometer_end)}

@@ -243,7 +243,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                     isolate
                   />
                   <LedgerRow
-                    label='ק"מ התחלה'
+                    label='מד אוץ התחלה'
                     value={
                       draft.odometer_start
                         ? formatNumber(Number(draft.odometer_start))
@@ -252,7 +252,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                     numeric
                   />
                   <LedgerRow
-                    label='ק"מ סיום'
+                    label='מד אוץ סיום'
                     value={
                       draft.odometer_end
                         ? formatNumber(Number(draft.odometer_end))
@@ -298,7 +298,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   }}
                 />
                 <TextField
-                  label='ק"מ התחלה'
+                  label='מד אוץ התחלה'
                   required
                   numeric
                   inputMode="numeric"
@@ -309,7 +309,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   }
                 />
                 <TextField
-                  label='ק"מ סיום'
+                  label='מד אוץ סיום'
                   required
                   numeric
                   inputMode="numeric"

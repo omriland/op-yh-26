@@ -24,8 +24,8 @@ Entry: from the card button or from the responder's own card on event detail.
 | Field | Control | Notes |
 |---|---|---|
 | לוחית רישוי | select | Options = vehicles linked to this user only (plate · model). Not free-text. Prefill when exactly one vehicle. Empty roster → helper to contact admin. |
-| ק"מ התחלה | numeric, mono | |
-| ק"מ סיום | numeric, mono | must be ≥ ק"מ התחלה — error: `ק"מ סיום חייב להיות גדול מק"מ התחלה` |
+| מד אוץ התחלה | numeric, mono | |
+| מד אוץ סיום | numeric, mono | must be ≥ מד אוץ התחלה — error: `מד אוץ סיום חייב להיות גדול ממד אוץ התחלה` |
 | נתיב נסיעה | text | placeholder `דרך צומת X וכביש Y וכו'` |
 | פירוט הטיפול | textarea | the main narrative field — min-height 120 |
 | הערות לטיפול | textarea | optional |

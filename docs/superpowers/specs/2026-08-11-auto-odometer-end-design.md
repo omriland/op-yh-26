@@ -1,6 +1,6 @@
 # Yahpaz — Auto-calculated odometer end (responder fill)
 
-Slice: on **השלמת הפרטים שלי**, responder enters only `ק"מ התחלה`; `ק"מ סיום` is shown read-only as `start + total_km` (shift-lead kilometers).
+Slice: on **השלמת הפרטים שלי**, responder enters only `מד אוץ התחלה`; `מד אוץ סיום` is shown read-only as `start + total_km` (shift-lead kilometers).
 
 Supersedes the editable end field in `2026-08-09-yahpaz-responder-fill-design.md` for the fill form only. Event form / lead editing of `total_km` and odometers elsewhere is unchanged.
 
@@ -26,14 +26,14 @@ Supersedes the editable end field in `2026-08-09-yahpaz-responder-fill-design.md
 
 ### Editing
 
-- User edits only `ק"מ התחלה` (digits-only, existing numeric chrome).
+- User edits only `מד אוץ התחלה` (digits-only, existing numeric chrome).
 - On each start change (and when context has `totalKm`):
   - If start parseable and `totalKm != null` → set draft `odometer_end` to `String(start + totalKm)`.
   - Else → clear draft `odometer_end` to `''`.
-- End `TextField`: `readOnly`, still labeled `ק"מ סיום`, still marked required for complete UX.
+- End `TextField`: `readOnly`, still labeled `מד אוץ סיום`, still marked required for complete UX.
 - Auto-calc copy always visible (edit + done; with/without lead km) via `odometerEndAutoHint`:
-  - missing: `ק"מ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו`
-  - present: `ק"מ סיום מחושב אוטומטית לפי {n} הק״מ שהזין האחמ״ש`
+  - missing: `מד אוץ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו`
+  - present: `מד אוץ סיום מחושב אוטומטית לפי {n} הק״מ שהזין האחמ״ש`
 - Context ledger always shows `קילומטרים (אחמ״ש)` as `{n} ק״מ` or `טרם הוזנו`.
 - Empty end uses placeholder `יחושב אוטומטית`.
 - Live range check unchanged: when both numbers present, end must be &gt; start (equivalent to `totalKm > 0`).
@@ -50,7 +50,7 @@ Supersedes the editable end field in `2026-08-09-yahpaz-responder-fill-design.md
 - Required: plate, start, route, treatment_detail (unchanged).
 - End is required as a **derived** value, not as user input:
   - If `totalKm == null` → form/field error: `האחמ״ש טרם הזין קילומטרים לאירוע. לא ניתן לסיים את הדיווח.`
-  - If `totalKm === 0` (or computed end ≤ start) → `ק"מ סיום חייב להיות גדול מק"מ התחלה` (or equivalent clear copy).
+  - If `totalKm === 0` (or computed end ≤ start) → `מד אוץ סיום חייב להיות גדול ממד אוץ התחלה` (or equivalent clear copy).
 - Before validate/save, ensure draft end is recomputed from current start + `totalKm`.
 
 ### Read-only (participation/event done)
