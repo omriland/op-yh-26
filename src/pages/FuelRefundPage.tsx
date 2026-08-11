@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Calendar, Fuel, ShieldAlert } from 'lucide-react'
 import {
+  FuelRefundSegmentBar,
+  type FuelRefundSegment,
+} from '../components/admin/FuelRefundSegmentBar'
+import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
   loadFuelRefundReport,
   type FuelRefundRow,
 } from '../lib/fuelRefundReport'
-import { formatNumber, monoClass } from '../lib/format'
+import {
+  loadFuelDetailReport,
+  type FuelDetailRow,
+} from '../lib/fuelDetailReport'
+import { formatDate, formatNumber, formatTime, monoClass } from '../lib/format'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -18,7 +26,9 @@ export function FuelRefundPage() {
   const defaults = defaultFuelRefundRange()
   const [from, setFrom] = useState(defaults.from)
   const [to, setTo] = useState(defaults.to)
-  const [rows, setRows] = useState<FuelRefundRow[] | null>(null)
+  const [segment, setSegment] = useState<FuelRefundSegment>('summary')
+  const [summaryRows, setSummaryRows] = useState<FuelRefundRow[] | null>(null)
+  const [detailRows, setDetailRows] = useState<FuelDetailRow[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -27,27 +37,45 @@ export function FuelRefundPage() {
 
   useEffect(() => {
     if (!rangeValid) {
-      setRows(null)
+      setSummaryRows(null)
+      setDetailRows(null)
       setFailed(false)
       return
     }
 
     let active = true
-    setRows(null)
     setFailed(false)
 
-    void loadFuelRefundReport(from, to)
-      .then((next) => {
-        if (active) setRows(next)
-      })
-      .catch(() => {
-        if (active) setFailed(true)
-      })
+    if (segment === 'summary') {
+      setSummaryRows(null)
+      void loadFuelRefundReport(from, to)
+        .then((next) => {
+          if (active) setSummaryRows(next)
+        })
+        .catch(() => {
+          if (active) setFailed(true)
+        })
+    } else {
+      setDetailRows(null)
+      void loadFuelDetailReport(from, to)
+        .then((next) => {
+          if (active) setDetailRows(next)
+        })
+        .catch(() => {
+          if (active) setFailed(true)
+        })
+    }
 
     return () => {
       active = false
     }
-  }, [from, to, rangeValid, reloadKey])
+  }, [from, to, rangeValid, reloadKey, segment])
+
+  const loading =
+    rangeValid &&
+    !failed &&
+    ((segment === 'summary' && summaryRows === null) ||
+      (segment === 'detail' && detailRows === null))
 
   return (
     <div>
@@ -55,7 +83,9 @@ export function FuelRefundPage() {
         <div>
           <h1 className="t-title">החזר דלק</h1>
           <p className="t-caption text-muted">
-            סיכום קילומטרים לפי כונן לפי תאריך דיווח האירוע
+            {segment === 'summary'
+              ? 'סיכום קילומטרים לפי כונן לפי תאריך דיווח האירוע'
+              : 'פירוט אירועים לפי תאריך דיווח — שורה לכל השתתפות עם ק״מ'}
           </p>
         </div>
       </div>
@@ -66,7 +96,7 @@ export function FuelRefundPage() {
           display: 'grid',
           gridTemplateColumns: isDesktop ? 'repeat(2, minmax(0, 16rem))' : '1fr',
           gap: 'var(--space-3)',
-          marginBlockEnd: 'var(--space-6)',
+          marginBlockEnd: 'var(--space-4)',
         }}
       >
         <TextField
@@ -96,7 +126,11 @@ export function FuelRefundPage() {
         />
       </div>
 
-      {rangeValid && rows === null && !failed ? (
+      <div style={{ marginBlockEnd: 'var(--space-6)' }}>
+        <FuelRefundSegmentBar segment={segment} onChange={setSegment} />
+      </div>
+
+      {loading ? (
         isDesktop ? (
           <EventRowsSkeleton rows={6} />
         ) : (
@@ -117,14 +151,21 @@ export function FuelRefundPage() {
         />
       ) : null}
 
-      {rows && rows.length === 0 ? (
+      {segment === 'summary' && summaryRows && summaryRows.length === 0 ? (
         <EmptyState
           icon={<Fuel size={40} strokeWidth={1.75} />}
           title="אין משתמשים פעילים."
         />
       ) : null}
 
-      {rows && rows.length > 0 && isDesktop ? (
+      {segment === 'detail' && detailRows && detailRows.length === 0 ? (
+        <EmptyState
+          icon={<Fuel size={40} strokeWidth={1.75} />}
+          title="אין פירוט דלק בטווח שנבחר."
+        />
+      ) : null}
+
+      {segment === 'summary' && summaryRows && summaryRows.length > 0 && isDesktop ? (
         <div className="table-wrap">
           <table className="table">
             <thead>
@@ -135,7 +176,7 @@ export function FuelRefundPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {summaryRows.map((row) => (
                 <tr key={row.id}>
                   <td>
                     <div>{row.full_name}</div>
@@ -152,9 +193,9 @@ export function FuelRefundPage() {
         </div>
       ) : null}
 
-      {rows && rows.length > 0 && !isDesktop ? (
+      {segment === 'summary' && summaryRows && summaryRows.length > 0 && !isDesktop ? (
         <div className="stack-4">
-          {rows.map((row) => (
+          {summaryRows.map((row) => (
             <article key={row.id} className="card">
               <div className="row-between">
                 <div>
@@ -168,6 +209,84 @@ export function FuelRefundPage() {
               <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
                 אירועים: <span className="num mono">{formatNumber(row.event_count)}</span>
               </p>
+            </article>
+          ))}
+        </div>
+      ) : null}
+
+      {segment === 'detail' && detailRows && detailRows.length > 0 && isDesktop ? (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th scope="col">כונן</th>
+                <th scope="col">תאריך</th>
+                <th scope="col">שעה</th>
+                <th scope="col">מיקום</th>
+                <th scope="col">סוג אירוע</th>
+                <th scope="col">סה״כ ק״מ</th>
+                <th scope="col">הערות</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detailRows.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <div>{row.full_name}</div>
+                    <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
+                      {row.callsign}
+                    </div>
+                  </td>
+                  <td className="num mono">{formatDate(row.created_at)}</td>
+                  <td className="num mono">{formatTime(row.started_at) ?? '—'}</td>
+                  <td>{row.location || '—'}</td>
+                  <td>{row.event_type_name || '—'}</td>
+                  <td className="num mono">{formatNumber(row.total_km)}</td>
+                  <td>{row.notes || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {segment === 'detail' && detailRows && detailRows.length > 0 && !isDesktop ? (
+        <div className="stack-4">
+          {detailRows.map((row) => (
+            <article key={row.id} className="card">
+              <div className="row-between">
+                <div>
+                  <div className="t-body">{row.full_name}</div>
+                  <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
+                    {row.callsign}
+                  </div>
+                </div>
+                <div className="num mono t-body">{formatNumber(row.total_km)} ק״מ</div>
+              </div>
+              <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
+                <span className="mono">{formatDate(row.created_at)}</span>
+                {formatTime(row.started_at) ? (
+                  <>
+                    {' · '}
+                    <span className="mono">{formatTime(row.started_at)}</span>
+                  </>
+                ) : null}
+              </p>
+              {row.location ? (
+                <p className="t-caption" style={{ marginBlockStart: 'var(--space-1)' }}>
+                  {row.location}
+                </p>
+              ) : null}
+              {row.event_type_name ? (
+                <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-1)' }}>
+                  {row.event_type_name}
+                </p>
+              ) : null}
+              {row.notes ? (
+                <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-1)' }}>
+                  {row.notes}
+                </p>
+              ) : null}
             </article>
           ))}
         </div>

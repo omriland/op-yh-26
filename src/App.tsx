@@ -8,6 +8,7 @@ import { EventListSkeleton } from './components/ui/Skeleton'
 import { ToastProvider } from './components/ui/Toast'
 import { AdminListsPage } from './pages/AdminListsPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
+import { FuelQuarterPage } from './pages/FuelQuarterPage'
 import { FuelRefundPage } from './pages/FuelRefundPage'
 import { EventDetailPage } from './pages/EventDetailPage'
 import { EventFormPage } from './pages/EventFormPage'
@@ -101,6 +102,12 @@ function Gate() {
           section: 'ניהול',
         })
         list.push({
+          view: 'fuel_quarter',
+          label: 'דרישת דלק',
+          icon: NAV_ICONS.fuel_quarter,
+          section: 'ניהול',
+        })
+        list.push({
           view: 'lists',
           label: 'הגדרות',
           icon: NAV_ICONS.lists,
@@ -112,7 +119,7 @@ function Gate() {
           view: 'users',
           label: 'משתמשים',
           icon: NAV_ICONS.users,
-          alsoCurrentFor: ['lists', 'fuel_refund'],
+          alsoCurrentFor: ['lists', 'fuel_refund', 'fuel_quarter'],
         })
       }
     }
@@ -136,6 +143,7 @@ function Gate() {
         return manages
       case 'users':
       case 'fuel_refund':
+      case 'fuel_quarter':
       case 'lists':
         return isAdmin
       case 'profile':
@@ -174,7 +182,10 @@ function Gate() {
   const activeView: AppView = isAllowedView(view) ? view : fallbackView
 
   const isAdminView =
-    activeView === 'users' || activeView === 'lists' || activeView === 'fuel_refund'
+    activeView === 'users' ||
+    activeView === 'lists' ||
+    activeView === 'fuel_refund' ||
+    activeView === 'fuel_quarter'
   const onEvents = activeView === 'events' || activeView === 'mine'
   const onShifts = activeView === 'shifts' || activeView === 'my_shifts'
   const onExceptions = activeView === 'exceptions'
@@ -312,7 +323,9 @@ function Gate() {
                     ? 'lists'
                     : activeView === 'fuel_refund'
                       ? 'fuel_refund'
-                      : 'users'
+                      : activeView === 'fuel_quarter'
+                        ? 'fuel_quarter'
+                        : 'users'
                 }
                 onChange={navigate}
               />
@@ -321,6 +334,8 @@ function Gate() {
               <AdminListsPage />
             ) : activeView === 'fuel_refund' ? (
               <FuelRefundPage />
+            ) : activeView === 'fuel_quarter' ? (
+              <FuelQuarterPage />
             ) : (
               <AdminUsersPage />
             )}

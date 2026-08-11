@@ -600,6 +600,18 @@ textarea.field__input {
   color: var(--accent);
 }
 
+/* Match TextField control height (44px) when paired in a toolbar */
+.chips--field-height {
+  align-items: stretch;
+  min-height: 44px;
+}
+
+.chips--field-height .chip {
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
 @media (hover: hover) {
   .chip:hover {
     background: var(--accent-subtle);
@@ -1176,6 +1188,104 @@ textarea.field__input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Compact editors inside Command tables (fuel quarter, etc.) */
+.table tbody td.table-cell--edit {
+  height: auto;
+  min-height: 48px;
+  padding-block: var(--space-2);
+  vertical-align: middle;
+}
+
+.table-edit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.table-edit__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.table-input {
+  box-sizing: border-box;
+  height: 32px;
+  min-width: 3.25rem;
+  max-width: 100%;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.table-input.mono {
+  font-family: var(--font-mono);
+}
+
+.table-input:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.table-input--cards {
+  width: 3.5rem;
+  text-align: center;
+}
+
+.table-edit__suggest {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+  white-space: nowrap;
+}
+
+.table-edit__suggest:hover {
+  color: var(--accent);
+}
+
+.tags--compact {
+  gap: var(--space-1);
+}
+
+.tag--compact {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  gap: 2px;
+  padding-inline: var(--space-1);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.table-edit__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.table-edit__remove:hover {
+  color: var(--text-primary);
+  background: var(--accent-subtle);
 }
 
 @media (hover: hover) {
@@ -2168,6 +2278,272 @@ textarea.field__input {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+/* ============================================================
+   Fuel quarter workbook (דרישת דלק)
+   ============================================================ */
+
+.fuel-quarter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 0;
+}
+
+.fuel-quarter__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.fuel-quarter__intro {
+  min-width: 0;
+}
+
+.fuel-quarter__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.fuel-quarter-autosave {
+  font-weight: 400;
+  min-height: 18px;
+  text-align: end;
+}
+
+.fuel-quarter-autosave--slot {
+  visibility: hidden;
+}
+
+.fuel-quarter__action-btns {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.fuel-quarter__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.fuel-quarter__control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.fuel-quarter__label {
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+}
+
+.fuel-quarter__year-input {
+  box-sizing: border-box;
+  width: 7.5rem;
+  height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: 400 16px/24px var(--font-mono);
+}
+
+.fuel-quarter__year-input:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.fuel-quarter__quarters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-2);
+  height: 44px;
+}
+
+.fuel-quarter__quarter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.fuel-quarter__quarter[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .fuel-quarter__quarter:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+.table-wrap--fuel-quarter {
+  max-height: min(70vh, calc(100vh - 16rem));
+  overflow: auto;
+}
+
+.table--fuel-quarter {
+  min-width: 960px;
+}
+
+.table--fuel-quarter thead th {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  height: 36px;
+  padding-block: 0;
+  padding-inline: var(--space-3);
+  font: 500 12px/16px var(--font-ui);
+  box-shadow: 0 1px 0 var(--stroke-hairline);
+}
+
+.table--fuel-quarter tbody td {
+  height: 40px;
+  max-height: 40px;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  font: 400 14px/20px var(--font-ui);
+  vertical-align: middle;
+}
+
+.table--fuel-quarter tbody td.table-cell--edit {
+  height: 40px;
+  max-height: 40px;
+  min-height: 40px;
+  padding-block: var(--space-1);
+  overflow: visible;
+}
+
+.table--fuel-quarter__name {
+  font: 400 14px/18px var(--font-ui);
+}
+
+.table--fuel-quarter__sticky {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  background: var(--surface-raised);
+  min-width: 8.5rem;
+  box-shadow: -1px 0 0 var(--stroke-hairline);
+}
+
+.table--fuel-quarter thead .table--fuel-quarter__sticky {
+  z-index: 3;
+  background: var(--surface-sunken);
+}
+
+.table--fuel-quarter__cards {
+  min-width: 10rem;
+}
+
+.table--fuel-quarter .table-input {
+  height: 28px;
+  font: 400 13px/18px var(--font-ui);
+}
+
+.table--fuel-quarter .table-edit__row {
+  flex-wrap: nowrap;
+}
+
+.table--fuel-quarter .table-edit__suggest {
+  font: 400 11px/14px var(--font-ui);
+}
+
+.table--fuel-quarter .tag--compact {
+  height: 20px;
+}
+
+.table--fuel-quarter tbody tr {
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .table--fuel-quarter tbody tr:hover {
+    cursor: default;
+  }
+}
+
+.card-numbers-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: 400 13px/18px var(--font-ui);
+  cursor: default;
+  text-align: start;
+}
+
+.card-numbers-trigger:hover,
+.card-numbers-trigger[aria-expanded='true'] {
+  border-color: var(--stroke-strong);
+  background: var(--accent-subtle);
+}
+
+.card-numbers-trigger__count {
+  flex: none;
+}
+
+.card-numbers-trigger__preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.card-numbers-panel {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+}
+
+.card-numbers-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.card-numbers-panel .table-input {
+  width: 100%;
+  height: 32px;
 }
 
 /* ============================================================

@@ -4,12 +4,21 @@ The unit's registry office. Admin-only. Two areas: `משתמשים` and `הגד�
 
 ## Navigation
 
-- Desktop sidebar section `ניהול`: items `משתמשים`, `החזר דלק`, `הגדרות`.
-- Mobile tab bar (admin): `משתמשים` only among admin destinations; segmented control at top for `משתמשים` | `החזר דלק` | `הגדרות`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `משתמשים` (role-gated). Profile via app-bar menu.
+- Desktop sidebar section `ניהול`: items `משתמשים`, `החזר דלק`, `דרישת דלק`, `הגדרות`.
+- Mobile tab bar (admin): `משתמשים` only among admin destinations; segmented control at top for `משתמשים` | `החזר דלק` | `דרישת דלק` | `הגדרות`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `משתמשים` (role-gated). Profile via app-bar menu.
 
 ## החזר דלק (Fuel refund)
 
-Admin-only report. Date range (`מתאריך` / `עד תאריך`) on event **`created_at`** (when reported). Table of all active users: קילומטרים (`total_km` only) · אירועים. Odometers are not shown. See spec `docs/superpowers/specs/2026-08-10-yahpaz-fuel-refund-report-design.md`.
+Admin-only report. Date range (`מתאריך` / `עד תאריך`) on event **`created_at`** (when reported). Segment **סיכום** | **פירוט**:
+
+- **סיכום** — table of all active users: קילומטרים (`total_km` only) · אירועים.
+- **פירוט** — one row per participation with `total_km` set: כונן · תאריך · שעה · מיקום · סוג אירוע · סה״כ ק״מ · הערות.
+
+Odometers are not shown. Specs: `docs/superpowers/specs/2026-08-10-yahpaz-fuel-refund-report-design.md`, `docs/superpowers/specs/2026-08-11-yahpaz-monthly-fuel-detail-report-design.md`.
+
+## דרישת דלק (Quarterly fuel request)
+
+Admin-only workbook under ניהול (`דרישת דלק`). Year + calendar quarter picker. Rows with opening balance, three month km columns, liters (÷6), editable cards (floor liters÷15 default), remaining, card numbers. Save draft / lock quarter (carry remaining). Spec: `docs/superpowers/specs/2026-08-11-yahpaz-quarterly-fuel-request-design.md`.
 
 ## משתמשים (Users)
 

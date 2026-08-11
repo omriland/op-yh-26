@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { ClipboardList } from 'lucide-react'
-import { EmptyState } from '../components/ui/EmptyState'
 import {
   ExceptionsSegmentBar,
   type ExceptionsSegment,
 } from '../components/exceptions/ExceptionsSegmentBar'
+import { DuplicateEventsPage } from './DuplicateEventsPage'
 import { KmExceptionsPage } from './KmExceptionsPage'
 
 type ExceptionsPageProps = {
@@ -24,10 +23,7 @@ export function ExceptionsPage({ asTable, onOpenEvent }: ExceptionsPageProps) {
       {segment === 'km' ? (
         <KmExceptionsPage asTable={asTable} onOpen={onOpenEvent} />
       ) : (
-        <EmptyState
-          icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title="בקרוב"
-        />
+        <DuplicateEventsPage asTable={asTable} onOpen={onOpenEvent} />
       )}
     </div>
   )
