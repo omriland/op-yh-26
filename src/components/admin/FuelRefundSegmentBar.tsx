@@ -12,7 +12,7 @@ const SEGMENTS: { id: FuelRefundSegment; label: string }[] = [
 
 export function FuelRefundSegmentBar({ segment, onChange }: FuelRefundSegmentBarProps) {
   return (
-    <div className="chips admin-segments" role="tablist" aria-label="החזר דלק">
+    <div className="chips admin-segments" role="tablist" aria-label="טבלה מסכמת">
       {SEGMENTS.map((item) => (
         <button
           key={item.id}

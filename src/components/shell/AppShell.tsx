@@ -15,7 +15,7 @@ import {
   ListChecks,
   ListTree,
   LogOut,
-  Ticket,
+  Table2,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -99,8 +99,8 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   my_shifts: <CalendarCheck size={24} strokeWidth={1.75} aria-hidden="true" />,
   exceptions: <Gauge size={24} strokeWidth={1.75} aria-hidden="true" />,
   users: <Users size={24} strokeWidth={1.75} aria-hidden="true" />,
-  fuel_refund: <Fuel size={24} strokeWidth={1.75} aria-hidden="true" />,
-  fuel_quarter: <Ticket size={24} strokeWidth={1.75} aria-hidden="true" />,
+  fuel_refund: <Table2 size={24} strokeWidth={1.75} aria-hidden="true" />,
+  fuel_quarter: <Fuel size={24} strokeWidth={1.75} aria-hidden="true" />,
   lists: <ListTree size={24} strokeWidth={1.75} aria-hidden="true" />,
   profile: <UserRound size={24} strokeWidth={1.75} aria-hidden="true" />,
 }

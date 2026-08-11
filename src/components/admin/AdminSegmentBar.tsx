@@ -7,7 +7,7 @@ type AdminSegmentBarProps = {
 
 const SEGMENTS: { id: AdminSegment; label: string }[] = [
   { id: 'users', label: 'משתמשים' },
-  { id: 'fuel_refund', label: 'החזר דלק' },
+  { id: 'fuel_refund', label: 'טבלה מסכמת' },
   { id: 'fuel_quarter', label: 'דרישת דלק' },
   { id: 'lists', label: 'הגדרות' },
 ]

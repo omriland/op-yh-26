@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Calendar, Fuel, ShieldAlert } from 'lucide-react'
+import { Calendar, ShieldAlert, Table2 } from 'lucide-react'
 import {
   FuelRefundSegmentBar,
   type FuelRefundSegment,
@@ -81,7 +81,7 @@ export function FuelRefundPage() {
     <div>
       <div className="page-head" style={{ marginBlockEnd: 'var(--space-6)' }}>
         <div>
-          <h1 className="t-title">החזר דלק</h1>
+          <h1 className="t-title">טבלה מסכמת</h1>
           <p className="t-caption text-muted">
             {segment === 'summary'
               ? 'סיכום קילומטרים לפי כונן לפי תאריך דיווח האירוע'
@@ -153,14 +153,14 @@ export function FuelRefundPage() {
 
       {segment === 'summary' && summaryRows && summaryRows.length === 0 ? (
         <EmptyState
-          icon={<Fuel size={40} strokeWidth={1.75} />}
+          icon={<Table2 size={40} strokeWidth={1.75} />}
           title="אין משתמשים פעילים."
         />
       ) : null}
 
       {segment === 'detail' && detailRows && detailRows.length === 0 ? (
         <EmptyState
-          icon={<Fuel size={40} strokeWidth={1.75} />}
+          icon={<Table2 size={40} strokeWidth={1.75} />}
           title="אין פירוט דלק בטווח שנבחר."
         />
       ) : null}

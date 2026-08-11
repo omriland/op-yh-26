@@ -97,7 +97,7 @@ function Gate() {
         })
         list.push({
           view: 'fuel_refund',
-          label: 'החזר דלק',
+          label: 'טבלה מסכמת',
           icon: NAV_ICONS.fuel_refund,
           section: 'ניהול',
         })
