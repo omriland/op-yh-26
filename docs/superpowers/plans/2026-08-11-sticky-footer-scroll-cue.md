@@ -161,5 +161,5 @@ git commit -m "feat: sticky footer scroll shadow on overflowing forms"
 
 ### Task 3: Memory + PR
 
-- [ ] Update `.cursor/memory/MEMORY.md` with scroll-cue decision
-- [ ] Commit, push, update PR body
+- [x] Update `.cursor/memory/MEMORY.md` with scroll-cue decision
+- [x] Commit, push, update PR body
