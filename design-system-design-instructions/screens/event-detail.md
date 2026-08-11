@@ -32,7 +32,7 @@ Section heading `כוננים (3)` with the done-fraction at inline-end in mono 
 One **responder card** per `event_responders` row (per `06-components.md`):
 
 - Header: avatar + full name + callsign (mono caption) + stamp (viewer-relative: own open row → `ממתין לתיעוד שלך`; other's open row → `ממתין לכונן`; done → `הושלם`).
-- Body ledger rows: `לוחית רישוי` (mono, LTR isolate) · `ק"מ התחלה` · `ק"מ סיום` · `קילומטרים` · `נתיב נסיעה` · `אמצעים` (`כן`/`לא`) · `רכבים שטופלו` (comma list `גרר × 2, פרטי × 1`) · `פירוט הטיפול` + `הערות לטיפול` as paragraphs.
+- Body ledger rows: `לוחית רישוי` (mono, LTR isolate) · `מד אוץ התחלה` · `מד אוץ סיום` · `קילומטרים` · `נתיב נסיעה` · `אמצעים` (`כן`/`לא`) · `רכבים שטופלו` (comma list `גרר × 2, פרטי × 1`) · `פירוט הטיפול` + `הערות לטיפול` as paragraphs.
 - Footer: 
   - Viewer's own open card → full-width primary `השלמת הפרטים שלי` → responder fill flow.
   - Shift-lead on any card → ghost `עריכת שדות אחמ״ש`.

@@ -36,13 +36,13 @@ describe('computeOdometerEnd', () => {
 describe('odometerEndAutoHint', () => {
   it('explains auto-calc when lead km is missing', () => {
     expect(odometerEndAutoHint(null)).toBe(
-      'ק"מ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו',
+      'מד אוץ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו',
     )
   })
 
   it('explains auto-calc with the lead km amount when present', () => {
     expect(odometerEndAutoHint(12)).toBe(
-      'ק"מ סיום מחושב אוטומטית לפי 12 הק״מ שהזין האחמ״ש',
+      'מד אוץ סיום מחושב אוטומטית לפי 12 הק״מ שהזין האחמ״ש',
     )
   })
 })
@@ -99,6 +99,6 @@ describe('validateResponderFillDraft with totalKm', () => {
       treatment_detail: 'טיפול',
     })
     const errors = validateResponderFillDraft(filled, 'complete', plates, 0)
-    expect(errors.odometer_end).toBe('ק"מ סיום חייב להיות גדול מק"מ התחלה')
+    expect(errors.odometer_end).toBe('מד אוץ סיום חייב להיות גדול ממד אוץ התחלה')
   })
 })

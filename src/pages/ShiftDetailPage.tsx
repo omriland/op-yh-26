@@ -212,14 +212,14 @@ export function ShiftDetailPage({
               <LedgerRow label="לוחית" value={plate ?? undefined} numeric isolate />
             ) : null}
             <LedgerRow
-              label='ק"מ התחלה'
+              label='מד אוץ התחלה'
               value={
                 shift.odometer_start != null ? formatNumber(shift.odometer_start) : undefined
               }
               numeric
             />
             <LedgerRow
-              label='ק"מ סיום'
+              label='מד אוץ סיום'
               value={shift.odometer_end != null ? formatNumber(shift.odometer_end) : undefined}
               numeric
             />

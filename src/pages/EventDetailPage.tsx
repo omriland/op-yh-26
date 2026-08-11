@@ -350,12 +350,12 @@ function ResponderCard({
           isolate
         />
         <LedgerRow
-          label='ק"מ התחלה'
+          label='מד אוץ התחלה'
           value={responder.odometer_start != null ? formatNumber(responder.odometer_start) : undefined}
           numeric
         />
         <LedgerRow
-          label='ק"מ סיום'
+          label='מד אוץ סיום'
           value={responder.odometer_end != null ? formatNumber(responder.odometer_end) : undefined}
           numeric
         />

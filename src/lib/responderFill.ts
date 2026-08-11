@@ -64,9 +64,9 @@ export function computeOdometerEnd(
 /** Always-visible copy: end odometer is auto-derived from אחמ״ש kilometers. */
 export function odometerEndAutoHint(totalKm: number | null): string {
   if (totalKm == null) {
-    return 'ק"מ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו'
+    return 'מד אוץ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו'
   }
-  return `ק"מ סיום מחושב אוטומטית לפי ${formatNumber(totalKm)} הק״מ שהזין האחמ״ש`
+  return `מד אוץ סיום מחושב אוטומטית לפי ${formatNumber(totalKm)} הק״מ שהזין האחמ״ש`
 }
 
 export function deriveEventStatusAfterParticipation(
@@ -115,8 +115,8 @@ export function validateResponderFillDraft(
   const plate = plateDigits(draft.vehicle_plate)
   const allowed = new Set(allowedPlates.map(plateDigits).filter(Boolean))
 
-  if (start === 'invalid') errors.odometer_start = 'ק"מ התחלה חייב להיות מספר.'
-  if (end === 'invalid') errors.odometer_end = 'ק"מ סיום חייב להיות מספר.'
+  if (start === 'invalid') errors.odometer_start = 'מד אוץ התחלה חייב להיות מספר.'
+  if (end === 'invalid') errors.odometer_end = 'מד אוץ סיום חייב להיות מספר.'
 
   if (mode === 'complete') {
     if (!plate) errors.vehicle_plate = 'יש לבחור רכב.'
@@ -125,12 +125,12 @@ export function validateResponderFillDraft(
     } else if (allowed.size === 0) {
       errors.vehicle_plate = 'לא מקושר רכב למשתמש. פנו למנהל המערכת.'
     }
-    if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא ק"מ התחלה.'
+    if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא מד אוץ התחלה.'
     if (totalKm == null) {
       errors.odometer_end =
         'האחמ״ש טרם הזין קילומטרים לאירוע. לא ניתן לסיים את הדיווח.'
     } else if (end == null || end === 'invalid') {
-      errors.odometer_end = 'יש למלא ק"מ סיום.'
+      errors.odometer_end = 'יש למלא מד אוץ סיום.'
     }
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
@@ -144,7 +144,7 @@ export function validateResponderFillDraft(
     typeof end === 'number' &&
     end <= start
   ) {
-    errors.odometer_end = 'ק"מ סיום חייב להיות גדול מק"מ התחלה'
+    errors.odometer_end = 'מד אוץ סיום חייב להיות גדול ממד אוץ התחלה'
   }
 
   return errors
@@ -158,7 +158,7 @@ export function odometerRangeError(
   const start = parseOptionalNumber(odometerStart)
   const end = parseOptionalNumber(odometerEnd)
   if (typeof start !== 'number' || typeof end !== 'number') return undefined
-  if (end <= start) return 'ק"מ סיום חייב להיות גדול מק"מ התחלה'
+  if (end <= start) return 'מד אוץ סיום חייב להיות גדול ממד אוץ התחלה'
   return undefined
 }
 

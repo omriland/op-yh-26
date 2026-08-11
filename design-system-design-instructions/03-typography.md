@@ -57,7 +57,7 @@ Body text is never smaller than 16 px in form inputs (prevents iOS auto-zoom).
 
 ## Numeric rules
 
-- All operational numbers — לוחית רישוי, ק"מ התחלה, ק"מ סיום, קילומטרים, מספר אירוע — render in `--type-numeric` (Plex Mono). This is registry data; it must look like registry data.
+- All operational numbers — לוחית רישוי, מד אוץ התחלה, מד אוץ סיום, קילומטרים, מספר אירוע — render in `--type-numeric` (Plex Mono). This is registry data; it must look like registry data.
 - Digits are Western Arabic numerals (0–9), never Hebrew letters-as-numerals.
 - License plates format with hyphens and are direction-isolated: `<span dir="ltr">12-345-67</span>` (see `05-rtl-language.md`).
 - In tables of numbers, align numeric columns to the inline-end and let the mono face do the vertical alignment.
