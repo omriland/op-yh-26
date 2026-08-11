@@ -25,12 +25,14 @@ Repo: `yhpz-2026`
 ## Auth / admin seed
 
 - Auth: email + password (Supabase)
-- Seed admin: `omriland@gmail.com` — profile Omri Landman / callsign Admin — role `admin`
+- Seed admin: `omriland@gmail.com` — profile עמרי לנדמן / callsign Admin — roles `admin`, `shift_lead`, **`super_admin`**
+- `super_admin`: DB-only grant (trigger blocks JWT insert/delete); not in role checkboxes/invite. First capability: set user password via admin panel (`set_password` on Edge `admin-users`). Spec: `2026-08-11-yahpaz-super-admin-set-password-design.md`
+- `profiles.must_change_password` + RPC `clear_must_change_password()` for force-change gate after admin-set password
 - Profile auto-created via `handle_new_user` trigger on `auth.users`
 
 ## Product decisions (locked)
 
-- Roles: Admin (users + closed lists), Shift-lead (events), Responder (own participation fields)
+- Roles: Admin (users + closed lists), Shift-lead (events), Responder (own participation fields); Super Admin (additive, DB-only — set passwords)
 - Multiple responders per event; each has own details
 - Event auto-`done` when **all** assigned responders are `done`; shift-lead sees **partial** until then
 - Viewer-relative labels
@@ -69,6 +71,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Toasts: mobile top-center via flex (RTL-safe; no `translateX` centering); desktop bottom-inline-start. Spec: `docs/superpowers/specs/2026-08-11-mobile-toast-design.md`
 - Admin users mobile cards: ⋮ overflow menu (same actions as desktop) + internal `--space-3` rhythm; spec `2026-08-11-mobile-admin-users-card-design.md`
 - Sticky form footers: upward `--shadow-scroll-cue` while page overflows (`FormStickyFooter` on responder fill / event / shift). Spec: `docs/superpowers/specs/2026-08-11-sticky-footer-scroll-cue-design.md`
+- Snyk security badge: English “Protected by Snyk” + logo in `AppShell` footer on non-immersive logged-in screens; links to snyk.io. Spec: `docs/superpowers/specs/2026-08-11-snyk-security-badge-design.md`
 
 ## Email (Resend)
 
@@ -84,6 +87,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Vehicle: `patrol_north` | `patrol_center` | `personal` → label **רכב פרטי** (+ plate)
 - Form: single **שמירה**; no start/close/reopen; `total_km` computed via `computeTotalKm`
 - Assigned responders edit on/after `shift_date` (`canEditShiftByDate`); future → view-only; save with `syncResponders: false`
+- **Identity lock:** responders cannot change `shift_date` / `shift_kind` / `vehicle_type` / `personal_vehicle_id` — UI disabled + client omit + DB trigger `enforce_shift_identity_edit`. Only `admin` / `shift_lead`. Spec: `2026-08-11-yahpaz-shift-identity-fields-lock-design.md`
 - Admin delete via detail Dialog (`deleteShift`)
 - Out of scope v1: open signup roster, payroll, GPS
 
@@ -111,13 +115,22 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 
 - Nav **חריגים** under כלים לאחמ״ש (desktop; `shift_lead` + `admin`); AppView `exceptions`
 - Sub-tabs: **חריגי ק״מ** (live) · **אירועים כפולים** (placeholder `בקרוב`)
-- KM report: `done` + `total_km >= 60`; cancelled included; `kmExceptionsReport.ts`
+- KM report: lead-entered `total_km >= 60` (any participation status; not odometer); cancelled included; `kmExceptionsReport.ts`
 - Spec (KM): `docs/superpowers/specs/2026-08-10-yahpaz-km-exceptions-report-design.md`
+
+## System שלוחות + Places location (2026-08-11)
+
+- Spec: `docs/superpowers/specs/2026-08-11-yahpaz-system-districts-places-location-design.md`
+- `districts.code`: `station` / `other` / `duplicated` (תחנה / אחר / משוכפל) — seeded + DB trigger locks rename/delete/deactivate
+- When selected on event form: מיקום = Places autocomplete (HE, IL); free-text always first; location required
+- Store: `events.location` + optional `location_place_id` / `location_lat` / `location_lng`
+- Env: `VITE_GOOGLE_MAPS_API_KEY` (Places API New; referrer-restricted). Ops setup in Google Cloud + Netlify.
 
 ## Open / next
 
 1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
 2. Later: add/verify `yahpz.com` on Resend when plan allows
+3. Set `VITE_GOOGLE_MAPS_API_KEY` in Netlify + `.env.local` for Places autocomplete
 
 ## Netlify CD
 

@@ -513,6 +513,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     setErrors({})
     const result = await saveShiftForm(current, user.id, {
       syncResponders: canManageLead,
+      canEditIdentity: canManageLead,
     })
     setSaving(false)
     if (!result.ok) {
@@ -602,6 +603,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   label="תאריך"
                   type="date"
                   required
+                  disabled={!canManageLead}
                   value={draft.shift_date}
                   error={errors.shift_date}
                   onChange={(event) => {
@@ -618,6 +620,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                 <SelectField
                   label="שם משמרת"
                   required
+                  disabled={!canManageLead}
                   value={draft.shift_kind}
                   error={errors.shift_kind}
                   options={SHIFT_KIND_OPTIONS}
@@ -630,6 +633,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                 <SelectField
                   label="סוג רכב"
                   required
+                  disabled={!canManageLead}
                   value={draft.vehicle_type}
                   error={errors.vehicle_type}
                   options={VEHICLE_OPTIONS}
@@ -652,6 +656,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   <SelectField
                     label="לוחית"
                     required
+                    disabled={!canManageLead}
                     value={draft.personal_vehicle_id ?? ''}
                     error={errors.personal_vehicle_id}
                     placeholder={

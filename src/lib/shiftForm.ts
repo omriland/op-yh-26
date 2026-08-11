@@ -337,10 +337,56 @@ async function syncTreatedVehicleCounts(
   return { ok: true }
 }
 
+const SHIFT_IDENTITY_FORBIDDEN = 'אין הרשאה לשנות פרטי משמרת'
+
+export type ShiftUpdatePayload = {
+  shift_date?: string
+  shift_kind?: ShiftKind
+  vehicle_type?: ShiftVehicleType
+  personal_vehicle_id?: string | null
+  odometer_start: number | null
+  odometer_end: number | null
+  total_km: number | null
+  notes: string | null
+  updated_at: string
+}
+
+/** Build shift row update; omit identity columns when responder cannot edit them. */
+export function buildShiftUpdatePayload(
+  draft: ShiftFormDraft,
+  options: { canEditIdentity: boolean },
+): ShiftUpdatePayload {
+  const body: ShiftUpdatePayload = {
+    odometer_start: draft.odometer_start,
+    odometer_end: draft.odometer_end,
+    total_km: computeTotalKm(draft.odometer_start, draft.odometer_end),
+    notes: draft.notes.trim() || null,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (!options.canEditIdentity) return body
+
+  return {
+    ...body,
+    shift_date: draft.shift_date,
+    shift_kind: draft.shift_kind,
+    vehicle_type: draft.vehicle_type,
+    personal_vehicle_id:
+      draft.vehicle_type === 'personal' ? draft.personal_vehicle_id : null,
+  }
+}
+
+function mapShiftUpdateError(error: { message?: string }): string {
+  if (error.message?.includes(SHIFT_IDENTITY_FORBIDDEN)) {
+    return SHIFT_IDENTITY_FORBIDDEN
+  }
+  return 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
+}
+
 export async function saveShiftForm(
   draft: ShiftFormDraft,
   shiftLeadId: string,
-  options?: { syncResponders?: boolean },
+  options?: { syncResponders?: boolean; canEditIdentity?: boolean },
 ): Promise<
   | { ok: true; shiftId: string; status: ShiftStatus }
   | { ok: false; error: string; fieldErrors?: ShiftSaveError[] }
@@ -354,31 +400,20 @@ export async function saveShiftForm(
     }
   }
 
-  const personalVehicleError = await verifyPersonalVehicle(draft)
-  if (personalVehicleError) {
-    return {
-      ok: false,
-      error: personalVehicleError,
-      fieldErrors:
-        draft.vehicle_type === 'personal'
-          ? [{ field: 'personal_vehicle_id', message: personalVehicleError }]
-          : undefined,
+  const canEditIdentity = options?.canEditIdentity ?? true
+
+  if (canEditIdentity) {
+    const personalVehicleError = await verifyPersonalVehicle(draft)
+    if (personalVehicleError) {
+      return {
+        ok: false,
+        error: personalVehicleError,
+        fieldErrors:
+          draft.vehicle_type === 'personal'
+            ? [{ field: 'personal_vehicle_id', message: personalVehicleError }]
+            : undefined,
+      }
     }
-  }
-
-  const totalKm = computeTotalKm(draft.odometer_start, draft.odometer_end)
-
-  const shiftPayload = {
-    shift_date: draft.shift_date,
-    shift_kind: draft.shift_kind,
-    vehicle_type: draft.vehicle_type,
-    personal_vehicle_id:
-      draft.vehicle_type === 'personal' ? draft.personal_vehicle_id : null,
-    odometer_start: draft.odometer_start,
-    odometer_end: draft.odometer_end,
-    total_km: totalKm,
-    notes: draft.notes.trim() || null,
-    updated_at: new Date().toISOString(),
   }
 
   let shiftId = draft.id
@@ -386,11 +421,13 @@ export async function saveShiftForm(
   const syncResponders = options?.syncResponders ?? true
 
   if (shiftId) {
+    const shiftPayload = buildShiftUpdatePayload(draft, { canEditIdentity })
     const { error } = await supabase.from('shifts').update(shiftPayload).eq('id', shiftId)
     if (error) {
-      return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
+      return { ok: false, error: mapShiftUpdateError(error) }
     }
   } else {
+    const shiftPayload = buildShiftUpdatePayload(draft, { canEditIdentity: true })
     const { data, error } = await supabase
       .from('shifts')
       .insert({ ...shiftPayload, shift_lead_id: shiftLeadId, status: nextStatus })
