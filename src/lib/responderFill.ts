@@ -1,4 +1,4 @@
-import { plateDigits } from './format'
+import { formatNumber, plateDigits } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 
@@ -59,6 +59,14 @@ export function computeOdometerEnd(
   const start = parseOptionalNumber(odometerStart)
   if (typeof start !== 'number') return ''
   return String(start + totalKm)
+}
+
+/** Always-visible copy: end odometer is auto-derived from אחמ״ש kilometers. */
+export function odometerEndAutoHint(totalKm: number | null): string {
+  if (totalKm == null) {
+    return 'ק"מ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו'
+  }
+  return `ק"מ סיום מחושב אוטומטית לפי ${formatNumber(totalKm)} הק״מ שהזין האחמ״ש`
 }
 
 export function deriveEventStatusAfterParticipation(

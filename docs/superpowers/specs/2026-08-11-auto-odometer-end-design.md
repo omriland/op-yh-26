@@ -30,7 +30,12 @@ Supersedes the editable end field in `2026-08-09-yahpaz-responder-fill-design.md
 - On each start change (and when context has `totalKm`):
   - If start parseable and `totalKm != null` → set draft `odometer_end` to `String(start + totalKm)`.
   - Else → clear draft `odometer_end` to `''`.
-- End `TextField`: `readOnly`, still labeled `ק"מ סיום`, still marked required for complete UX; hint: `מחושב לפי הקילומטרים שהזין האחמ״ש`.
+- End `TextField`: `readOnly`, still labeled `ק"מ סיום`, still marked required for complete UX.
+- Auto-calc copy always visible (edit + done; with/without lead km) via `odometerEndAutoHint`:
+  - missing: `ק"מ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו`
+  - present: `ק"מ סיום מחושב אוטומטית לפי {n} הק״מ שהזין האחמ״ש`
+- Context ledger always shows `קילומטרים (אחמ״ש)` as `{n} ק״מ` or `טרם הוזנו`.
+- Empty end uses placeholder `יחושב אוטומטית`.
 - Live range check unchanged: when both numbers present, end must be &gt; start (equivalent to `totalKm > 0`).
 
 ### Save draft (`שמירת טיוטה`)

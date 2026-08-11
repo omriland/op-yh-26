@@ -5,6 +5,7 @@ import {
   completeResponderFill,
   computeOdometerEnd,
   fetchResponderFillContext,
+  odometerEndAutoHint,
   odometerRangeError,
   saveResponderFillDraft,
   type ResponderFillContext,
@@ -219,6 +220,13 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
             <LedgerRow label="כביש" value={ctx.road_name ?? undefined} />
             <LedgerRow label="מיקום" value={ctx.location ?? undefined} />
             <LedgerRow label="אחמ״ש" value={ctx.shift_lead_name ?? undefined} />
+            <LedgerRow
+              label="קילומטרים (אחמ״ש)"
+              value={
+                ctx.totalKm != null ? `${formatNumber(ctx.totalKm)} ק״מ` : 'טרם הוזנו'
+              }
+              numeric={ctx.totalKm != null}
+            />
           </Ledger>
         </section>
 
@@ -226,33 +234,44 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
           <h2 className="form-section__heading">הפרטים שלי</h2>
           <div className="form-section__fields">
             {readOnly ? (
-              <Ledger>
-                <LedgerRow
-                  label="לוחית רישוי"
-                  value={draft.vehicle_plate ? formatPlate(draft.vehicle_plate) : undefined}
-                  numeric
-                  isolate
-                />
-                <LedgerRow
-                  label='ק"מ התחלה'
-                  value={
-                    draft.odometer_start
-                      ? formatNumber(Number(draft.odometer_start))
-                      : undefined
-                  }
-                  numeric
-                />
-                <LedgerRow
-                  label='ק"מ סיום'
-                  value={
-                    draft.odometer_end ? formatNumber(Number(draft.odometer_end)) : undefined
-                  }
-                  numeric
-                />
-                <LedgerRow label="נתיב נסיעה" value={draft.route || undefined} />
-                <LedgerRow label="פירוט הטיפול" value={draft.treatment_detail || undefined} />
-                <LedgerRow label="הערות לטיפול" value={draft.treatment_notes || undefined} />
-              </Ledger>
+              <>
+                <Ledger>
+                  <LedgerRow
+                    label="לוחית רישוי"
+                    value={draft.vehicle_plate ? formatPlate(draft.vehicle_plate) : undefined}
+                    numeric
+                    isolate
+                  />
+                  <LedgerRow
+                    label='ק"מ התחלה'
+                    value={
+                      draft.odometer_start
+                        ? formatNumber(Number(draft.odometer_start))
+                        : undefined
+                    }
+                    numeric
+                  />
+                  <LedgerRow
+                    label='ק"מ סיום'
+                    value={
+                      draft.odometer_end
+                        ? formatNumber(Number(draft.odometer_end))
+                        : undefined
+                    }
+                    numeric
+                  />
+                  <LedgerRow label="נתיב נסיעה" value={draft.route || undefined} />
+                  <LedgerRow
+                    label="פירוט הטיפול"
+                    value={draft.treatment_detail || undefined}
+                  />
+                  <LedgerRow
+                    label="הערות לטיפול"
+                    value={draft.treatment_notes || undefined}
+                  />
+                </Ledger>
+                <p className="t-caption text-muted">{odometerEndAutoHint(ctx.totalKm)}</p>
+              </>
             ) : (
               <>
                 <SelectField
@@ -296,8 +315,9 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   inputMode="numeric"
                   readOnly
                   value={draft.odometer_end}
+                  placeholder="יחושב אוטומטית"
                   error={errors.odometer_end}
-                  hint="מחושב לפי הקילומטרים שהזין האחמ״ש"
+                  hint={odometerEndAutoHint(ctx.totalKm)}
                 />
                 <TextField
                   label="נתיב נסיעה"

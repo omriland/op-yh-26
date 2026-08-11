@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeOdometerEnd,
   emptyResponderFillDraft,
+  odometerEndAutoHint,
   validateResponderFillDraft,
   type ResponderFillDraft,
 } from './responderFill'
@@ -29,6 +30,20 @@ describe('computeOdometerEnd', () => {
 
   it('returns start when totalKm is zero', () => {
     expect(computeOdometerEnd('100', 0)).toBe('100')
+  })
+})
+
+describe('odometerEndAutoHint', () => {
+  it('explains auto-calc when lead km is missing', () => {
+    expect(odometerEndAutoHint(null)).toBe(
+      'ק"מ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו',
+    )
+  })
+
+  it('explains auto-calc with the lead km amount when present', () => {
+    expect(odometerEndAutoHint(12)).toBe(
+      'ק"מ סיום מחושב אוטומטית לפי 12 הק״מ שהזין האחמ״ש',
+    )
   })
 })
 

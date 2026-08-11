@@ -25,7 +25,9 @@ export function TextField({
 }: TextFieldProps) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
-  const describedBy = error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined
+  const describedBy = [error ? `${fieldId}-error` : null, hint ? `${fieldId}-hint` : null]
+    .filter(Boolean)
+    .join(' ') || undefined
   const isBlank = Boolean(required) && !value
 
   return (
@@ -61,7 +63,8 @@ export function TextField({
         <p id={`${fieldId}-error`} className="field__hint field__hint--error" role="alert">
           {error}
         </p>
-      ) : hint ? (
+      ) : null}
+      {hint ? (
         <p id={`${fieldId}-hint`} className="field__hint">
           {hint}
         </p>
