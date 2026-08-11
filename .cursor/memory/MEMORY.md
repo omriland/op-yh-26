@@ -70,7 +70,8 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
 - Toasts: mobile top-center via flex (RTL-safe; no `translateX` centering); desktop bottom-inline-start. Spec: `docs/superpowers/specs/2026-08-11-mobile-toast-design.md`
 - Admin users mobile cards: ⋮ overflow menu (same actions as desktop) + internal `--space-3` rhythm; spec `2026-08-11-mobile-admin-users-card-design.md`
-- Sticky form footers: upward `--shadow-scroll-cue` while page overflows (`FormStickyFooter` on responder fill / event / shift). Spec: `docs/superpowers/specs/2026-08-11-sticky-footer-scroll-cue-design.md`
+- Sticky form footers: upward `--shadow-scroll-cue` while scrollport overflows (`FormStickyFooter` on responder fill / event / shift). Spec: `docs/superpowers/specs/2026-08-11-sticky-footer-scroll-cue-design.md`
+- Mobile shell: viewport-locked flex (`height: 100dvh; overflow: hidden`); `.shell__main` scrolls; bottom tab bar **in-flow** (not `position: fixed`) to avoid iOS Safari mid-scroll drift. Sticky form footers use `inset-block-end: 0` against main.
 - Snyk security badge: English “Protected by Snyk” + logo in `AppShell` footer on non-immersive logged-in screens; links to snyk.io. Spec: `docs/superpowers/specs/2026-08-11-snyk-security-badge-design.md`
 
 ## Email (Resend)
@@ -118,10 +119,16 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - KM report: lead-entered `total_km >= 60` (any participation status; not odometer); cancelled included; `kmExceptionsReport.ts`
 - Spec (KM): `docs/superpowers/specs/2026-08-10-yahpaz-km-exceptions-report-design.md`
 
+## Event detail map hero (2026-08-11)
+
+- Spec: `docs/superpowers/specs/2026-08-11-yahpaz-event-detail-map-hero-design.md`
+- When `location_lat`/`location_lng` present: faded Static Maps band behind event detail letterhead (layout B), pin, no click-out
+- Needs **Maps Static API** enabled on the same `VITE_GOOGLE_MAPS_API_KEY`
+
 ## System שלוחות + Places location (2026-08-11)
 
 - Spec: `docs/superpowers/specs/2026-08-11-yahpaz-system-districts-places-location-design.md`
-- `districts.code`: `station` / `other` / `duplicated` (תחנה / אחר / משוכפל) — seeded + DB trigger locks rename/delete/deactivate
+- One system district: `code=station_other_duplicated`, name `תחנה / אחר / משוכפל` — DB trigger locks rename/delete/deactivate
 - When selected on event form: מיקום = Places autocomplete (HE, IL); free-text always first; location required
 - Store: `events.location` + optional `location_place_id` / `location_lat` / `location_lng`
 - Env: `VITE_GOOGLE_MAPS_API_KEY` (Places API New; referrer-restricted). Ops setup in Google Cloud + Netlify.

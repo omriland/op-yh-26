@@ -409,6 +409,7 @@ textarea.field__input {
    ============================================================ */
 
 .card {
+  min-width: 0;
   padding: var(--space-4);
   border: 1px solid var(--stroke-hairline);
   border-radius: var(--radius-md);
@@ -492,11 +493,13 @@ textarea.field__input {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
+  min-width: 0;
   min-height: 32px;
 }
 
 .ledger__label {
-  flex: none;
+  flex: 0 1 auto;
+  max-width: 45%;
   color: var(--text-secondary);
   font: 500 13px/18px var(--font-ui);
   letter-spacing: 0.01em;
@@ -511,10 +514,15 @@ textarea.field__input {
 }
 
 .ledger__value {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
   color: var(--text-primary);
   font: 400 16px/24px var(--font-ui);
+  font-family: var(--font-ui);
   text-align: end;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ledger__value--numeric {
@@ -671,15 +679,20 @@ textarea.field__input {
 .shell {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  /* Viewport-locked: tab bar stays in normal flow (not position:fixed).
+     iOS Safari mis-places fixed bottom bars mid-screen while scrolling. */
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
   background: var(--surface-page);
 }
 
 .appbar {
-  position: sticky;
-  inset-block-start: 0;
   z-index: 20;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -843,6 +856,7 @@ textarea.field__input {
   display: flex;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -850,6 +864,9 @@ textarea.field__input {
   display: none;
   flex: none;
   width: var(--sidebar-width);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: var(--space-6) var(--space-3);
   border-inline-end: 1px solid var(--stroke-hairline);
   background: var(--surface-page);
@@ -963,13 +980,18 @@ textarea.field__input {
   flex: 1;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: var(--space-6) var(--space-4);
-  padding-block-end: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-6));
+  padding-block-end: var(--space-6);
 }
 
 .shell__main > * {
   max-width: var(--content-max);
   width: 100%;
+  min-width: 0;
   margin-inline: auto;
 }
 
@@ -1019,12 +1041,12 @@ textarea.field__input {
   color: var(--text-primary);
 }
 
+/* In-flow (not position:fixed) — avoids iOS Safari fixed-bottom drift mid-scroll. */
 .tabbar {
-  position: fixed;
-  inset-block-end: 0;
-  inset-inline: 0;
   z-index: 20;
   display: flex;
+  flex: none;
+  width: 100%;
   height: calc(var(--tabbar-height) + env(safe-area-inset-bottom));
   padding-block-end: env(safe-area-inset-bottom);
   border-block-start: 1px solid var(--stroke-hairline);
@@ -1177,7 +1199,8 @@ textarea.field__input {
 
 .group-head {
   position: sticky;
-  inset-block-start: var(--appbar-height);
+  /* App bar is outside .shell__main scrollport — stick to scrollport top. */
+  inset-block-start: 0;
   z-index: 10;
   padding-block: var(--space-2);
   background: var(--surface-page);
@@ -1373,6 +1396,70 @@ textarea.field__input {
    Event detail (the record)
    ============================================================ */
 
+.detail {
+  position: relative;
+}
+
+.detail__map-hero {
+  position: absolute;
+  inset-inline: calc(-1 * var(--page-gutter, var(--space-4)));
+  inset-block-start: calc(-1 * var(--space-4));
+  height: 220px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.detail__map-hero__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: saturate(0.55) contrast(0.95) brightness(0.85);
+  transform: scale(1.02);
+}
+
+.detail__map-hero__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-canvas, var(--bg)) 20%, transparent) 0%,
+      color-mix(in srgb, var(--surface-canvas, var(--bg)) 55%, transparent) 45%,
+      var(--surface-canvas, var(--bg)) 100%
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--surface-canvas, var(--bg)) 35%, transparent),
+      transparent 35%,
+      transparent 65%,
+      color-mix(in srgb, var(--surface-canvas, var(--bg)) 35%, transparent)
+    );
+}
+
+.detail__letterhead {
+  position: relative;
+  z-index: 1;
+}
+
+.detail--has-map .detail__letterhead {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-block-end: var(--space-4);
+}
+
+.detail--has-map .detail__back {
+  margin-block-end: auto;
+}
+
+.detail--has-map .detail__title-row .t-title,
+.detail--has-map .detail__title-row .t-caption {
+  text-shadow: 0 1px 12px color-mix(in srgb, var(--surface-canvas, var(--bg)) 80%, transparent);
+}
+
 .detail__back {
   margin-block-end: var(--space-4);
 }
@@ -1392,10 +1479,31 @@ textarea.field__input {
   margin-block-end: var(--space-2);
 }
 
+.detail--has-map .detail__actions {
+  margin-block-end: 0;
+}
+
 .detail__grid {
   display: grid;
   gap: var(--space-6);
   margin-block-start: var(--space-10);
+  position: relative;
+  z-index: 1;
+}
+
+.detail--has-map .detail__grid {
+  margin-block-start: var(--space-6);
+}
+
+@media (min-width: 1025px) {
+  .detail__map-hero {
+    inset-inline: calc(-1 * var(--space-8));
+    height: 260px;
+  }
+
+  .detail--has-map .detail__letterhead {
+    min-height: 240px;
+  }
 }
 
 .detail__notes {
@@ -1426,7 +1534,7 @@ textarea.field__input {
 
   .detail__aside {
     position: sticky;
-    inset-block-start: calc(var(--appbar-height) + var(--space-6));
+    inset-block-start: 0;
   }
 }
 
@@ -2307,6 +2415,63 @@ textarea.field__input {
   padding-block: var(--space-2);
 }
 
+.list-rows__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.location-places__control {
+  position: relative;
+}
+
+.location-places__list {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  background: var(--surface-raised);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-elevated, 0 8px 24px rgb(0 0 0 / 12%));
+  max-height: 280px;
+  overflow: auto;
+}
+
+.location-places__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.location-places__option--active,
+.location-places__option:hover {
+  background: var(--surface-muted, rgb(0 0 0 / 4%));
+}
+
+.location-places__option--free {
+  font-weight: 600;
+  border-block-end: 1px solid var(--stroke-hairline);
+  margin-block-end: var(--space-1);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.location-places__primary {
+  color: var(--ink-primary);
+}
+
+.location-places__secondary {
+  font-size: var(--text-caption, 0.8125rem);
+  color: var(--ink-muted, var(--text-muted));
+}
+
 .list-rows__item + .list-rows__item,
 .list-rows__item + .list-rows__editor,
 .list-rows__editor + .list-rows__item,
@@ -2743,7 +2908,7 @@ textarea.field__input {
 
 .event-form__footer {
   position: sticky;
-  inset-block-end: calc(var(--tabbar-height) + env(safe-area-inset-bottom));
+  inset-block-end: 0;
   z-index: 5;
   margin-block-start: var(--space-8);
   margin-inline: calc(-1 * var(--space-5));
