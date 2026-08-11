@@ -22,6 +22,7 @@ import {
 } from '../lib/format'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
+import { FormStickyFooter } from '../components/ui/FormStickyFooter'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { SelectField } from '../components/ui/SelectField'
 import { StampChip } from '../components/ui/StampChip'
@@ -352,7 +353,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
         </section>
 
         {readOnly ? null : (
-          <footer className="event-form__footer">
+          <FormStickyFooter>
             <div className="event-form__footer-actions">
               <Button loading={completing} loadingLabel="שומר…" onClick={() => void onComplete()}>
                 סיום דיווח
@@ -367,7 +368,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                 שמירת טיוטה
               </Button>
             </div>
-          </footer>
+          </FormStickyFooter>
         )}
       </div>
     </div>

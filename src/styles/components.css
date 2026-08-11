@@ -2279,6 +2279,11 @@ textarea.field__input {
   padding: var(--space-4) var(--space-5);
   border-block-start: 1px solid var(--stroke-hairline);
   background: var(--surface-raised);
+  transition: box-shadow var(--duration-base) var(--ease-standard);
+}
+
+.event-form__footer--scroll-cue {
+  box-shadow: var(--shadow-scroll-cue);
 }
 
 .event-form__footer-actions {
