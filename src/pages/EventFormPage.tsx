@@ -28,6 +28,7 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
+import { FormStickyFooter } from '../components/ui/FormStickyFooter'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { SelectField } from '../components/ui/SelectField'
 import { StampChip } from '../components/ui/StampChip'
@@ -995,7 +996,7 @@ export function EventFormPage({
           </section>
         </div>
 
-        <footer className="event-form__footer">
+        <FormStickyFooter>
           <div className="event-form__footer-actions">
             <Button
               block
@@ -1015,7 +1016,7 @@ export function EventFormPage({
               שמירת אירוע ויצירת חדש
             </Button>
           </div>
-        </footer>
+        </FormStickyFooter>
       </div>
 
       <Dialog

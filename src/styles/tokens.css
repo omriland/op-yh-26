@@ -93,6 +93,8 @@
 
   /* ---- Elevation (level 2 only; levels 0/1 are hairline-only) ---- */
   --shadow-overlay: 0 8px 24px rgba(15, 27, 45, 0.16);
+  /* Sticky form footer scroll affordance (explicit exception — see scroll-cue spec) */
+  --shadow-scroll-cue: 0 -10px 20px rgba(15, 27, 45, 0.14);
 }
 
 /* ============ שטח / Field theme ============

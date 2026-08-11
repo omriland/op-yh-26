@@ -32,6 +32,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { EmptyState } from '../components/ui/EmptyState'
+import { FormStickyFooter } from '../components/ui/FormStickyFooter'
 import { SelectField } from '../components/ui/SelectField'
 import { TextAreaField } from '../components/ui/TextAreaField'
 import { TextField } from '../components/ui/TextField'
@@ -973,13 +974,13 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
           </section>
         </div>
 
-        <footer className="event-form__footer">
+        <FormStickyFooter>
           <div className="event-form__footer-actions">
             <Button block loading={saving} loadingLabel="שומר…" onClick={() => void handleSave()}>
               שמירה
             </Button>
           </div>
-        </footer>
+        </FormStickyFooter>
       </div>
     </div>
   )
