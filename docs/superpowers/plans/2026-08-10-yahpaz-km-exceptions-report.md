@@ -41,7 +41,7 @@
 - `buildKmExceptionRows(events: KmExceptionEventSource[]): KmExceptionRow[]`
 - `KmExceptionRow`: `{ event_id, event_date, is_cancelled, police_event_id, location, event_type_name, road_name, shift_lead_name, shift_lead_callsign, responder_name, responder_callsign, total_km }`
 
-- [x] **Step 1: Write failing tests** covering: 59 excluded / 60 included; null km excluded; non-done excluded; cancelled included; two responders ≥60 → two rows; sort date desc then km desc
+- [x] **Step 1: Write failing tests** covering: 59 excluded / 60 included; null km excluded; lead km ≥60 included regardless of participation status; cancelled included; two responders ≥60 → two rows; sort date desc then km desc
 
 - [x] **Step 2: Run** `npm test -- src/lib/kmExceptionsReport.test.ts` — expect FAIL (module missing)
 

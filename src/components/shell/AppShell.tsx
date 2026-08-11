@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   CalendarClock,
   ClipboardList,
+  Eye,
   Fuel,
   Gauge,
   ListChecks,
@@ -20,8 +21,16 @@ import {
   Users,
 } from 'lucide-react'
 import { useAuth } from '../../lib/auth'
+import { stopImpersonation } from '../../lib/impersonation'
+import {
+  IMPERSONATION_CHANGE_EVENT,
+  isImpersonating,
+} from '../../lib/impersonationStash'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
+import { useToast } from '../ui/Toast'
+import { ImpersonationBar } from './ImpersonationBar'
+import { ImpersonationPickerDialog } from './ImpersonationPickerDialog'
 import {
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
@@ -88,6 +97,7 @@ export function AppShell({
         דילוג לתוכן
       </a>
       <TopAppBar onNavigate={onNavigate} onHome={onHome} />
+      <ImpersonationBar onRestored={onHome} />
       <div className="shell__body">
         {withSidebar ? <Sidebar view={view} onNavigate={onNavigate} entries={entries} /> : null}
         <main id="main" className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}>
@@ -125,10 +135,34 @@ function TopAppBar({
   onNavigate: (view: AppView) => void
   onHome: () => void
 }) {
-  const { profile, signOut } = useAuth()
+  const { profile, user, roles, signOut } = useAuth()
+  const { show } = useToast()
   const [open, setOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [viewingAsOther, setViewingAsOther] = useState(() => isImpersonating())
+  const [restoreBusy, setRestoreBusy] = useState(false)
+  const isSuperAdmin = roles.includes('super_admin')
   const anchorRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const sync = () => setViewingAsOther(isImpersonating())
+    window.addEventListener(IMPERSONATION_CHANGE_EVENT, sync)
+    return () => window.removeEventListener(IMPERSONATION_CHANGE_EVENT, sync)
+  }, [])
+
+  async function restoreOwnAccount() {
+    setRestoreBusy(true)
+    const result = await stopImpersonation()
+    setRestoreBusy(false)
+    setViewingAsOther(isImpersonating())
+    if (result.error) {
+      show(result.error, 'alert')
+      return
+    }
+    show('חזרתם לחשבון שלכם.', 'done')
+    onHome()
+  }
 
   useEffect(() => {
     if (!open) return
@@ -152,58 +186,97 @@ function TopAppBar({
   }, [open])
 
   return (
-    <header className="appbar" data-theme="command">
-      <button
-        type="button"
-        className="appbar__brand"
-        onClick={onHome}
-        aria-label="חזרה למסך הראשי"
-      >
-        <span className="appbar__system">אבן דרך</span>
-        <span className="appbar__brand-rule" aria-hidden="true" />
-        <span className="appbar__unit">היחידה הארצית לפינוי צירים</span>
-      </button>
-      <div className="menu-anchor" ref={anchorRef}>
+    <>
+      <header className="appbar" data-theme="command">
         <button
-          ref={triggerRef}
           type="button"
-          className="appbar__user"
-          aria-label="תפריט משתמש"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
+          className="appbar__brand"
+          onClick={onHome}
+          aria-label="חזרה למסך הראשי"
         >
-          <Avatar name={profile?.full_name ?? 'משתמש'} />
+          <span className="appbar__system">אבן דרך</span>
+          <span className="appbar__brand-rule" aria-hidden="true" />
+          <span className="appbar__unit">היחידה הארצית לפינוי צירים</span>
         </button>
-        {open ? (
-          <div className="menu" role="menu">
-            <div className="menu__header">
-              <p className="t-body-strong">{profile?.full_name ?? 'משתמש'}</p>
-              <p className="t-caption text-muted">
-                או״ק{' '}
-                <span className={monoClass(profile?.callsign)}>{profile?.callsign ?? '—'}</span>
-              </p>
+        <div className="menu-anchor" ref={anchorRef}>
+          <button
+            ref={triggerRef}
+            type="button"
+            className="appbar__user"
+            aria-label="תפריט משתמש"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((current) => !current)}
+          >
+            <Avatar name={profile?.full_name ?? 'משתמש'} />
+          </button>
+          {open ? (
+            <div className="menu" role="menu">
+              <div className="menu__header">
+                <p className="t-body-strong">{profile?.full_name ?? 'משתמש'}</p>
+                <p className="t-caption text-muted">
+                  או״ק{' '}
+                  <span className={monoClass(profile?.callsign)}>{profile?.callsign ?? '—'}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                className="menu__item"
+                onClick={() => {
+                  setOpen(false)
+                  onNavigate('profile')
+                }}
+              >
+                <UserRound size={20} strokeWidth={1.75} aria-hidden="true" />
+                פרופיל
+              </button>
+              {isSuperAdmin && !viewingAsOther && user?.id ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="menu__item"
+                  onClick={() => {
+                    setOpen(false)
+                    setPickerOpen(true)
+                  }}
+                >
+                  <Eye size={20} strokeWidth={1.75} aria-hidden="true" />
+                  צפייה כמשתמש
+                </button>
+              ) : null}
+              {viewingAsOther ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="menu__item"
+                  disabled={restoreBusy}
+                  onClick={() => {
+                    setOpen(false)
+                    void restoreOwnAccount()
+                  }}
+                >
+                  <Eye size={20} strokeWidth={1.75} aria-hidden="true" />
+                  חזרה לחשבון שלי
+                </button>
+              ) : null}
+              <button type="button" role="menuitem" className="menu__item" onClick={() => void signOut()}>
+                <LogOut size={20} strokeWidth={1.75} className="icon-mirror" aria-hidden="true" />
+                התנתקות
+              </button>
             </div>
-            <button
-              type="button"
-              role="menuitem"
-              className="menu__item"
-              onClick={() => {
-                setOpen(false)
-                onNavigate('profile')
-              }}
-            >
-              <UserRound size={20} strokeWidth={1.75} aria-hidden="true" />
-              פרופיל
-            </button>
-            <button type="button" role="menuitem" className="menu__item" onClick={() => void signOut()}>
-              <LogOut size={20} strokeWidth={1.75} className="icon-mirror" aria-hidden="true" />
-              התנתקות
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </header>
+          ) : null}
+        </div>
+      </header>
+      {user?.id ? (
+        <ImpersonationPickerDialog
+          open={pickerOpen}
+          actorUserId={user.id}
+          onClose={() => setPickerOpen(false)}
+          onStarted={onHome}
+        />
+      ) : null}
+    </>
   )
 }
 

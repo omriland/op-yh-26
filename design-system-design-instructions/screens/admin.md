@@ -41,6 +41,11 @@ Actions: primary `שמירת משתמש` / secondary `ביטול`. New-user succ
 
 Deactivation (not deletion) via overflow menu: `השבתת משתמש` → confirm `להשבית את המשתמש? הוא לא יוכל להתחבר, והנתונים ההיסטוריים יישמרו.`
 
+Super Admin only (DB-granted `super_admin`, not in role checkboxes):
+
+- Overflow `הגדרת סיסמה` → password + confirm + checkbox `חייב להחליף סיסמה בכניסה הבאה`. Spec: `2026-08-11-yahpaz-super-admin-set-password-design.md`.
+- Overflow `צפייה כמשתמש זה` + avatar menu `צפייה כמשתמש` → real session swap; banner `צופה כ־…` + `חזרה לחשבון שלי`. Spec: `2026-08-11-yahpaz-super-admin-impersonation-design.md`.
+
 ## הגדרות (Closed lists)
 
 Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כבישים` · `סוגי רכב לטיפול`.
@@ -54,6 +59,7 @@ Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כביש
 
 - Title = list name + primary `הוספת פריט`.
 - Items: simple rows, hairline-separated, 48 px: value text + overflow menu (עריכה / הסרה).
+- System שלוחה `תחנה / אחר / משוכפל`: caption `מערכת`; no edit/delete menu (DB-locked). Spec: `docs/superpowers/specs/2026-08-11-yahpaz-system-districts-places-location-design.md`.
 - Add/edit: inline row editor (input + `שמירה` / `ביטול`) — no dialog needed for a single field.
 - Remove item in use by events: block with explanation `לא ניתן להסיר פריט שמשויך לאירועים קיימים.` (info banner, not error toast).
 - Empty list: `אין פריטים ברשימה זו. הפריט הראשון ישמש בטפסים מיד לאחר הוספתו.`

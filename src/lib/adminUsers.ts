@@ -2,6 +2,7 @@ import type { AppRole } from './auth'
 import { compareAdminUsers } from './adminUserStatus'
 import { findDuplicatePlate, phoneDigits, plateDigits } from './format'
 import { supabase } from './supabase'
+import { syncUserRolesDiff } from './syncUserRolesDiff'
 
 export type AdminVehicle = {
   id: string
@@ -333,10 +334,8 @@ async function syncUserRoles(
     return { error: 'שמירת התפקידים נכשלה.' }
   }
 
-  const current = new Set((existing ?? []).map((row) => row.role as AppRole))
-  const next = new Set(nextRoles)
-  const toRemove = [...current].filter((role) => !next.has(role))
-  const toAdd = [...next].filter((role) => !current.has(role))
+  const current = (existing ?? []).map((row) => row.role as AppRole)
+  const { toAdd, toRemove } = syncUserRolesDiff(current, nextRoles)
 
   if (toRemove.length > 0) {
     const { error } = await supabase
@@ -359,4 +358,18 @@ async function syncUserRoles(
   }
 
   return { error: null }
+}
+
+export async function setAdminUserPassword(input: {
+  userId: string
+  password: string
+  forceChange?: boolean
+}): Promise<{ error: string | null }> {
+  const result = await callAdminUsers({
+    action: 'set_password',
+    user_id: input.userId,
+    password: input.password,
+    force_change: input.forceChange ?? false,
+  })
+  return result.ok ? { error: null } : { error: result.error }
 }

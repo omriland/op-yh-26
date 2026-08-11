@@ -48,22 +48,41 @@ describe('buildKmExceptionRows', () => {
     })
   })
 
-  it('excludes 59 km and null km and non-done', () => {
+  it('excludes 59 km and null lead km', () => {
     const rows = buildKmExceptionRows([
       event({
         id: 'e1',
         responders: [
           { status: 'done', total_km: 59, profile: { full_name: 'א', callsign: 'A' } },
           { status: 'done', total_km: null, profile: { full_name: 'ב', callsign: 'B' } },
-          {
-            status: 'in_progress',
-            total_km: 100,
-            profile: { full_name: 'ג', callsign: 'C' },
-          },
         ],
       }),
     ])
     expect(rows).toEqual([])
+  })
+
+  it('includes lead-entered km >= 60 even when participation is not done', () => {
+    const rows = buildKmExceptionRows([
+      event({
+        id: 'e1',
+        responders: [
+          {
+            status: 'pending',
+            total_km: 287,
+            profile: { full_name: 'גיל', callsign: '000' },
+          },
+          {
+            status: 'in_progress',
+            total_km: 240,
+            profile: { full_name: 'עמרי', callsign: '336' },
+          },
+        ],
+      }),
+    ])
+    expect(rows.map((r) => [r.responder_callsign, r.total_km])).toEqual([
+      ['000', 287],
+      ['336', 240],
+    ])
   })
 
   it('includes cancelled events when participation matches', () => {

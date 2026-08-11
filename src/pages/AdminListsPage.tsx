@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, ListTree, Plus } from 'lucide-react'
 import {
   CLOSED_LISTS,
+  canMutateClosedListItem,
   closedListMeta,
   createClosedListItem,
   deleteClosedListItem,
@@ -10,6 +11,7 @@ import {
   type ClosedListItem,
   type ClosedListKey,
 } from '../lib/closedLists'
+import { SYSTEM_DISTRICT_LOCKED_ERROR } from '../lib/systemDistricts'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -79,6 +81,10 @@ export function AdminListsPage() {
   }
 
   function openEdit(item: ClosedListItem) {
+    if (selectedKey && !canMutateClosedListItem(selectedKey, item)) {
+      show(SYSTEM_DISTRICT_LOCKED_ERROR, 'alert')
+      return
+    }
     setBanner(null)
     setDraftName(item.name)
     setEditor({ mode: 'edit', item })
@@ -106,6 +112,10 @@ export function AdminListsPage() {
 
   async function removeItem(item: ClosedListItem) {
     if (!selectedKey) return
+    if (!canMutateClosedListItem(selectedKey, item)) {
+      show(SYSTEM_DISTRICT_LOCKED_ERROR, 'alert')
+      return
+    }
     setBanner(null)
     const result = await deleteClosedListItem(selectedKey, item.id)
     if (!result.ok) {
@@ -260,22 +270,29 @@ export function AdminListsPage() {
                     </li>
                   ) : (
                     <li key={item.id} className="list-rows__item">
-                      <span className="t-body">{item.name}</span>
-                      <OverflowMenu
-                        open={menuItemId === item.id}
-                        onOpenChange={(next) => setMenuItemId(next ? item.id : null)}
-                        items={[
-                          {
-                            label: 'עריכה',
-                            onSelect: () => openEdit(item),
-                          },
-                          {
-                            label: 'הסרה',
-                            danger: true,
-                            onSelect: () => void removeItem(item),
-                          },
-                        ]}
-                      />
+                      <span className="list-rows__label">
+                        <span className="t-body">{item.name}</span>
+                        {selectedKey && !canMutateClosedListItem(selectedKey, item) ? (
+                          <span className="t-caption text-muted">מערכת</span>
+                        ) : null}
+                      </span>
+                      {selectedKey && canMutateClosedListItem(selectedKey, item) ? (
+                        <OverflowMenu
+                          open={menuItemId === item.id}
+                          onOpenChange={(next) => setMenuItemId(next ? item.id : null)}
+                          items={[
+                            {
+                              label: 'עריכה',
+                              onSelect: () => openEdit(item),
+                            },
+                            {
+                              label: 'הסרה',
+                              danger: true,
+                              onSelect: () => void removeItem(item),
+                            },
+                          ]}
+                        />
+                      ) : null}
                     </li>
                   ),
                 )}

@@ -1,8 +1,12 @@
 import { sortByRoadName } from './roadSort'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
+import {
+  districtNeedsPlacesLocation,
+  LOCATION_REQUIRED_ERROR,
+} from './systemDistricts'
 
-export type LookupOption = { id: string; name: string }
+export type LookupOption = { id: string; name: string; code?: string | null }
 
 export type AssignableUser = {
   id: string
@@ -71,6 +75,9 @@ export type EventFormDraft = {
   event_type_id: string
   road_id: string
   location: string
+  location_place_id: string | null
+  location_lat: number | null
+  location_lng: number | null
   notes: string
   is_cancelled: boolean
   shift_lead: { full_name: string; callsign: string }
@@ -107,7 +114,13 @@ export function applyCancelledChange(input: {
 
 export type EventFormErrors = Partial<
   Record<
-    'event_date' | 'police_event_id' | 'district_id' | 'event_type_id' | 'road_id' | 'form',
+    | 'event_date'
+    | 'police_event_id'
+    | 'district_id'
+    | 'event_type_id'
+    | 'road_id'
+    | 'location'
+    | 'form',
     string
   >
 >
@@ -158,6 +171,9 @@ export function emptyEventDraft(lead: {
     event_type_id: '',
     road_id: '',
     location: '',
+    location_place_id: null,
+    location_lat: null,
+    location_lng: null,
     notes: '',
     is_cancelled: false,
     shift_lead: lead,
@@ -165,7 +181,7 @@ export function emptyEventDraft(lead: {
   }
 }
 
-async function fetchLookup(table: 'districts' | 'event_types' | 'roads' | 'vehicle_kinds') {
+async function fetchLookup(table: 'event_types' | 'roads' | 'vehicle_kinds') {
   const { data, error } = await supabase
     .from(table)
     .select('id, name')
@@ -177,9 +193,20 @@ async function fetchLookup(table: 'districts' | 'event_types' | 'roads' | 'vehic
   return table === 'roads' ? sortByRoadName(items) : items
 }
 
+async function fetchDistrictLookup(): Promise<LookupOption[]> {
+  const { data, error } = await supabase
+    .from('districts')
+    .select('id, name, code')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as LookupOption[]
+}
+
 export async function fetchEventLookups(): Promise<EventLookups> {
   const [districts, eventTypes, roads, vehicleKinds] = await Promise.all([
-    fetchLookup('districts'),
+    fetchDistrictLookup(),
     fetchLookup('event_types'),
     fetchLookup('roads'),
     fetchLookup('vehicle_kinds'),
@@ -221,7 +248,8 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     .select(
       `
       id, status, event_date, police_event_id, district_id, patrol_callsign,
-      event_type_id, road_id, location, notes, is_cancelled,
+      event_type_id, road_id, location, location_place_id, location_lat, location_lng,
+      notes, is_cancelled,
       shift_lead:profiles(full_name, callsign),
       responders:event_responders(
         id, responder_id, started_at, ended_at, total_km, emergency_means, status,
@@ -248,6 +276,9 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     event_type_id: string | null
     road_id: string | null
     location: string | null
+    location_place_id: string | null
+    location_lat: number | null
+    location_lng: number | null
     notes: string | null
     is_cancelled: boolean
     shift_lead: { full_name: string; callsign: string } | null
@@ -264,6 +295,9 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     event_type_id: row.event_type_id ?? '',
     road_id: row.road_id ?? '',
     location: row.location ?? '',
+    location_place_id: row.location_place_id ?? null,
+    location_lat: row.location_lat ?? null,
+    location_lng: row.location_lng ?? null,
     notes: row.notes ?? '',
     is_cancelled: row.is_cancelled ?? false,
     shift_lead: row.shift_lead ?? { full_name: '—', callsign: '—' },
@@ -295,17 +329,54 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
   }
 }
 
-/** Minimum to create/keep an event: date + event type + road. */
-export function validateEventMinimum(draft: EventFormDraft): EventFormErrors {
+/** Minimum to create/keep an event: date + event type + road (+ location for system שלוחות). */
+export function validateEventMinimum(
+  draft: EventFormDraft,
+  districts: LookupOption[] = [],
+): EventFormErrors {
   const errors: EventFormErrors = {}
   if (!draft.event_date) errors.event_date = 'יש לבחור תאריך.'
   if (!draft.event_type_id) errors.event_type_id = 'יש לבחור סוג אירוע.'
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש.'
+  if (districtNeedsPlacesLocation(districts, draft.district_id) && !draft.location.trim()) {
+    errors.location = LOCATION_REQUIRED_ERROR
+  }
   return errors
 }
 
-export function hasEventMinimum(draft: EventFormDraft): boolean {
-  return Object.keys(validateEventMinimum(draft)).length === 0
+export function hasEventMinimum(
+  draft: EventFormDraft,
+  districts: LookupOption[] = [],
+): boolean {
+  return Object.keys(validateEventMinimum(draft, districts)).length === 0
+}
+
+/** Persist place ids/coords only when a Google pick is current. */
+export function buildLocationPayload(draft: EventFormDraft): {
+  location: string | null
+  location_place_id: string | null
+  location_lat: number | null
+  location_lng: number | null
+} {
+  const location = draft.location.trim() || null
+  if (!location) {
+    return {
+      location: null,
+      location_place_id: null,
+      location_lat: null,
+      location_lng: null,
+    }
+  }
+  const hasPlace =
+    Boolean(draft.location_place_id) &&
+    draft.location_lat != null &&
+    draft.location_lng != null
+  return {
+    location,
+    location_place_id: hasPlace ? draft.location_place_id : null,
+    location_lat: hasPlace ? draft.location_lat : null,
+    location_lng: hasPlace ? draft.location_lng : null,
+  }
 }
 
 /**
@@ -335,19 +406,23 @@ export async function saveEventForm(input: {
   draft: EventFormDraft
   shiftLeadId: string
   vehicleKinds: LookupOption[]
+  districts: LookupOption[]
   isAdmin: boolean
   previousIsCancelled: boolean
 }): Promise<
   | { ok: true; eventId: string; status: EventStatus; assignmentIds: Record<string, string> }
   | { ok: false; error: string; fieldErrors?: EventFormErrors }
 > {
-  const { draft, shiftLeadId, vehicleKinds, isAdmin, previousIsCancelled } = input
+  const { draft, shiftLeadId, vehicleKinds, districts, isAdmin, previousIsCancelled } = input
 
-  const fieldErrors = validateEventMinimum(draft)
+  const fieldErrors = validateEventMinimum(draft, districts)
   if (Object.keys(fieldErrors).length > 0) {
+    const needsLocation = Boolean(fieldErrors.location)
     return {
       ok: false,
-      error: 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
+      error: needsLocation
+        ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור אירוע.'
+        : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
       fieldErrors,
     }
   }
@@ -368,6 +443,7 @@ export async function saveEventForm(input: {
 
   const nextStatus = deriveEventStatus(draft)
 
+  const locationPayload = buildLocationPayload(draft)
   const eventPayload = {
     event_date: draft.event_date,
     police_event_id: draft.police_event_id.trim() || null,
@@ -375,7 +451,10 @@ export async function saveEventForm(input: {
     patrol_callsign: draft.patrol_callsign.trim() || null,
     event_type_id: draft.event_type_id,
     road_id: draft.road_id,
-    location: draft.location.trim() || null,
+    location: locationPayload.location,
+    location_place_id: locationPayload.location_place_id,
+    location_lat: locationPayload.location_lat,
+    location_lng: locationPayload.location_lng,
     notes: draft.notes.trim() || null,
     is_cancelled: draft.is_cancelled,
     status: nextStatus,

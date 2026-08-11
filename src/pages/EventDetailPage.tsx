@@ -7,6 +7,7 @@ import {
   type EventDetail,
   type EventResponderDetail,
 } from '../lib/events'
+import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
 import { mineFillCtaLabel, cancelledStamp, participationStamp, viewerStamp } from '../lib/status'
 import {
   formatDate,
@@ -50,10 +51,12 @@ export function EventDetailPage({
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [mapFailed, setMapFailed] = useState(false)
 
   useEffect(() => {
     let active = true
     setState('loading')
+    setMapFailed(false)
 
     fetchEventDetail(eventId)
       .then((row) => {
@@ -135,6 +138,19 @@ export function EventDetailPage({
     event.location,
   ].filter(Boolean)
 
+  const coords = eventMapCoords(event.location_lat, event.location_lng)
+  const mapUrl = coords
+    ? buildStaticMapUrl({
+        lat: coords.lat,
+        lng: coords.lng,
+        width: 640,
+        height: 320,
+        zoom: 14,
+        scale: 2,
+      })
+    : null
+  const showMap = Boolean(mapUrl) && !mapFailed
+
   async function confirmDeleteEvent() {
     setDeleting(true)
     const result = await deleteEvent(eventId)
@@ -148,8 +164,8 @@ export function EventDetailPage({
     onBack()
   }
 
-  return (
-    <div>
+  const letterhead = (
+    <div className="detail__letterhead">
       {backButton}
 
       <div className="detail__title-row">
@@ -185,6 +201,29 @@ export function EventDetailPage({
           ) : null}
         </div>
       ) : null}
+    </div>
+  )
+
+  return (
+    <div className={['detail', showMap ? 'detail--has-map' : ''].filter(Boolean).join(' ')}>
+      {showMap && mapUrl ? (
+        <div className="detail__hero">
+          <div className="detail__map-hero" aria-hidden="true">
+            <img
+              className="detail__map-hero__img"
+              src={mapUrl}
+              alt=""
+              draggable={false}
+              onError={() => setMapFailed(true)}
+            />
+            <div className="detail__map-hero__fade" />
+            <div className="detail__map-hero__scrim" />
+          </div>
+          {letterhead}
+        </div>
+      ) : (
+        letterhead
+      )}
 
       <div className="detail__grid">
         <section className="card detail__aside stack-4">

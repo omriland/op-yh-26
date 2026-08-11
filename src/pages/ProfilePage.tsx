@@ -8,10 +8,14 @@ import { Button } from '../components/ui/Button'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 
-const ROLE_LABELS: Record<AppRole, string> = {
+const ROLE_LABELS: Partial<Record<AppRole, string>> = {
   admin: 'מנהל',
   shift_lead: 'אחמ״ש',
   responder: 'כונן',
+}
+
+function visibleRoles(roles: AppRole[]): AppRole[] {
+  return roles.filter((role) => role !== 'super_admin')
 }
 
 type Vehicle = { id: string; plate_number: string; model: string; archived: boolean }
@@ -93,10 +97,10 @@ export function ProfilePage() {
               תפקידים
             </p>
             <div className="tags">
-              {roles.length === 0 ? (
+              {visibleRoles(roles).length === 0 ? (
                 <span className="t-body text-muted">—</span>
               ) : (
-                roles.map((role) => (
+                visibleRoles(roles).map((role) => (
                   <span key={role} className="tag">
                     {ROLE_LABELS[role]}
                   </span>

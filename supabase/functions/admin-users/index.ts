@@ -37,12 +37,32 @@ type RedeemInviteBody = {
   invite_token: string;
 };
 
+type SetPasswordBody = {
+  action: "set_password";
+  user_id: string;
+  password: string;
+  force_change?: boolean;
+};
+
+type ImpersonateBody = {
+  action: "impersonate";
+  target_user_id: string;
+};
+
+type StopImpersonationBody = {
+  action: "stop_impersonation";
+  target_user_id: string;
+};
+
 type RequestBody =
   | InviteBody
   | DeactivateBody
   | DeleteBody
   | ResendInviteBody
-  | RedeemInviteBody;
+  | RedeemInviteBody
+  | SetPasswordBody
+  | ImpersonateBody
+  | StopImpersonationBody;
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -113,6 +133,25 @@ Deno.serve(async (req: Request) => {
     return json(401, { error: "יש להתחבר מחדש." });
   }
 
+  if (body.action === "set_password") {
+    const { data: isSuperAdmin, error: superError } = await adminClient.rpc("has_role", {
+      uid: user.id,
+      r: "super_admin",
+    });
+    if (superError || !isSuperAdmin) {
+      return json(403, { error: "אין הרשאה לביצוע פעולה זו." });
+    }
+    return handleSetPassword(adminClient, body);
+  }
+
+  if (body.action === "impersonate") {
+    return handleImpersonate(adminClient, user.id, body);
+  }
+
+  if (body.action === "stop_impersonation") {
+    return handleStopImpersonation(adminClient, user.id, body);
+  }
+
   const { data: isAdmin, error: roleError } = await adminClient.rpc("has_role", {
     uid: user.id,
     r: "admin",
@@ -140,6 +179,267 @@ Deno.serve(async (req: Request) => {
 
   return json(400, { error: "פעולה לא מוכרת." });
 });
+
+function passwordStrengthError(password: string): string | null {
+  const missing: string[] = [];
+  if (password.length < 8) missing.push("8 תווים לפחות");
+  if (!/[A-Z]/.test(password)) missing.push("אות גדולה");
+  if (!/[^A-Za-z0-9]/.test(password)) missing.push("תו מיוחד (למשל !)");
+  if (missing.length === 0) return null;
+  const list =
+    missing.length === 1
+      ? missing[0]!
+      : missing.length === 2
+      ? `${missing[0]} ו${missing[1]}`
+      : `${missing.slice(0, -1).join(", ")} ו${missing[missing.length - 1]}`;
+  return `הסיסמה אינה עומדת בדרישות. יש לכלול: ${list}.`;
+}
+
+async function handleSetPassword(
+  adminClient: ReturnType<typeof createClient>,
+  body: SetPasswordBody,
+) {
+  const userId = trim(body.user_id);
+  const password = typeof body.password === "string" ? body.password : "";
+
+  if (!userId) {
+    return json(400, { error: "חסר מזהה משתמש." });
+  }
+
+  const strengthError = passwordStrengthError(password);
+  if (strengthError) {
+    return json(400, { error: strengthError });
+  }
+
+  const forceChange = Boolean(body.force_change);
+
+  const { error: authError } = await adminClient.auth.admin.updateUserById(userId, {
+    password,
+  });
+
+  if (authError) {
+    console.error("set_password updateUserById", authError.message);
+    return json(400, { error: "הגדרת הסיסמה נכשלה." });
+  }
+
+  const { error: flagError } = await adminClient
+    .from("profiles")
+    .update({
+      must_change_password: forceChange,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  if (flagError) {
+    console.error("set_password must_change_password", flagError.message);
+    return json(500, { error: "הגדרת הסיסמה נכשלה." });
+  }
+
+  // Kill every device session so an already-logged-in user cannot skip the gate.
+  const { error: revokeError } = await adminClient.rpc("revoke_user_sessions", {
+    target_user_id: userId,
+  });
+  if (revokeError) {
+    console.error("set_password revoke_user_sessions", revokeError.message);
+    // Password + flag already applied; still report success but log revoke failure.
+  }
+
+  return json(200, { ok: true, message: "הסיסמה עודכנה." });
+}
+
+async function writeImpersonationAudit(
+  adminClient: ReturnType<typeof createClient>,
+  row: {
+    actor_user_id: string;
+    target_user_id: string | null;
+    action: "started" | "stopped" | "denied";
+    reason?: string | null;
+  },
+) {
+  const { error } = await adminClient.from("impersonation_audit").insert({
+    actor_user_id: row.actor_user_id,
+    target_user_id: row.target_user_id,
+    action: row.action,
+    reason: row.reason ?? null,
+  });
+  if (error) {
+    console.error("impersonation_audit", error.message);
+  }
+}
+
+async function handleImpersonate(
+  adminClient: ReturnType<typeof createClient>,
+  actorId: string,
+  body: ImpersonateBody,
+) {
+  const { data: isSuperAdmin, error: superError } = await adminClient.rpc("has_role", {
+    uid: actorId,
+    r: "super_admin",
+  });
+  if (superError || !isSuperAdmin) {
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: trim(body.target_user_id) || null,
+      action: "denied",
+      reason: "not_super_admin",
+    });
+    return json(403, { error: "אין הרשאה לביצוע פעולה זו." });
+  }
+
+  const targetId = trim(body.target_user_id);
+  if (!targetId) {
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: null,
+      action: "denied",
+      reason: "missing",
+    });
+    return json(403, { error: "לא ניתן לצפות כמשתמש זה." });
+  }
+
+  const { data: target, error: targetError } = await adminClient
+    .from("profiles")
+    .select("id, full_name, callsign, email, active")
+    .eq("id", targetId)
+    .maybeSingle();
+
+  if (targetError || !target) {
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: targetId,
+      action: "denied",
+      reason: "missing",
+    });
+    return json(403, { error: "לא ניתן לצפות כמשתמש זה." });
+  }
+
+  if (!target.active) {
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: targetId,
+      action: "denied",
+      reason: "inactive",
+    });
+    return json(403, { error: "לא ניתן לצפות כמשתמש זה." });
+  }
+
+  if (target.id === actorId) {
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: targetId,
+      action: "denied",
+      reason: "self",
+    });
+    return json(403, { error: "לא ניתן לצפות כמשתמש זה." });
+  }
+
+  const { data: targetIsSuper, error: targetRoleError } = await adminClient.rpc("has_role", {
+    uid: targetId,
+    r: "super_admin",
+  });
+  if (targetRoleError) {
+    return json(500, { error: "פתיחת הצפייה נכשלה. נסו שוב." });
+  }
+  if (targetIsSuper) {
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: targetId,
+      action: "denied",
+      reason: "is_super_admin",
+    });
+    return json(403, { error: "לא ניתן לצפות כמשתמש זה." });
+  }
+
+  const email = typeof target.email === "string" ? target.email.trim() : "";
+  if (!email) {
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: targetId,
+      action: "denied",
+      reason: "missing",
+    });
+    return json(403, { error: "לא ניתן לצפות כמשתמש זה." });
+  }
+
+  const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+
+  const hashedToken = linkData?.properties?.hashed_token;
+  if (linkError || !hashedToken) {
+    console.error("impersonate generateLink", linkError?.message);
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: targetId,
+      action: "denied",
+      reason: "mint_failed",
+    });
+    return json(500, { error: "פתיחת הצפייה נכשלה. נסו שוב." });
+  }
+
+  const { data: otpData, error: otpError } = await adminClient.auth.verifyOtp({
+    type: "magiclink",
+    token_hash: hashedToken,
+  });
+
+  const accessToken = otpData.session?.access_token;
+  const refreshToken = otpData.session?.refresh_token;
+  if (otpError || !accessToken || !refreshToken) {
+    console.error("impersonate verifyOtp", otpError?.message);
+    await writeImpersonationAudit(adminClient, {
+      actor_user_id: actorId,
+      target_user_id: targetId,
+      action: "denied",
+      reason: "mint_failed",
+    });
+    return json(500, { error: "פתיחת הצפייה נכשלה. נסו שוב." });
+  }
+
+  await writeImpersonationAudit(adminClient, {
+    actor_user_id: actorId,
+    target_user_id: targetId,
+    action: "started",
+  });
+
+  return json(200, {
+    ok: true,
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    target: {
+      id: target.id,
+      full_name: target.full_name,
+      callsign: target.callsign,
+    },
+  });
+}
+
+async function handleStopImpersonation(
+  adminClient: ReturnType<typeof createClient>,
+  actorId: string,
+  body: StopImpersonationBody,
+) {
+  const { data: isSuperAdmin, error: superError } = await adminClient.rpc("has_role", {
+    uid: actorId,
+    r: "super_admin",
+  });
+  if (superError || !isSuperAdmin) {
+    return json(403, { error: "אין הרשאה לביצוע פעולה זו." });
+  }
+
+  const targetId = trim(body.target_user_id);
+  if (!targetId) {
+    return json(400, { error: "חסר מזהה משתמש." });
+  }
+
+  await writeImpersonationAudit(adminClient, {
+    actor_user_id: actorId,
+    target_user_id: targetId,
+    action: "stopped",
+  });
+
+  return json(200, { ok: true });
+}
 
 async function handleActiveState(
   adminClient: ReturnType<typeof createClient>,

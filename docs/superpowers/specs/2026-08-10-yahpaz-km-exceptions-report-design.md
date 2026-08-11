@@ -14,8 +14,8 @@ Shift leads need a quick list of **high-mileage participations** — cases where
 - New nav item under **כלים לאחמ״ש**: **דוח חריגי קמ**
 - Visible to `shift_lead` and `admin` (same gate as אירועים / משמרות unit lists)
 - One row per exceptional **responder participation** (not one row per event)
-- Inclusion: responder `status = done` **and** `total_km >= 60`
-- Event-level status may still be `in_progress` / `partial` / `done`
+- Inclusion: lead-entered `total_km >= 60` (field `event_responders.total_km` only — never odometer)
+- Participation status and event status do **not** filter (pending / in_progress / done all count once lead km is set)
 - Cancelled events **are included** when a participation matches
 - Tap opens existing event detail
 - Client-side filter from existing data; no schema change
@@ -37,16 +37,16 @@ Shift leads need a quick list of **high-mileage participations** — cases where
 ## Approach
 
 **Dedicated page + client-side filter.**  
-Fetch events with the responder fields needed for the report; flatten to participation rows; keep those with `done` and `total_km >= 60`; sort and render. Fits the existing RLS-only client model.
+Fetch events with the responder fields needed for the report; flatten to participation rows; keep those with lead-entered `total_km >= 60`; sort and render. Fits the existing RLS-only client model.
 
 ## Inclusion rules
 
 | Rule | Detail |
 |---|---|
 | Row grain | One row per `event_responders` matching the criteria |
-| Responder status | `status === 'done'` |
-| Kilometers | `total_km != null` and `total_km >= 60` (constant `KM_EXCEPTION_THRESHOLD = 60`) |
-| Event status | Any (`draft` unlikely if a responder is `done`, but not required to filter) |
+| Responder status | Any — not used for inclusion |
+| Kilometers | Lead-entered `total_km != null` and `total_km >= 60` (constant `KM_EXCEPTION_THRESHOLD = 60`). Odometer start/end never count. |
+| Event status | Any |
 | Cancelled | Include when `events.is_cancelled = true` |
 | Null / low km | Exclude (`null`, or numeric value &lt; 60) |
 
@@ -139,7 +139,7 @@ No create button. No status filter chips in v1.
 
 1. Lead opens **דוח חריגי קמ**
 2. Fetch events + responder fields needed for the report
-3. Flatten → filter (`done` + `total_km >= 60`) → sort
+3. Flatten → filter (lead `total_km >= 60`) → sort
 4. Render cards (mobile) or table (desktop)
 5. Click → event detail for `event_id`
 
@@ -150,7 +150,7 @@ No create button. No status filter chips in v1.
 
 ## Testing
 
-- Unit: threshold 59 excluded / 60 included; null km excluded; cancelled included; two responders ≥ 60 on one event → two rows; sort by date then km
+- Unit: threshold 59 excluded / 60 included; null km excluded; pending/in_progress with lead km ≥ 60 included; cancelled included; two responders ≥ 60 on one event → two rows; sort by date then km
 - Manual: lead/admin see nav; responder-only does not; row opens the correct event
 
 ## Error handling

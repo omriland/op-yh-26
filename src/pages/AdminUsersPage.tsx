@@ -10,11 +10,16 @@ import {
   resendAdminInvite,
   saveAdminUser,
   setAdminUserActive,
+  setAdminUserPassword,
   unarchiveAdminVehicle,
   type AdminUserRow,
 } from '../lib/adminUsers'
 import { isInvitePending } from '../lib/adminUserStatus'
 import { useAuth, type AppRole } from '../lib/auth'
+import { canImpersonateTarget } from '../lib/impersonationEligibility'
+import { isImpersonating } from '../lib/impersonationStash'
+import { passwordStrengthError } from '../lib/passwordRules'
+import { ImpersonationPickerDialog } from '../components/shell/ImpersonationPickerDialog'
 import {
   findDuplicatePlate,
   formatLastLogin,
@@ -32,7 +37,7 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { OverflowMenu, type OverflowMenuItem } from '../components/ui/OverflowMenu'
-import { TextField } from '../components/ui/TextField'
+import { PasswordField, TextField } from '../components/ui/TextField'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
@@ -43,10 +48,14 @@ const ROLE_OPTIONS: { role: AppRole; label: string }[] = [
   { role: 'responder', label: 'כונן' },
 ]
 
-const ROLE_LABEL: Record<AppRole, string> = {
+const ROLE_LABEL: Partial<Record<AppRole, string>> = {
   admin: 'מנהל',
   shift_lead: 'אחמ״ש',
   responder: 'כונן',
+}
+
+function assignableRoles(roles: AppRole[]): AppRole[] {
+  return roles.filter((role) => role !== 'super_admin')
 }
 
 type DraftVehicle = {
@@ -91,7 +100,7 @@ function draftFromUser(user: AdminUserRow): Draft {
     email: user.email,
     callsign: user.callsign,
     phone: user.phone ? formatPhone(user.phone) : '',
-    roles: [...user.roles],
+    roles: assignableRoles(user.roles),
     vehicles: user.vehicles.map((vehicle) => ({
       key: vehicle.id,
       id: vehicle.id,
@@ -106,6 +115,8 @@ function buildUserMenuItems(
   user: AdminUserRow,
   actions: {
     onEdit: () => void
+    onSetPassword?: () => void
+    onImpersonate?: () => void
     onResendInvite: () => void
     onCopyInviteLink: () => void
     onDeactivate: () => void
@@ -115,6 +126,12 @@ function buildUserMenuItems(
 ): OverflowMenuItem[] {
   return [
     { label: 'עריכה', onSelect: actions.onEdit },
+    ...(actions.onSetPassword
+      ? [{ label: 'הגדרת סיסמה', onSelect: actions.onSetPassword }]
+      : []),
+    ...(actions.onImpersonate
+      ? [{ label: 'צפייה כמשתמש זה', onSelect: actions.onImpersonate }]
+      : []),
     ...(isInvitePending(user)
       ? [
           { label: 'שליחת הזמנה מחדש', onSelect: actions.onResendInvite },
@@ -141,8 +158,11 @@ function buildUserMenuItems(
 
 export function AdminUsersPage() {
   const isDesktop = useIsDesktop()
-  const { user } = useAuth()
+  const { user: authUser, roles } = useAuth()
+  const isSuperAdmin = roles.includes('super_admin')
+  const viewingAsOther = isImpersonating()
   const { show } = useToast()
+  const [impersonateTargetId, setImpersonateTargetId] = useState<string | null>(null)
   const [users, setUsers] = useState<AdminUserRow[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [query, setQuery] = useState('')
@@ -152,12 +172,19 @@ export function AdminUsersPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState<AdminUserRow | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<AdminUserRow | null>(null)
+  const [passwordTarget, setPasswordTarget] = useState<AdminUserRow | null>(null)
+  const [passwordValue, setPasswordValue] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [passwordForceChange, setPasswordForceChange] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSaving, setPasswordSaving] = useState(false)
   const [menuUserId, setMenuUserId] = useState<string | null>(null)
   const [vehicleBusyKey, setVehicleBusyKey] = useState<string | null>(null)
   const [vehicleConfirm, setVehicleConfirm] = useState<
     null | { mode: 'delete' | 'archive'; vehicle: DraftVehicle }
   >(null)
   const draftRootRef = useRef<HTMLDivElement>(null)
+  const passwordRootRef = useRef<HTMLDivElement>(null)
 
   useDesktopFormSubmit(() => void submitDraft(), {
     enabled:
@@ -165,8 +192,14 @@ export function AdminUsersPage() {
       !saving &&
       confirmDeactivate === null &&
       confirmDelete === null &&
-      vehicleConfirm === null,
+      vehicleConfirm === null &&
+      passwordTarget === null,
     rootRef: draftRootRef,
+  })
+
+  useDesktopFormSubmit(() => void submitSetPassword(), {
+    enabled: passwordTarget !== null && !passwordSaving,
+    rootRef: passwordRootRef,
   })
 
   useEffect(() => {
@@ -221,7 +254,7 @@ export function AdminUsersPage() {
       setFormError('לא ניתן לשייך את אותה לוחית רישוי יותר מפעם אחת לאותו משתמש.')
       return
     }
-    if (draft.id && draft.id === user?.id && !draft.roles.includes('admin')) {
+    if (draft.id && draft.id === authUser?.id && !draft.roles.includes('admin')) {
       setFormError('לא ניתן להסיר מעצמך את תפקיד המנהל.')
       return
     }
@@ -346,10 +379,55 @@ export function AdminUsersPage() {
     )
   }
 
+  function openSetPassword(target: AdminUserRow) {
+    setMenuUserId(null)
+    setPasswordTarget(target)
+    setPasswordValue('')
+    setPasswordConfirm('')
+    setPasswordForceChange(false)
+    setPasswordError(null)
+  }
+
+  function closeSetPassword() {
+    if (passwordSaving) return
+    setPasswordTarget(null)
+    setPasswordError(null)
+  }
+
+  async function submitSetPassword() {
+    if (!passwordTarget) return
+    setPasswordError(null)
+    if (passwordValue !== passwordConfirm) {
+      setPasswordError('הסיסמאות אינן תואמות.')
+      return
+    }
+    const strengthError = passwordStrengthError(passwordValue)
+    if (strengthError) {
+      setPasswordError(strengthError)
+      return
+    }
+    setPasswordSaving(true)
+    try {
+      const result = await setAdminUserPassword({
+        userId: passwordTarget.id,
+        password: passwordValue,
+        forceChange: passwordForceChange,
+      })
+      if (result.error) {
+        setPasswordError(result.error)
+        return
+      }
+      show('הסיסמה עודכנה', 'done')
+      setPasswordTarget(null)
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
   async function confirmDeleteUser() {
     if (!confirmDelete) return
     const target = confirmDelete
-    if (target.id === user?.id) {
+    if (target.id === authUser?.id) {
       show('לא ניתן למחוק את המשתמש המחובר כעת.', 'alert')
       setConfirmDelete(null)
       return
@@ -589,7 +667,7 @@ export function AdminUsersPage() {
                   </td>
                   <td>
                     <div className="tags">
-                      {user.roles.map((role) => (
+                      {assignableRoles(user.roles).map((role) => (
                         <span key={role} className="tag">
                           {ROLE_LABEL[role]}
                         </span>
@@ -618,6 +696,18 @@ export function AdminUsersPage() {
                           setFormError(null)
                           setDraft(draftFromUser(user))
                         },
+                        onSetPassword: isSuperAdmin
+                          ? () => openSetPassword(user)
+                          : undefined,
+                        onImpersonate:
+                          isSuperAdmin &&
+                          !viewingAsOther &&
+                          canImpersonateTarget(authUser?.id, user)
+                            ? () => {
+                                setMenuUserId(null)
+                                setImpersonateTargetId(user.id)
+                              }
+                            : undefined,
                         onResendInvite: () => void resendInvite(user),
                         onCopyInviteLink: () => void copyInviteLink(user),
                         onDeactivate: () => setConfirmDeactivate(user),
@@ -660,6 +750,18 @@ export function AdminUsersPage() {
                     onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
                     items={buildUserMenuItems(user, {
                       onEdit: openEdit,
+                      onSetPassword: isSuperAdmin
+                        ? () => openSetPassword(user)
+                        : undefined,
+                      onImpersonate:
+                        isSuperAdmin &&
+                        !viewingAsOther &&
+                        canImpersonateTarget(authUser?.id, user)
+                          ? () => {
+                              setMenuUserId(null)
+                              setImpersonateTargetId(user.id)
+                            }
+                          : undefined,
                       onResendInvite: () => void resendInvite(user),
                       onCopyInviteLink: () => void copyInviteLink(user),
                       onDeactivate: () => setConfirmDeactivate(user),
@@ -670,7 +772,7 @@ export function AdminUsersPage() {
                 </div>
                 <button type="button" className="user-card__details" onClick={openEdit}>
                   <div className="tags">
-                    {user.roles.map((role) => (
+                    {assignableRoles(user.roles).map((role) => (
                       <span key={role} className="tag">
                         {ROLE_LABEL[role]}
                       </span>
@@ -697,7 +799,7 @@ export function AdminUsersPage() {
         onClose={() => !saving && setDraft(null)}
         footer={
           <>
-            {draft?.id && draft.id !== user?.id ? (
+            {draft?.id && draft.id !== authUser?.id ? (
               <Button
                 variant="destructive"
                 disabled={saving}
@@ -771,7 +873,7 @@ export function AdminUsersPage() {
               {ROLE_OPTIONS.map((option) => {
                 const lockOwnAdmin =
                   Boolean(draft.id) &&
-                  draft.id === user?.id &&
+                  draft.id === authUser?.id &&
                   option.role === 'admin' &&
                   draft.roles.includes('admin')
                 return (
@@ -888,6 +990,77 @@ export function AdminUsersPage() {
             {formError ? (
               <p className="form-alert" role="alert">
                 {formError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </Dialog>
+
+      {authUser?.id ? (
+        <ImpersonationPickerDialog
+          open={impersonateTargetId !== null}
+          actorUserId={authUser.id}
+          presetTargetId={impersonateTargetId}
+          onClose={() => setImpersonateTargetId(null)}
+          onStarted={() => {
+            setImpersonateTargetId(null)
+            show('נכנסתם למצב צפייה כמשתמש.', 'done')
+          }}
+        />
+      ) : null}
+
+      <Dialog
+        open={passwordTarget !== null}
+        title={
+          passwordTarget
+            ? `הגדרת סיסמה — ${passwordTarget.full_name}`
+            : 'הגדרת סיסמה'
+        }
+        form
+        onClose={closeSetPassword}
+        footer={
+          <>
+            <Button variant="secondary" disabled={passwordSaving} onClick={closeSetPassword}>
+              ביטול
+            </Button>
+            <Button loading={passwordSaving} onClick={() => void submitSetPassword()}>
+              שמירת סיסמה
+            </Button>
+          </>
+        }
+      >
+        {passwordTarget ? (
+          <div ref={passwordRootRef} className="stack-6">
+            <PasswordField
+              label="סיסמה חדשה"
+              autoComplete="new-password"
+              required
+              value={passwordValue}
+              onChange={(event) => setPasswordValue(event.target.value)}
+            />
+            <PasswordField
+              label="אימות סיסמה"
+              autoComplete="new-password"
+              required
+              value={passwordConfirm}
+              onChange={(event) => setPasswordConfirm(event.target.value)}
+            />
+
+            <Checkbox
+              id="force-password-change"
+              label="חייב להחליף סיסמה בכניסה הבאה"
+              checked={passwordForceChange}
+              onChange={setPasswordForceChange}
+            />
+            {passwordForceChange ? (
+              <p className="t-caption text-muted">
+                אחרי התחברות עם הסיסמה הזו, המשתמש יידרש לבחור סיסמה חדשה.
+              </p>
+            ) : null}
+
+            {passwordError ? (
+              <p className="t-body text-alert" role="alert">
+                {passwordError}
               </p>
             ) : null}
           </div>

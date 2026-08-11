@@ -90,6 +90,8 @@ export type EventResponderDetail = {
 
 export type EventDetail = Omit<EventListItem, 'responders'> & {
   notes: string | null
+  location_lat: number | null
+  location_lng: number | null
   responders: EventResponderDetail[]
 }
 
@@ -99,6 +101,8 @@ const EVENT_DETAIL_SELECT = `
   police_event_id,
   patrol_callsign,
   location,
+  location_lat,
+  location_lng,
   notes,
   status,
   is_cancelled,

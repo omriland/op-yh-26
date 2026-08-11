@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { AlertCircle, KeyRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { monoClass } from '../lib/format'
@@ -37,6 +37,12 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // App may remount props without remounting state (same <LoginPage /> type).
+  useEffect(() => {
+    if (!forceSetPassword && !passwordSetupReason) return
+    setMode((current) => (current === 'password-set' ? current : 'set-password'))
+  }, [forceSetPassword, passwordSetupReason])
 
   const isSetupFlow = mode === 'set-password' || mode === 'password-set'
   const displayName = profile?.full_name?.trim() || null
@@ -99,13 +105,23 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
   }
 
   const setPasswordTitle =
-    passwordSetupReason === 'recovery' ? 'איפוס סיסמה' : 'בחירת סיסמה'
+    passwordSetupReason === 'recovery'
+      ? 'איפוס סיסמה'
+      : passwordSetupReason === 'admin_reset'
+        ? 'בחירת סיסמה חדשה'
+        : 'בחירת סיסמה'
   const setPasswordBody =
     passwordSetupReason === 'recovery'
       ? 'בחרו סיסמה חדשה להמשך הכניסה למערכת.'
-      : 'הזמנתכם אושרה. בחרו סיסמה אישית כדי להשלים את ההרשמה ולהיכנס למערכת.'
+      : passwordSetupReason === 'admin_reset'
+        ? 'מנהל הגדיר עבורכם סיסמה. בחרו סיסמה אישית כדי להמשיך.'
+        : 'הזמנתכם אושרה. בחרו סיסמה אישית כדי להשלים את ההרשמה ולהיכנס למערכת.'
   const setupEyebrow =
-    passwordSetupReason === 'recovery' ? 'איפוס גישה' : 'השלמת הרשמה'
+    passwordSetupReason === 'recovery'
+      ? 'איפוס גישה'
+      : passwordSetupReason === 'admin_reset'
+        ? 'החלפת סיסמה'
+        : 'השלמת הרשמה'
 
   return (
     <div
@@ -330,17 +346,17 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
               <div className="login-setup__success">
                 <StampChip
                   label={
-                    passwordSetupReason === 'recovery' ? 'נשמר' : 'משתמש נוצר בהצלחה'
+                    passwordSetupReason === 'invite' ? 'משתמש נוצר בהצלחה' : 'נשמר'
                   }
                   tone="done"
                 />
                 <h2 className="t-section">
-                  {passwordSetupReason === 'recovery' ? 'הסיסמה נשמרה' : 'ההרשמה הושלמה'}
+                  {passwordSetupReason === 'invite' ? 'ההרשמה הושלמה' : 'הסיסמה נשמרה'}
                 </h2>
                 <p className="t-body" role="status">
-                  {passwordSetupReason === 'recovery'
-                    ? 'הסיסמה עודכנה בהצלחה. אפשר להמשיך למערכת.'
-                    : `ברוכים הבאים ל${PLATFORM_NAME}. ההרשמה הושלמה — אפשר להמשיך למערכת.`}
+                  {passwordSetupReason === 'invite'
+                    ? `ברוכים הבאים ל${PLATFORM_NAME}. ההרשמה הושלמה — אפשר להמשיך למערכת.`
+                    : 'הסיסמה עודכנה בהצלחה. אפשר להמשיך למערכת.'}
                 </p>
               </div>
 

@@ -26,7 +26,7 @@ Repo: `yhpz-2026`
 
 - Auth: email + password (Supabase)
 - Seed admin: `omriland@gmail.com` — profile עמרי לנדמן / callsign Admin — roles `admin`, `shift_lead`, **`super_admin`**
-- `super_admin`: DB-only grant (trigger blocks JWT insert/delete); not in role checkboxes/invite. First capability: set user password via admin panel (`set_password` on Edge `admin-users`). Spec: `2026-08-11-yahpaz-super-admin-set-password-design.md`
+- `super_admin`: DB-only grant (trigger blocks JWT insert/delete); not in role checkboxes/invite. Capabilities: set user password (`set_password`); impersonate active non–super-admin users (`impersonate` / `stop_impersonation` + `impersonation_audit`). Specs: `2026-08-11-yahpaz-super-admin-set-password-design.md`, `2026-08-11-yahpaz-super-admin-impersonation-design.md`
 - `profiles.must_change_password` + RPC `clear_must_change_password()` for force-change gate after admin-set password
 - Profile auto-created via `handle_new_user` trigger on `auth.users`
 

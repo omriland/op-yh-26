@@ -3,6 +3,7 @@ import {
   capturePasswordSetupIntent,
   clearPasswordSetupIntent,
   getPasswordSetupReason,
+  markPasswordSetupRequired,
   readAuthTokenFromSearch,
   readInviteTokenFromSearch,
 } from './passwordSetup'
@@ -78,5 +79,13 @@ describe('clearPasswordSetupIntent', () => {
     capturePasswordSetupIntent('', '?type=invite&token_hash=x')
     clearPasswordSetupIntent()
     expect(getPasswordSetupReason()).toBeNull()
+  })
+})
+
+describe('admin_reset reason', () => {
+  it('persists admin_reset in session storage', () => {
+    stubSessionStorage()
+    markPasswordSetupRequired('admin_reset')
+    expect(getPasswordSetupReason()).toBe('admin_reset')
   })
 })

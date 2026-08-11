@@ -1400,14 +1400,32 @@ textarea.field__input {
   position: relative;
 }
 
+/* Full-bleed hero: cancel shell__main padding so the map meets the navbar + main edges. */
+.shell__main:has(> .detail--has-map) {
+  padding-block-start: 0;
+  padding-inline: 0;
+}
+
+.shell__main > .detail--has-map {
+  max-width: none;
+}
+
+.detail__hero {
+  position: relative;
+  width: 100%;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
 .detail__map-hero {
   position: absolute;
-  inset-inline: calc(-1 * var(--page-gutter, var(--space-4)));
-  inset-block-start: calc(-1 * var(--space-4));
-  height: 220px;
-  overflow: hidden;
-  pointer-events: none;
+  inset: 0;
   z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
 }
 
 .detail__map-hero__img {
@@ -1415,27 +1433,35 @@ textarea.field__input {
   height: 100%;
   object-fit: cover;
   object-position: center;
-  filter: saturate(0.55) contrast(0.95) brightness(0.85);
-  transform: scale(1.02);
+  /* Natural map colors; fade via opacity + darkening layers (not hue filters). */
+  opacity: 0.52;
 }
 
+/* Soft wash — top lighter than the mid version, still darker than the open wash. */
+.detail__map-hero__fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-page, var(--bg)) 40%, #000 28%) 0%,
+    color-mix(in srgb, var(--surface-page, var(--bg)) 52%, #000 40%) 50%,
+    color-mix(in srgb, var(--surface-page, var(--bg)) 55%, #000 45%) 100%
+  );
+  opacity: 0.52;
+}
+
+/* Bottom-weighted for letterhead; top still lightly veiled. */
 .detail__map-hero__scrim {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-canvas, var(--bg)) 20%, transparent) 0%,
-      color-mix(in srgb, var(--surface-canvas, var(--bg)) 55%, transparent) 45%,
-      var(--surface-canvas, var(--bg)) 100%
-    ),
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--surface-canvas, var(--bg)) 35%, transparent),
-      transparent 35%,
-      transparent 65%,
-      color-mix(in srgb, var(--surface-canvas, var(--bg)) 35%, transparent)
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-page, var(--bg)) 12%, transparent) 0%,
+    color-mix(in srgb, var(--surface-page, var(--bg)) 28%, transparent) 38%,
+    color-mix(in srgb, var(--surface-page, var(--bg)) 65%, transparent) 68%,
+    color-mix(in srgb, var(--surface-page, var(--bg)) 88%, transparent) 85%,
+    var(--surface-page, var(--bg)) 100%
+  );
 }
 
 .detail__letterhead {
@@ -1444,20 +1470,31 @@ textarea.field__input {
 }
 
 .detail--has-map .detail__letterhead {
-  min-height: 200px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding-block-end: var(--space-4);
+  gap: 0;
+  min-height: 280px;
+  padding-inline: var(--space-4);
+  padding-block-start: var(--space-6);
+  padding-block-end: var(--space-6);
+  max-width: var(--content-max);
+  width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
 }
 
 .detail--has-map .detail__back {
   margin-block-end: auto;
 }
 
-.detail--has-map .detail__title-row .t-title,
-.detail--has-map .detail__title-row .t-caption {
-  text-shadow: 0 1px 12px color-mix(in srgb, var(--surface-canvas, var(--bg)) 80%, transparent);
+.detail--has-map .detail__grid {
+  margin-block-start: var(--space-6);
+  padding-inline: var(--space-4);
+  max-width: var(--content-max);
+  width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
 }
 
 .detail__back {
@@ -1491,18 +1528,25 @@ textarea.field__input {
   z-index: 1;
 }
 
-.detail--has-map .detail__grid {
-  margin-block-start: var(--space-6);
-}
-
 @media (min-width: 1025px) {
-  .detail__map-hero {
-    inset-inline: calc(-1 * var(--space-8));
-    height: 260px;
+  .detail__hero {
+    min-height: 320px;
   }
 
   .detail--has-map .detail__letterhead {
-    min-height: 240px;
+    min-height: 320px;
+    padding-inline: var(--space-8);
+    padding-block-start: var(--space-8);
+    padding-block-end: var(--space-8);
+  }
+
+  .detail--has-map .detail__grid {
+    padding-inline: var(--space-8);
+  }
+
+  .shell__main--narrow > .detail--has-map .detail__letterhead,
+  .shell__main--narrow > .detail--has-map .detail__grid {
+    max-width: var(--form-max);
   }
 }
 
@@ -2822,6 +2866,61 @@ textarea.field__input {
 .banner--info {
   background: var(--accent-subtle);
   color: var(--text-primary);
+}
+
+.impersonation-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  /* Field theme: dark ink on pale accent — never Command light-on-light. */
+  background: var(--accent-subtle);
+  color: var(--text-primary);
+  border-block-end: 1px solid var(--stroke-hairline);
+}
+
+.impersonation-bar__text {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.impersonation-bar .btn--secondary {
+  color: var(--text-primary);
+  border-color: var(--stroke-strong, var(--stroke-hairline));
+  background: var(--surface-raised);
+}
+
+.impersonation-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-block-size: min(50vh, 360px);
+  overflow: auto;
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+}
+
+.impersonation-picker__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 1px solid var(--stroke-hairline);
+  cursor: pointer;
+}
+
+.impersonation-picker__row:last-child {
+  border-block-end: 0;
+}
+
+.impersonation-picker__row.is-selected {
+  background: var(--accent-subtle);
+}
+
+.impersonation-picker__row input {
+  margin-block-start: 0.35em;
 }
 
 .event-form__head {

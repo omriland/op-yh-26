@@ -42,7 +42,8 @@ export function buildKmExceptionRows(events: KmExceptionEventSource[]): KmExcept
 
   for (const event of events) {
     for (const responder of event.responders) {
-      if (responder.status !== 'done') continue
+      // Lead-entered km only (`event_responders.total_km`). Participation
+      // status does not matter — odometer fields are never used here.
       if (responder.total_km == null || responder.total_km < KM_EXCEPTION_THRESHOLD) continue
 
       rows.push({

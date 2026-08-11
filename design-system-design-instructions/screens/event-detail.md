@@ -16,6 +16,7 @@ The record itself. This screen is where the document metaphor is strongest: an e
 - Title row: `אירוע 12345` (`--type-title`; the number in Frank Ruhl Libre is acceptable here — it's part of the letterhead) with the **header stamp** (large, rotated −8°, per `06-components.md`) at inline-end showing the viewer-relative status.
 - Sub-line (`--type-caption`, `--text-muted`): `09.08.2026 · כביש 6 · מחלף שורק`.
 - Actions (per role): shift-lead/admin get secondary `עריכת אירוע`; admin additionally destructive-ghost `מחיקה` inside an overflow menu (kebab, `aria-label="פעולות נוספות"`).
+- **Map hero (coords only):** when `location_lat`/`location_lng` exist, a full-bleed Static Map hero under the app bar (edge-to-edge of `main`), natural map colors at reduced opacity + darkening scrim (no hue filters); letterhead overlays the band; display-only. Spec: `docs/superpowers/specs/2026-08-11-yahpaz-event-detail-map-hero-design.md`.
 
 ### Event block (פרטי האירוע)
 

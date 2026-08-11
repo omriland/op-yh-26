@@ -1,5 +1,9 @@
 import { sortByRoadName } from './roadSort'
 import { supabase } from './supabase'
+import {
+  isSystemClosedListItem,
+  SYSTEM_DISTRICT_LOCKED_ERROR,
+} from './systemDistricts'
 
 export type ClosedListKey = 'districts' | 'event_types' | 'roads' | 'vehicle_kinds'
 
@@ -8,6 +12,7 @@ export type ClosedListItem = {
   name: string
   active: boolean
   sort_order: number
+  code?: string | null
 }
 
 export const CLOSED_LISTS: {
@@ -43,7 +48,22 @@ export function closedListMeta(key: ClosedListKey) {
   return meta
 }
 
+/** System שלוחות cannot be renamed or deleted from the admin panel. */
+export function canMutateClosedListItem(key: ClosedListKey, item: ClosedListItem): boolean {
+  return !(key === 'districts' && isSystemClosedListItem(item))
+}
+
 export async function fetchClosedListItems(key: ClosedListKey): Promise<ClosedListItem[]> {
+  if (key === 'districts') {
+    const { data, error } = await supabase
+      .from('districts')
+      .select('id, name, active, sort_order, code')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true })
+    if (error) throw error
+    return (data ?? []) as ClosedListItem[]
+  }
+
   const { data, error } = await supabase
     .from(key)
     .select('id, name, active, sort_order')
@@ -89,6 +109,14 @@ export async function updateClosedListItem(
   const trimmed = name.trim()
   if (!trimmed) return { ok: false, error: 'יש להזין שם לפריט.' }
 
+  if (key === 'districts') {
+    const items = await fetchClosedListItems(key)
+    const item = items.find((row) => row.id === id)
+    if (isSystemClosedListItem(item)) {
+      return { ok: false, error: SYSTEM_DISTRICT_LOCKED_ERROR }
+    }
+  }
+
   const { error } = await supabase.from(key).update({ name: trimmed }).eq('id', id)
 
   if (error) {
@@ -116,6 +144,18 @@ export async function deleteClosedListItem(
   key: ClosedListKey,
   id: string,
 ): Promise<{ ok: true } | { ok: false; error: string; inUse?: boolean }> {
+  if (key === 'districts') {
+    try {
+      const items = await fetchClosedListItems(key)
+      const item = items.find((row) => row.id === id)
+      if (isSystemClosedListItem(item)) {
+        return { ok: false, error: SYSTEM_DISTRICT_LOCKED_ERROR }
+      }
+    } catch {
+      return { ok: false, error: 'בדיקת השימוש בפריט נכשלה. נסו שוב.' }
+    }
+  }
+
   try {
     if (await isClosedListItemInUse(key, id)) {
       return {

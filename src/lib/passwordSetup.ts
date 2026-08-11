@@ -5,7 +5,7 @@ const TOKEN_STASH_KEY = 'yahpaz:pending-otp'
 /** Durable invite URL secret — reusable until registration completes. */
 const INVITE_TOKEN_STASH_KEY = 'yahpaz:invite-token'
 
-export type PasswordSetupReason = 'invite' | 'recovery'
+export type PasswordSetupReason = 'invite' | 'recovery' | 'admin_reset'
 
 export type AuthTokenFromUrl = {
   token_hash: string
@@ -159,6 +159,6 @@ export function stripPasswordSetupFromUrl(): void {
 
 export function getPasswordSetupReason(): PasswordSetupReason | null {
   const value = sessionStorage.getItem(STORAGE_KEY)
-  if (value === 'invite' || value === 'recovery') return value
+  if (value === 'invite' || value === 'recovery' || value === 'admin_reset') return value
   return null
 }

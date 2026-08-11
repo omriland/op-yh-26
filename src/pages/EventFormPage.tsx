@@ -39,6 +39,13 @@ import { Toggle } from '../components/ui/Toggle'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
+import {
+  applyDistrictChangeLocation,
+  applyDistrictChangeRoad,
+  districtCodeById,
+  districtNeedsPlacesLocation,
+} from '../lib/systemDistricts'
+import { LocationPlacesField } from '../components/events/LocationPlacesField'
 
 type EventFormPageProps = {
   eventId?: string
@@ -254,17 +261,22 @@ export function EventFormPage({
         return true
       }
 
-      if (!hasEventMinimum(current)) {
+      if (!hasEventMinimum(current, currentLookups.districts)) {
         // Don't create a row until date + type + road are set; stay quiet on background autosave.
         if (!current.id && !options?.navigate && !options?.createNew && !options?.revealErrors) {
           setSavePulse('idle')
           return false
         }
-        const fieldErrors = validateEventMinimum(current)
+        const fieldErrors = validateEventMinimum(current, currentLookups.districts)
         setErrors(fieldErrors)
         setSavePulse('error')
         if (options?.navigate || options?.createNew || options?.revealErrors) {
-          show('יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.', 'alert')
+          show(
+            fieldErrors.location
+              ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור אירוע.'
+              : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
+            'alert',
+          )
           const first = document.querySelector('[aria-invalid="true"]')
           first?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
@@ -291,6 +303,7 @@ export function EventFormPage({
         draft: current,
         shiftLeadId: user.id,
         vehicleKinds: currentLookups.vehicleKinds,
+        districts: currentLookups.districts,
         isAdmin,
         previousIsCancelled,
       })
@@ -454,7 +467,7 @@ export function EventFormPage({
 
   function assignResponder(person: AssignableUser) {
     if (!lookups || !draft) return
-    if (!hasEventMinimum(draft)) {
+    if (!hasEventMinimum(draft, lookups.districts)) {
       void persistLatest({ revealErrors: true })
       return
     }
@@ -597,7 +610,8 @@ export function EventFormPage({
       : 'עריכת אירוע'
     : 'אירוע חדש'
 
-  const needsMinimum = !hasEventMinimum(draft)
+  const placesLocation = districtNeedsPlacesLocation(lookups.districts, draft.district_id)
+  const needsMinimum = !hasEventMinimum(draft, lookups.districts)
   const saveHint =
     savePulse === 'saving'
       ? 'שומר…'
@@ -605,10 +619,14 @@ export function EventFormPage({
         ? 'נשמר'
         : savePulse === 'error'
           ? needsMinimum
-            ? 'יש למלא תאריך, סוג אירוע וכביש.'
+            ? placesLocation
+              ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום.'
+              : 'יש למלא תאריך, סוג אירוע וכביש.'
             : 'השמירה נכשלה — נסו שוב'
           : needsMinimum && !draft.id
-            ? 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור את האירוע.'
+            ? placesLocation
+              ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור את האירוע.'
+              : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור את האירוע.'
             : displayStatus === 'draft'
               ? 'נשמר כטיוטה עד שישובץ כונן.'
               : 'השינויים נשמרים אוטומטית.'
@@ -726,7 +744,31 @@ export function EventFormPage({
                   error={errors.district_id}
                   options={lookups.districts.map((row) => ({ value: row.id, label: row.name }))}
                   onChange={(event) => {
-                    updateDraft({ district_id: event.target.value })
+                    const nextId = event.target.value
+                    const previousCode = districtCodeById(lookups.districts, draft.district_id)
+                    const nextCode = districtCodeById(lookups.districts, nextId)
+                    const locationFields = applyDistrictChangeLocation(previousCode, nextCode, {
+                      location: draft.location,
+                      location_place_id: draft.location_place_id,
+                      location_lat: draft.location_lat,
+                      location_lng: draft.location_lng,
+                    })
+                    const nextRoadId = applyDistrictChangeRoad(
+                      previousCode,
+                      nextCode,
+                      draft.road_id,
+                      lookups.roads,
+                    )
+                    updateDraft({
+                      district_id: nextId,
+                      road_id: nextRoadId,
+                      ...locationFields,
+                    })
+                    setErrors((current) => ({
+                      ...current,
+                      location: undefined,
+                      road_id: nextRoadId ? undefined : current.road_id,
+                    }))
                     queueMicrotask(() => void persistLatest())
                   }}
                 />
@@ -766,13 +808,41 @@ export function EventFormPage({
                 />
               </div>
 
-              <TextField
-                label="מיקום"
-                placeholder="למשל: מחלף שורק, לכיוון צפון"
-                value={draft.location}
-                onChange={(event) => updateDraft({ location: event.target.value })}
-                onBlur={() => void persistLatest()}
-              />
+              {placesLocation ? (
+                <LocationPlacesField
+                  required
+                  error={errors.location}
+                  value={{
+                    location: draft.location,
+                    location_place_id: draft.location_place_id,
+                    location_lat: draft.location_lat,
+                    location_lng: draft.location_lng,
+                  }}
+                  onChange={(next) => {
+                    updateDraft(next)
+                    setErrors((current) => ({ ...current, location: undefined }))
+                  }}
+                  onBlurCommit={() => void persistLatest()}
+                  onAutocompleteUnavailable={() =>
+                    show('השלמת מיקום מגוגל אינה זמינה כרגע. אפשר להזין מיקום ידנית.', 'alert')
+                  }
+                />
+              ) : (
+                <TextField
+                  label="מיקום"
+                  placeholder="למשל: מחלף שורק, לכיוון צפון"
+                  value={draft.location}
+                  onChange={(event) =>
+                    updateDraft({
+                      location: event.target.value,
+                      location_place_id: null,
+                      location_lat: null,
+                      location_lng: null,
+                    })
+                  }
+                  onBlur={() => void persistLatest()}
+                />
+              )}
 
               <TextAreaField
                 label="הערות"

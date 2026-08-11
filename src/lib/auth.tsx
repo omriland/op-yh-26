@@ -16,10 +16,11 @@ import {
   stripPasswordSetupFromUrl,
   type PasswordSetupReason,
 } from './passwordSetup'
+import { clearImpersonationStash } from './impersonationStash'
 import { passwordStrengthError } from './passwordRules'
 import { supabase } from './supabase'
 
-export type AppRole = 'admin' | 'shift_lead' | 'responder'
+export type AppRole = 'admin' | 'shift_lead' | 'responder' | 'super_admin'
 
 export type Profile = {
   id: string
@@ -28,6 +29,7 @@ export type Profile = {
   callsign: string
   phone: string | null
   active: boolean
+  must_change_password: boolean
 }
 
 type AuthState = {
@@ -56,7 +58,7 @@ async function loadProfileAndRoles(userId: string) {
   const [{ data: profile }, { data: roleRows }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, callsign, phone, active')
+      .select('id, full_name, email, callsign, phone, active, must_change_password')
       .eq('id', userId)
       .maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', userId),
@@ -65,6 +67,61 @@ async function loadProfileAndRoles(userId: string) {
   return {
     profile: (profile as Profile | null) ?? null,
     roles: (roleRows ?? []).map((r) => r.role as AppRole),
+  }
+}
+
+/** Prefer invite/recovery URL intent; otherwise arm from profile flag. */
+function resolvePasswordSetupReason(
+  profile: Profile | null,
+): PasswordSetupReason | null {
+  const fromStorage = getPasswordSetupReason()
+  if (fromStorage === 'invite' || fromStorage === 'recovery') return fromStorage
+  if (profile?.must_change_password) {
+    markPasswordSetupRequired('admin_reset')
+    return 'admin_reset'
+  }
+  return fromStorage
+}
+
+type ApplySessionResult =
+  | { kind: 'signed_out' }
+  | {
+      kind: 'ready'
+      session: Session
+      profile: Profile | null
+      roles: AppRole[]
+      passwordSetupReason: PasswordSetupReason | null
+    }
+
+/**
+ * Load profile/roles and resolve the password gate BEFORE exposing the session
+ * to the app — otherwise SIGNED_IN briefly unlocks the shell without the gate.
+ */
+async function prepareSession(
+  session: Session,
+  event?: string,
+): Promise<ApplySessionResult> {
+  const loaded = await loadProfileAndRoles(session.user.id)
+  if (loaded.profile && loaded.profile.active === false) {
+    clearPasswordSetupIntent()
+    await supabase.auth.signOut()
+    return { kind: 'signed_out' }
+  }
+
+  let reason: PasswordSetupReason | null
+  if (event === 'PASSWORD_RECOVERY') {
+    markPasswordSetupRequired('recovery')
+    reason = 'recovery'
+  } else {
+    reason = resolvePasswordSetupReason(loaded.profile)
+  }
+
+  return {
+    kind: 'ready',
+    session,
+    profile: loaded.profile,
+    roles: loaded.roles,
+    passwordSetupReason: reason,
   }
 }
 
@@ -85,26 +142,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Stash token only — never verifyOtp on load (email scanners burn OTPs).
       stashAuthTokenFromUrl()
       if (!mounted) return
-      setPasswordSetupReason(getPasswordSetupReason())
 
       const { data } = await supabase.auth.getSession()
       if (!mounted) return
-      setSession(data.session)
-      setPasswordSetupReason(getPasswordSetupReason())
+
       if (data.session?.user) {
-        const loaded = await loadProfileAndRoles(data.session.user.id)
+        const prepared = await prepareSession(data.session)
         if (!mounted) return
-        if (loaded.profile && loaded.profile.active === false) {
-          clearPasswordSetupIntent()
-          await supabase.auth.signOut()
+        if (prepared.kind === 'signed_out') {
           setSession(null)
           setProfile(null)
           setRoles([])
           setPasswordSetupReason(null)
         } else {
-          setProfile(loaded.profile)
-          setRoles(loaded.roles)
+          setProfile(prepared.profile)
+          setRoles(prepared.roles)
+          setPasswordSetupReason(prepared.passwordSetupReason)
+          setSession(prepared.session)
         }
+      } else {
+        setPasswordSetupReason(getPasswordSetupReason())
       }
       setLoading(false)
     })()
@@ -112,37 +169,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, next) => {
       if (event === 'PASSWORD_RECOVERY') {
         markPasswordSetupRequired('recovery')
-        setPasswordSetupReason('recovery')
-      } else if (event === 'SIGNED_IN') {
-        // Invite links fire SIGNED_IN (not PASSWORD_RECOVERY). Intent is
-        // captured from the URL hash / set_password query before createClient.
-        // Only adopt storage → reason; never clear an in-flight setup (e.g. after
-        // updateUser) when storage was already cleared for the confirmation step.
-        const fromStorage = getPasswordSetupReason()
-        if (fromStorage) setPasswordSetupReason(fromStorage)
       }
 
-      setSession(next)
-      if (next?.user) {
-        const loaded = await loadProfileAndRoles(next.user.id)
-        if (loaded.profile && loaded.profile.active === false) {
-          clearPasswordSetupIntent()
-          await supabase.auth.signOut()
-          setSession(null)
-          setProfile(null)
-          setRoles([])
-          setPasswordSetupReason(null)
-        } else {
-          setProfile(loaded.profile)
-          setRoles(loaded.roles)
-        }
-      } else {
+      if (!next?.user) {
+        setSession(null)
         setProfile(null)
         setRoles([])
         // Do not clear password-setup intent on SIGNED_OUT. Invite verifyOtp
         // signs out any prior session first; clearing here dropped users on the
         // normal login screen (especially in a clean/incognito browser).
+        setLoading(false)
+        return
       }
+
+      const prepared = await prepareSession(next, event)
+      if (prepared.kind === 'signed_out') {
+        setSession(null)
+        setProfile(null)
+        setRoles([])
+        setPasswordSetupReason(null)
+        setLoading(false)
+        return
+      }
+
+      setProfile(prepared.profile)
+      setRoles(prepared.roles)
+
+      // SIGNED_IN / INITIAL_SESSION / PASSWORD_RECOVERY: adopt gate.
+      // USER_UPDATED after updatePassword may arm admin_reset but must not
+      // clear an in-flight confirmation when storage was already cleared.
+      if (
+        event === 'PASSWORD_RECOVERY' ||
+        event === 'SIGNED_IN' ||
+        event === 'INITIAL_SESSION'
+      ) {
+        setPasswordSetupReason(prepared.passwordSetupReason)
+      } else if (prepared.passwordSetupReason) {
+        setPasswordSetupReason(prepared.passwordSetupReason)
+      }
+
+      // Expose session only after gate reason is decided.
+      setSession(prepared.session)
       setLoading(false)
     })
 
@@ -153,14 +220,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (!error) return { error: null }
-    const badCredentials = /invalid login credentials/i.test(error.message)
-    return {
-      error: badCredentials
-        ? 'הדוא״ל או הסיסמה שגויים. נסו שוב.'
-        : 'הכניסה נכשלה. בדקו את החיבור ונסו שוב.',
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      const badCredentials = /invalid login credentials/i.test(error.message)
+      return {
+        error: badCredentials
+          ? 'הדוא״ל או הסיסמה שגויים. נסו שוב.'
+          : 'הכניסה נכשלה. בדקו את החיבור ונסו שוב.',
+      }
     }
+
+    // Arm the gate immediately (do not wait for onAuthStateChange ordering).
+    if (data.session) {
+      const prepared = await prepareSession(data.session, 'SIGNED_IN')
+      if (prepared.kind === 'signed_out') {
+        return { error: 'החשבון אינו פעיל. פנו למנהל המערכת.' }
+      }
+      setProfile(prepared.profile)
+      setRoles(prepared.roles)
+      setPasswordSetupReason(prepared.passwordSetupReason)
+      setSession(prepared.session)
+    }
+
+    return { error: null }
   }, [])
 
   const requestPasswordReset = useCallback(async (email: string) => {
@@ -189,6 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { user: current },
     } = await supabase.auth.getUser()
     if (current?.id) {
+      await supabase.rpc('clear_must_change_password')
       await supabase
         .from('profiles')
         .update({
@@ -198,6 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', current.id)
+      setProfile((prev) => (prev ? { ...prev, must_change_password: false } : prev))
     }
 
     // Clear durable intent + URL so refresh cannot reopen the gate; keep React
@@ -216,12 +300,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return result
     }
     const { data } = await supabase.auth.getSession()
-    setSession(data.session)
-    setPasswordSetupReason(getPasswordSetupReason())
     if (data.session?.user) {
-      const loaded = await loadProfileAndRoles(data.session.user.id)
-      setProfile(loaded.profile)
-      setRoles(loaded.roles)
+      const prepared = await prepareSession(data.session)
+      if (prepared.kind === 'signed_out') {
+        setSession(null)
+        setProfile(null)
+        setRoles([])
+        setPasswordSetupReason(null)
+        return { error: 'החשבון אינו פעיל. פנו למנהל המערכת.' }
+      }
+      setProfile(prepared.profile)
+      setRoles(prepared.roles)
+      setPasswordSetupReason(prepared.passwordSetupReason)
+      setSession(prepared.session)
+    } else {
+      setPasswordSetupReason(getPasswordSetupReason())
     }
     return { error: null }
   }, [])
@@ -233,6 +326,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    clearImpersonationStash()
     clearPasswordSetupIntent()
     setPasswordSetupReason(null)
     await supabase.auth.signOut()
