@@ -1952,9 +1952,56 @@ textarea.field__input {
 }
 
 .user-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   width: 100%;
   text-align: start;
+}
+
+.user-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.user-card__identity-btn {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
   cursor: pointer;
+}
+
+.user-card__identity {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.user-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.user-card__details p {
+  margin: 0;
 }
 
 .overflow-menu {

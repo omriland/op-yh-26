@@ -18,7 +18,7 @@ Admin-only report. Date range (`מתאריך` / `עד תאריך`) on event **`c
 - Title `משתמשים` + primary `משתמש חדש`.
 - Search input (name / callsign / email).
 - Desktop table: שם מלא · או״ק (mono) · דוא״ל (LTR isolate) · טלפון (LTR isolate, mono) · תפקידים · רכבים (count). Roles column renders small neutral chips (`--type-caption`, secondary-chip chrome — NOT stamps): `מנהל` · `אחמ״ש` · `כונן`.
-- Mobile: user cards — avatar 40 + name + callsign, roles chips row, caption line with email.
+- Mobile: user cards — avatar 40 + name + callsign with ⋮ overflow menu at inline-end (same actions as the desktop row), roles chips row, caption line with email. Vertical gaps `--space-3` between head / chips / email; no detail hairline under the head.
 
 ### Create / Edit user (dialog on desktop, full screen on mobile)
 
