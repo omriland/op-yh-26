@@ -31,6 +31,8 @@ import {
   readSidebarWidth,
   writeSidebarWidth,
 } from '../../lib/sidebarWidth'
+import { navAttentionAriaSuffix } from '../../lib/navAttention'
+import { SnykBadge } from './SnykBadge'
 
 export type AppView =
   | 'events'
@@ -51,12 +53,16 @@ type NavEntry = {
   section?: string
   /** Extra views that should keep this nav entry marked current (mobile admin hub). */
   alsoCurrentFor?: AppView[]
+  /** Small red dot on the icon — open items needing completion. */
+  attention?: boolean
 }
 
 type AppShellProps = {
   theme: 'field' | 'command'
   withSidebar: boolean
   narrow: boolean
+  /** List/admin/profile only — hide on immersive form/fill/detail. */
+  showSecurityBadge?: boolean
   view: AppView
   onNavigate: (view: AppView) => void
   /** Wordmark → role home (unit events / mine / profile). */
@@ -69,6 +75,7 @@ export function AppShell({
   theme,
   withSidebar,
   narrow,
+  showSecurityBadge = false,
   view,
   onNavigate,
   onHome,
@@ -85,6 +92,7 @@ export function AppShell({
         {withSidebar ? <Sidebar view={view} onNavigate={onNavigate} entries={entries} /> : null}
         <main id="main" className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}>
           {children}
+          {showSecurityBadge ? <SnykBadge /> : null}
         </main>
       </div>
       {withSidebar ? null : <BottomTabBar view={view} onNavigate={onNavigate} entries={entries} />}
@@ -313,9 +321,14 @@ function Sidebar({
                 type="button"
                 className="nav-item"
                 aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
+                aria-label={
+                  entry.attention
+                    ? `${entry.label}${navAttentionAriaSuffix(true)}`
+                    : undefined
+                }
                 onClick={() => onNavigate(entry.view)}
               >
-                {entry.icon}
+                <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
                 {entry.label}
               </button>
             </div>
@@ -359,12 +372,26 @@ function BottomTabBar({
           type="button"
           className="tab"
           aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
+          aria-label={
+            entry.attention
+              ? `${entry.label}${navAttentionAriaSuffix(true)}`
+              : undefined
+          }
           onClick={() => onNavigate(entry.view)}
         >
-          {entry.icon}
+          <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
           {entry.label}
         </button>
       ))}
     </nav>
+  )
+}
+
+function NavIcon({ icon, attention }: { icon: ReactNode; attention: boolean }) {
+  return (
+    <span className="nav-icon">
+      {icon}
+      {attention ? <span className="nav-attention-dot" aria-hidden="true" /> : null}
+    </span>
   )
 }

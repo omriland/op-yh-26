@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { useIsDesktop } from './lib/useMediaQuery'
 import { AppShell, NAV_ICONS, type AppView } from './components/shell/AppShell'
+import { fetchNavAttention, type NavAttention } from './lib/navAttention'
+import { shouldShowSecurityBadge } from './lib/securityBadge'
 import { AdminSegmentBar } from './components/admin/AdminSegmentBar'
 import { EmptyState } from './components/ui/EmptyState'
 import { EventListSkeleton } from './components/ui/Skeleton'
@@ -35,17 +37,45 @@ type ShiftSurface =
   | { kind: 'form'; shiftId?: string }
 
 function Gate() {
-  const { session, loading, roles, passwordSetupReason } = useAuth()
+  const { session, loading, roles, passwordSetupReason, user } = useAuth()
   const isDesktop = useIsDesktop()
   const [view, setView] = useState<AppView>('mine')
   const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
   const [shiftSurface, setShiftSurface] = useState<ShiftSurface>({ kind: 'list' })
+  const [navAttention, setNavAttention] = useState<NavAttention>({
+    mineEvents: false,
+    myShifts: false,
+  })
 
   const isAdmin = roles.includes('admin')
   const manages = isAdmin || roles.includes('shift_lead')
   const responds = roles.includes('responder')
   // Leads also go on events — same personal list/fill surface, not only the responder role.
   const hasMineList = responds || roles.includes('shift_lead')
+
+  // Refresh attention when returning to list surfaces after fill/save.
+  const attentionRefreshKey = `${eventSurface.kind}:${shiftSurface.kind}:${view}`
+
+  useEffect(() => {
+    if (!hasMineList || !user) {
+      setNavAttention({ mineEvents: false, myShifts: false })
+      return
+    }
+
+    let active = true
+    fetchNavAttention(user.id)
+      .then((next) => {
+        if (active) setNavAttention(next)
+      })
+      .catch(() => {
+        // Fail closed — no dots if the check cannot run.
+        if (active) setNavAttention({ mineEvents: false, myShifts: false })
+      })
+
+    return () => {
+      active = false
+    }
+  }, [hasMineList, user, attentionRefreshKey])
 
   const entries = useMemo(() => {
     const list: {
@@ -54,12 +84,23 @@ function Gate() {
       icon: (typeof NAV_ICONS)[AppView]
       section?: string
       alsoCurrentFor?: AppView[]
+      attention?: boolean
     }[] = []
 
     // Personal — top of nav for anyone who goes on calls.
     if (hasMineList) {
-      list.push({ view: 'mine', label: 'האירועים שלי', icon: NAV_ICONS.mine })
-      list.push({ view: 'my_shifts', label: 'המשמרות שלי', icon: NAV_ICONS.my_shifts })
+      list.push({
+        view: 'mine',
+        label: 'האירועים שלי',
+        icon: NAV_ICONS.mine,
+        attention: navAttention.mineEvents,
+      })
+      list.push({
+        view: 'my_shifts',
+        label: 'המשמרות שלי',
+        icon: NAV_ICONS.my_shifts,
+        attention: navAttention.myShifts,
+      })
     }
 
     // Shift-lead tools (admins also get these via manages).
@@ -130,7 +171,7 @@ function Gate() {
     }
 
     return list
-  }, [manages, hasMineList, isAdmin, isDesktop])
+  }, [manages, hasMineList, isAdmin, isDesktop, navAttention])
 
   function isAllowedView(next: AppView): boolean {
     switch (next) {
@@ -172,10 +213,10 @@ function Gate() {
   // Invite/recovery gate is driven by intent, not by an existing session.
   // verifyOtp may still be binding the session; never fall through to sign-in.
   if (passwordSetupReason) {
-    return <LoginPage forceSetPassword />
+    return <LoginPage key={`setup-${passwordSetupReason}`} forceSetPassword />
   }
 
-  if (!session) return <LoginPage />
+  if (!session) return <LoginPage key="signin" />
 
   // Role allowlist — not nav entries — so profile / fuel / lists / exceptions stay
   // reachable when omitted from the mobile tab bar.
@@ -219,6 +260,7 @@ function Gate() {
       theme={shellTheme}
       withSidebar={shellWithSidebar}
       narrow={shellNarrow}
+      showSecurityBadge={shouldShowSecurityBadge(immersiveSurface)}
       view={activeView}
       onNavigate={navigate}
       onHome={goHome}

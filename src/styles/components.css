@@ -912,6 +912,31 @@ textarea.field__input {
   flex: none;
 }
 
+.nav-icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-attention-dot {
+  position: absolute;
+  top: -1px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--status-alert);
+  box-shadow: 0 0 0 1.5px var(--surface-page);
+  pointer-events: none;
+}
+
+.nav-item[aria-current='page'] .nav-attention-dot,
+.nav-item:hover .nav-attention-dot {
+  box-shadow: 0 0 0 1.5px var(--accent-subtle);
+}
+
 .nav-item[aria-current='page'] {
   background: var(--accent-subtle);
   color: var(--accent);
@@ -934,7 +959,9 @@ textarea.field__input {
 }
 
 .shell__main {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-width: 0;
   padding: var(--space-6) var(--space-4);
   padding-block-end: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-6));
@@ -942,11 +969,54 @@ textarea.field__input {
 
 .shell__main > * {
   max-width: var(--content-max);
+  width: 100%;
   margin-inline: auto;
 }
 
 .shell__main--narrow > * {
   max-width: var(--form-max);
+}
+
+.security-badge {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  margin-block-start: auto;
+  padding-block-start: var(--space-8);
+}
+
+.security-badge__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.security-badge__logo {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.security-badge__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .security-badge__link:hover {
+    color: var(--text-secondary);
+  }
+}
+
+.security-badge__link:active {
+  color: var(--text-primary);
 }
 
 .tabbar {
@@ -978,6 +1048,10 @@ textarea.field__input {
 .tab svg {
   width: 24px;
   height: 24px;
+}
+
+.tab .nav-attention-dot {
+  box-shadow: 0 0 0 1.5px var(--surface-raised);
 }
 
 .tab[aria-current='page'] {
