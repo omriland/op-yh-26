@@ -68,6 +68,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
 - Toasts: mobile top-center via flex (RTL-safe; no `translateX` centering); desktop bottom-inline-start. Spec: `docs/superpowers/specs/2026-08-11-mobile-toast-design.md`
 - Admin users mobile cards: ⋮ overflow menu (same actions as desktop) + internal `--space-3` rhythm; spec `2026-08-11-mobile-admin-users-card-design.md`
+- Sticky form footers: upward `--shadow-scroll-cue` while page overflows (`FormStickyFooter` on responder fill / event / shift). Spec: `docs/superpowers/specs/2026-08-11-sticky-footer-scroll-cue-design.md`
 
 ## Email (Resend)
 

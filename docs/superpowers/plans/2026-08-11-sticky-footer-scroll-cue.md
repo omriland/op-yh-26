@@ -44,7 +44,7 @@
 - Produces: `contentOverflowsScrollport(scrollHeight: number, clientHeight: number): boolean`
 - Produces: `useStickyFooterScrollCue(footerRef: RefObject<HTMLElement | null>): boolean`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -63,12 +63,12 @@ describe('contentOverflowsScrollport', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npm test -- src/lib/stickyFooterScrollCue.test.ts`  
 Expected: FAIL (module / export missing)
 
-- [ ] **Step 3: Implement helper + hook**
+- [x] **Step 3: Implement helper + hook**
 
 ```ts
 export function contentOverflowsScrollport(scrollHeight: number, clientHeight: number): boolean {
@@ -82,12 +82,12 @@ export function useStickyFooterScrollCue(footerRef: RefObject<HTMLElement | null
 }
 ```
 
-- [ ] **Step 4: Run tests — pass**
+- [x] **Step 4: Run tests — pass**
 
 Run: `npm test -- src/lib/stickyFooterScrollCue.test.ts`  
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/stickyFooterScrollCue.ts src/lib/stickyFooterScrollCue.test.ts
@@ -107,7 +107,7 @@ git commit -m "feat: measure form page overflow for sticky footer cue"
 - Consumes: `useStickyFooterScrollCue`
 - Produces: `<FormStickyFooter>{actions}</FormStickyFooter>` → `<footer class="event-form__footer[ event-form__footer--scroll-cue]">`
 
-- [ ] **Step 1: Add token + CSS**
+- [x] **Step 1: Add token + CSS**
 
 ```css
 --shadow-scroll-cue: 0 -10px 20px rgba(15, 27, 45, 0.14);
@@ -123,7 +123,7 @@ git commit -m "feat: measure form page overflow for sticky footer cue"
 }
 ```
 
-- [ ] **Step 2: Add FormStickyFooter and replace three footers**
+- [x] **Step 2: Add FormStickyFooter and replace three footers**
 
 ```tsx
 export function FormStickyFooter({ children }: { children: ReactNode }) {
@@ -144,12 +144,12 @@ export function FormStickyFooter({ children }: { children: ReactNode }) {
 
 Replace `<footer className="event-form__footer">` in the three form pages with `<FormStickyFooter>`.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run: `npm test && npm run build`  
-Expected: PASS
+Expected: PASS (scroll-cue unit tests + production build; unrelated suites may fail without Supabase env)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/ui/FormStickyFooter.tsx src/styles/tokens.css src/styles/components.css \
