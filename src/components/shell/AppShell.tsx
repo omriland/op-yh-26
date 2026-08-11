@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react'
 import {
   CalendarCheck,
   CalendarClock,
@@ -14,6 +21,15 @@ import {
 import { useAuth } from '../../lib/auth'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
+import {
+  SIDEBAR_WIDTH_DEFAULT,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
+  clampSidebarWidth,
+  nextSidebarWidthFromPointer,
+  readSidebarWidth,
+  writeSidebarWidth,
+} from '../../lib/sidebarWidth'
 
 export type AppView =
   | 'events'
@@ -180,6 +196,18 @@ function TopAppBar({
   )
 }
 
+function isDocumentRtl() {
+  return getComputedStyle(document.documentElement).direction === 'rtl'
+}
+
+function persistSidebarWidth(width: number) {
+  try {
+    writeSidebarWidth(window.localStorage, width)
+  } catch {
+    // Private mode / quota — keep in-session only.
+  }
+}
+
 function Sidebar({
   view,
   onNavigate,
@@ -189,8 +217,88 @@ function Sidebar({
   onNavigate: (view: AppView) => void
   entries: NavEntry[]
 }) {
+  const [width, setWidth] = useState(() => {
+    try {
+      return readSidebarWidth(window.localStorage)
+    } catch {
+      return SIDEBAR_WIDTH_DEFAULT
+    }
+  })
+  const widthRef = useRef(width)
+  const dragRef = useRef<{ startWidth: number; startClientX: number } | null>(null)
+
+  useEffect(() => {
+    widthRef.current = width
+  }, [width])
+
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [])
+
+  function applyWidth(next: number, persist: boolean) {
+    const clamped = clampSidebarWidth(next)
+    setWidth(clamped)
+    if (persist) persistSidebarWidth(clamped)
+  }
+
+  function onResizePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = { startWidth: widthRef.current, startClientX: event.clientX }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
+
+  function onResizePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current
+    if (!drag) return
+    applyWidth(
+      nextSidebarWidthFromPointer({
+        startWidth: drag.startWidth,
+        startClientX: drag.startClientX,
+        clientX: event.clientX,
+        rtl: isDocumentRtl(),
+      }),
+      false,
+    )
+  }
+
+  function onResizePointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!dragRef.current) return
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    persistSidebarWidth(widthRef.current)
+  }
+
+  function onResizeDoubleClick() {
+    applyWidth(SIDEBAR_WIDTH_DEFAULT, true)
+  }
+
+  function onResizeKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const rtl = isDocumentRtl()
+    const step = 8
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      applyWidth(widthRef.current + (rtl ? step : -step), true)
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      applyWidth(widthRef.current + (rtl ? -step : step), true)
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      applyWidth(SIDEBAR_WIDTH_DEFAULT, true)
+    }
+  }
+
   return (
-    <nav className="sidebar" aria-label="ניווט ראשי">
+    <nav className="sidebar" aria-label="ניווט ראשי" style={{ width }}>
       <div className="sidebar__nav">
         {entries.map((entry, index) => {
           const prev = entries[index - 1]
@@ -211,6 +319,22 @@ function Sidebar({
           )
         })}
       </div>
+      <div
+        className="sidebar__resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="שינוי רוחב תפריט הצד"
+        aria-valuemin={SIDEBAR_WIDTH_MIN}
+        aria-valuemax={SIDEBAR_WIDTH_MAX}
+        aria-valuenow={width}
+        tabIndex={0}
+        onPointerDown={onResizePointerDown}
+        onPointerMove={onResizePointerMove}
+        onPointerUp={onResizePointerUp}
+        onPointerCancel={onResizePointerUp}
+        onDoubleClick={onResizeDoubleClick}
+        onKeyDown={onResizeKeyDown}
+      />
     </nav>
   )
 }

@@ -364,8 +364,8 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
 
 function FormHeading({ children }: { children: ReactNode }) {
   return (
-    <header className="login__form-head form-section">
-      <h2 className="form-section__heading login__heading">{children}</h2>
+    <header className="login__form-head">
+      <h2 className="login__heading">{children}</h2>
     </header>
   )
 }
