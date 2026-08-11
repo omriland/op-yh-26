@@ -41,11 +41,24 @@ export type ResponderFillContext = {
   road_name: string | null
   location: string | null
   shift_lead_name: string | null
+  /** Lead-entered kilometers for this participation; drives auto odometer end. */
+  totalKm: number | null
   participationStatus: ParticipationStatus
   updated_at: string | null
   draft: ResponderFillDraft
   /** Registered vehicles for this user — plate is selected from this list only. */
   vehicles: ResponderVehicleOption[]
+}
+
+/** End odometer as start + lead total_km; empty when either side is unavailable. */
+export function computeOdometerEnd(
+  odometerStart: string,
+  totalKm: number | null,
+): string {
+  if (totalKm == null) return ''
+  const start = parseOptionalNumber(odometerStart)
+  if (typeof start !== 'number') return ''
+  return String(start + totalKm)
 }
 
 export function deriveEventStatusAfterParticipation(
@@ -82,10 +95,15 @@ export function validateResponderFillDraft(
   draft: ResponderFillDraft,
   mode: 'draft' | 'complete',
   allowedPlates: string[] = [],
+  totalKm: number | null = null,
 ): ResponderFillErrors {
   const errors: ResponderFillErrors = {}
   const start = parseOptionalNumber(draft.odometer_start)
-  const end = parseOptionalNumber(draft.odometer_end)
+  const effectiveEnd =
+    totalKm != null
+      ? computeOdometerEnd(draft.odometer_start, totalKm)
+      : draft.odometer_end
+  const end = parseOptionalNumber(effectiveEnd)
   const plate = plateDigits(draft.vehicle_plate)
   const allowed = new Set(allowedPlates.map(plateDigits).filter(Boolean))
 
@@ -100,13 +118,24 @@ export function validateResponderFillDraft(
       errors.vehicle_plate = 'לא מקושר רכב למשתמש. פנו למנהל המערכת.'
     }
     if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא ק"מ התחלה.'
-    if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא ק"מ סיום.'
+    if (totalKm == null) {
+      errors.odometer_end =
+        'האחמ״ש טרם הזין קילומטרים לאירוע. לא ניתן לסיים את הדיווח.'
+    } else if (end == null || end === 'invalid') {
+      errors.odometer_end = 'יש למלא ק"מ סיום.'
+    }
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
   }
 
   // Live + submit: start must be strictly lower than end once both are numbers.
-  if (typeof start === 'number' && typeof end === 'number' && end <= start) {
+  // Missing-totalKm complete error takes precedence over the range message.
+  if (
+    !errors.odometer_end &&
+    typeof start === 'number' &&
+    typeof end === 'number' &&
+    end <= start
+  ) {
     errors.odometer_end = 'ק"מ סיום חייב להיות גדול מק"מ התחלה'
   }
 
@@ -141,7 +170,7 @@ export async function fetchResponderFillContext(
           shift_lead:profiles(full_name, callsign),
           responders:event_responders(
             id, responder_id, vehicle_plate, odometer_start, odometer_end,
-            route, treatment_detail, treatment_notes, status, updated_at
+            total_km, route, treatment_detail, treatment_notes, status, updated_at
           )
         `,
         )
@@ -173,6 +202,7 @@ export async function fetchResponderFillContext(
       vehicle_plate: string | null
       odometer_start: number | null
       odometer_end: number | null
+      total_km: number | null
       route: string | null
       treatment_detail: string | null
       treatment_notes: string | null
@@ -185,6 +215,15 @@ export async function fetchResponderFillContext(
   if (!mine) return null
 
   const existingPlate = mine.vehicle_plate ? plateDigits(mine.vehicle_plate) : ''
+  const totalKm = mine.total_km
+  const odometerStart =
+    mine.odometer_start != null ? String(mine.odometer_start) : ''
+  const participationDone = mine.status === 'done' || row.status === 'done'
+  const odometerEnd = participationDone
+    ? mine.odometer_end != null
+      ? String(mine.odometer_end)
+      : ''
+    : computeOdometerEnd(odometerStart, totalKm)
 
   // Active vehicles only for new assignment; keep a currently saved plate even if archived.
   const vehicleOptions: ResponderVehicleOption[] = (vehicles ?? [])
@@ -218,13 +257,14 @@ export async function fetchResponderFillContext(
     shift_lead_name: row.shift_lead
       ? `${row.shift_lead.full_name} · ${row.shift_lead.callsign}`
       : null,
+    totalKm,
     participationStatus: mine.status,
     updated_at: mine.updated_at,
     vehicles: vehicleOptions,
     draft: {
       vehicle_plate: selectedPlate,
-      odometer_start: mine.odometer_start != null ? String(mine.odometer_start) : '',
-      odometer_end: mine.odometer_end != null ? String(mine.odometer_end) : '',
+      odometer_start: odometerStart,
+      odometer_end: odometerEnd,
       route: mine.route ?? '',
       treatment_detail: mine.treatment_detail ?? '',
       treatment_notes: mine.treatment_notes ?? '',
@@ -324,20 +364,37 @@ async function saveParticipation(input: {
   return { ok: true, eventStatus }
 }
 
+function withDerivedOdometerEnd(
+  draft: ResponderFillDraft,
+  totalKm: number | null,
+): ResponderFillDraft {
+  return {
+    ...draft,
+    odometer_end: computeOdometerEnd(draft.odometer_start, totalKm),
+  }
+}
+
 export async function saveResponderFillDraft(input: {
   assignmentId: string
   eventId: string
   draft: ResponderFillDraft
   allowedPlates: string[]
+  totalKm: number | null
 }): Promise<
   | { ok: true; eventStatus: EventStatus | null }
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors }
 > {
-  const fieldErrors = validateResponderFillDraft(input.draft, 'draft', input.allowedPlates)
+  const draft = withDerivedOdometerEnd(input.draft, input.totalKm)
+  const fieldErrors = validateResponderFillDraft(
+    draft,
+    'draft',
+    input.allowedPlates,
+    input.totalKm,
+  )
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'בדקו את השדות המסומנים.', fieldErrors }
   }
-  return saveParticipation({ ...input, status: 'in_progress' })
+  return saveParticipation({ ...input, draft, status: 'in_progress' })
 }
 
 export async function completeResponderFill(input: {
@@ -345,13 +402,20 @@ export async function completeResponderFill(input: {
   eventId: string
   draft: ResponderFillDraft
   allowedPlates: string[]
+  totalKm: number | null
 }): Promise<
   | { ok: true; eventStatus: EventStatus | null }
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors }
 > {
-  const fieldErrors = validateResponderFillDraft(input.draft, 'complete', input.allowedPlates)
+  const draft = withDerivedOdometerEnd(input.draft, input.totalKm)
+  const fieldErrors = validateResponderFillDraft(
+    draft,
+    'complete',
+    input.allowedPlates,
+    input.totalKm,
+  )
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'יש למלא את כל שדות החובה לפני סיום הדיווח.', fieldErrors }
   }
-  return saveParticipation({ ...input, status: 'done' })
+  return saveParticipation({ ...input, draft, status: 'done' })
 }

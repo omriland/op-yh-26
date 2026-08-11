@@ -3,6 +3,7 @@ import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   completeResponderFill,
+  computeOdometerEnd,
   fetchResponderFillContext,
   odometerRangeError,
   saveResponderFillDraft,
@@ -82,14 +83,11 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
     setDraft((current) => (current ? { ...current, ...patch } : current))
   }
 
-  function patchOdometer(
-    field: 'odometer_start' | 'odometer_end',
-    value: string,
-  ) {
-    if (!draft) return
-    const next = { ...draft, [field]: value }
-    patchDraft({ [field]: value })
-    const rangeError = odometerRangeError(next.odometer_start, next.odometer_end)
+  function patchOdometerStart(value: string) {
+    if (!draft || !ctx) return
+    const odometer_end = computeOdometerEnd(value, ctx.totalKm)
+    patchDraft({ odometer_start: value, odometer_end })
+    const rangeError = odometerRangeError(value, odometer_end)
     setErrors((current) => ({
       ...current,
       odometer_start: undefined,
@@ -106,6 +104,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
       eventId: ctx.eventId,
       draft,
       allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
+      totalKm: ctx.totalKm,
     })
     setSavingDraft(false)
     if (!result.ok) {
@@ -134,6 +133,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
       eventId: ctx.eventId,
       draft,
       allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
+      totalKm: ctx.totalKm,
     })
     setCompleting(false)
     if (!result.ok) {
@@ -286,7 +286,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   value={draft.odometer_start}
                   error={errors.odometer_start}
                   onChange={(event) =>
-                    patchOdometer('odometer_start', digitsOnly(event.target.value))
+                    patchOdometerStart(digitsOnly(event.target.value))
                   }
                 />
                 <TextField
@@ -294,11 +294,10 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
                   required
                   numeric
                   inputMode="numeric"
+                  readOnly
                   value={draft.odometer_end}
                   error={errors.odometer_end}
-                  onChange={(event) =>
-                    patchOdometer('odometer_end', digitsOnly(event.target.value))
-                  }
+                  hint="מחושב לפי הקילומטרים שהזין האחמ״ש"
                 />
                 <TextField
                   label="נתיב נסיעה"
