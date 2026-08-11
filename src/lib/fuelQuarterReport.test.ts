@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildFuelQuarterRows, type FuelQuarterProfile, type SavedDistribution } from './fuelQuarterReport'
+import { buildFuelQuarterRows, type FuelQuarterProfile } from './fuelQuarterReport'
 
 const profiles: FuelQuarterProfile[] = [
   { id: 'a', full_name: 'אבי לוי', callsign: 'A1', active: true },
