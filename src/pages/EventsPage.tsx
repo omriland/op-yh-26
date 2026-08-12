@@ -4,7 +4,9 @@ import { useAuth } from '../lib/auth'
 import {
   fetchEvents,
   fetchMyEvents,
+  filterUnitEventsForList,
   ownParticipation,
+  searchUnitEventIds,
   type EventListItem,
 } from '../lib/events'
 import {
@@ -22,6 +24,7 @@ import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { FilterChips } from '../components/ui/FilterChips'
 import { EventCard } from '../components/events/EventCard'
 import { EventsTable } from '../components/events/EventsTable'
+import { useToast } from '../components/ui/Toast'
 
 type EventsPageProps = {
   scope: 'unit' | 'mine'
@@ -43,10 +46,12 @@ export function EventsPage({
 }: EventsPageProps) {
   const isDesktop = useIsDesktop()
   const { user, profile } = useAuth()
+  const { show } = useToast()
   const [events, setEvents] = useState<EventListItem[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [filter, setFilter] = useState<EventStatus | 'all'>('all')
   const [query, setQuery] = useState('')
+  const [searchIds, setSearchIds] = useState<ReadonlySet<string> | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -68,6 +73,39 @@ export function EventsPage({
     }
   }, [scope, user, reloadKey])
 
+  useEffect(() => {
+    if (scope !== 'unit') {
+      setSearchIds(null)
+      return
+    }
+
+    const trimmed = query.trim()
+    if (!trimmed) {
+      setSearchIds(null)
+      return
+    }
+
+    setSearchIds(new Set())
+
+    let cancelled = false
+    const handle = window.setTimeout(() => {
+      searchUnitEventIds(trimmed)
+        .then((ids) => {
+          if (!cancelled) setSearchIds(new Set(ids))
+        })
+        .catch(() => {
+          if (cancelled) return
+          setSearchIds(null)
+          show('חיפוש האירועים נכשל. נסו שוב.', 'alert')
+        })
+    }, 250)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(handle)
+    }
+  }, [query, scope, show])
+
   const stampFor = useMemo(
     () => (event: EventListItem) => {
       const mine = ownParticipation(event, user?.id)
@@ -79,8 +117,12 @@ export function EventsPage({
 
   const visible = useMemo(() => {
     if (!events) return []
-    const needle = query.trim().toLowerCase()
 
+    if (scope === 'unit') {
+      return filterUnitEventsForList(events, { status: filter, searchIds })
+    }
+
+    const needle = query.trim().toLowerCase()
     const filtered = events.filter((event) => {
       const matchesStatus = filter === 'all' || event.status === filter
       const haystack = [event.police_event_id, event.road?.name, event.location]
@@ -90,15 +132,13 @@ export function EventsPage({
       return matchesStatus && (!needle || haystack.includes(needle))
     })
 
-    if (scope !== 'mine') return filtered
-
     // Open assignments first — the responder's list is a to-do list.
     return [...filtered].sort((a, b) => {
       const aOpen = ownParticipation(a, user?.id) !== 'done' ? 0 : 1
       const bOpen = ownParticipation(b, user?.id) !== 'done' ? 0 : 1
       return aOpen - bOpen
     })
-  }, [events, filter, query, scope, user?.id])
+  }, [events, filter, query, scope, user?.id, searchIds])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
   const openMineCount = useMemo(() => {
@@ -149,7 +189,7 @@ export function EventsPage({
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="חיפוש לפי מספר אירוע, כביש או מיקום"
+                  placeholder="חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק"
                 />
                 <span className="field__affix" aria-hidden="true">
                   <Search size={20} strokeWidth={1.75} />

@@ -159,3 +159,28 @@ export function doneFraction(event: EventListItem): string {
   const done = event.responders.filter((row) => row.status === 'done').length
   return `${done}/${event.responders.length}`
 }
+
+/** Unit-list text search ids (shift_lead+). Empty trimmed needle → []. */
+export async function searchUnitEventIds(needle: string): Promise<string[]> {
+  const trimmed = needle.trim()
+  if (!trimmed) return []
+
+  const { data, error } = await supabase.rpc('search_unit_event_ids', {
+    p_needle: trimmed,
+  })
+
+  if (error) throw new Error(error.message)
+  return (data ?? []) as string[]
+}
+
+export function filterUnitEventsForList(
+  events: EventListItem[],
+  opts: { status: EventStatus | 'all'; searchIds: ReadonlySet<string> | null },
+): EventListItem[] {
+  return events.filter((event) => {
+    const matchesStatus = opts.status === 'all' || event.status === opts.status
+    if (!matchesStatus) return false
+    if (opts.searchIds === null) return true
+    return opts.searchIds.has(event.id)
+  })
+}

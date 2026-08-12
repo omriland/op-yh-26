@@ -73,6 +73,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Sticky form footers: upward `--shadow-scroll-cue` while scrollport overflows (`FormStickyFooter` on responder fill / event / shift). Spec: `docs/superpowers/specs/2026-08-11-sticky-footer-scroll-cue-design.md`
 - Mobile shell: viewport-locked flex (`height: 100dvh; overflow: hidden`); `.shell__main` scrolls; bottom tab bar **in-flow** (not `position: fixed`) to avoid iOS Safari mid-scroll drift. Sticky form footers use `inset-block-end: 0` against main.
 - Snyk security badge: English “Protected by Snyk” + logo in `AppShell` footer on non-immersive logged-in screens; links to snyk.io. Spec: `docs/superpowers/specs/2026-08-11-snyk-security-badge-design.md`
+- Unit events desktop search: RPC `search_unit_event_ids` — police id / road / location / shift-lead + responder name & או״ק. Spec: `docs/superpowers/specs/2026-08-12-yahpaz-events-search-by-responder-design.md`
 
 ## Email (Resend)
 
