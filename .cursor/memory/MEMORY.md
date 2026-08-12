@@ -82,6 +82,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Invite copy (approved 2026-08-10): subject `הזמנה למערכת אבן דרך - יחפ״צ`; brand **אבן דרך**; CTA `להשלמת הרישום`; sender display `אבן דרך - יחפ״צ`.
 - **Generic transactional mail (2026-08-12):** Edge Function `send-email` + `_shared/email.ts` shell; admin JWT or service-role; recipients = active `profiles` only (`user_id`). Spec: `2026-08-12-yahpaz-generic-email-and-fill-link-design.md`.
 - **Fill-ready auto email:** when lead `total_km` first set on a participation → `responder-fill` `notify_fill_ready` (idempotent via `fill_ready_emailed_at`). Scoped 7-day `fill_token` for fill without Auth session; expired → login + `yahpaz:post_login_fill` return. Env: `RESEND_API_KEY`, optional `EMAIL_FROM` (default `alerts@send.yahpz.com`), `INVITE_REDIRECT_TO` for link base.
+- **Deployed (2026-08-12):** migration `20260812160000_event_fill_token.sql` applied; Edge Functions `send-email` + `responder-fill` ACTIVE on project `rtvizpsfvtjowbimugns`. Secrets already present: `RESEND_API_KEY`, `INVITE_REDIRECT_TO`.
 
 ## Shifts (design approved 2026-08-10; UX revise same day)
 
