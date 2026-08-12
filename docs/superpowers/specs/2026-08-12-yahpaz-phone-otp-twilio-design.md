@@ -1,7 +1,7 @@
 # Phone OTP (Twilio Verify) — design
 
 Date: 2026-08-12  
-Status: approved for implementation
+Status: implemented (provider: Soprano SMS — same account as responders; not Twilio)
 
 ## Problem
 
@@ -12,9 +12,9 @@ Some users should prove possession of their Israeli mobile after password login 
 | Topic | Choice |
 |---|---|
 | Auth model | Password first; SMS OTP is **step-up 2FA**, not phone-only login |
-| Provider | **Twilio Verify** (SMS channel) |
+| Provider | **Soprano SMS** (same credentials/account as responders app) — codes generated in Edge + `otp_challenges` |
+| Why not Twilio Verify | Responders already uses Soprano; reuse avoids new vendor + IL SMS cost |
 | Why not Supabase Phone MFA | Advanced MFA Phone add-on ≈ **$75/mo**; still needs custom 48h device trust + users-page step-up |
-| Why not local IL gateways | Cheaper per SMS, but **no CLI/MCP** we can operate — rejected |
 | Phone numbers | Israeli only; stored as 10 local digits on `profiles.phone`; send as E.164 `+972…` |
 | Admin control | **Two separate per-user toggles** via משתמשים ⋮ menu |
 | Login device rule | When login OTP on: new browser **or** same browser after **>48h** → OTP |

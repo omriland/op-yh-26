@@ -133,22 +133,21 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Store: `events.location` + optional `location_place_id` / `location_lat` / `location_lng`
 - Env: `VITE_GOOGLE_MAPS_API_KEY` (Places API New; referrer-restricted). Ops setup in Google Cloud + Netlify.
 
-## Phone OTP (implemented 2026-08-12; Twilio secrets pending)
+## Phone OTP (live backend 2026-08-12; app PR pending merge)
 
-- Spec: `docs/superpowers/specs/2026-08-12-yahpaz-phone-otp-twilio-design.md`
-- Plan: `docs/superpowers/plans/2026-08-12-yahpaz-phone-otp-twilio.md`
-- Provider: **Twilio Verify** (SMS); Edge Function `phone-otp`
-- Migration: `20260812120000_phone_otp.sql` — **applied** on `rtvizpsfvtjowbimugns` (flags + `otp_device_trust` + `otp_step_up`)
-- Edge Function `phone-otp` — **deployed**
-- Client: login gate in `App.tsx`; משתמשים gate + ⋮ toggles in `AdminUsersPage`; device token `localStorage` `yahpaz:otp_device`
-- **Still needed:** Twilio Account SID + Auth Token → create Verify service `yahpaz-otp` → set Edge secrets `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`
+- Spec: `docs/superpowers/specs/2026-08-12-yahpaz-phone-otp-twilio-design.md` (provider later switched)
+- Provider: **Soprano SMS** (same account as responders / hebrew-card-manager) — not Twilio
+- Edge secrets set: `SOPRANO_USER`, `SOPRANO_PASSWORD`, `SOPRANO_SOURCE` (`Konenut TLV`)
+- Migrations applied: `20260812120000_phone_otp.sql`, `20260812121000_otp_challenges.sql`
+- Edge Function `phone-otp` **deployed** (codes hashed in `otp_challenges`; SMS via Soprano)
+- Client on branch `cursor/phone-otp-twilio-d592` (PR #5) — needs merge to `infra/bootstrap` for Netlify
 
 ## Open / next
 
 1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
 2. Later: add/verify `yahpz.com` on Resend when plan allows
 3. Set `VITE_GOOGLE_MAPS_API_KEY` in Netlify + `.env.local` for Places autocomplete
-4. Phone OTP: set Twilio Verify Edge secrets (migration + `phone-otp` deploy done)
+4. Merge phone OTP PR #5 so Netlify serves the client gates/toggles
 
 ## Netlify CD
 
