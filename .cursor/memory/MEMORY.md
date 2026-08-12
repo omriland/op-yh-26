@@ -133,21 +133,19 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Store: `events.location` + optional `location_place_id` / `location_lat` / `location_lng`
 - Env: `VITE_GOOGLE_MAPS_API_KEY` (Places API New; referrer-restricted). Ops setup in Google Cloud + Netlify.
 
-## Phone OTP (live backend 2026-08-12; app PR pending merge)
+## Phone OTP (production 2026-08-12)
 
 - Spec: `docs/superpowers/specs/2026-08-12-yahpaz-phone-otp-twilio-design.md` (provider later switched)
-- Provider: **Soprano SMS** (same account as responders / hebrew-card-manager) — not Twilio
-- Edge secrets set: `SOPRANO_USER`, `SOPRANO_PASSWORD`, `SOPRANO_SOURCE` (`Konenut TLV`)
-- Migrations applied: `20260812120000_phone_otp.sql`, `20260812121000_otp_challenges.sql`
-- Edge Function `phone-otp` **deployed** (codes hashed in `otp_challenges`; SMS via Soprano)
-- Client on branch `cursor/phone-otp-twilio-d592` (PR #5) — needs merge to `infra/bootstrap` for Netlify
+- Provider: **Soprano SMS** (same account as responders) — not Twilio
+- Edge secrets: `SOPRANO_USER`, `SOPRANO_PASSWORD`, `SOPRANO_SOURCE` (`Konenut TLV`)
+- Migrations applied; Edge `phone-otp` deployed; PR #5 merged to `infra/bootstrap` → live on yahpz.com
 
 ## Open / next
 
 1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
 2. Later: add/verify `yahpz.com` on Resend when plan allows
 3. Set `VITE_GOOGLE_MAPS_API_KEY` in Netlify + `.env.local` for Places autocomplete
-4. Merge phone OTP PR #5 so Netlify serves the client gates/toggles
+4. Smoke phone OTP on production (enable per user → SMS → login / משתמשים gates)
 
 ## Netlify CD
 
