@@ -270,6 +270,16 @@ async function handleOtpStatus(
   return json(200, { loginRequired, usersPageRequired, maskedPhone });
 }
 
+function shouldReuseOtpChallenge(
+  createdAtIso: string,
+  nowMs: number,
+  cooldownMs: number,
+): boolean {
+  const createdMs = Date.parse(createdAtIso);
+  if (!Number.isFinite(createdMs)) return false;
+  return nowMs - createdMs < cooldownMs;
+}
+
 async function handleOtpStart(
   adminClient: SupabaseClient,
   userId: string,
@@ -286,10 +296,15 @@ async function handleOtpStart(
   }
 
   const cooldownKey = `${userId}:${purpose}`;
+  const nowMs = Date.now();
   const last = startCooldown.get(cooldownKey) ?? 0;
-  if (Date.now() - last < START_COOLDOWN_MS) {
-    return json(429, { error: "יש להמתין לפני שליחה חוזרת." });
+  if (nowMs - last < START_COOLDOWN_MS) {
+    // Duplicate start (Strict Mode / race): succeed without rotating the code or SMS.
+    const profile = await loadProfile(adminClient, userId);
+    return json(200, { ok: true, maskedPhone: maskIlMobile(profile?.phone), reused: true });
   }
+  // Claim cooldown immediately so concurrent starts cannot both send SMS.
+  startCooldown.set(cooldownKey, nowMs);
 
   const profile = await loadProfile(adminClient, userId);
   if (!profile) return json(404, { error: "הפרופיל לא נמצא." });
@@ -305,33 +320,57 @@ async function handleOtpStart(
     return json(400, { error: "מספר הטלפון אינו תקין לשליחת SMS." });
   }
 
+  // DB-backed reuse: survives multi-isolate cold starts where the in-memory map is empty.
+  const { data: recent } = await adminClient
+    .from("otp_challenges")
+    .select("id, created_at, expires_at, code_hash")
+    .eq("user_id", userId)
+    .eq("purpose", purpose)
+    .gt("expires_at", new Date(nowMs).toISOString())
+    .maybeSingle();
+
+  if (
+    recent &&
+    shouldReuseOtpChallenge(recent.created_at as string, nowMs, START_COOLDOWN_MS)
+  ) {
+    return json(200, { ok: true, maskedPhone: maskIlMobile(profile.phone), reused: true });
+  }
+
   const code = randomOtpCode();
   const codeHash = await sha256Hex(code);
-  const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
+  const expiresAt = new Date(nowMs + CODE_TTL_MS).toISOString();
 
-  // Invalidate prior open challenges for this purpose.
-  await adminClient
-    .from("otp_challenges")
-    .delete()
-    .eq("user_id", userId)
-    .eq("purpose", purpose);
-
-  const { error: insertError } = await adminClient.from("otp_challenges").insert({
-    user_id: userId,
-    purpose,
-    code_hash: codeHash,
-    expires_at: expiresAt,
-  });
-  if (insertError) {
-    console.error("phone-otp: challenge insert failed", insertError);
+  const { error: upsertError } = await adminClient.from("otp_challenges").upsert(
+    {
+      user_id: userId,
+      purpose,
+      code_hash: codeHash,
+      expires_at: expiresAt,
+      attempts: 0,
+      created_at: new Date(nowMs).toISOString(),
+    },
+    { onConflict: "user_id,purpose" },
+  );
+  if (upsertError) {
+    console.error("phone-otp: challenge upsert failed", upsertError);
     return json(500, { error: "יצירת קוד האימות נכשלה." });
+  }
+
+  // Compare-and-swap: if another isolate won the upsert race, do not SMS a stale code.
+  const { data: winner } = await adminClient
+    .from("otp_challenges")
+    .select("code_hash")
+    .eq("user_id", userId)
+    .eq("purpose", purpose)
+    .maybeSingle();
+  if (!winner || winner.code_hash !== codeHash) {
+    return json(200, { ok: true, maskedPhone: maskIlMobile(profile.phone), reused: true });
   }
 
   const message = `קוד האימות באבן דרך: ${code}`;
   const sent = await sendSopranoSms(destination, message);
   if (!sent.ok) return json(502, { error: sent.error });
 
-  startCooldown.set(cooldownKey, Date.now());
   return json(200, { ok: true, maskedPhone: maskIlMobile(profile.phone) });
 }
 

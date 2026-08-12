@@ -20,6 +20,7 @@ import { canImpersonateTarget } from '../lib/impersonationEligibility'
 import { isImpersonating } from '../lib/impersonationStash'
 import { isValidIlMobile } from '../lib/phoneE164'
 import { fetchOtpStatus, setOtpFlags } from '../lib/phoneOtp'
+import { otpUserLabel } from '../lib/otpUserTags'
 import { passwordStrengthError } from '../lib/passwordRules'
 import { ImpersonationPickerDialog } from '../components/shell/ImpersonationPickerDialog'
 import { OtpGate } from '../components/otp/OtpGate'
@@ -796,6 +797,7 @@ export function AdminUsersPage() {
                 <th>דוא״ל</th>
                 <th>טלפון</th>
                 <th>תפקידים</th>
+                <th className="table-col--otp">OTP</th>
                 <th>רכבים</th>
                 <th>כניסה אחרונה</th>
                 <th>
@@ -804,7 +806,9 @@ export function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((user) => (
+              {filtered.map((user) => {
+                const otpLabel = otpUserLabel(user)
+                return (
                 <tr
                   key={user.id}
                   className={!user.active ? 'is-muted' : ''}
@@ -818,7 +822,7 @@ export function AdminUsersPage() {
                   <td>
                     <span className="ltr">{user.email}</span>
                   </td>
-                  <td className="num">
+                  <td className="num table-cell--nowrap">
                     {user.phone ? (
                       <span className={`ltr ${monoClass(user.phone)}`}>
                         {formatPhone(user.phone)}
@@ -836,6 +840,15 @@ export function AdminUsersPage() {
                       ))}
                       {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
                     </div>
+                  </td>
+                  <td className="table-col--otp table-cell--nowrap">
+                    {otpLabel ? (
+                      <span className="t-caption text-secondary" title={otpLabel === 'שניהם' ? 'OTP כניסה ו-OTP משתמשים' : undefined}>
+                        {otpLabel}
+                      </span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
                   <td className="num mono">
                     {user.vehicles.filter((vehicle) => !vehicle.archived).length}
@@ -857,7 +870,8 @@ export function AdminUsersPage() {
                     />
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -870,6 +884,7 @@ export function AdminUsersPage() {
               setFormError(null)
               setDraft(draftFromUser(user))
             }
+            const otpLabel = otpUserLabel(user)
             return (
               <div
                 key={user.id}
@@ -901,6 +916,7 @@ export function AdminUsersPage() {
                         {ROLE_LABEL[role]}
                       </span>
                     ))}
+                    {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
                     {isInvitePending(user) ? (
                       <span className="tag tag--pending">ממתין להרשמה</span>
                     ) : null}

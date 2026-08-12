@@ -1,9 +1,14 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '../ui/Button'
 import { TextField } from '../ui/TextField'
+import { otpGateLede } from '../../lib/otpGateCopy'
 import { startOtp, verifyOtp, type OtpPurpose } from '../../lib/phoneOtp'
 
 const RESEND_COOLDOWN_SEC = 60
+
+/** Survives React Strict Mode remount so we do not fire two auto-starts. */
+const autoStartAt = new Map<string, number>()
+const AUTO_START_DEDUP_MS = 8_000
 
 type OtpGateProps = {
   purpose: OtpPurpose
@@ -27,6 +32,7 @@ export function OtpGate({
   const [verifying, setVerifying] = useState(false)
   const [cooldown, setCooldown] = useState(0)
   const [sentOnce, setSentOnce] = useState(false)
+  const sendingRef = useRef(false)
 
   useEffect(() => {
     if (cooldown <= 0) return
@@ -35,18 +41,28 @@ export function OtpGate({
   }, [cooldown])
 
   useEffect(() => {
+    const prev = autoStartAt.get(purpose) ?? 0
+    if (Date.now() - prev < AUTO_START_DEDUP_MS) {
+      setSentOnce(true)
+      setCooldown(RESEND_COOLDOWN_SEC)
+      return
+    }
+    autoStartAt.set(purpose, Date.now())
     void sendCode()
     // Auto-send once on mount for this purpose/phone.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount send
   }, [])
 
   async function sendCode() {
-    if (sending || cooldown > 0) return
+    if (sendingRef.current || cooldown > 0) return
+    sendingRef.current = true
     setSending(true)
     setError(null)
     const result = await startOtp(purpose)
+    sendingRef.current = false
     setSending(false)
     if (!result.ok) {
+      autoStartAt.delete(purpose)
       setError(result.error)
       return
     }
@@ -69,8 +85,11 @@ export function OtpGate({
       setError(result.error)
       return
     }
+    autoStartAt.delete(purpose)
     onVerified()
   }
+
+  const lede = otpGateLede({ purpose, maskedPhone, sentOnce })
 
   return (
     <div className="login login--setup" data-theme="command">
@@ -79,13 +98,20 @@ export function OtpGate({
           <form className="login__form" onSubmit={(e) => void onSubmit(e)} noValidate>
             <header className="login__form-head">
               <h2 className="login__heading">אימות ב-SMS</h2>
+              {lede.securityNote ? (
+                <p className="login__lede t-body text-secondary">{lede.securityNote}</p>
+              ) : null}
               <p className="login__lede t-body text-secondary">
-                {maskedPhone
-                  ? `נשלח קוד ל־${maskedPhone}`
-                  : sentOnce
-                    ? 'נשלח קוד לנייד שלכם'
-                    : 'שולחים קוד לנייד שלכם…'}
+                {lede.maskedPhone && lede.phonePrefix ? (
+                  <>
+                    {lede.phonePrefix}
+                    <bdi dir="ltr">{lede.maskedPhone}</bdi>
+                  </>
+                ) : (
+                  lede.fallbackLine
+                )}
               </p>
+              <p className="login__lede t-body text-secondary">{lede.deliveryNote}</p>
             </header>
 
             <div className="login__fields">

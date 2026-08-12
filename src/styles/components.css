@@ -636,6 +636,7 @@ textarea.field__input {
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font: 400 12px/16px var(--font-ui);
+  white-space: nowrap;
 }
 
 .tags {
@@ -995,6 +996,11 @@ textarea.field__input {
   margin-inline: auto;
 }
 
+/* Wide registry tables (users) — ~20% past the default content max. */
+.shell__main > .page--wide {
+  max-width: calc(var(--content-max) * 1.2);
+}
+
 .shell__main--narrow > * {
   max-width: var(--form-max);
 }
@@ -1278,6 +1284,16 @@ textarea.field__input {
 /* Keep registry mono face; align with header (RTL start = visual right). */
 .table .num {
   text-align: start;
+}
+
+.table .table-cell--nowrap {
+  white-space: nowrap;
+}
+
+/* Users table OTP column — fixed footprint so "both" never shoves neighbors. */
+.table .table-col--otp {
+  width: 6.5rem;
+  max-width: 6.5rem;
 }
 
 .table .truncate {

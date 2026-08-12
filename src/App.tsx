@@ -422,7 +422,11 @@ function Gate() {
         <ProfilePage />
       ) : isAdminView ? (
         isAdmin ? (
-          <div className="stack-4">
+          <div
+            className={['stack-4', activeView === 'users' ? 'page--wide' : '']
+              .filter(Boolean)
+              .join(' ')}
+          >
             {!isDesktop ? (
               <AdminSegmentBar
                 view={
