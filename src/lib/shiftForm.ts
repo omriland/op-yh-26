@@ -99,6 +99,12 @@ function isShiftEventConflict(error: { code?: string }): boolean {
   return error.code === '23505'
 }
 
+export function shiftEventAlreadyLinkedMessage(policeEventId: string | null | undefined): string {
+  const number = policeEventId?.trim()
+  if (number) return `אירוע ${number} כבר מקושר למשמרת אחרת`
+  return 'האירוע כבר מקושר למשמרת אחרת'
+}
+
 async function verifyPersonalVehicle(draft: ShiftFormDraft): Promise<string | null> {
   if (draft.vehicle_type !== 'personal' || !draft.personal_vehicle_id) return null
 
@@ -208,7 +214,17 @@ async function syncShiftEvents(
     })
     if (error) {
       if (isShiftEventConflict(error)) {
-        return { ok: false, error: 'האירוע כבר מקושר למשמרת אחרת' }
+        const { data: conflicted } = await supabase
+          .from('events')
+          .select('police_event_id')
+          .eq('id', eventId)
+          .maybeSingle()
+        return {
+          ok: false,
+          error: shiftEventAlreadyLinkedMessage(
+            (conflicted?.police_event_id as string | null | undefined) ?? null,
+          ),
+        }
       }
       return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
     }

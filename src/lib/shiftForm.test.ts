@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildShiftUpdatePayload, type ShiftFormDraft } from './shiftForm'
+import {
+  buildShiftUpdatePayload,
+  shiftEventAlreadyLinkedMessage,
+  type ShiftFormDraft,
+} from './shiftForm'
 
 const baseDraft: ShiftFormDraft = {
   id: 's1',
@@ -17,6 +21,23 @@ const baseDraft: ShiftFormDraft = {
   treated_vehicle_counts: [],
   cancelled_count: 0,
 }
+
+describe('shiftEventAlreadyLinkedMessage', () => {
+  it('includes the police event number when present', () => {
+    expect(shiftEventAlreadyLinkedMessage('12345')).toBe(
+      'אירוע 12345 כבר מקושר למשמרת אחרת',
+    )
+  })
+
+  it('falls back when the event number is missing', () => {
+    expect(shiftEventAlreadyLinkedMessage(null)).toBe(
+      'האירוע כבר מקושר למשמרת אחרת',
+    )
+    expect(shiftEventAlreadyLinkedMessage('   ')).toBe(
+      'האירוע כבר מקושר למשמרת אחרת',
+    )
+  })
+})
 
 describe('buildShiftUpdatePayload', () => {
   it('includes identity fields when canEditIdentity', () => {
