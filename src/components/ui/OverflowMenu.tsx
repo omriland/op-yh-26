@@ -6,6 +6,7 @@ export type OverflowMenuItem = {
   label: string
   onSelect: () => void
   danger?: boolean
+  disabled?: boolean
 }
 
 type OverflowMenuProps = {
@@ -118,8 +119,10 @@ export function OverflowMenu({
                   type="button"
                   role="menuitem"
                   className={item.danger ? 'is-danger' : undefined}
+                  disabled={item.disabled}
                   onClick={(event) => {
                     event.stopPropagation()
+                    if (item.disabled) return
                     onOpenChange(false)
                     item.onSelect()
                   }}

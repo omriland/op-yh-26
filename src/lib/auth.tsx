@@ -30,6 +30,8 @@ export type Profile = {
   phone: string | null
   active: boolean
   must_change_password: boolean
+  otp_login_enabled: boolean
+  otp_users_page_enabled: boolean
 }
 
 type AuthState = {
@@ -58,14 +60,23 @@ async function loadProfileAndRoles(userId: string) {
   const [{ data: profile }, { data: roleRows }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email, callsign, phone, active, must_change_password')
+      .select(
+        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled',
+      )
       .eq('id', userId)
       .maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', userId),
   ])
 
+  const row = profile as (Profile & Record<string, unknown>) | null
   return {
-    profile: (profile as Profile | null) ?? null,
+    profile: row
+      ? {
+          ...row,
+          otp_login_enabled: Boolean(row.otp_login_enabled),
+          otp_users_page_enabled: Boolean(row.otp_users_page_enabled),
+        }
+      : null,
     roles: (roleRows ?? []).map((r) => r.role as AppRole),
   }
 }

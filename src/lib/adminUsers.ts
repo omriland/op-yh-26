@@ -21,6 +21,8 @@ export type AdminUserRow = {
   last_sign_in_at: string | null
   /** True until the invitee sets a password in the app. */
   invite_pending: boolean
+  otp_login_enabled: boolean
+  otp_users_page_enabled: boolean
   roles: AppRole[]
   vehicles: AdminVehicle[]
 }
@@ -88,7 +90,9 @@ async function callAdminUsers(
 export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   const { data: profiles, error } = await supabase
     .from('profiles')
-    .select('id, full_name, email, callsign, phone, active, invite_pending')
+    .select(
+      'id, full_name, email, callsign, phone, active, invite_pending, otp_login_enabled, otp_users_page_enabled',
+    )
     .order('full_name')
 
   if (error) throw error
@@ -121,6 +125,8 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     active: profile.active !== false,
     last_sign_in_at: lastSignInByUser.get(profile.id) ?? null,
     invite_pending: Boolean(profile.invite_pending),
+    otp_login_enabled: Boolean(profile.otp_login_enabled),
+    otp_users_page_enabled: Boolean(profile.otp_users_page_enabled),
     roles: (roleRows ?? [])
       .filter((row) => row.user_id === profile.id)
       .map((row) => row.role as AppRole),
