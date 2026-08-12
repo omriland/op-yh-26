@@ -30,6 +30,9 @@ const IMPERSONATING_HEADER = "x-yahpaz-impersonating";
 const LOGIN_TRUST_MS = 48 * 60 * 60 * 1000;
 const STEP_UP_MS = 20 * 60 * 1000;
 const START_COOLDOWN_MS = 60 * 1000;
+const CODE_TTL_MS = 10 * 60 * 1000;
+const MAX_ATTEMPTS = 5;
+const SOPRANO_API_URL = "https://sec.soprano.co.il/";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -61,6 +64,12 @@ function toE164IlMobile(raw: string | null | undefined): string | null {
   return `+972${phoneDigits(raw!).slice(1)}`;
 }
 
+/** Soprano wants 9725… without +. */
+function toSopranoDestination(raw: string | null | undefined): string | null {
+  const e164 = toE164IlMobile(raw);
+  return e164 ? e164.replace(/^\+/, "") : null;
+}
+
 function maskIlMobile(raw: string | null | undefined): string | null {
   if (!isValidIlMobile(raw)) return null;
   const digits = phoneDigits(raw!);
@@ -86,70 +95,50 @@ function randomDeviceToken(): string {
     .replace(/=+$/, "");
 }
 
-function twilioAuthHeader(accountSid: string, authToken: string): string {
-  return `Basic ${btoa(`${accountSid}:${authToken}`)}`;
+function randomOtpCode(): string {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0]! % 1_000_000;
+  return String(n).padStart(6, "0");
 }
 
-async function twilioStartVerification(to: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-  const serviceSid = Deno.env.get("TWILIO_VERIFY_SERVICE_SID");
-  if (!accountSid || !authToken || !serviceSid) {
-    console.error("phone-otp: missing Twilio env");
+async function sendSopranoSms(
+  destination972: string,
+  message: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const user = Deno.env.get("SOPRANO_USER");
+  const password = Deno.env.get("SOPRANO_PASSWORD");
+  const source = Deno.env.get("SOPRANO_SOURCE") || "EvenDerech";
+  if (!user || !password) {
+    console.error("phone-otp: missing Soprano env");
     return { ok: false, error: "שירות ה-SMS אינו מוגדר. פנו למנהל המערכת." };
   }
 
-  const body = new URLSearchParams({ To: to, Channel: "sms" });
-  const res = await fetch(
-    `https://verify.twilio.com/v2/Services/${serviceSid}/Verifications`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: twilioAuthHeader(accountSid, authToken),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body,
-    },
-  );
+  const formData = new URLSearchParams({
+    version: "1.0",
+    operation: "mt",
+    message,
+    user,
+    password,
+    destination: destination972,
+    source,
+  });
 
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error("phone-otp: Twilio verification start failed", res.status, detail);
+  try {
+    const res = await fetch(SOPRANO_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString(),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error("phone-otp: Soprano error", res.status, text);
+      return { ok: false, error: "שליחת הקוד נכשלה. נסו שוב בעוד רגע." };
+    }
+    console.log("phone-otp: Soprano ok", text.slice(0, 120));
+    return { ok: true };
+  } catch (err) {
+    console.error("phone-otp: Soprano exception", err);
     return { ok: false, error: "שליחת הקוד נכשלה. נסו שוב בעוד רגע." };
   }
-  return { ok: true };
-}
-
-async function twilioCheckVerification(
-  to: string,
-  code: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-  const serviceSid = Deno.env.get("TWILIO_VERIFY_SERVICE_SID");
-  if (!accountSid || !authToken || !serviceSid) {
-    console.error("phone-otp: missing Twilio env");
-    return { ok: false, error: "שירות ה-SMS אינו מוגדר. פנו למנהל המערכת." };
-  }
-
-  const body = new URLSearchParams({ To: to, Code: code });
-  const res = await fetch(
-    `https://verify.twilio.com/v2/Services/${serviceSid}/VerificationCheck`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: twilioAuthHeader(accountSid, authToken),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body,
-    },
-  );
-
-  const payload = (await res.json().catch(() => ({}))) as { status?: string; message?: string };
-  if (!res.ok || payload.status !== "approved") {
-    return { ok: false, error: "הקוד שגוי או שפג תוקפו." };
-  }
-  return { ok: true };
 }
 
 type ProfileOtpRow = {
@@ -269,21 +258,13 @@ async function handleOtpStatus(
   const deviceToken = req.headers.get(DEVICE_HEADER)?.trim() || null;
 
   let loginRequired = false;
-  if (profile.otp_login_enabled) {
-    if (!isValidIlMobile(profile.phone)) {
-      loginRequired = false;
-    } else {
-      loginRequired = !(await hasValidDeviceTrust(adminClient, userId, deviceToken));
-    }
+  if (profile.otp_login_enabled && isValidIlMobile(profile.phone)) {
+    loginRequired = !(await hasValidDeviceTrust(adminClient, userId, deviceToken));
   }
 
   let usersPageRequired = false;
-  if (profile.otp_users_page_enabled) {
-    if (!isValidIlMobile(profile.phone)) {
-      usersPageRequired = false;
-    } else {
-      usersPageRequired = !(await hasValidStepUp(adminClient, userId, "users_page"));
-    }
+  if (profile.otp_users_page_enabled && isValidIlMobile(profile.phone)) {
+    usersPageRequired = !(await hasValidStepUp(adminClient, userId, "users_page"));
   }
 
   return json(200, { loginRequired, usersPageRequired, maskedPhone });
@@ -319,13 +300,36 @@ async function handleOtpStart(
     return json(400, { error: "אימות SMS אינו פעיל עבור פעולה זו." });
   }
 
-  const e164 = toE164IlMobile(profile.phone);
-  if (!e164) {
+  const destination = toSopranoDestination(profile.phone);
+  if (!destination) {
     return json(400, { error: "מספר הטלפון אינו תקין לשליחת SMS." });
   }
 
-  const started = await twilioStartVerification(e164);
-  if (!started.ok) return json(502, { error: started.error });
+  const code = randomOtpCode();
+  const codeHash = await sha256Hex(code);
+  const expiresAt = new Date(Date.now() + CODE_TTL_MS).toISOString();
+
+  // Invalidate prior open challenges for this purpose.
+  await adminClient
+    .from("otp_challenges")
+    .delete()
+    .eq("user_id", userId)
+    .eq("purpose", purpose);
+
+  const { error: insertError } = await adminClient.from("otp_challenges").insert({
+    user_id: userId,
+    purpose,
+    code_hash: codeHash,
+    expires_at: expiresAt,
+  });
+  if (insertError) {
+    console.error("phone-otp: challenge insert failed", insertError);
+    return json(500, { error: "יצירת קוד האימות נכשלה." });
+  }
+
+  const message = `קוד האימות באבן דרך: ${code}`;
+  const sent = await sendSopranoSms(destination, message);
+  if (!sent.ok) return json(502, { error: sent.error });
 
   startCooldown.set(cooldownKey, Date.now());
   return json(200, { ok: true, maskedPhone: maskIlMobile(profile.phone) });
@@ -360,13 +364,35 @@ async function handleOtpVerify(
     return json(400, { error: "אימות SMS אינו פעיל עבור פעולה זו." });
   }
 
-  const e164 = toE164IlMobile(profile.phone);
-  if (!e164) {
-    return json(400, { error: "מספר הטלפון אינו תקין לשליחת SMS." });
+  const { data: challenge, error: fetchError } = await adminClient
+    .from("otp_challenges")
+    .select("id, code_hash, attempts, expires_at")
+    .eq("user_id", userId)
+    .eq("purpose", purpose)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError || !challenge) {
+    return json(400, { error: "הקוד שגוי או שפג תוקפו." });
   }
 
-  const checked = await twilioCheckVerification(e164, code);
-  if (!checked.ok) return json(400, { error: checked.error });
+  if ((challenge.attempts as number) >= MAX_ATTEMPTS) {
+    return json(400, { error: "יותר מדי ניסיונות. בקשו קוד חדש." });
+  }
+
+  await adminClient
+    .from("otp_challenges")
+    .update({ attempts: (challenge.attempts as number) + 1 })
+    .eq("id", challenge.id);
+
+  const codeHash = await sha256Hex(code);
+  if (codeHash !== challenge.code_hash) {
+    return json(400, { error: "הקוד שגוי או שפג תוקפו." });
+  }
+
+  await adminClient.from("otp_challenges").delete().eq("user_id", userId).eq("purpose", purpose);
 
   if (purpose === "login_device") {
     const deviceToken = randomDeviceToken();
