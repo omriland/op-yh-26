@@ -18,8 +18,11 @@ import { isInvitePending } from '../lib/adminUserStatus'
 import { useAuth, type AppRole } from '../lib/auth'
 import { canImpersonateTarget } from '../lib/impersonationEligibility'
 import { isImpersonating } from '../lib/impersonationStash'
+import { isValidIlMobile } from '../lib/phoneE164'
+import { fetchOtpStatus, setOtpFlags } from '../lib/phoneOtp'
 import { passwordStrengthError } from '../lib/passwordRules'
 import { ImpersonationPickerDialog } from '../components/shell/ImpersonationPickerDialog'
+import { OtpGate } from '../components/otp/OtpGate'
 import {
   findDuplicatePlate,
   formatLastLogin,
@@ -117,6 +120,8 @@ function buildUserMenuItems(
     onEdit: () => void
     onSetPassword?: () => void
     onImpersonate?: () => void
+    onToggleOtpLogin: () => void
+    onToggleOtpUsersPage: () => void
     onResendInvite: () => void
     onCopyInviteLink: () => void
     onDeactivate: () => void
@@ -124,6 +129,7 @@ function buildUserMenuItems(
     onDelete: () => void
   },
 ): OverflowMenuItem[] {
+  const phoneOk = isValidIlMobile(user.phone)
   return [
     { label: 'עריכה', onSelect: actions.onEdit },
     ...(actions.onSetPassword
@@ -132,6 +138,18 @@ function buildUserMenuItems(
     ...(actions.onImpersonate
       ? [{ label: 'צפייה כמשתמש זה', onSelect: actions.onImpersonate }]
       : []),
+    {
+      label: user.otp_login_enabled ? 'כבה OTP בכניסה' : 'הפעל OTP בכניסה',
+      onSelect: actions.onToggleOtpLogin,
+      disabled: !user.otp_login_enabled && !phoneOk,
+    },
+    {
+      label: user.otp_users_page_enabled
+        ? 'כבה OTP לניהול משתמשים'
+        : 'הפעל OTP לניהול משתמשים',
+      onSelect: actions.onToggleOtpUsersPage,
+      disabled: !user.otp_users_page_enabled && !phoneOk,
+    },
     ...(isInvitePending(user)
       ? [
           { label: 'שליחת הזמנה מחדש', onSelect: actions.onResendInvite },
@@ -158,7 +176,7 @@ function buildUserMenuItems(
 
 export function AdminUsersPage() {
   const isDesktop = useIsDesktop()
-  const { user: authUser, roles } = useAuth()
+  const { user: authUser, roles, profile: authProfile } = useAuth()
   const isSuperAdmin = roles.includes('super_admin')
   const viewingAsOther = isImpersonating()
   const { show } = useToast()
@@ -172,6 +190,14 @@ export function AdminUsersPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState<AdminUserRow | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<AdminUserRow | null>(null)
+  const [confirmOtpEnable, setConfirmOtpEnable] = useState<
+    null | { user: AdminUserRow; kind: 'login' | 'users_page' }
+  >(null)
+  const [usersPageOtp, setUsersPageOtp] = useState<
+    | { state: 'checking' }
+    | { state: 'required'; maskedPhone: string | null }
+    | { state: 'ok' }
+  >({ state: 'checking' })
   const [passwordTarget, setPasswordTarget] = useState<AdminUserRow | null>(null)
   const [passwordValue, setPasswordValue] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
@@ -201,6 +227,34 @@ export function AdminUsersPage() {
     enabled: passwordTarget !== null && !passwordSaving,
     rootRef: passwordRootRef,
   })
+
+  useEffect(() => {
+    if (viewingAsOther || !authProfile?.otp_users_page_enabled) {
+      setUsersPageOtp({ state: 'ok' })
+      return
+    }
+    let active = true
+    setUsersPageOtp({ state: 'checking' })
+    fetchOtpStatus()
+      .then((status) => {
+        if (!active) return
+        if ('error' in status) {
+          setUsersPageOtp({ state: 'required', maskedPhone: null })
+          return
+        }
+        if (status.usersPageRequired) {
+          setUsersPageOtp({ state: 'required', maskedPhone: status.maskedPhone })
+        } else {
+          setUsersPageOtp({ state: 'ok' })
+        }
+      })
+      .catch(() => {
+        if (active) setUsersPageOtp({ state: 'required', maskedPhone: null })
+      })
+    return () => {
+      active = false
+    }
+  }, [viewingAsOther, reloadKey, authProfile?.otp_users_page_enabled])
 
   useEffect(() => {
     let active = true
@@ -327,6 +381,93 @@ export function AdminUsersPage() {
     }
     show(result.message ?? 'המשתמש הושבת', 'done')
     setReloadKey((value) => value + 1)
+  }
+
+  function requestToggleOtpLogin(user: AdminUserRow) {
+    setMenuUserId(null)
+    if (user.otp_login_enabled) {
+      void applyOtpFlag(user, 'login', false)
+      return
+    }
+    if (!isValidIlMobile(user.phone)) {
+      show('יש להזין מספר נייד ישראלי תקין לפני הפעלת OTP.', 'alert')
+      return
+    }
+    setConfirmOtpEnable({ user, kind: 'login' })
+  }
+
+  function requestToggleOtpUsersPage(user: AdminUserRow) {
+    setMenuUserId(null)
+    if (user.otp_users_page_enabled) {
+      void applyOtpFlag(user, 'users_page', false)
+      return
+    }
+    if (!isValidIlMobile(user.phone)) {
+      show('יש להזין מספר נייד ישראלי תקין לפני הפעלת OTP.', 'alert')
+      return
+    }
+    setConfirmOtpEnable({ user, kind: 'users_page' })
+  }
+
+  async function applyOtpFlag(
+    user: AdminUserRow,
+    kind: 'login' | 'users_page',
+    enabled: boolean,
+  ) {
+    setSaving(true)
+    const result = await setOtpFlags(
+      kind === 'login'
+        ? { userId: user.id, otpLoginEnabled: enabled }
+        : { userId: user.id, otpUsersPageEnabled: enabled },
+    )
+    setSaving(false)
+    setConfirmOtpEnable(null)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    show(
+      enabled
+        ? kind === 'login'
+          ? 'OTP בכניסה הופעל'
+          : 'OTP לניהול משתמשים הופעל'
+        : kind === 'login'
+          ? 'OTP בכניסה כובה'
+          : 'OTP לניהול משתמשים כובה',
+      'done',
+    )
+    if (user.id === authUser?.id && kind === 'users_page') {
+      if (enabled) {
+        setUsersPageOtp({ state: 'required', maskedPhone: null })
+      } else {
+        setUsersPageOtp({ state: 'ok' })
+      }
+    }
+    setReloadKey((value) => value + 1)
+  }
+
+  function menuActionsFor(user: AdminUserRow) {
+    return {
+      onEdit: () => {
+        setFormError(null)
+        setDraft(draftFromUser(user))
+      },
+      onSetPassword: isSuperAdmin ? () => openSetPassword(user) : undefined,
+      onImpersonate:
+        isSuperAdmin && !viewingAsOther && canImpersonateTarget(authUser?.id, user)
+          ? () => {
+              setMenuUserId(null)
+              setImpersonateTargetId(user.id)
+            }
+          : undefined,
+      onToggleOtpLogin: () => requestToggleOtpLogin(user),
+      onToggleOtpUsersPage: () => requestToggleOtpUsersPage(user),
+      onResendInvite: () => void resendInvite(user),
+      onCopyInviteLink: () => void copyInviteLink(user),
+      onDeactivate: () => setConfirmDeactivate(user),
+      onReactivate: () => void reactivateUser(user),
+      onDelete: () => setConfirmDelete(user),
+    }
   }
 
   async function reactivateUser(user: AdminUserRow) {
@@ -541,6 +682,27 @@ export function AdminUsersPage() {
     }
   }
 
+  if (usersPageOtp.state === 'checking') {
+    return (
+      <div>
+        <h1 className="t-title" style={{ marginBlockEnd: 'var(--space-6)' }}>
+          משתמשים
+        </h1>
+        <EventListSkeleton count={3} />
+      </div>
+    )
+  }
+
+  if (usersPageOtp.state === 'required') {
+    return (
+      <OtpGate
+        purpose="users_page"
+        maskedPhone={usersPageOtp.maskedPhone}
+        onVerified={() => setUsersPageOtp({ state: 'ok' })}
+      />
+    )
+  }
+
   return (
     <div>
       <div className="row-between" style={{ marginBlockEnd: 'var(--space-6)' }}>
@@ -691,29 +853,7 @@ export function AdminUsersPage() {
                     <OverflowMenu
                       open={menuUserId === user.id}
                       onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
-                      items={buildUserMenuItems(user, {
-                        onEdit: () => {
-                          setFormError(null)
-                          setDraft(draftFromUser(user))
-                        },
-                        onSetPassword: isSuperAdmin
-                          ? () => openSetPassword(user)
-                          : undefined,
-                        onImpersonate:
-                          isSuperAdmin &&
-                          !viewingAsOther &&
-                          canImpersonateTarget(authUser?.id, user)
-                            ? () => {
-                                setMenuUserId(null)
-                                setImpersonateTargetId(user.id)
-                              }
-                            : undefined,
-                        onResendInvite: () => void resendInvite(user),
-                        onCopyInviteLink: () => void copyInviteLink(user),
-                        onDeactivate: () => setConfirmDeactivate(user),
-                        onReactivate: () => void reactivateUser(user),
-                        onDelete: () => setConfirmDelete(user),
-                      })}
+                      items={buildUserMenuItems(user, menuActionsFor(user))}
                     />
                   </td>
                 </tr>
@@ -749,24 +889,8 @@ export function AdminUsersPage() {
                     open={menuUserId === user.id}
                     onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
                     items={buildUserMenuItems(user, {
+                      ...menuActionsFor(user),
                       onEdit: openEdit,
-                      onSetPassword: isSuperAdmin
-                        ? () => openSetPassword(user)
-                        : undefined,
-                      onImpersonate:
-                        isSuperAdmin &&
-                        !viewingAsOther &&
-                        canImpersonateTarget(authUser?.id, user)
-                          ? () => {
-                              setMenuUserId(null)
-                              setImpersonateTargetId(user.id)
-                            }
-                          : undefined,
-                      onResendInvite: () => void resendInvite(user),
-                      onCopyInviteLink: () => void copyInviteLink(user),
-                      onDeactivate: () => setConfirmDeactivate(user),
-                      onReactivate: () => void reactivateUser(user),
-                      onDelete: () => setConfirmDelete(user),
                     })}
                   />
                 </div>
@@ -1064,6 +1188,44 @@ export function AdminUsersPage() {
               </p>
             ) : null}
           </div>
+        ) : null}
+      </Dialog>
+
+      <Dialog
+        open={confirmOtpEnable !== null}
+        title={
+          confirmOtpEnable?.kind === 'login'
+            ? 'להפעיל אימות SMS בכניסה למשתמש זה?'
+            : confirmOtpEnable?.kind === 'users_page'
+              ? 'להפעיל אימות SMS לניהול משתמשים למשתמש זה?'
+              : 'הפעלת OTP'
+        }
+        onClose={() => !saving && setConfirmOtpEnable(null)}
+        footer={
+          <>
+            <Button variant="secondary" disabled={saving} onClick={() => setConfirmOtpEnable(null)}>
+              ביטול
+            </Button>
+            <Button
+              loading={saving}
+              onClick={() => {
+                if (!confirmOtpEnable) return
+                void applyOtpFlag(confirmOtpEnable.user, confirmOtpEnable.kind, true)
+              }}
+            >
+              הפעלה
+            </Button>
+          </>
+        }
+      >
+        {confirmOtpEnable ? (
+          <p className="t-body">
+            יישלח קוד SMS ל־
+            <span className="ltr">
+              {formatPhone(confirmOtpEnable.user.phone ?? '')}
+            </span>{' '}
+            כאשר יידרש אימות.
+          </p>
         ) : null}
       </Dialog>
 

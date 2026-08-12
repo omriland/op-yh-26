@@ -133,20 +133,21 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Store: `events.location` + optional `location_place_id` / `location_lat` / `location_lng`
 - Env: `VITE_GOOGLE_MAPS_API_KEY` (Places API New; referrer-restricted). Ops setup in Google Cloud + Netlify.
 
-## Phone OTP (design approved 2026-08-12; not implemented)
+## Phone OTP (implemented 2026-08-12; ops secrets pending)
 
 - Spec: `docs/superpowers/specs/2026-08-12-yahpaz-phone-otp-twilio-design.md`
-- Provider: **Twilio Verify** (SMS); not Supabase Phone MFA ($75/mo) or local IL gateways (no CLI)
-- Password first; two per-user admin ⋮ toggles: login device OTP (new browser / >48h) and משתמשים step-up (20 min)
-- Phones: `profiles.phone` 10 digits → E.164 `+972…`
-- Edge Function + `otp_device_trust` / `otp_step_up`; device token in `localStorage` v1
+- Plan: `docs/superpowers/plans/2026-08-12-yahpaz-phone-otp-twilio.md`
+- Provider: **Twilio Verify** (SMS); Edge Function `phone-otp`
+- Migration: `20260812120000_phone_otp.sql` — flags on `profiles`, `otp_device_trust`, `otp_step_up`, flag/phone-change guards
+- Client: login gate in `App.tsx`; משתמשים gate + ⋮ toggles in `AdminUsersPage`; device token `localStorage` `yahpaz:otp_device`
+- **Ops required before live SMS:** apply migration; create Twilio Verify Service; set Edge secrets `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`; deploy `phone-otp`
 
 ## Open / next
 
 1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
 2. Later: add/verify `yahpz.com` on Resend when plan allows
 3. Set `VITE_GOOGLE_MAPS_API_KEY` in Netlify + `.env.local` for Places autocomplete
-4. Implement phone OTP per `2026-08-12-yahpaz-phone-otp-twilio-design.md` (Twilio Verify + Edge)
+4. Phone OTP ops: migrate + Twilio Verify secrets + deploy `phone-otp` Edge Function
 
 ## Netlify CD
 

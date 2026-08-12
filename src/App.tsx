@@ -8,6 +8,7 @@ import { AdminSegmentBar } from './components/admin/AdminSegmentBar'
 import { EmptyState } from './components/ui/EmptyState'
 import { EventListSkeleton } from './components/ui/Skeleton'
 import { ToastProvider } from './components/ui/Toast'
+import { OtpGate } from './components/otp/OtpGate'
 import { AdminListsPage } from './pages/AdminListsPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { FuelQuarterPage } from './pages/FuelQuarterPage'
@@ -24,6 +25,8 @@ import { ShiftsPage } from './pages/ShiftsPage'
 import { ExceptionsPage } from './pages/ExceptionsPage'
 import { ShieldAlert } from 'lucide-react'
 import { Button } from './components/ui/Button'
+import { isImpersonating } from './lib/impersonationStash'
+import { fetchOtpStatus } from './lib/phoneOtp'
 
 type EventSurface =
   | { kind: 'list' }
@@ -37,7 +40,7 @@ type ShiftSurface =
   | { kind: 'form'; shiftId?: string }
 
 function Gate() {
-  const { session, loading, roles, passwordSetupReason, user } = useAuth()
+  const { session, loading, roles, passwordSetupReason, user, profile } = useAuth()
   const isDesktop = useIsDesktop()
   const [view, setView] = useState<AppView>('mine')
   const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
@@ -46,6 +49,12 @@ function Gate() {
     mineEvents: false,
     myShifts: false,
   })
+  const [loginOtp, setLoginOtp] = useState<
+    | { state: 'idle' }
+    | { state: 'checking' }
+    | { state: 'required'; maskedPhone: string | null }
+    | { state: 'ok' }
+  >({ state: 'idle' })
 
   const isAdmin = roles.includes('admin')
   const manages = isAdmin || roles.includes('shift_lead')
@@ -76,6 +85,42 @@ function Gate() {
       active = false
     }
   }, [hasMineList, user, attentionRefreshKey])
+
+  useEffect(() => {
+    if (!session || passwordSetupReason) {
+      setLoginOtp({ state: 'idle' })
+      return
+    }
+
+    if (isImpersonating() || !profile?.otp_login_enabled) {
+      setLoginOtp({ state: 'ok' })
+      return
+    }
+
+    let active = true
+    setLoginOtp({ state: 'checking' })
+    fetchOtpStatus()
+      .then((status) => {
+        if (!active) return
+        if ('error' in status) {
+          // Flag is on — fail closed into the OTP gate (user can resend / retry).
+          setLoginOtp({ state: 'required', maskedPhone: null })
+          return
+        }
+        if (status.loginRequired) {
+          setLoginOtp({ state: 'required', maskedPhone: status.maskedPhone })
+        } else {
+          setLoginOtp({ state: 'ok' })
+        }
+      })
+      .catch(() => {
+        if (active) setLoginOtp({ state: 'required', maskedPhone: null })
+      })
+
+    return () => {
+      active = false
+    }
+  }, [session, passwordSetupReason, user?.id, profile?.otp_login_enabled])
 
   const entries = useMemo(() => {
     const list: {
@@ -217,6 +262,26 @@ function Gate() {
   }
 
   if (!session) return <LoginPage key="signin" />
+
+  if (loginOtp.state === 'checking' || loginOtp.state === 'idle') {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <EventListSkeleton count={3} />
+        </main>
+      </div>
+    )
+  }
+
+  if (loginOtp.state === 'required') {
+    return (
+      <OtpGate
+        purpose="login_device"
+        maskedPhone={loginOtp.maskedPhone}
+        onVerified={() => setLoginOtp({ state: 'ok' })}
+      />
+    )
+  }
 
   // Role allowlist — not nav entries — so profile / fuel / lists / exceptions stay
   // reachable when omitted from the mobile tab bar.
