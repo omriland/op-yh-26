@@ -514,7 +514,7 @@ async function handleNotifyFillReady(
          event_type:event_types(name),
          road:roads(name)
        ),
-       profile:profiles!event_responders_responder_id_fkey(id, full_name, active)`,
+       profile:profiles!responder_id(id, full_name, active)`,
     );
 
   if (ids.length > 0) {

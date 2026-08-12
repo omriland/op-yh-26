@@ -1,7 +1,7 @@
 # Yahpaz — Generic transactional email + scoped fill link
 
 Date: 2026-08-12  
-Status: design approved (brainstorm); awaiting written-spec review before implementation plan
+Status: approved; implementation in progress on `cursor/generic-email-fill-token-c97c`
 
 ## Goal
 
@@ -197,7 +197,7 @@ Today navigation is React state (no router). Add minimal URL bootstrap:
    - Show brief Hebrew message + continue to **login** (existing `LoginPage`).
 4. If token **invalid** with no `event_id`: message + login with no fill return (user can open האירועים שלי manually).
 5. After successful login **and** any phone OTP gate, if post-login fill intent exists: open `{ kind: 'fill', eventId, returnTo: 'list' }` when the user is the assignee; clear the intent. Intent must survive OTP the same way other sessionStorage gates do.
-6. *(renumber)* If user is already logged in and opens a **valid** fill link for their assignment: open normal authenticated fill via `eventId` from token payload.
+6. If user is already logged in and opens a **valid** fill link for their assignment: open normal authenticated fill via `eventId` from token payload.
 7. If logged-in user opens a link for **someone else’s** assignment: show Hebrew permission empty state (do not use the token to impersonate while logged in as another user).
 
 **Critical:** expiry must not dead-end. Always stash a **login return target** that survives the login (and phone OTP) flow — same pattern family as password-setup intent storage.

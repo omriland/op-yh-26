@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { useIsDesktop } from './lib/useMediaQuery'
 import { AppShell, NAV_ICONS, type AppView } from './components/shell/AppShell'
@@ -27,6 +27,13 @@ import { ShieldAlert } from 'lucide-react'
 import { Button } from './components/ui/Button'
 import { isImpersonating } from './lib/impersonationStash'
 import { fetchOtpStatus } from './lib/phoneOtp'
+import {
+  clearPostLoginFill,
+  consumeFillEventTarget,
+  parseFillTokenFromSearch,
+  stashPostLoginFill,
+} from './lib/fillTokenIntent'
+import { loadFillByToken } from './lib/responderFillToken'
 
 type EventSurface =
   | { kind: 'list' }
@@ -55,6 +62,97 @@ function Gate() {
     | { state: 'required'; maskedPhone: string | null }
     | { state: 'ok' }
   >({ state: 'idle' })
+  const [tokenFill, setTokenFill] = useState<
+    | { status: 'idle' }
+    | { status: 'checking' }
+    | { status: 'ready'; fillToken: string; eventId: string; responderId?: string }
+    | { status: 'blocked'; message: string }
+  >({ status: 'idle' })
+  const [fillBootDone, setFillBootDone] = useState(false)
+
+  // Resolve ?fill_token=… before requiring login (scoped fill link).
+  useEffect(() => {
+    const token = parseFillTokenFromSearch(window.location.search)
+    if (!token) {
+      setFillBootDone(true)
+      return
+    }
+
+    let active = true
+    setTokenFill({ status: 'checking' })
+    loadFillByToken(token)
+      .then((result) => {
+        if (!active) return
+        if (result.ok) {
+          setTokenFill({
+            status: 'ready',
+            fillToken: token,
+            eventId: result.context.eventId,
+            responderId: (result.context as { responderId?: string }).responderId,
+          })
+        } else {
+          if (result.eventId) stashPostLoginFill(result.eventId)
+          setTokenFill({
+            status: 'blocked',
+            message: result.error,
+          })
+        }
+        setFillBootDone(true)
+      })
+      .catch(() => {
+        if (!active) return
+        setTokenFill({
+          status: 'blocked',
+          message: 'קישור הדיווח אינו תקין או שפג תוקפו.',
+        })
+        setFillBootDone(true)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // After login (+ OTP), open fill from ?fill_event= or stashed post-login intent.
+  const fillReturnApplied = useRef(false)
+  useEffect(() => {
+    if (!session || passwordSetupReason || !fillBootDone) return
+    if (profile?.otp_login_enabled && loginOtp.state !== 'ok') return
+    if (!profile?.otp_login_enabled && loginOtp.state !== 'ok' && loginOtp.state !== 'idle') return
+    if (fillReturnApplied.current) return
+
+    // Logged-in user opening a valid fill_token for themselves.
+    if (tokenFill.status === 'ready' && user) {
+      if (tokenFill.responderId && tokenFill.responderId !== user.id) {
+        fillReturnApplied.current = true
+        setTokenFill({
+          status: 'blocked',
+          message: 'אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.',
+        })
+        return
+      }
+      fillReturnApplied.current = true
+      clearPostLoginFill()
+      setView('mine')
+      setEventSurface({ kind: 'fill', eventId: tokenFill.eventId, returnTo: 'list' })
+      setTokenFill({ status: 'idle' })
+      return
+    }
+
+    const target = consumeFillEventTarget(window.location.search)
+    if (!target) return
+    fillReturnApplied.current = true
+    setView('mine')
+    setEventSurface({ kind: 'fill', eventId: target, returnTo: 'list' })
+  }, [
+    session,
+    passwordSetupReason,
+    loginOtp.state,
+    profile?.otp_login_enabled,
+    user,
+    tokenFill,
+    fillBootDone,
+  ])
 
   const isAdmin = roles.includes('admin')
   const manages = isAdmin || roles.includes('shift_lead')
@@ -245,7 +343,7 @@ function Gate() {
         ? 'users'
         : 'profile'
 
-  if (loading) {
+  if (loading || !fillBootDone || tokenFill.status === 'checking') {
     return (
       <div className="shell" data-theme="field">
         <main className="shell__main">
@@ -261,7 +359,68 @@ function Gate() {
     return <LoginPage key={`setup-${passwordSetupReason}`} forceSetPassword />
   }
 
-  if (!session) return <LoginPage key="signin" />
+  // Scoped fill link — no Auth session required while the token is valid.
+  if (!session && tokenFill.status === 'ready') {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <ResponderFillPage
+            eventId={tokenFill.eventId}
+            fillToken={tokenFill.fillToken}
+            onBack={() => {
+              setTokenFill({ status: 'idle' })
+              try {
+                const url = new URL(window.location.href)
+                url.searchParams.delete('fill_token')
+                window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+              } catch {
+                /* ignore */
+              }
+            }}
+            onCompleted={() => {
+              setTokenFill({ status: 'idle' })
+              try {
+                const url = new URL(window.location.href)
+                url.searchParams.delete('fill_token')
+                window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+              } catch {
+                /* ignore */
+              }
+            }}
+          />
+        </main>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return (
+      <>
+        {tokenFill.status === 'blocked' ? (
+          <div className="shell" data-theme="field">
+            <main className="shell__main">
+              <EmptyState
+                icon={<ShieldAlert size={40} strokeWidth={1.75} aria-hidden="true" />}
+                title="קישור הדיווח"
+                caption={tokenFill.message}
+                action={
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => setTokenFill({ status: 'idle' })}
+                  >
+                    להמשך להתחברות
+                  </Button>
+                }
+              />
+            </main>
+          </div>
+        ) : (
+          <LoginPage key="signin" />
+        )}
+      </>
+    )
+  }
 
   if (loginOtp.state === 'checking' || loginOtp.state === 'idle') {
     return (
