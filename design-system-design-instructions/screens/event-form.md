@@ -42,7 +42,7 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 
 - **Live autosave** after the lead finishes a field (blur / select change / assign / remove / stepper / toggle). Also flush on tab hide / page hide / back.
 - **Status derivation** (not a separate “open” action):
-  - no responders assigned → `draft` (טיוטה) — not shown on responders’ “האירועים שלי”
+  - no responders assigned → `draft` (אירוע בהזנה) — not shown on responders’ “האירועים שלי”
   - ≥1 responder assigned → `in_progress` (or keep `partial` / `done` if already there)
 - **Minimum to create:** תאריך + סוג אירוע + כביש. Autosave does not create a row until those three are set; explicit save / assign shows field errors if missing. Other fields may stay empty.
 

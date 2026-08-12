@@ -392,6 +392,130 @@ textarea.field__input {
   animation: stamp-press var(--duration-base) var(--ease-standard);
 }
 
+/* ============================================================
+   Event status trail — desktop Events table pipeline
+   ============================================================ */
+
+.event-status-trail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
+.event-status-trail__steps {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-status-trail__step {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Connector between nodes (from this node toward the next / previous in RTL). */
+.event-status-trail__step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 5px;
+  inset-inline-start: calc(50% + 7px);
+  inset-inline-end: calc(-50% + 7px);
+  height: 2px;
+  background: var(--stroke-strong);
+  opacity: 0.45;
+}
+
+.event-status-trail__node {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--stroke-strong);
+  background: var(--surface-raised);
+}
+
+.event-status-trail__node--past {
+  border-color: var(--text-secondary);
+  background: var(--text-secondary);
+}
+
+.event-status-trail__node--future {
+  border-color: var(--text-muted);
+  background: var(--surface-raised);
+  opacity: 0.75;
+}
+
+.event-status-trail__node--current {
+  width: 12px;
+  height: 12px;
+}
+
+.event-status-trail__node--tone-done {
+  border-color: var(--status-done);
+  background: var(--status-done);
+}
+
+.event-status-trail__node--tone-partial {
+  border-color: var(--status-partial);
+  background: var(--status-partial);
+}
+
+.event-status-trail__node--tone-pending {
+  border-color: var(--status-pending);
+  background: var(--status-pending);
+}
+
+.event-status-trail__node--tone-draft {
+  border-color: var(--status-draft);
+  background: var(--status-draft-tint);
+  border-style: dashed;
+}
+
+.event-status-trail__label {
+  max-width: 100%;
+  font: 600 12px/16px var(--font-ui);
+  letter-spacing: 0.01em;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.event-status-trail__label--done {
+  color: var(--status-done-on-tint);
+}
+
+.event-status-trail__label--partial {
+  color: var(--status-partial-on-tint);
+}
+
+.event-status-trail__label--pending {
+  color: var(--status-pending);
+}
+
+.event-status-trail__label--draft {
+  color: var(--status-draft);
+}
+
+.table tbody td.table-cell--status {
+  height: auto;
+  min-height: 48px;
+  padding-block: var(--space-2);
+  vertical-align: middle;
+}
+
 @keyframes stamp-press {
   from {
     opacity: 0;
@@ -1301,6 +1425,85 @@ textarea.field__input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Events table: road/location must ellipsize; bare <td> max-width is unreliable. */
+.table--events .table-col--location {
+  width: 260px;
+  max-width: 260px;
+}
+
+.table--events .table-col--location__text {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Instant hover tip — Command overlay chrome (menus / toasts family). */
+.hover-tip {
+  position: fixed;
+  z-index: 60;
+  box-sizing: border-box;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgba(242, 246, 250, 0.15);
+  border-radius: var(--radius-md);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-overlay);
+  font: 400 14px/20px var(--font-ui);
+  text-align: start;
+  pointer-events: none;
+  animation: menu-in var(--duration-base) var(--ease-standard);
+}
+
+.hover-tip__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hover-tip__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.hover-tip__heading {
+  margin: 0;
+  color: var(--text-secondary);
+  font: 500 12px/16px var(--font-ui);
+  letter-spacing: 0.04em;
+}
+
+.hover-tip__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hover-tip__list li {
+  font: 400 14px/20px var(--font-ui);
+}
+
+.hover-tip__empty {
+  margin: 0;
+  color: var(--text-muted);
+  font: 400 13px/18px var(--font-ui);
+}
+
+.event-status-trail__tip-anchor {
+  display: block;
+  max-width: 100%;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hover-tip {
+    animation: none;
+  }
 }
 
 /* Compact editors inside Command tables (fuel quarter, etc.) */

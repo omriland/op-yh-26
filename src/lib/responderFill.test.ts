@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   computeOdometerEnd,
+  deriveEventStatusAfterParticipation,
   emptyResponderFillDraft,
   odometerEndAutoHint,
   validateResponderFillDraft,
@@ -10,6 +11,20 @@ import {
 function draft(patch: Partial<ResponderFillDraft> = {}): ResponderFillDraft {
   return { ...emptyResponderFillDraft(), ...patch }
 }
+
+describe('deriveEventStatusAfterParticipation', () => {
+  it('keeps draft-only progress as in_progress, not partial', () => {
+    expect(deriveEventStatusAfterParticipation(['pending', 'in_progress'])).toBe('in_progress')
+  })
+
+  it('uses partial only when someone has completed', () => {
+    expect(deriveEventStatusAfterParticipation(['done', 'pending'])).toBe('partial')
+  })
+
+  it('marks done when every participation is done', () => {
+    expect(deriveEventStatusAfterParticipation(['done', 'done'])).toBe('done')
+  })
+})
 
 describe('computeOdometerEnd', () => {
   it('returns empty when start is empty', () => {

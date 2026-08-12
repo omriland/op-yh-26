@@ -5,6 +5,7 @@ export type EventResponderSummary = {
   id: string
   responder_id: string
   status: ParticipationStatus
+  profile: { full_name: string; callsign: string } | null
 }
 
 export type EventListItem = {
@@ -34,7 +35,12 @@ const EVENT_LIST_SELECT = `
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles(full_name, callsign),
-  responders:event_responders(id, responder_id, status)
+  responders:event_responders(
+    id,
+    responder_id,
+    status,
+    profile:profiles(full_name, callsign)
+  )
 `
 
 /** Unit-wide list for shift-leads and admins; RLS narrows it for everyone else. */

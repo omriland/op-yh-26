@@ -628,7 +628,7 @@ export function EventFormPage({
               ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור את האירוע.'
               : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור את האירוע.'
             : displayStatus === 'draft'
-              ? 'נשמר כטיוטה עד שישובץ כונן.'
+              ? 'נשמר כאירוע בהזנה עד שישובץ כונן.'
               : 'השינויים נשמרים אוטומטית.'
 
   return (
@@ -863,7 +863,7 @@ export function EventFormPage({
                 <div className="responder-assign__toolbar">
                   <p className="t-label text-secondary">
                     {draft.responders.length === 0
-                      ? 'טרם הוקצו כוננים · טיוטה'
+                      ? 'טרם הוקצו כוננים · אירוע בהזנה'
                       : `${draft.responders.length} כוננים משובצים`}
                   </p>
                   <Button
@@ -924,7 +924,7 @@ export function EventFormPage({
               {draft.responders.length === 0 ? (
                 <div className="assignment-empty">
                   <p className="t-body text-secondary">
-                    בלי כונן משובץ האירוע נשאר טיוטה ואינו מוצג לכוננים.
+                    בלי כונן משובץ האירוע נשאר בהזנה ואינו מוצג לכוננים.
                   </p>
                   {!pickerOpen ? (
                     <Button variant="ghost" onClick={openAssigner}>

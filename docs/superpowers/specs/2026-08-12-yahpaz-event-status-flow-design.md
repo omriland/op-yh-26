@@ -22,7 +22,7 @@ Status: approved for implementation planning
 | Code | Hebrew label |
 |---|---|
 | `draft` | אירוע בהזנה |
-| `in_progress` | הוזן ע״י אחמ״ש — ממתין לתיעוד |
+| `in_progress` | הוזן - ממתין לתיעוד |
 | `partial` | תועד חלקית |
 | `done` | הושלם |
 
@@ -47,32 +47,34 @@ max-width: calc(var(--content-max) * 1.2);
 
 Same pattern already used for Admin Users. Do not invent a second width token.
 
-## Status column — full trail (Events table only)
+## Status column — compact pipeline + current label (Events table only)
+
+Revised from full-label trail (too dense in the table) to approach B.
 
 Pipeline order (RTL UI; logical order below):
 
 1. אירוע בהזנה  
-2. הוזן ע״י אחמ״ש — ממתין לתיעוד  
+2. הוזן - ממתין לתיעוד  
 3. תועד חלקית  
 4. הושלם  
 
 Visual:
 
-- Render all four steps in the **סטטוס תיעוד** cell, separated by simple arrows (`→`).
-- **Current** step: stamp styling for that status tone (`draft` / `pending` for `in_progress` / `partial` / `done`) — bold emphasis.
-- **Past** steps: muted (path already passed).
-- **Future** steps: lighter muted.
-- Column may wrap to two lines; other columns keep current truncate behavior.
-- Always use **event** `status` — no viewer-relative participation override in this column (personal open-fill labels do not replace the trail).
+- Compact 4-node track (dots + connectors) showing past / current / future position.
+- Current node uses the status tone color; past filled muted; future outline only.
+- Below the track: current step label (no stamp outline), under the active node.
+- Hovering the status label (for `in_progress` / `partial`) shows who is **הושלם** / **טיוטה נשמרה** / **ממתין לתיעוד** (instant Command tip; empty groups omitted).
+- Event `partial` requires at least one participation `done`. A draft save alone stays `in_progress` (RPC + client aligned; migration `20260812140000_event_partial_requires_done.sql`).
+- Always use **event** `status` — no viewer-relative participation override in this column.
 
 Cancelled:
 
-- If `event.is_cancelled`, show **בוטל** stamp in addition to the trail; trail still reflects underlying `event.status`.
+- Do **not** show בוטל in the status column. Cancelled stays on the event-type cell (`EventTypeLabel`) as today. Trail still reflects underlying `event.status`.
 
 Accessibility:
 
 - Expose a single clear accessible name for the cell = current event label (new vocabulary).
-- Color is not the only channel: current step keeps stamp text treatment; trail structure is supplementary.
+- Color is not the only channel: stamp text carries the status; nodes are decorative (`aria-hidden`).
 
 ## Surfaces that keep a single stamp
 

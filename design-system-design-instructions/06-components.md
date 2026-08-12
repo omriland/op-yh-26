@@ -73,10 +73,10 @@ Statuses only. Never for categories, roles, or counts.
 | Status label | Ink |
 |---|---|
 | `הושלם` | `--status-done` |
-| `הושלם חלקית` | `--status-partial` |
-| `ממתין לתיעוד` | `--status-pending` |
+| `תועד חלקית` | `--status-partial` |
+| `הוזן - ממתין לתיעוד` | `--status-pending` |
 | `ממתין לתיעוד שלך` / `ממתין לכונן` | `--status-pending` |
-| `טיוטה` | `--status-draft` + `border-style: dashed` |
+| `אירוע בהזנה` | `--status-draft` + `border-style: dashed` |
 
 ## Ledger row (read-only data display)
 

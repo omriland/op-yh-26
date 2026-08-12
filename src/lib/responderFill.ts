@@ -74,9 +74,9 @@ export function deriveEventStatusAfterParticipation(
 ): EventStatus {
   if (participationStatuses.length === 0) return 'draft'
   if (participationStatuses.every((status) => status === 'done')) return 'done'
-  if (participationStatuses.some((status) => status === 'in_progress' || status === 'done')) {
-    return 'partial'
-  }
+  // Draft saves (`in_progress`) stay on the lead pipeline as in_progress —
+  // partial only when at least one responder has fully completed.
+  if (participationStatuses.some((status) => status === 'done')) return 'partial'
   return 'in_progress'
 }
 

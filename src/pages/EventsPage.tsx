@@ -108,7 +108,7 @@ export function EventsPage({
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] || profile?.full_name?.trim() || null
 
   return (
-    <div>
+    <div className={asTable ? 'page--wide' : undefined}>
       {scope === 'mine' ? (
         <section
           className={[
@@ -208,7 +208,7 @@ export function EventsPage({
           }}
         />
       ) : asTable ? (
-        <EventsTable events={visible} stampFor={stampFor} onOpen={onOpen} />
+        <EventsTable events={visible} onOpen={onOpen} />
       ) : (
         <div className="stack-4">
           {grouped.map(([day, items]) => (

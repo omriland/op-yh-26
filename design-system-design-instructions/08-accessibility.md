@@ -32,7 +32,7 @@ This platform is used at roadside, at night, in sunlight, under stress, sometime
 
 ## Status is never color-only
 
-Every status conveys through **text (the Hebrew label)** + color. The dashed border on `טיוטה` stamps adds a non-color channel. Do not add status indicators that are dots or bars without text.
+Every status conveys through **text (the Hebrew label)** + color. The dashed border on `אירוע בהזנה` stamps adds a non-color channel. Do not add status indicators that are dots or bars without text.
 
 ## Forms
 
