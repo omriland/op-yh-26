@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ## What this is
 
@@ -133,11 +133,20 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Store: `events.location` + optional `location_place_id` / `location_lat` / `location_lng`
 - Env: `VITE_GOOGLE_MAPS_API_KEY` (Places API New; referrer-restricted). Ops setup in Google Cloud + Netlify.
 
+## Phone OTP (design approved 2026-08-12; not implemented)
+
+- Spec: `docs/superpowers/specs/2026-08-12-yahpaz-phone-otp-twilio-design.md`
+- Provider: **Twilio Verify** (SMS); not Supabase Phone MFA ($75/mo) or local IL gateways (no CLI)
+- Password first; two per-user admin ⋮ toggles: login device OTP (new browser / >48h) and משתמשים step-up (20 min)
+- Phones: `profiles.phone` 10 digits → E.164 `+972…`
+- Edge Function + `otp_device_trust` / `otp_step_up`; device token in `localStorage` v1
+
 ## Open / next
 
 1. Three-role production smoke (invite → event → fill → done) + shifts acceptance
 2. Later: add/verify `yahpz.com` on Resend when plan allows
 3. Set `VITE_GOOGLE_MAPS_API_KEY` in Netlify + `.env.local` for Places autocomplete
+4. Implement phone OTP per `2026-08-12-yahpaz-phone-otp-twilio-design.md` (Twilio Verify + Edge)
 
 ## Netlify CD
 
