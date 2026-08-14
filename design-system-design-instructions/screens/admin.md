@@ -1,24 +1,23 @@
 # Screen — Admin (ניהול): Users, Vehicles, Roles, Closed Lists
 
-The unit's registry office. Admin-only. Two areas: `משתמשים` and `הגדרות` (closed lists). Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
+The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול כרטיסי דלק`, `הגדרות`. Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
 
 ## Navigation
 
-- Desktop sidebar section `ניהול`: items `משתמשים`, `טבלה מסכמת`, `דרישת דלק`, `הגדרות`.
-- Mobile tab bar (admin): `משתמשים` only among admin destinations; segmented control at top for `משתמשים` | `טבלה מסכמת` | `דרישת דלק` | `הגדרות`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `משתמשים` (role-gated). Profile via app-bar menu.
+- Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול כרטיסי דלק`, `הגדרות`.
+- Mobile tab bar (admin): `משתמשים` only among admin destinations; segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול כרטיסי דלק` | `הגדרות`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `משתמשים` (role-gated). Profile via app-bar menu.
 
-## טבלה מסכמת (Fuel summary / detail)
+## דוחות וסטטיסטיקות (Reports)
 
-Admin-only report (nav label `טבלה מסכמת`; Fuel icon lives on `דרישת דלק`). Date range (`מתאריך` / `עד תאריך`) on event **`created_at`** (when reported). Segment **סיכום** | **פירוט**:
+Library + generic runner (spec `2026-08-14-yahpaz-reports-library-design.md`). Admin door: this ניהול tab (full catalog). אחמ״ש-only door: **כלים לאחמ״ש → דוחות וסטטיסטיקות** (filtered kinds); mobile tab `דוחות`. Admin + אחמ״ש: ניהול only. Standalone **חריגים** nav is retired — those reports live in the library. No in-app report builder.
 
-- **סיכום** — table of all active users: קילומטרים (`total_km` only) · אירועים.
-- **פירוט** — one row per participation with `total_km` set: כונן · תאריך · שעה · מיקום · סוג אירוע · סה״כ ק״מ · הערות.
+v1 kinds: סיכום ק״מ לפי כונן · פירוט ק״מ לפי השתתפות (admin, date range) · חריגי ק״מ · אירועים כפולים (admin + אחמ״ש). Runner: same inputs as live filters, search, CSV export. Empty library: `אין דוחות להצגה`.
 
-Odometers are not shown. Specs: `docs/superpowers/specs/2026-08-10-yahpaz-fuel-refund-report-design.md`, `docs/superpowers/specs/2026-08-11-yahpaz-monthly-fuel-detail-report-design.md`.
+Catalog: caption `בחרו דוח להצגה`; search `חיפוש לפי שם דוח או תיאור` over title + includes (normalize gershayim/punctuation; all words; one-typo fuzzy on 3+ letter words). Title hits rank above description. No-results: `לא נמצאו דוחות תואמים` + ghost `ניקוי חיפוש`. Cards (not a table): title + includes, whole card tappable, no chevron. Mobile one column (`--space-3` gap); desktop two columns (`--space-6` gap).
 
-## דרישת דלק (Quarterly fuel request)
+## ניהול כרטיסי דלק (Quarterly fuel request)
 
-Admin-only workbook under ניהול (`דרישת דלק`, Fuel icon). Year + calendar quarter picker. Rows with opening balance, three month km columns, liters (÷6), editable cards (floor liters÷15 default), remaining, card numbers. Save draft / lock quarter (carry remaining). Spec: `docs/superpowers/specs/2026-08-11-yahpaz-quarterly-fuel-request-design.md`.
+Admin-only workbook under ניהול (`ניהול כרטיסי דלק`, Fuel icon). Year + calendar quarter picker. Rows with opening balance, three month km columns, liters (÷6), editable cards (floor liters÷15 default), remaining, card numbers. Save draft / lock quarter (carry remaining). Spec: `docs/superpowers/specs/2026-08-11-yahpaz-quarterly-fuel-request-design.md`.
 
 ## משתמשים (Users)
 

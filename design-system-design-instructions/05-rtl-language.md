@@ -63,7 +63,7 @@ The register is **official but human**: the tone of a professional duty log, not
 | Context | Status | Hebrew label |
 |---|---|---|
 | Event | `draft` | `אירוע בהזנה` |
-| Event | `in_progress` | `הוזן - ממתין לתיעוד` |
+| Event | `in_progress` | `ממתין לתיעוד` |
 | Event | `partial` | `תועד חלקית` |
 | Event | `done` | `הושלם` |
 | My participation (responder viewing own open row) | `pending` | `ממתין לתיעוד שלך` |

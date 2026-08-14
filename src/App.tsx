@@ -5,14 +5,19 @@ import { AppShell, NAV_ICONS, type AppView } from './components/shell/AppShell'
 import { fetchNavAttention, type NavAttention } from './lib/navAttention'
 import { shouldShowSecurityBadge } from './lib/securityBadge'
 import { AdminSegmentBar } from './components/admin/AdminSegmentBar'
-import { EmptyState } from './components/ui/EmptyState'
 import { EventListSkeleton } from './components/ui/Skeleton'
 import { ToastProvider } from './components/ui/Toast'
 import { OtpGate } from './components/otp/OtpGate'
+import {
+  ADMIN_MOBILE_HUB_VIEWS,
+  ADMIN_SEGMENTS,
+  isAdminSegment,
+} from './lib/adminSegments'
+import { reportsNavPlacement } from './lib/reports/access'
 import { AdminListsPage } from './pages/AdminListsPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { FuelQuarterPage } from './pages/FuelQuarterPage'
-import { FuelRefundPage } from './pages/FuelRefundPage'
+import { ReportsPage } from './pages/ReportsPage'
 import { EventDetailPage } from './pages/EventDetailPage'
 import { EventFormPage } from './pages/EventFormPage'
 import { EventsPage } from './pages/EventsPage'
@@ -22,9 +27,6 @@ import { ResponderFillPage } from './pages/ResponderFillPage'
 import { ShiftDetailPage } from './pages/ShiftDetailPage'
 import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
-import { ExceptionsPage } from './pages/ExceptionsPage'
-import { ShieldAlert } from 'lucide-react'
-import { Button } from './components/ui/Button'
 import { isImpersonating } from './lib/impersonationStash'
 import { fetchOtpStatus } from './lib/phoneOtp'
 
@@ -162,50 +164,33 @@ function Gate() {
         icon: NAV_ICONS.shifts,
         section: 'כלים לאחמ״ש',
       })
-      // Desktop sidebar only — not on the mobile tab bar.
-      if (isDesktop) {
+      if (reportsNavPlacement(roles) === 'shift_lead') {
         list.push({
-          view: 'exceptions',
-          label: 'חריגים',
-          icon: NAV_ICONS.exceptions,
-          section: 'כלים לאחמ״ש',
+          view: 'reports',
+          label: isDesktop ? 'דוחות וסטטיסטיקות' : 'דוחות',
+          icon: NAV_ICONS.reports,
+          section: isDesktop ? 'כלים לאחמ״ש' : undefined,
         })
       }
     }
 
     if (isAdmin) {
       if (isDesktop) {
-        list.push({
-          view: 'users',
-          label: 'משתמשים',
-          icon: NAV_ICONS.users,
-          section: 'ניהול',
-        })
-        list.push({
-          view: 'fuel_refund',
-          label: 'טבלה מסכמת',
-          icon: NAV_ICONS.fuel_refund,
-          section: 'ניהול',
-        })
-        list.push({
-          view: 'fuel_quarter',
-          label: 'דרישת דלק',
-          icon: NAV_ICONS.fuel_quarter,
-          section: 'ניהול',
-        })
-        list.push({
-          view: 'lists',
-          label: 'הגדרות',
-          icon: NAV_ICONS.lists,
-          section: 'ניהול',
-        })
+        for (const segment of ADMIN_SEGMENTS) {
+          list.push({
+            view: segment.id,
+            label: segment.label,
+            icon: NAV_ICONS[segment.id],
+            section: 'ניהול',
+          })
+        }
       } else {
-        // Mobile tab bar: משתמשים only; fuel/lists via segment control.
+        // Mobile tab bar: משתמשים only; other admin views via segment control.
         list.push({
           view: 'users',
           label: 'משתמשים',
           icon: NAV_ICONS.users,
-          alsoCurrentFor: ['lists', 'fuel_refund', 'fuel_quarter'],
+          alsoCurrentFor: ADMIN_MOBILE_HUB_VIEWS,
         })
       }
     }
@@ -216,7 +201,7 @@ function Gate() {
     }
 
     return list
-  }, [manages, hasMineList, isAdmin, isDesktop, navAttention])
+  }, [manages, hasMineList, isAdmin, isDesktop, navAttention, roles])
 
   function isAllowedView(next: AppView): boolean {
     switch (next) {
@@ -225,10 +210,9 @@ function Gate() {
         return hasMineList
       case 'events':
       case 'shifts':
-      case 'exceptions':
+      case 'reports':
         return manages
       case 'users':
-      case 'fuel_refund':
       case 'fuel_quarter':
       case 'lists':
         return isAdmin
@@ -283,30 +267,26 @@ function Gate() {
     )
   }
 
-  // Role allowlist — not nav entries — so profile / fuel / lists / exceptions stay
+  // Role allowlist — not nav entries — so profile / fuel / lists / reports stay
   // reachable when omitted from the mobile tab bar.
   const activeView: AppView = isAllowedView(view) ? view : fallbackView
 
-  const isAdminView =
-    activeView === 'users' ||
-    activeView === 'lists' ||
-    activeView === 'fuel_refund' ||
-    activeView === 'fuel_quarter'
+  const isAdminHub = isAdmin && isAdminSegment(activeView)
   const onEvents = activeView === 'events' || activeView === 'mine'
   const onShifts = activeView === 'shifts' || activeView === 'my_shifts'
-  const onExceptions = activeView === 'exceptions'
+  const onReports = activeView === 'reports'
+  const onEventHost = onEvents || onReports
   const scope: 'unit' | 'mine' = manages && activeView !== 'mine' ? 'unit' : 'mine'
   const shiftScope: 'unit' | 'mine' = manages && activeView !== 'my_shifts' ? 'unit' : 'mine'
 
   const immersiveSurface =
-    ((onEvents || onExceptions) &&
-      (eventSurface.kind === 'form' || eventSurface.kind === 'fill')) ||
+    (onEventHost && (eventSurface.kind === 'form' || eventSurface.kind === 'fill')) ||
     (onShifts && (shiftSurface.kind === 'form' || shiftSurface.kind === 'detail'))
 
   // Desktop always keeps sidebar nav on list/admin/profile (fixes my-shifts with no navbar).
   const shellWithSidebar = isDesktop && !immersiveSurface
   const shellTheme: 'command' | 'field' =
-    shellWithSidebar && (manages || isAdminView) ? 'command' : 'field'
+    shellWithSidebar && (manages || isAdminHub) ? 'command' : 'field'
   const shellNarrow = isDesktop && immersiveSurface
   const commandShell = shellWithSidebar && shellTheme === 'command'
 
@@ -331,7 +311,23 @@ function Gate() {
       onHome={goHome}
       entries={entries}
     >
-      {(onEvents || onExceptions) && eventSurface.kind === 'form' ? (
+      <>
+        {onReports ? (
+          <div hidden={eventSurface.kind !== 'list'}>
+            <div
+              className={['stack-4', commandShell ? 'page--wide' : ''].filter(Boolean).join(' ')}
+            >
+              {isAdmin && !isDesktop ? (
+                <AdminSegmentBar view="reports" onChange={navigate} />
+              ) : null}
+              <ReportsPage
+                asTable={Boolean(commandShell)}
+                onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
+              />
+            </div>
+          </div>
+        ) : null}
+        {onEventHost && eventSurface.kind === 'form' ? (
         <EventFormPage
           eventId={eventSurface.eventId}
           focusResponderId={eventSurface.focusResponderId}
@@ -352,7 +348,7 @@ function Gate() {
           onSaved={(id) => setEventSurface({ kind: 'detail', eventId: id })}
           onSavedAndCreateNew={() => setEventSurface({ kind: 'form' })}
         />
-      ) : (onEvents || onExceptions) && eventSurface.kind === 'fill' ? (
+      ) : onEventHost && eventSurface.kind === 'fill' ? (
         <ResponderFillPage
           eventId={eventSurface.eventId}
           onBack={() =>
@@ -370,7 +366,7 @@ function Gate() {
             )
           }
         />
-      ) : (onEvents || onExceptions) && eventSurface.kind === 'detail' ? (
+      ) : onEventHost && eventSurface.kind === 'detail' ? (
         <EventDetailPage
           eventId={eventSurface.eventId}
           onBack={() => setEventSurface({ kind: 'list' })}
@@ -397,7 +393,7 @@ function Gate() {
               : undefined
           }
         />
-      ) : onShifts && shiftSurface.kind === 'form' ? (
+      ) : onReports ? null : onShifts && shiftSurface.kind === 'form' ? (
         <ShiftFormPage
           shiftId={shiftSurface.shiftId}
           onBack={() =>
@@ -420,53 +416,23 @@ function Gate() {
         />
       ) : activeView === 'profile' ? (
         <ProfilePage />
-      ) : isAdminView ? (
-        isAdmin ? (
+      ) : isAdminHub && isAdminSegment(activeView) ? (
           <div
             className={['stack-4', activeView === 'users' ? 'page--wide' : '']
               .filter(Boolean)
               .join(' ')}
           >
             {!isDesktop ? (
-              <AdminSegmentBar
-                view={
-                  activeView === 'lists'
-                    ? 'lists'
-                    : activeView === 'fuel_refund'
-                      ? 'fuel_refund'
-                      : activeView === 'fuel_quarter'
-                        ? 'fuel_quarter'
-                        : 'users'
-                }
-                onChange={navigate}
-              />
+              <AdminSegmentBar view={activeView} onChange={navigate} />
             ) : null}
             {activeView === 'lists' ? (
               <AdminListsPage />
-            ) : activeView === 'fuel_refund' ? (
-              <FuelRefundPage />
             ) : activeView === 'fuel_quarter' ? (
               <FuelQuarterPage />
             ) : (
               <AdminUsersPage />
             )}
           </div>
-        ) : (
-          <EmptyState
-            icon={<ShieldAlert size={40} strokeWidth={1.75} />}
-            title="אין לך הרשאה לפעולה זו."
-            action={
-              <Button variant="secondary" onClick={() => navigate(manages ? 'events' : 'profile')}>
-                חזרה
-              </Button>
-            }
-          />
-        )
-      ) : onExceptions ? (
-        <ExceptionsPage
-          asTable={Boolean(commandShell)}
-          onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
-        />
       ) : onShifts ? (
         <ShiftsPage
           scope={shiftScope}
@@ -492,6 +458,7 @@ function Gate() {
           }
         />
       ) : null}
+      </>
     </AppShell>
   )
 }

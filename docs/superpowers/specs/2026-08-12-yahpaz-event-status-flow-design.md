@@ -22,7 +22,7 @@ Status: approved for implementation planning
 | Code | Hebrew label |
 |---|---|
 | `draft` | אירוע בהזנה |
-| `in_progress` | הוזן - ממתין לתיעוד |
+| `in_progress` | ממתין לתיעוד |
 | `partial` | תועד חלקית |
 | `done` | הושלם |
 
@@ -54,7 +54,7 @@ Revised from full-label trail (too dense in the table) to approach B.
 Pipeline order (RTL UI; logical order below):
 
 1. אירוע בהזנה  
-2. הוזן - ממתין לתיעוד  
+2. ממתין לתיעוד  
 3. תועד חלקית  
 4. הושלם  
 

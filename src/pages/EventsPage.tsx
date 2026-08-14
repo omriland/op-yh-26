@@ -2,11 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ClipboardList, ListChecks, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
+  UNIT_EVENTS_LIST_LIMIT,
   fetchEvents,
+  fetchEventsByIds,
   fetchMyEvents,
   filterUnitEventsForList,
+  mergeEventLists,
+  missingSearchEventIds,
   ownParticipation,
   searchUnitEventIds,
+  unitEventsListHint,
   type EventListItem,
 } from '../lib/events'
 import {
@@ -52,6 +57,7 @@ export function EventsPage({
   const [filter, setFilter] = useState<EventStatus | 'all'>('all')
   const [query, setQuery] = useState('')
   const [searchIds, setSearchIds] = useState<ReadonlySet<string> | null>(null)
+  const [searchExtras, setSearchExtras] = useState<EventListItem[]>([])
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -59,7 +65,10 @@ export function EventsPage({
     setEvents(null)
     setFailed(false)
 
-    const load = scope === 'mine' && user ? fetchMyEvents(user.id) : fetchEvents()
+    const load =
+      scope === 'mine' && user
+        ? fetchMyEvents(user.id)
+        : fetchEvents(asTable ? { limit: UNIT_EVENTS_LIST_LIMIT } : undefined)
     load
       .then((rows) => {
         if (active) setEvents(rows)
@@ -71,31 +80,54 @@ export function EventsPage({
     return () => {
       active = false
     }
-  }, [scope, user, reloadKey])
+  }, [asTable, scope, user, reloadKey])
 
   useEffect(() => {
     if (scope !== 'unit') {
       setSearchIds(null)
+      setSearchExtras([])
       return
     }
 
     const trimmed = query.trim()
     if (!trimmed) {
       setSearchIds(null)
+      setSearchExtras([])
       return
     }
 
+    if (!events) return
+
     setSearchIds(new Set())
+    setSearchExtras([])
 
     let cancelled = false
     const handle = window.setTimeout(() => {
       searchUnitEventIds(trimmed)
-        .then((ids) => {
-          if (!cancelled) setSearchIds(new Set(ids))
+        .then(async (ids) => {
+          const missing = missingSearchEventIds(
+            events.map((event) => event.id),
+            new Set(ids),
+          )
+          let extras: EventListItem[] = []
+          if (missing.length > 0) {
+            try {
+              extras = await fetchEventsByIds(missing)
+            } catch {
+              if (!cancelled) {
+                show('טעינת אירועים ישנים יותר נכשלה. מוצגות תוצאות מהרשימה הנוכחית.', 'alert')
+              }
+            }
+          }
+          if (!cancelled) {
+            setSearchExtras(extras)
+            setSearchIds(new Set(ids))
+          }
         })
         .catch(() => {
           if (cancelled) return
           setSearchIds(null)
+          setSearchExtras([])
           show('חיפוש האירועים נכשל. נסו שוב.', 'alert')
         })
     }, 250)
@@ -104,7 +136,7 @@ export function EventsPage({
       cancelled = true
       window.clearTimeout(handle)
     }
-  }, [query, scope, show])
+  }, [events, query, scope, show])
 
   const stampFor = useMemo(
     () => (event: EventListItem) => {
@@ -119,7 +151,8 @@ export function EventsPage({
     if (!events) return []
 
     if (scope === 'unit') {
-      return filterUnitEventsForList(events, { status: filter, searchIds })
+      const source = searchIds === null ? events : mergeEventLists(events, searchExtras)
+      return filterUnitEventsForList(source, { status: filter, searchIds })
     }
 
     const needle = query.trim().toLowerCase()
@@ -138,7 +171,7 @@ export function EventsPage({
       const bOpen = ownParticipation(b, user?.id) !== 'done' ? 0 : 1
       return aOpen - bOpen
     })
-  }, [events, filter, query, scope, user?.id, searchIds])
+  }, [events, filter, query, scope, user?.id, searchIds, searchExtras])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
   const openMineCount = useMemo(() => {
@@ -179,7 +212,12 @@ export function EventsPage({
         </section>
       ) : (
         <div className="page-head">
-          <h1 className="t-title">אירועים</h1>
+          <div className="page-head__intro">
+            <h1 className="t-title">אירועים</h1>
+            {asTable ? (
+              <p className="t-caption text-muted">{unitEventsListHint(UNIT_EVENTS_LIST_LIMIT)}</p>
+            ) : null}
+          </div>
           <div className="page-head__actions">
             {asTable ? (
               <label className="field__control" style={{ width: 280 }}>

@@ -209,7 +209,7 @@ export function FuelQuarterPage() {
     <div className="fuel-quarter">
       <header className="fuel-quarter__head">
         <div className="fuel-quarter__intro">
-          <h1 className="t-title">דרישת דלק</h1>
+          <h1 className="t-title">ניהול כרטיסי דלק</h1>
           <p className="t-caption text-muted">
             חלוקת כרטיסי דלק לפי רבעון — יתרות עוברות לרבעון הבא
           </p>
@@ -302,7 +302,7 @@ export function FuelQuarterPage() {
       {failed ? (
         <EmptyState
           icon={<ShieldAlert size={40} strokeWidth={1.75} />}
-          title="לא הצלחנו לטעון את דרישת הדלק."
+          title="לא הצלחנו לטעון את כרטיסי הדלק."
           action={
             <Button variant="secondary" onClick={() => setReloadKey((k) => k + 1)}>
               רענון

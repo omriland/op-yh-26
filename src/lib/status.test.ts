@@ -10,7 +10,7 @@ import {
 describe('event status vocabulary', () => {
   it('uses the approved Hebrew labels for each event status', () => {
     expect(eventStamp('draft').label).toBe('אירוע בהזנה')
-    expect(eventStamp('in_progress').label).toBe('הוזן - ממתין לתיעוד')
+    expect(eventStamp('in_progress').label).toBe('ממתין לתיעוד')
     expect(eventStamp('partial').label).toBe('תועד חלקית')
     expect(eventStamp('done').label).toBe('הושלם')
   })
@@ -18,7 +18,7 @@ describe('event status vocabulary', () => {
   it('exposes filter chips with the same labels', () => {
     const byValue = Object.fromEntries(EVENT_FILTERS.map((row) => [row.value, row.label]))
     expect(byValue.draft).toBe('אירוע בהזנה')
-    expect(byValue.in_progress).toBe('הוזן - ממתין לתיעוד')
+    expect(byValue.in_progress).toBe('ממתין לתיעוד')
     expect(byValue.partial).toBe('תועד חלקית')
     expect(byValue.done).toBe('הושלם')
   })

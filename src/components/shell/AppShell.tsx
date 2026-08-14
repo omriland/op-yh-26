@@ -7,16 +7,15 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  BarChart3,
   CalendarCheck,
   CalendarClock,
   ClipboardList,
   Eye,
   Fuel,
-  Gauge,
   ListChecks,
-  ListTree,
   LogOut,
-  Table2,
+  Settings,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -48,9 +47,8 @@ export type AppView =
   | 'mine'
   | 'shifts'
   | 'my_shifts'
-  | 'exceptions'
   | 'users'
-  | 'fuel_refund'
+  | 'reports'
   | 'fuel_quarter'
   | 'lists'
   | 'profile'
@@ -115,11 +113,10 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   mine: <ListChecks size={24} strokeWidth={1.75} aria-hidden="true" />,
   shifts: <CalendarClock size={24} strokeWidth={1.75} aria-hidden="true" />,
   my_shifts: <CalendarCheck size={24} strokeWidth={1.75} aria-hidden="true" />,
-  exceptions: <Gauge size={24} strokeWidth={1.75} aria-hidden="true" />,
   users: <Users size={24} strokeWidth={1.75} aria-hidden="true" />,
-  fuel_refund: <Table2 size={24} strokeWidth={1.75} aria-hidden="true" />,
+  reports: <BarChart3 size={24} strokeWidth={1.75} aria-hidden="true" />,
   fuel_quarter: <Fuel size={24} strokeWidth={1.75} aria-hidden="true" />,
-  lists: <ListTree size={24} strokeWidth={1.75} aria-hidden="true" />,
+  lists: <Settings size={24} strokeWidth={1.75} aria-hidden="true" />,
   profile: <UserRound size={24} strokeWidth={1.75} aria-hidden="true" />,
 }
 

@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Hebrew UI only; event enum values unchanged: `draft` | `in_progress` | `partial` | `done`
-- Labels: `אירוע בהזנה` / `הוזן - ממתין לתיעוד` / `תועד חלקית` / `הושלם`
+- Labels: `אירוע בהזנה` / `ממתין לתיעוד` / `תועד חלקית` / `הושלם`
 - Table trail uses event status only (no participation override)
 - Cancelled = separate בוטל stamp, not a 5th step
 - Width: `page--wide` → `calc(var(--content-max) * 1.2)`

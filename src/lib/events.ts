@@ -43,15 +43,79 @@ const EVENT_LIST_SELECT = `
   )
 `
 
+/** Default window for the unit events table. Search can hydrate older rows. */
+export const UNIT_EVENTS_LIST_LIMIT = 200
+
+export function unitEventsListHint(limit: number): string {
+  return `מוצגים ${limit} האירועים האחרונים — אפשר להשתמש בחיפוש כדי לשלוף אירועים ישנים יותר`
+}
+
+export function missingSearchEventIds(
+  loadedIds: Iterable<string>,
+  searchIds: ReadonlySet<string>,
+): string[] {
+  const loaded = new Set(loadedIds)
+  return [...searchIds].filter((id) => !loaded.has(id))
+}
+
+export function mergeEventLists(
+  loaded: EventListItem[],
+  extras: EventListItem[],
+): EventListItem[] {
+  const byId = new Map<string, EventListItem>()
+  for (const event of loaded) byId.set(event.id, event)
+  for (const event of extras) {
+    if (!byId.has(event.id)) byId.set(event.id, event)
+  }
+  return [...byId.values()].sort((a, b) => {
+    if (a.event_date !== b.event_date) return a.event_date < b.event_date ? 1 : -1
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0
+  })
+}
+
 /** Unit-wide list for shift-leads and admins; RLS narrows it for everyone else. */
-export async function fetchEvents(): Promise<EventListItem[]> {
-  const { data, error } = await supabase
+export async function fetchEvents(opts?: { limit?: number }): Promise<EventListItem[]> {
+  let query = supabase
     .from('events')
     .select(EVENT_LIST_SELECT)
     .order('event_date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (opts?.limit != null) {
+    query = query.limit(opts.limit)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return (data ?? []) as unknown as EventListItem[]
+}
+
+const EVENT_ID_CHUNK = 100
+
+/** Hydrate unit-list rows for search hits that are outside the default window. */
+export async function fetchEventsByIds(ids: string[]): Promise<EventListItem[]> {
+  if (ids.length === 0) return []
+
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += EVENT_ID_CHUNK) {
+    chunks.push(ids.slice(i, i + EVENT_ID_CHUNK))
+  }
+
+  const rows: EventListItem[] = []
+  for (const chunk of chunks) {
+    const { data, error } = await supabase
+      .from('events')
+      .select(EVENT_LIST_SELECT)
+      .in('id', chunk)
+      .order('event_date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (error) throw new Error(error.message)
+    rows.push(...((data ?? []) as unknown as EventListItem[]))
+  }
+
+  return mergeEventLists([], rows)
 }
 
 /** Events the viewer is assigned to as a responder. */

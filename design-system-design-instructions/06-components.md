@@ -74,7 +74,7 @@ Statuses only. Never for categories, roles, or counts.
 |---|---|
 | `הושלם` | `--status-done` |
 | `תועד חלקית` | `--status-partial` |
-| `הוזן - ממתין לתיעוד` | `--status-pending` |
+| `ממתין לתיעוד` | `--status-pending` |
 | `ממתין לתיעוד שלך` / `ממתין לכונן` | `--status-pending` |
 | `אירוע בהזנה` | `--status-draft` + `border-style: dashed` |
 

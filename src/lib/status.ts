@@ -21,14 +21,14 @@ export const EVENT_STATUS_ORDER: EventStatus[] = [
 
 const EVENT_STAMPS: Record<EventStatus, StampDescriptor> = {
   draft: { label: 'אירוע בהזנה', tone: 'draft' },
-  in_progress: { label: 'הוזן - ממתין לתיעוד', tone: 'pending' },
+  in_progress: { label: 'ממתין לתיעוד', tone: 'pending' },
   partial: { label: 'תועד חלקית', tone: 'partial' },
   done: { label: 'הושלם', tone: 'done' },
 }
 
 export const EVENT_FILTERS: { value: EventStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'הכול' },
-  { value: 'in_progress', label: 'הוזן - ממתין לתיעוד' },
+  { value: 'in_progress', label: 'ממתין לתיעוד' },
   { value: 'partial', label: 'תועד חלקית' },
   { value: 'done', label: 'הושלם' },
   { value: 'draft', label: 'אירוע בהזנה' },
