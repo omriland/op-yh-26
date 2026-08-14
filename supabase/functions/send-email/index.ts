@@ -26,6 +26,20 @@ function trim(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/** True if Bearer equals injected service key, or JWT claims role=service_role. */
+function isServiceRoleBearer(token: string, serviceKey: string): boolean {
+  if (token === serviceKey) return true;
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return false;
+    const json = atob(parts[1]!.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json) as { role?: string };
+    return payload.role === "service_role";
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -51,7 +65,7 @@ Deno.serve(async (req: Request) => {
   const token = authHeader.slice("Bearer ".length).trim();
   const adminClient = createClient(supabaseUrl, serviceKey);
 
-  const isService = token === serviceKey;
+  const isService = isServiceRoleBearer(token, serviceKey);
   if (!isService) {
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
