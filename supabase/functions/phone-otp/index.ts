@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { buildOtpSmsMessage, otpSmsProvider } from "../_shared/otpSms.ts";
 
 type OtpPurpose = "login_device" | "users_page";
 
@@ -34,6 +35,8 @@ const START_COOLDOWN_MS = 100 * 1000;
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const SOPRANO_API_URL = "https://sec.soprano.co.il/";
+const TWILIO_MESSAGES_URL = (accountSid: string) =>
+  `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -65,12 +68,6 @@ function toE164IlMobile(raw: string | null | undefined): string | null {
   return `+972${phoneDigits(raw!).slice(1)}`;
 }
 
-/** Soprano wants 9725… without +. */
-function toSopranoDestination(raw: string | null | undefined): string | null {
-  const e164 = toE164IlMobile(raw);
-  return e164 ? e164.replace(/^\+/, "") : null;
-}
-
 function maskIlMobile(raw: string | null | undefined): string | null {
   if (!isValidIlMobile(raw)) return null;
   const digits = phoneDigits(raw!);
@@ -99,6 +96,54 @@ function randomDeviceToken(): string {
 function randomOtpCode(): string {
   const n = crypto.getRandomValues(new Uint32Array(1))[0]! % 1_000_000;
   return String(n).padStart(6, "0");
+}
+
+async function sendTwilioSms(
+  toE164: string,
+  message: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const apiKey = Deno.env.get("TWILIO_API_KEY");
+  const apiSecret = Deno.env.get("TWILIO_API_SECRET");
+  const messagingServiceSid = Deno.env.get("TWILIO_MESSAGING_SERVICE_SID");
+  if (!accountSid || !apiKey || !apiSecret || !messagingServiceSid) {
+    console.error("phone-otp: missing Twilio env");
+    return { ok: false, error: "שירות ה-SMS אינו מוגדר. פנו למנהל המערכת." };
+  }
+
+  const auth = btoa(`${apiKey}:${apiSecret}`);
+  const formData = new URLSearchParams({
+    To: toE164,
+    MessagingServiceSid: messagingServiceSid,
+    Body: message,
+  });
+
+  try {
+    const res = await fetch(TWILIO_MESSAGES_URL(accountSid), {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formData.toString(),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error("phone-otp: Twilio error", res.status, text.slice(0, 200));
+      return { ok: false, error: "שליחת הקוד נכשלה. נסו שוב בעוד רגע." };
+    }
+    let sid = "";
+    try {
+      sid = (JSON.parse(text) as { sid?: string }).sid ?? "";
+    } catch {
+      sid = "";
+    }
+    console.log("phone-otp: Twilio ok", sid || text.slice(0, 80));
+    return { ok: true };
+  } catch (err) {
+    console.error("phone-otp: Twilio exception", err);
+    return { ok: false, error: "שליחת הקוד נכשלה. נסו שוב בעוד רגע." };
+  }
 }
 
 async function sendSopranoSms(
@@ -316,8 +361,8 @@ async function handleOtpStart(
     return json(400, { error: "אימות SMS אינו פעיל עבור פעולה זו." });
   }
 
-  const destination = toSopranoDestination(profile.phone);
-  if (!destination) {
+  const e164 = toE164IlMobile(profile.phone);
+  if (!e164) {
     return json(400, { error: "מספר הטלפון אינו תקין לשליחת SMS." });
   }
 
@@ -368,8 +413,10 @@ async function handleOtpStart(
     return json(200, { ok: true, maskedPhone: maskIlMobile(profile.phone), reused: true });
   }
 
-  const message = `קוד האימות באבן דרך: ${code}`;
-  const sent = await sendSopranoSms(destination, message);
+  const message = buildOtpSmsMessage(code);
+  const sent = otpSmsProvider(purpose) === "twilio"
+    ? await sendTwilioSms(e164, message)
+    : await sendSopranoSms(e164.replace(/^\+/, ""), message);
   if (!sent.ok) return json(502, { error: sent.error });
 
   return json(200, { ok: true, maskedPhone: maskIlMobile(profile.phone) });
