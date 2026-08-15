@@ -1,11 +1,11 @@
-export type AdminSegment = 'users' | 'unit_broadcast' | 'reports' | 'fuel_quarter' | 'lists'
+export type AdminSegment = 'users' | 'reports' | 'fuel_quarter' | 'lists' | 'unit_broadcast'
 
 export const ADMIN_SEGMENTS: { id: AdminSegment; label: string }[] = [
   { id: 'users', label: 'משתמשים' },
-  { id: 'unit_broadcast', label: 'תפוצה לכלל היחידה' },
   { id: 'reports', label: 'דוחות וסטטיסטיקות' },
   { id: 'fuel_quarter', label: 'ניהול דלק' },
   { id: 'lists', label: 'הגדרות' },
+  { id: 'unit_broadcast', label: 'תפוצה לכלל היחידה' },
 ]
 
 export const ADMIN_MOBILE_HUB_VIEWS: AdminSegment[] = ADMIN_SEGMENTS.filter(

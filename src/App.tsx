@@ -301,7 +301,12 @@ function Gate() {
 
     // Profile: desktop sidebar only — mobile uses the app-bar user menu.
     if (isDesktop) {
-      list.push({ view: 'profile', label: 'פרופיל', icon: NAV_ICONS.profile })
+      list.push({
+        view: 'profile',
+        label: 'פרופיל',
+        icon: NAV_ICONS.profile,
+        section: isAdmin ? 'ניהול' : undefined,
+      })
     }
 
     return list
