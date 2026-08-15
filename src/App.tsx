@@ -34,6 +34,7 @@ import { ShiftDetailPage } from './pages/ShiftDetailPage'
 import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
 import { isImpersonating } from './lib/impersonationStash'
+import { usePresenceHeartbeat } from './lib/usePresenceHeartbeat'
 import { fetchOtpStatus } from './lib/phoneOtp'
 import {
   clearPostLoginFill,
@@ -229,6 +230,8 @@ function Gate() {
       active = false
     }
   }, [session, passwordSetupReason, user?.id, profile?.otp_login_enabled])
+
+  usePresenceHeartbeat(Boolean(session && !passwordSetupReason && loginOtp.state === 'ok'))
 
   const entries = useMemo(() => {
     const list: {

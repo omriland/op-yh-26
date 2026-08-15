@@ -3,6 +3,7 @@ import { compareAdminUsers } from './adminUserStatus'
 import { findDuplicatePlate, phoneDigits, plateDigits } from './format'
 import { supabase } from './supabase'
 import { syncUserRolesDiff } from './syncUserRolesDiff'
+import { fetchAdminLastActive, mergeLastActive } from './userPresence'
 
 export type AdminVehicle = {
   id: string
@@ -19,6 +20,7 @@ export type AdminUserRow = {
   phone: string | null
   active: boolean
   last_sign_in_at: string | null
+  last_active_at: string | null
   /** True until the invitee sets a password in the app. */
   invite_pending: boolean
   otp_login_enabled: boolean
@@ -124,6 +126,7 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     phone: profile.phone,
     active: profile.active !== false,
     last_sign_in_at: lastSignInByUser.get(profile.id) ?? null,
+    last_active_at: null,
     invite_pending: Boolean(profile.invite_pending),
     otp_login_enabled: Boolean(profile.otp_login_enabled),
     otp_users_page_enabled: Boolean(profile.otp_users_page_enabled),
@@ -140,8 +143,15 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
       })),
   }))
 
+  let presenceRows: Awaited<ReturnType<typeof fetchAdminLastActive>> = []
+  try {
+    presenceRows = await fetchAdminLastActive()
+  } catch {
+    presenceRows = []
+  }
+
   // Pending invitees → active confirmed → מושבתים; name within group.
-  return rows.sort(compareAdminUsers)
+  return mergeLastActive(rows, presenceRows).sort(compareAdminUsers)
 }
 
 export function inviteAdminUser(input: InviteUserInput) {

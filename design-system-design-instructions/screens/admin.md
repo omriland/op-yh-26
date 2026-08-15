@@ -35,8 +35,8 @@ Admin-only under ניהול (`ניהול דלק`, Fuel icon). Opening lands on a
 
 - Title `משתמשים` + primary `משתמש חדש`.
 - Search input (name / callsign / email).
-- Desktop table: שם מלא · או״ק (mono) · דוא״ל (LTR isolate) · טלפון (LTR isolate, mono) · תפקיד · רכבים (count). Role column renders one small neutral chip (`--type-caption`, secondary-chip chrome — NOT stamps) for the **highest** role only: `מנהל־על` · `מנהל` · `אחמ״ש` · `כונן`.
-- Mobile: user cards — avatar 40 + name + callsign with ⋮ overflow menu at inline-end (same actions as the desktop row), one highest-role chip + status chips, caption line with email. Vertical gaps `--space-3` between head / chips / email; no detail hairline under the head.
+- Desktop table: שם מלא (optional presence disc at inline-start of the name: green `--status-done` `פעיל עכשיו` ≤ 3 min, orange `--status-partial` `פעיל לאחרונה` ≤ 15 min; `--radius-full` disc, size `--space-2`; never color-only — `title` + visually-hidden label) · או״ק (mono) · דוא״ל (LTR isolate) · טלפון (LTR isolate, mono) · תפקיד · רכבים (count). Role column renders one small neutral chip (`--type-caption`, secondary-chip chrome — NOT stamps) for the **highest** role only: `מנהל־על` · `מנהל` · `אחמ״ש` · `כונן`.
+- Mobile: user cards — presence disc (same rules) then avatar 40 + name + callsign with ⋮ overflow menu at inline-end (same actions as the desktop row), one highest-role chip + status chips, caption line with email. Vertical gaps `--space-3` between head / chips / email; no detail hairline under the head.
 
 ### Create / Edit user (dialog on desktop, full screen on mobile)
 

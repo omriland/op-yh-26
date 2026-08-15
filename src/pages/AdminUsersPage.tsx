@@ -14,6 +14,7 @@ import {
   unarchiveAdminVehicle,
   type AdminUserRow,
 } from '../lib/adminUsers'
+import { canSubmitCreateUser, createUserEmailError, isValidEmail } from '../lib/adminUserDraft'
 import { SUPER_ADMIN_LOCK_ERROR, canMutateAdminUser, canToggleUsersPageOtp } from '../lib/adminUserMenu'
 import {
   highestRoleLabel,
@@ -23,6 +24,13 @@ import {
   type AssignableRole,
 } from '../lib/appRoles'
 import { isInvitePending } from '../lib/adminUserStatus'
+import { UserPresenceDot } from '../components/admin/UserPresenceDot'
+import {
+  PRESENCE_TOUCH_THROTTLE_MS,
+  fetchAdminLastActive,
+  mergeLastActive,
+  presenceFromLastActive,
+} from '../lib/userPresence'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import { useAuth, type AppRole } from '../lib/auth'
 import { canImpersonateTarget } from '../lib/impersonationEligibility'
@@ -227,9 +235,14 @@ export function AdminUsersPage() {
   const draftRootRef = useRef<HTMLDivElement>(null)
   const passwordRootRef = useRef<HTMLDivElement>(null)
 
+  const canSaveDraft =
+    draft !== null && (Boolean(draft.id) || canSubmitCreateUser(draft))
+  const createEmailError =
+    draft && !draft.id ? createUserEmailError(draft.email) : null
+
   useDesktopFormSubmit(() => void submitDraft(), {
     enabled:
-      draft !== null &&
+      canSaveDraft &&
       !saving &&
       confirmDeactivate === null &&
       confirmDelete === null &&
@@ -287,6 +300,34 @@ export function AdminUsersPage() {
     }
   }, [reloadKey])
 
+  const usersLoaded = users !== null
+  useEffect(() => {
+    if (!usersLoaded) return
+    let active = true
+    async function refreshPresence() {
+      if (document.hidden) return
+      try {
+        const rows = await fetchAdminLastActive()
+        if (!active) return
+        setUsers((current) => (current ? mergeLastActive(current, rows) : current))
+      } catch {
+        /* keep last discs */
+      }
+    }
+    const id = window.setInterval(() => {
+      void refreshPresence()
+    }, PRESENCE_TOUCH_THROTTLE_MS)
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshPresence()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      active = false
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [usersLoaded, reloadKey])
+
   const filtered = useMemo(() => {
     if (!users) return []
     const q = query.trim()
@@ -302,8 +343,8 @@ export function AdminUsersPage() {
       setFormError('יש למלא שם מלא ואו״ק.')
       return
     }
-    if (!draft.id && !draft.email.trim()) {
-      setFormError('יש למלא דוא״ל.')
+    if (!draft.id && !isValidEmail(draft.email)) {
+      setFormError(draft.email.trim() ? 'יש להזין כתובת דוא״ל תקינה.' : 'יש למלא דוא״ל.')
       return
     }
     if (draft.roles.length === 0) {
@@ -826,6 +867,7 @@ export function AdminUsersPage() {
               {filtered.map((user) => {
                 const otpLabel = otpUserLabel(user)
                 const canMutate = canMutateAdminUser(isSuperAdmin, user.roles)
+                const presence = presenceFromLastActive(user.last_active_at, Date.now(), user)
                 const menuItems = buildUserMenuItems(user, menuActionsFor(user), canMutate)
                 const showMenu = menuItems.length > 0
                 return (
@@ -840,7 +882,12 @@ export function AdminUsersPage() {
                     setDraft(draftFromUser(user))
                   }}
                 >
-                  <td>{user.full_name}</td>
+                  <td>
+                    <span className="user-name-with-presence">
+                      {presence ? <UserPresenceDot status={presence} /> : null}
+                      {user.full_name}
+                    </span>
+                  </td>
                   <td className={monoClass(user.callsign)}>{user.callsign}</td>
                   <td>
                     <span className="ltr">{user.email}</span>
@@ -914,8 +961,10 @@ export function AdminUsersPage() {
               canMutate,
             )
             const showMenu = menuItems.length > 0
+            const presence = presenceFromLastActive(user.last_active_at, Date.now(), user)
             const identity = (
               <>
+                {presence ? <UserPresenceDot status={presence} /> : null}
                 <Avatar name={user.full_name} size="lg" />
                     <span className="user-card__identity">
                       <span className="t-section">{user.full_name}</span>
@@ -1005,7 +1054,11 @@ export function AdminUsersPage() {
             <Button variant="secondary" disabled={saving} onClick={() => setDraft(null)}>
               ביטול
             </Button>
-            <Button loading={saving} onClick={() => void submitDraft()}>
+            <Button
+              loading={saving}
+              disabled={saving || !canSaveDraft}
+              onClick={() => void submitDraft()}
+            >
               שמירת משתמש
             </Button>
           </>
@@ -1032,7 +1085,14 @@ export function AdminUsersPage() {
                 disabled={Boolean(draft.id)}
                 value={draft.email}
                 onChange={(event) => setDraft({ ...draft, email: event.target.value })}
-                hint={draft.id ? 'לא ניתן לשנות דוא״ל לאחר יצירה.' : 'נשלחת הזמנה לכתובת זו.'}
+                error={createEmailError ?? undefined}
+                hint={
+                  createEmailError
+                    ? undefined
+                    : draft.id
+                      ? 'לא ניתן לשנות דוא״ל לאחר יצירה.'
+                      : 'נשלחת הזמנה לכתובת זו.'
+                }
               />
               <TextField
                 label="או״ק"

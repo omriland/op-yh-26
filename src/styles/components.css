@@ -854,6 +854,33 @@ textarea.field__input {
   height: 40px;
 }
 
+.user-presence {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.user-presence__disc {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+}
+
+.user-presence--now .user-presence__disc {
+  background: var(--status-done);
+}
+
+.user-presence--recent .user-presence__disc {
+  background: var(--status-partial);
+}
+
+.user-name-with-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 /* ============================================================
    Application shell
    ============================================================ */

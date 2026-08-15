@@ -22,9 +22,9 @@
 | `--radius-sm` | 4 | Inputs, buttons, selects, table cells' selection |
 | `--radius-md` | 8 | Cards, dialogs, sheets, toasts |
 | `--radius-stamp` | 3 | Stamp chips only |
-| `--radius-full` | 9999 | Avatars only |
+| `--radius-full` | 9999 | Avatars, and the 8px user-presence disc on משתמשים |
 
-Documents are not bubbly. Nothing else is rounded. No pill buttons.
+Documents are not bubbly. Nothing else is rounded except avatars and the user-presence disc. No pill buttons.
 
 ## Hairlines & borders
 
