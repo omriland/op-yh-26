@@ -5,6 +5,11 @@
 [build.environment]
   NODE_VERSION = "22"
 
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "no-store"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

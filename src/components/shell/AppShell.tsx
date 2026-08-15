@@ -30,6 +30,7 @@ import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
 import { ImpersonationBar } from './ImpersonationBar'
+import { UpdateAvailableNotice } from './UpdateAvailableNotice'
 import { ImpersonationPickerDialog } from './ImpersonationPickerDialog'
 import {
   SIDEBAR_WIDTH_DEFAULT,
@@ -100,6 +101,7 @@ export function AppShell({
       </a>
       <TopAppBar onNavigate={onNavigate} onHome={onHome} />
       <ImpersonationBar onRestored={onHome} />
+      <UpdateAvailableNotice />
       <div className="shell__body">
         {withSidebar ? <Sidebar view={view} onNavigate={onNavigate} entries={entries} /> : null}
         <main id="main" className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}>
