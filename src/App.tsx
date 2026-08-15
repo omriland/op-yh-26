@@ -5,9 +5,12 @@ import { AppShell, NAV_ICONS, type AppView } from './components/shell/AppShell'
 import { fetchNavAttention, type NavAttention } from './lib/navAttention'
 import { shouldShowSecurityBadge } from './lib/securityBadge'
 import { AdminSegmentBar } from './components/admin/AdminSegmentBar'
+import { EmptyState } from './components/ui/EmptyState'
 import { EventListSkeleton } from './components/ui/Skeleton'
 import { ToastProvider } from './components/ui/Toast'
+import { Button } from './components/ui/Button'
 import { OtpGate } from './components/otp/OtpGate'
+import { ShieldAlert } from 'lucide-react'
 import {
   ADMIN_MOBILE_HUB_VIEWS,
   ADMIN_SEGMENTS,
