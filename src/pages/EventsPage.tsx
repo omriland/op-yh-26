@@ -24,6 +24,7 @@ import {
 import { formatDayHeading } from '../lib/format'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
+import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { FilterChips } from '../components/ui/FilterChips'
@@ -288,10 +289,9 @@ export function EventsPage({
       ) : asTable ? (
         <EventsTable events={visible} onOpen={onOpen} />
       ) : (
-        <div className="stack-4">
+        <DateGroups>
           {grouped.map(([day, items]) => (
-            <section key={day}>
-              <h2 className="group-head">{formatDayHeading(day)}</h2>
+            <DateGroup key={day} heading={formatDayHeading(day)}>
               <ul className="stack-3">
                 {items.map((event) => {
                   const mineStatus =
@@ -309,9 +309,9 @@ export function EventsPage({
                   )
                 })}
               </ul>
-            </section>
+            </DateGroup>
           ))}
-        </div>
+        </DateGroups>
       )}
     </div>
   )

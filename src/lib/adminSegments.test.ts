@@ -12,7 +12,7 @@ describe('ADMIN_SEGMENTS', () => {
     expect(ADMIN_SEGMENTS.map((segment) => segment.label)).toEqual([
       'משתמשים',
       'דוחות וסטטיסטיקות',
-      'ניהול כרטיסי דלק',
+      'ניהול דלק',
       'הגדרות',
     ])
   })

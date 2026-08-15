@@ -5,6 +5,7 @@ import { fetchMyShifts, fetchShifts, type ShiftListItem } from '../lib/shifts'
 import { formatDayHeading } from '../lib/format'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
+import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { ShiftCard } from '../components/shifts/ShiftCard'
@@ -93,18 +94,17 @@ export function ShiftsPage({
           onCreate={onCreate}
         />
       ) : (
-        <div className="stack-4">
+        <DateGroups>
           {grouped.map(([day, items]) => (
-            <section key={day}>
-              <h2 className="group-head">{formatDayHeading(day)}</h2>
+            <DateGroup key={day} heading={formatDayHeading(day)}>
               <ul className="stack-3">
                 {items.map((shift) => (
                   <ShiftCard key={shift.id} shift={shift} onOpen={onOpen} />
                 ))}
               </ul>
-            </section>
+            </DateGroup>
           ))}
-        </div>
+        </DateGroups>
       )}
     </div>
   )

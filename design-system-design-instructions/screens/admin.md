@@ -1,11 +1,11 @@
 # Screen — Admin (ניהול): Users, Vehicles, Roles, Closed Lists
 
-The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול כרטיסי דלק`, `הגדרות`. Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
+The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`. Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
 
 ## Navigation
 
-- Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול כרטיסי דלק`, `הגדרות`.
-- Mobile tab bar (admin): `משתמשים` only among admin destinations; segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול כרטיסי דלק` | `הגדרות`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `משתמשים` (role-gated). Profile via app-bar menu.
+- Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`.
+- Mobile tab bar (admin): `משתמשים` only among admin destinations; segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `משתמשים` (role-gated). Profile via app-bar menu.
 
 ## דוחות וסטטיסטיקות (Reports)
 
@@ -15,9 +15,13 @@ v1 kinds: סיכום ק״מ לפי כונן · פירוט ק״מ לפי השתת
 
 Catalog: caption `בחרו דוח להצגה`; search `חיפוש לפי שם דוח או תיאור` over title + includes (normalize gershayim/punctuation; all words; one-typo fuzzy on 3+ letter words). Title hits rank above description. No-results: `לא נמצאו דוחות תואמים` + ghost `ניקוי חיפוש`. Cards (not a table): title + includes, whole card tappable, no chevron. Mobile one column (`--space-3` gap); desktop two columns (`--space-6` gap).
 
-## ניהול כרטיסי דלק (Quarterly fuel request)
+## ניהול דלק (Hub)
 
-Admin-only workbook under ניהול (`ניהול כרטיסי דלק`, Fuel icon). Year + calendar quarter picker. Rows with opening balance, three month km columns, liters (÷6), editable cards (floor liters÷15 default), remaining, card numbers. Save draft / lock quarter (carry remaining). Spec: `docs/superpowers/specs/2026-08-11-yahpaz-quarterly-fuel-request-design.md`.
+Admin-only under ניהול (`ניהול דלק`, Fuel icon). Opening lands on a chooser: caption `אני רוצה:` and two catalog cards — allocate quarterly cards, or see/export usage. Back `כרטיסי דלק` returns to the chooser. Spec: `docs/superpowers/specs/2026-08-15-yahpaz-fuel-cards-hub-design.md`.
+
+**Allocate:** existing quarterly workbook. Helper: ניהול חלוקת כרטיסי דלק לפי רבעון. יתרות עוברות באופן אוטומטי לרבעון הבא. ניתן להעביר יתרה שלילית או חיובית. Year + quarter, opening balance, month km, liters, editable cards, remaining, card numbers, save / lock. Spec: `docs/superpowers/specs/2026-08-11-yahpaz-quarterly-fuel-request-design.md`.
+
+**Usage:** `שימוש בדלק` — כונן · קילומטרים · אירועים · ליטרים (km÷6). Period picker (טווח / חודש / שנה / אחרונים) via react-day-picker, Gregorian RTL. Totals, search, CSV. Same km rules as סיכום ק״מ.
 
 ## משתמשים (Users)
 
@@ -56,7 +60,7 @@ Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כביש
 
 ### Items view
 
-- Title = list name + primary `הוספת פריט`.
+- Title = list name + primary `הוספת פריט`. For `כבישים`, caption `מיובא אוטומטית מGov.il` at `--type-caption` / `--text-muted` next to the title (`Gov.il` is an LTR isolate).
 - Items: simple rows, hairline-separated, 48 px: value text + overflow menu (עריכה / הסרה).
 - System שלוחה `תחנה / אחר / משוכפל`: caption `מערכת`; no edit/delete menu (DB-locked). Spec: `docs/superpowers/specs/2026-08-11-yahpaz-system-districts-places-location-design.md`.
 - Add/edit: inline row editor (input + `שמירה` / `ביטול`) — no dialog needed for a single field.

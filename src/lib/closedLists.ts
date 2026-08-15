@@ -18,6 +18,7 @@ export type ClosedListItem = {
 export const CLOSED_LISTS: {
   key: ClosedListKey
   label: string
+  description?: string
   usage: { table: 'events' | 'event_treated_vehicles'; column: string }
 }[] = [
   {
@@ -33,6 +34,7 @@ export const CLOSED_LISTS: {
   {
     key: 'roads',
     label: 'כבישים',
+    description: 'מיובא אוטומטית מGov.il',
     usage: { table: 'events', column: 'road_id' },
   },
   {

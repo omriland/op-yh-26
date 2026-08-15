@@ -6,6 +6,7 @@ import {
 } from '../lib/kmExceptionsReport'
 import { formatDate, formatDayHeading, formatNumber, monoClass } from '../lib/format'
 import { Button } from '../components/ui/Button'
+import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { EventTypeLabel } from '../components/events/EventTypeLabel'
@@ -62,10 +63,9 @@ export function KmExceptionsPage({ asTable, onOpen }: KmExceptionsPageProps) {
       ) : asTable ? (
         <KmExceptionsTable rows={rows} onOpen={onOpen} />
       ) : (
-        <div className="stack-4">
+        <DateGroups>
           {grouped.map(([day, items]) => (
-            <section key={day}>
-              <h2 className="group-head">{formatDayHeading(day)}</h2>
+            <DateGroup key={day} heading={formatDayHeading(day)}>
               <ul className="stack-3">
                 {items.map((row) => (
                   <KmExceptionCard
@@ -75,9 +75,9 @@ export function KmExceptionsPage({ asTable, onOpen }: KmExceptionsPageProps) {
                   />
                 ))}
               </ul>
-            </section>
+            </DateGroup>
           ))}
-        </div>
+        </DateGroups>
       )}
     </div>
   )

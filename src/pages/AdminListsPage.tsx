@@ -148,7 +148,13 @@ export function AdminListsPage() {
                 onClick={() => setSelectedKey(list.key)}
               >
                 <span className="t-section">{list.label}</span>
-                <span className="t-caption text-muted">ניהול פריטי הרשימה</span>
+                <span className="t-caption text-muted">
+                  {list.description ? (
+                    <ClosedListDescription text={list.description} />
+                  ) : (
+                    'ניהול פריטי הרשימה'
+                  )}
+                </span>
               </button>
             ))}
           </div>
@@ -187,7 +193,14 @@ export function AdminListsPage() {
                     <ArrowRight size={20} strokeWidth={1.75} />
                   </IconButton>
                 ) : null}
-                <h1 className="t-title">{selectedMeta?.label ?? 'הגדרות'}</h1>
+                <div className="page-head__intro">
+                  <h1 className="t-title">{selectedMeta?.label ?? 'הגדרות'}</h1>
+                  {selectedMeta?.description ? (
+                    <p className="t-caption text-muted">
+                      <ClosedListDescription text={selectedMeta.description} />
+                    </p>
+                  ) : null}
+                </div>
               </div>
               {isDesktop ? (
                 <Button
@@ -302,6 +315,18 @@ export function AdminListsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+function ClosedListDescription({ text }: { text: string }) {
+  const parts = text.split('Gov.il')
+  if (parts.length === 1) return text
+  return (
+    <>
+      {parts[0]}
+      <span dir="ltr">Gov.il</span>
+      {parts.slice(1).join('Gov.il')}
+    </>
   )
 }
 

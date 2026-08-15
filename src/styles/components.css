@@ -420,7 +420,7 @@ textarea.field__input {
   flex: 1;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -486,11 +486,12 @@ textarea.field__input {
 }
 
 .event-status-trail__label {
-  max-width: 100%;
+  width: max-content;
+  max-width: none;
   font: 600 12px/16px var(--font-ui);
   letter-spacing: 0.01em;
   text-align: center;
-  text-wrap: balance;
+  white-space: nowrap;
 }
 
 .event-status-trail__label--done {
@@ -1327,6 +1328,21 @@ textarea.field__input {
   color: var(--text-secondary);
 }
 
+/* Headers must be siblings under .event-groups (not wrapped with that
+   day's cards). A one-card <section> clamps position:sticky to the card
+   and the date bar paints through the event while scrolling. */
+.event-groups {
+  display: block;
+}
+
+.event-groups > .group-head + * {
+  margin-block-end: var(--space-4);
+}
+
+.event-groups > .group-head + *:last-child {
+  margin-block-end: 0;
+}
+
 .group-head {
   position: sticky;
   /* App bar is outside .shell__main scrollport — stick to scrollport top. */
@@ -1496,7 +1512,8 @@ textarea.field__input {
 
 .event-status-trail__tip-anchor {
   display: block;
-  max-width: 100%;
+  width: max-content;
+  max-width: none;
   cursor: default;
 }
 
@@ -2694,6 +2711,27 @@ textarea.field__input {
   }
 }
 
+.fuel-hub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.fuel-hub__prompt {
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.fuel-hub__card {
+  padding: var(--space-5);
+  gap: var(--space-3);
+  color: var(--text-primary);
+}
+
+.fuel-hub__card svg {
+  color: var(--accent);
+}
+
 .list-rows {
   list-style: none;
   margin: 0;
@@ -3030,6 +3068,176 @@ textarea.field__input {
 @media (hover: hover) {
   .table--fuel-quarter tbody tr:hover {
     cursor: default;
+  }
+}
+
+/* ============================================================
+   Fuel usage period picker
+   ============================================================ */
+
+.period-picker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.period-picker__label {
+  font: 500 13px/18px var(--font-ui);
+  color: var(--text-secondary);
+}
+
+.period-picker__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  width: 100%;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  text-align: start;
+}
+
+.period-picker__trigger svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.period-picker__value {
+  flex: 1;
+  min-width: 0;
+}
+
+.period-picker__panel {
+  margin-block-start: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-overlay);
+  box-shadow: 0 8px 24px rgba(15, 27, 45, 0.16);
+}
+
+@media (min-width: 1025px) {
+  .period-picker__panel {
+    position: absolute;
+    inset-inline-start: 0;
+    z-index: 4;
+    width: max-content;
+    max-width: 100%;
+  }
+}
+
+.period-picker__modes,
+.period-picker__presets,
+.period-picker__grid,
+.period-picker__year-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.period-picker__modes {
+  margin-block-end: var(--space-4);
+}
+
+.period-picker__range {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.period-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.period-picker__grid--years {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.period-picker__year-nav {
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: var(--space-3);
+}
+
+.period-picker__mode,
+.period-picker__cell,
+.period-picker__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.period-picker__cell {
+  width: 100%;
+}
+
+.period-picker__mode[aria-selected='true'],
+.period-picker__cell[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .period-picker__mode:hover,
+  .period-picker__cell:hover,
+  .period-picker__nav:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+.period-picker__mode:disabled,
+.period-picker__cell:disabled,
+.period-picker__nav:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.period-picker .rdp-root {
+  --rdp-accent-color: var(--accent-fill);
+  --rdp-accent-background-color: var(--accent-subtle);
+  --rdp-day_button-border-radius: var(--radius-sm);
+  --rdp-selected-border: 2px solid var(--accent-fill);
+  --rdp-today-color: var(--accent);
+  --rdp-range_middle-background-color: var(--accent-subtle);
+  --rdp-range_middle-color: var(--text-primary);
+  --rdp-range_start-color: var(--text-on-accent);
+  --rdp-range_end-color: var(--text-on-accent);
+  --rdp-range_start-background: var(--accent-subtle);
+  --rdp-range_end-background: var(--accent-subtle);
+  --rdp-range_start-date-background-color: var(--accent-fill);
+  --rdp-range_end-date-background-color: var(--accent-fill);
+  --rdp-months-gap: var(--space-6);
+  --rdp-animation_duration: var(--duration-fast);
+  --rdp-animation_timing: var(--ease-standard);
+  color: var(--text-primary);
+}
+
+.period-picker .rdp-selected {
+  font-size: inherit;
+}
+
+.period-picker .rdp-month_caption {
+  font: 700 16px/24px var(--font-ui);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .period-picker .rdp-root {
+    --rdp-animation_duration: 0s;
   }
 }
 
