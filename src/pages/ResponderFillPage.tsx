@@ -3,9 +3,7 @@ import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   completeResponderFill,
-  computeOdometerEnd,
   fetchResponderFillContext,
-  odometerEndAutoHint,
   odometerRangeError,
   saveResponderFillDraft,
   type ResponderFillContext,
@@ -115,13 +113,22 @@ export function ResponderFillPage({
   }
 
   function patchOdometerStart(value: string) {
-    if (!draft || !ctx) return
-    const odometer_end = computeOdometerEnd(value, ctx.totalKm)
-    patchDraft({ odometer_start: value, odometer_end })
-    const rangeError = odometerRangeError(value, odometer_end)
+    if (!draft) return
+    patchDraft({ odometer_start: value })
+    const rangeError = odometerRangeError(value, draft.odometer_end)
     setErrors((current) => ({
       ...current,
       odometer_start: undefined,
+      odometer_end: rangeError,
+    }))
+  }
+
+  function patchOdometerEnd(value: string) {
+    if (!draft) return
+    patchDraft({ odometer_end: value })
+    const rangeError = odometerRangeError(draft.odometer_start, value)
+    setErrors((current) => ({
+      ...current,
       odometer_end: rangeError,
     }))
   }
@@ -256,13 +263,6 @@ export function ResponderFillPage({
             <LedgerRow label="כביש" value={ctx.road_name ?? undefined} />
             <LedgerRow label="מיקום" value={ctx.location ?? undefined} />
             <LedgerRow label="אחמ״ש" value={ctx.shift_lead_name ?? undefined} />
-            <LedgerRow
-              label="קילומטרים (אחמ״ש)"
-              value={
-                ctx.totalKm != null ? `${formatNumber(ctx.totalKm)} ק״מ` : 'טרם הוזנו'
-              }
-              numeric={ctx.totalKm != null}
-            />
           </Ledger>
         </section>
 
@@ -306,7 +306,6 @@ export function ResponderFillPage({
                     value={draft.treatment_notes || undefined}
                   />
                 </Ledger>
-                <p className="t-caption text-muted">{odometerEndAutoHint(ctx.totalKm)}</p>
               </>
             ) : (
               <>
@@ -349,11 +348,11 @@ export function ResponderFillPage({
                   required
                   numeric
                   inputMode="numeric"
-                  readOnly
                   value={draft.odometer_end}
-                  placeholder="יחושב אוטומטית"
                   error={errors.odometer_end}
-                  hint={odometerEndAutoHint(ctx.totalKm)}
+                  onChange={(event) =>
+                    patchOdometerEnd(digitsOnly(event.target.value))
+                  }
                 />
                 <TextField
                   label="נתיב נסיעה"
