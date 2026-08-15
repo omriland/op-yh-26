@@ -46,6 +46,7 @@ export function EventDetailPage({
   const { show } = useToast()
   const canEdit = Boolean(onEdit) && (roles.includes('admin') || roles.includes('shift_lead'))
   const canDelete = roles.includes('admin')
+  const canSeeLeadKm = roles.includes('admin') || roles.includes('shift_lead')
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -291,6 +292,7 @@ export function EventDetailPage({
                     ? () => onEditLeadFields(responder.responder_id)
                     : undefined
                 }
+                showLeadKm={canSeeLeadKm}
               />
             ))
           )}
@@ -334,6 +336,7 @@ function ResponderCard({
   onFillOwn,
   fillLabel,
   onEditLeadFields,
+  showLeadKm,
 }: {
   responder: EventResponderDetail
   eventDate: string
@@ -341,6 +344,7 @@ function ResponderCard({
   onFillOwn?: () => void
   fillLabel?: string
   onEditLeadFields?: () => void
+  showLeadKm: boolean
 }) {
   const name = responder.profile?.full_name ?? 'כונן'
   const treated = responder.treated
@@ -370,16 +374,18 @@ function ResponderCard({
           value={formatEndTime(responder.ended_at, eventDate)}
           numeric
         />
-        <LedgerRow
-          label="קילומטרים"
-          value={
-            responder.total_km != null ? (
-              <>
-                <span className="mono">{formatNumber(responder.total_km)}</span> ק״מ
-              </>
-            ) : undefined
-          }
-        />
+        {showLeadKm ? (
+          <LedgerRow
+            label="קילומטרים"
+            value={
+              responder.total_km != null ? (
+                <>
+                  <span className="mono">{formatNumber(responder.total_km)}</span> ק״מ
+                </>
+              ) : undefined
+            }
+          />
+        ) : null}
         <LedgerRow label="אמצעים" value={responder.emergency_means ? 'כן' : 'לא'} />
         <LedgerRow label="רכבים שטופלו" value={treated || undefined} />
         <LedgerRow

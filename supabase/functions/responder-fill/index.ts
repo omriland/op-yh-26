@@ -86,13 +86,6 @@ function parseOptionalNumber(raw: string): number | null | "invalid" {
   return value;
 }
 
-function computeOdometerEnd(odometerStart: string, totalKm: number | null): string {
-  if (totalKm == null) return "";
-  const start = parseOptionalNumber(odometerStart);
-  if (typeof start !== "number") return "";
-  return String(start + totalKm);
-}
-
 type FieldErrors = Record<string, string>;
 
 function validateDraft(
@@ -102,10 +95,8 @@ function validateDraft(
   totalKm: number | null,
 ): FieldErrors {
   const errors: FieldErrors = {};
-  const effectiveEnd =
-    totalKm != null ? computeOdometerEnd(draft.odometer_start, totalKm) : draft.odometer_end;
   const start = parseOptionalNumber(draft.odometer_start);
-  const end = parseOptionalNumber(effectiveEnd);
+  const end = parseOptionalNumber(draft.odometer_end);
   const plate = plateDigits(draft.vehicle_plate);
   const allowed = new Set(allowedPlates.map(plateDigits).filter(Boolean));
 
@@ -291,12 +282,8 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
   const totalKm = assignment.total_km;
   const odometerStart =
     assignment.odometer_start != null ? String(assignment.odometer_start) : "";
-  const participationDone = assignment.status === "done" || row.status === "done";
-  const odometerEnd = participationDone
-    ? assignment.odometer_end != null
-      ? String(assignment.odometer_end)
-      : ""
-    : computeOdometerEnd(odometerStart, totalKm);
+  const odometerEnd =
+    assignment.odometer_end != null ? String(assignment.odometer_end) : "";
 
   const vehicleOptions = (vehicles ?? [])
     .map((vehicle) => ({
@@ -402,7 +389,7 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
   const draft = {
     vehicle_plate: trim(body.draft.vehicle_plate),
     odometer_start: trim(body.draft.odometer_start),
-    odometer_end: computeOdometerEnd(trim(body.draft.odometer_start), totalKm),
+    odometer_end: trim(body.draft.odometer_end),
     route: typeof body.draft.route === "string" ? body.draft.route : "",
     treatment_detail:
       typeof body.draft.treatment_detail === "string" ? body.draft.treatment_detail : "",
