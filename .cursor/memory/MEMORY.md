@@ -85,6 +85,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Deployed (2026-08-12):** migration `20260812160000_event_fill_token.sql` applied; Edge Functions `send-email` + `responder-fill` ACTIVE on project `rtvizpsfvtjowbimugns`. Secrets: `RESEND_API_KEY`, `INVITE_REDIRECT_TO`, `EMAIL_FROM`.
 - **Merged + Netlify prod (2026-08-15):** email/fill-token merged to `infra/bootstrap`; production deploy live on https://yahpz.com (deploy `6a7ff55309294f5fc12c908a`).
 - **Merged + Netlify prod (2026-08-15):** mobile bottom chrome fix (`--app-height` / viewport lock) merged to `infra/bootstrap` (PR #7); live on https://yahpz.com.
+- **Merged + Netlify prod (2026-08-15):** revert auto odometer end + hide lead km (PR #8 → `infra/bootstrap` `119a8ab`); production deploy `6a80ae593b19dc0008034c77` on https://yahpz.com. **Pending:** redeploy Edge `responder-fill` (needs `SUPABASE_ACCESS_TOKEN`) so fill-token path matches client.
 
 ## Shifts (design approved 2026-08-10; UX revise same day)
 
