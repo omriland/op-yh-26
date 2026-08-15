@@ -1,6 +1,8 @@
 import { sortByRoadName } from './roadSort'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
+import { assignmentIdsNewlySetKm } from './fillReadyNotify'
+import { notifyFillReady } from './responderFillToken'
 import {
   districtNeedsPlacesLocation,
   LOCATION_REQUIRED_ERROR,
@@ -490,6 +492,12 @@ export async function saveEventForm(input: {
   })
   if (!sync.ok) return sync
 
+  const notifyIds = assignmentIdsNewlySetKm(sync.previousKm, sync.nextKmRows)
+  if (notifyIds.length > 0 && !draft.is_cancelled) {
+    // Soft-fail: event save already succeeded.
+    void notifyFillReady({ eventResponderIds: notifyIds }).catch(() => {})
+  }
+
   return { ok: true, eventId, status: nextStatus, assignmentIds: sync.assignmentIds }
 }
 
@@ -500,14 +508,19 @@ async function syncResponders(input: {
   vehicleKinds: LookupOption[]
   isCancelled: boolean
 }): Promise<
-  | { ok: true; assignmentIds: Record<string, string> }
+  | {
+      ok: true
+      assignmentIds: Record<string, string>
+      previousKm: { id: string; total_km: number | null }[]
+      nextKmRows: { assignmentId: string; totalKm: number | null }[]
+    }
   | { ok: false; error: string }
 > {
   const { eventId, eventDate, responders, vehicleKinds, isCancelled } = input
 
   const { data: existing, error: existingError } = await supabase
     .from('event_responders')
-    .select('id, responder_id')
+    .select('id, responder_id, total_km')
     .eq('event_id', eventId)
 
   if (existingError) {
@@ -517,6 +530,10 @@ async function syncResponders(input: {
   const existingByResponder = new Map(
     (existing ?? []).map((row) => [row.responder_id as string, row.id as string]),
   )
+  const previousKm = (existing ?? []).map((row) => ({
+    id: row.id as string,
+    total_km: (row.total_km as number | null) ?? null,
+  }))
   const keepIds = new Set(responders.map((row) => row.responder_id))
   const toRemove = (existing ?? []).filter((row) => !keepIds.has(row.responder_id as string))
 
@@ -534,6 +551,7 @@ async function syncResponders(input: {
   }
 
   const assignmentIds: Record<string, string> = {}
+  const nextKmRows: { assignmentId: string; totalKm: number | null }[] = []
 
   for (const responder of responders) {
     const km = responder.total_km.trim() === '' ? null : Number(responder.total_km)
@@ -584,6 +602,7 @@ async function syncResponders(input: {
     }
 
     assignmentIds[responder.responder_id] = assignmentId
+    nextKmRows.push({ assignmentId, totalKm: km })
 
     const { error: clearError } = await supabase
       .from('event_treated_vehicles')
@@ -620,5 +639,5 @@ async function syncResponders(input: {
     }
   }
 
-  return { ok: true, assignmentIds }
+  return { ok: true, assignmentIds, previousKm, nextKmRows }
 }

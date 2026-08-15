@@ -12,6 +12,7 @@ import {
   type ResponderFillDraft,
   type ResponderFillErrors,
 } from '../lib/responderFill'
+import { loadFillByToken, saveFillByToken } from '../lib/responderFillToken'
 import { participationStamp } from '../lib/status'
 import {
   digitsOnly,
@@ -34,11 +35,18 @@ import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
 type ResponderFillPageProps = {
   eventId: string
+  /** Opaque fill link token — when set, load/save via Edge (no Auth session required). */
+  fillToken?: string
   onBack: () => void
   onCompleted: () => void
 }
 
-export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFillPageProps) {
+export function ResponderFillPage({
+  eventId,
+  fillToken,
+  onBack,
+  onCompleted,
+}: ResponderFillPageProps) {
   const { user } = useAuth()
   const { show } = useToast()
   const [ctx, setCtx] = useState<ResponderFillContext | null>(null)
@@ -49,12 +57,33 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
   const [completing, setCompleting] = useState(false)
 
   useEffect(() => {
+    let active = true
+    setLoadState('loading')
+
+    if (fillToken) {
+      loadFillByToken(fillToken)
+        .then((result) => {
+          if (!active) return
+          if (!result.ok || !result.context) {
+            setLoadState('denied')
+            return
+          }
+          setCtx(result.context)
+          setDraft(result.context.draft)
+          setLoadState('ready')
+        })
+        .catch(() => {
+          if (active) setLoadState('denied')
+        })
+      return () => {
+        active = false
+      }
+    }
+
     if (!user) {
       setLoadState('denied')
       return
     }
-    let active = true
-    setLoadState('loading')
 
     fetchResponderFillContext(eventId, user.id)
       .then((next) => {
@@ -74,7 +103,7 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
     return () => {
       active = false
     }
-  }, [eventId, user])
+  }, [eventId, user, fillToken])
 
   const readOnly =
     ctx?.participationStatus === 'done' || ctx?.eventStatus === 'done'
@@ -101,13 +130,15 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
     if (!ctx || !draft || readOnly) return
     setSavingDraft(true)
     setErrors({})
-    const result = await saveResponderFillDraft({
-      assignmentId: ctx.assignmentId,
-      eventId: ctx.eventId,
-      draft,
-      allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
-      totalKm: ctx.totalKm,
-    })
+    const result = fillToken
+      ? await saveFillByToken({ fillToken, mode: 'draft', draft })
+      : await saveResponderFillDraft({
+          assignmentId: ctx.assignmentId,
+          eventId: ctx.eventId,
+          draft,
+          allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
+          totalKm: ctx.totalKm,
+        })
     setSavingDraft(false)
     if (!result.ok) {
       if (result.fieldErrors) setErrors(result.fieldErrors)
@@ -119,7 +150,9 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
         ? {
             ...current,
             participationStatus: 'in_progress',
-            eventStatus: result.eventStatus ?? current.eventStatus,
+            eventStatus:
+              (result.eventStatus as ResponderFillContext['eventStatus'] | null) ??
+              current.eventStatus,
           }
         : current,
     )
@@ -130,13 +163,15 @@ export function ResponderFillPage({ eventId, onBack, onCompleted }: ResponderFil
     if (!ctx || !draft || readOnly) return
     setCompleting(true)
     setErrors({})
-    const result = await completeResponderFill({
-      assignmentId: ctx.assignmentId,
-      eventId: ctx.eventId,
-      draft,
-      allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
-      totalKm: ctx.totalKm,
-    })
+    const result = fillToken
+      ? await saveFillByToken({ fillToken, mode: 'complete', draft })
+      : await completeResponderFill({
+          assignmentId: ctx.assignmentId,
+          eventId: ctx.eventId,
+          draft,
+          allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
+          totalKm: ctx.totalKm,
+        })
     setCompleting(false)
     if (!result.ok) {
       if (result.fieldErrors) setErrors(result.fieldErrors)
