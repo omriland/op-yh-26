@@ -889,11 +889,14 @@ textarea.field__input {
   display: flex;
   flex-direction: column;
   /* Viewport-locked: tab bar stays in normal flow (not position:fixed).
-     iOS Safari mis-places fixed bottom bars mid-screen while scrolling. */
-  height: 100vh;
+     iOS Safari mis-places fixed bottom bars mid-screen while scrolling.
+     --app-height tracks visualViewport (see appViewport.ts). */
+  height: 100%;
   height: 100dvh;
-  max-height: 100vh;
+  height: var(--app-height, 100dvh);
+  max-height: 100%;
   max-height: 100dvh;
+  max-height: var(--app-height, 100dvh);
   overflow: hidden;
   background: var(--surface-page);
 }
@@ -1303,14 +1306,16 @@ textarea.field__input {
   background: var(--surface-sunken);
 }
 
-/* In-flow (not position:fixed) — avoids iOS Safari fixed-bottom drift mid-scroll. */
+/* In-flow (not position:fixed) — avoids iOS Safari fixed-bottom drift mid-scroll.
+   Sits at the end of the viewport-locked .shell flex column (above home indicator). */
 .tabbar {
   z-index: 20;
   display: flex;
   flex: none;
+  flex-shrink: 0;
   width: 100%;
-  height: calc(var(--tabbar-height) + env(safe-area-inset-bottom));
-  padding-block-end: env(safe-area-inset-bottom);
+  height: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
+  padding-block-end: env(safe-area-inset-bottom, 0px);
   border-block-start: 1px solid var(--stroke-hairline);
   background: var(--surface-raised);
 }
@@ -2007,8 +2012,8 @@ textarea.field__input {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100dvh;
-  min-height: 100svh;
+  min-height: 100%;
+  min-height: var(--app-height, 100dvh);
   padding: var(--space-6) var(--space-4);
   padding-block-start: calc(var(--space-8) + env(safe-area-inset-top, 0px));
   padding-block-end: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
@@ -3539,6 +3544,7 @@ textarea.field__input {
 
 .impersonation-bar {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
@@ -3675,6 +3681,7 @@ textarea.field__input {
 }
 
 .event-form__footer {
+  /* Stick to the bottom of .shell__main (the only scrollport), just above the tab bar. */
   position: sticky;
   inset-block-end: 0;
   z-index: 5;
@@ -3683,6 +3690,8 @@ textarea.field__input {
   padding: var(--space-4) var(--space-5);
   border-block-start: 1px solid var(--stroke-hairline);
   background: var(--surface-raised);
+  /* Keep the bar opaque over scrolling fields on mobile. */
+  background-clip: padding-box;
   transition: box-shadow var(--duration-base) var(--ease-standard);
 }
 
