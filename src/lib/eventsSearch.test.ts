@@ -56,7 +56,7 @@ describe('unit events list window', () => {
 
   it('tells the user the window size and that search fetches older events', () => {
     expect(unitEventsListHint(200)).toBe(
-      'מוצגים 200 האירועים האחרונים — אפשר להשתמש בחיפוש כדי לשלוף אירועים ישנים יותר',
+      'מציג את 200 האירועים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר',
     )
   })
 })

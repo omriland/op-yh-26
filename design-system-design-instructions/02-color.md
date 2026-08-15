@@ -117,6 +117,18 @@ Paper is always **cool** (blue-tinted). Never introduce warm/cream whites.
 
 Status tints on Command = `color-mix(in srgb, <status ink> 8%, var(--surface-raised))` (or rgba at 0.08 over the surface).
 
+### Real-world artifact — Israeli civil plate (theme-invariant)
+
+Used only for the profile vehicles plate mark. A physical plate does not invert with Field/Command.
+
+| Semantic token | Value | Use |
+|---|---|---|
+| `--plate-field` | `#F5C400` | Plate yellow |
+| `--plate-ink` | `#0F1B2D` | Serial (ink-900) |
+| `--plate-band` | `#17416E` | IL euroband (blue-800) |
+| `--plate-band-text` | `#FFFFFF` | `IL` letters + flag field |
+| `--plate-flag` | `#17416E` | Flag stripes and star |
+
 ## Usage rules
 
 - **One accent.** Record blue is the only interactive color. Green/red/amber appear exclusively in status semantics (stamps, validation, toasts) — never as decoration.

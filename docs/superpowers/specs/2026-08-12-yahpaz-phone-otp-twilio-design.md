@@ -131,7 +131,7 @@ Prefer a dedicated function `phone-otp` (keeps `admin-users` smaller). Admin fla
 |---|---|---|
 | `set_otp_flags` | admin JWT | Set `otp_login_enabled` and/or `otp_users_page_enabled` for `user_id`. Enabling either requires valid mobile phone. Record `otp_flags_updated_*`. |
 | `otp_status` | user JWT | Return `{ loginRequired, usersPageRequired, maskedPhone }` given header `x-yahpaz-otp-device` (login trust) / current step-up (users_page). Impersonation → both required false. |
-| `otp_start` | user JWT | Body: `{ purpose: 'login_device' \| 'users_page' }`. Check matching flag; normalize phone; Twilio Verify `verifications.create`; enforce cooldown (~60s) per user+purpose. |
+| `otp_start` | user JWT | Body: `{ purpose: 'login_device' \| 'users_page' }`. Check matching flag; normalize phone; Twilio Verify `verifications.create`; enforce cooldown (100s) per user+purpose. |
 | `otp_verify` | user JWT | Body: `{ purpose, code }`. Twilio Verify `verificationChecks.create`. On success: login → upsert trust + return `deviceToken`; users_page → insert step_up. |
 
 ### Impersonation
@@ -169,7 +169,7 @@ When admin updates a user's phone (existing edit flow): clear that user's `otp_d
 Two items (desktop row + mobile card):
 
 - **הפעל OTP בכניסה** / **כבה OTP בכניסה**
-- **הפעל OTP לניהול משתמשים** / **כבה OTP לניהול משתמשים**
+- **הפעל OTP לניהול משתמשים** / **כבה OTP לניהול משתמשים** — only when the target user has the `admin` role (users-page OTP is meaningless for others)
 
 Rules:
 
@@ -186,7 +186,7 @@ OTP gate (shared):
 - Body: **נשלח קוד ל־{masked phone}** (e.g. `050-***-4567` or last 4: `•••4567` — prefer `050-***-4567` style from 10 digits)
 - Input label: **קוד אימות**
 - Primary: **אימות**
-- Secondary: **שלח שוב** (disabled ~60s after send)
+- Secondary: **שלח שוב** (disabled 100s after send — Soprano can take ~90s)
 - Errors: invalid code / expired / rate limit / send failure — short Hebrew toasts
 
 Confirm enable (example): **להפעיל אימות SMS בכניסה למשתמש זה?**
@@ -198,7 +198,7 @@ Confirm enable (example): **להפעיל אימות SMS בכניסה למשתמ�
 - Trust/step-up tables: RLS enabled, no authenticated policies.
 - Store hashed device keys only.
 - Do not log OTP codes; log Twilio SIDs/status at info level.
-- Per-user+purpose start cooldown ~60s in Edge (in addition to Twilio).
+- Per-user+purpose start cooldown 100s in Edge (Soprano delivery can take ~90s).
 - Enabling flags without valid mobile is rejected server-side.
 
 ## Ops setup (manual / CLI)

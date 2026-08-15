@@ -14,6 +14,14 @@ import {
   unarchiveAdminVehicle,
   type AdminUserRow,
 } from '../lib/adminUsers'
+import { SUPER_ADMIN_LOCK_ERROR, canMutateAdminUser, canToggleUsersPageOtp } from '../lib/adminUserMenu'
+import {
+  highestRoleLabel,
+  isAssignableRoleLocked,
+  toggleAssignableRole,
+  withImpliedAssignableRoles,
+  type AssignableRole,
+} from '../lib/appRoles'
 import { isInvitePending } from '../lib/adminUserStatus'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import { useAuth, type AppRole } from '../lib/auth'
@@ -47,20 +55,16 @@ import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
-const ROLE_OPTIONS: { role: AppRole; label: string }[] = [
+const ROLE_OPTIONS: { role: AssignableRole; label: string }[] = [
   { role: 'admin', label: 'מנהל' },
   { role: 'shift_lead', label: 'אחמ״ש' },
   { role: 'responder', label: 'כונן' },
 ]
 
-const ROLE_LABEL: Partial<Record<AppRole, string>> = {
-  admin: 'מנהל',
-  shift_lead: 'אחמ״ש',
-  responder: 'כונן',
-}
-
-function assignableRoles(roles: AppRole[]): AppRole[] {
-  return roles.filter((role) => role !== 'super_admin')
+function RoleTag({ roles }: { roles: AppRole[] }) {
+  const label = highestRoleLabel(roles)
+  if (!label) return null
+  return <span className="tag">{label}</span>
 }
 
 type DraftVehicle = {
@@ -105,7 +109,7 @@ function draftFromUser(user: AdminUserRow): Draft {
     email: user.email,
     callsign: user.callsign,
     phone: user.phone ? formatPhone(user.phone) : '',
-    roles: assignableRoles(user.roles),
+    roles: withImpliedAssignableRoles(user.roles),
     vehicles: user.vehicles.map((vehicle) => ({
       key: vehicle.id,
       id: vehicle.id,
@@ -130,28 +134,37 @@ function buildUserMenuItems(
     onReactivate: () => void
     onDelete: () => void
   },
+  canMutate: boolean,
 ): OverflowMenuItem[] {
   const phoneOk = isValidIlMobile(user.phone)
-  return [
-    { label: 'עריכה', onSelect: actions.onEdit },
+  const privileged: OverflowMenuItem[] = [
     ...(actions.onSetPassword
       ? [{ label: 'הגדרת סיסמה', onSelect: actions.onSetPassword }]
       : []),
     ...(actions.onImpersonate
       ? [{ label: 'צפייה כמשתמש זה', onSelect: actions.onImpersonate }]
       : []),
+  ]
+  if (!canMutate) return privileged
+  return [
+    { label: 'עריכה', onSelect: actions.onEdit },
+    ...privileged,
     {
       label: user.otp_login_enabled ? 'כבה OTP בכניסה' : 'הפעל OTP בכניסה',
       onSelect: actions.onToggleOtpLogin,
       disabled: !user.otp_login_enabled && !phoneOk,
     },
-    {
-      label: user.otp_users_page_enabled
-        ? 'כבה OTP לניהול משתמשים'
-        : 'הפעל OTP לניהול משתמשים',
-      onSelect: actions.onToggleOtpUsersPage,
-      disabled: !user.otp_users_page_enabled && !phoneOk,
-    },
+    ...(canToggleUsersPageOtp(user.roles)
+      ? [
+          {
+            label: user.otp_users_page_enabled
+              ? 'כבה OTP לניהול משתמשים'
+              : 'הפעל OTP לניהול משתמשים',
+            onSelect: actions.onToggleOtpUsersPage,
+            disabled: !user.otp_users_page_enabled && !phoneOk,
+          },
+        ]
+      : []),
     ...(isInvitePending(user)
       ? [
           { label: 'שליחת הזמנה מחדש', onSelect: actions.onResendInvite },
@@ -308,6 +321,14 @@ export function AdminUsersPage() {
     if (draft.id && draft.id === authUser?.id && !draft.roles.includes('admin')) {
       setFormError('לא ניתן להסיר מעצמך את תפקיד המנהל.')
       return
+    }
+
+    if (draft.id) {
+      const row = users?.find((entry) => entry.id === draft.id)
+      if (row && !canMutateAdminUser(isSuperAdmin, row.roles)) {
+        setFormError(SUPER_ADMIN_LOCK_ERROR)
+        return
+      }
     }
 
     const phone = phoneDigits(draft.phone)
@@ -792,7 +813,7 @@ export function AdminUsersPage() {
                 <th>או״ק</th>
                 <th>דוא״ל</th>
                 <th>טלפון</th>
-                <th>תפקידים</th>
+                <th>תפקיד</th>
                 <th className="table-col--otp">OTP</th>
                 <th>רכבים</th>
                 <th>כניסה אחרונה</th>
@@ -804,11 +825,17 @@ export function AdminUsersPage() {
             <tbody>
               {filtered.map((user) => {
                 const otpLabel = otpUserLabel(user)
+                const canMutate = canMutateAdminUser(isSuperAdmin, user.roles)
+                const menuItems = buildUserMenuItems(user, menuActionsFor(user), canMutate)
+                const showMenu = menuItems.length > 0
                 return (
                 <tr
                   key={user.id}
-                  className={!user.active ? 'is-muted' : ''}
+                  className={[!user.active ? 'is-muted' : '', !canMutate ? 'is-static' : '']
+                    .filter(Boolean)
+                    .join(' ')}
                   onClick={() => {
+                    if (!canMutate) return
                     setFormError(null)
                     setDraft(draftFromUser(user))
                   }}
@@ -829,11 +856,7 @@ export function AdminUsersPage() {
                   </td>
                   <td>
                     <div className="tags">
-                      {assignableRoles(user.roles).map((role) => (
-                        <span key={role} className="tag">
-                          {ROLE_LABEL[role]}
-                        </span>
-                      ))}
+                      <RoleTag roles={user.roles} />
                       {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
                     </div>
                   </td>
@@ -859,11 +882,13 @@ export function AdminUsersPage() {
                     )}
                   </td>
                   <td onClick={(event) => event.stopPropagation()}>
-                    <OverflowMenu
-                      open={menuUserId === user.id}
-                      onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
-                      items={buildUserMenuItems(user, menuActionsFor(user))}
-                    />
+                    {showMenu ? (
+                      <OverflowMenu
+                        open={menuUserId === user.id}
+                        onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
+                        items={menuItems}
+                      />
+                    ) : null}
                   </td>
                 </tr>
                 )
@@ -876,52 +901,82 @@ export function AdminUsersPage() {
       {users && filtered.length > 0 && !isDesktop ? (
         <div className="stack-3">
           {filtered.map((user) => {
+            const canMutate = canMutateAdminUser(isSuperAdmin, user.roles)
             const openEdit = () => {
+              if (!canMutate) return
               setFormError(null)
               setDraft(draftFromUser(user))
             }
             const otpLabel = otpUserLabel(user)
-            return (
-              <div
-                key={user.id}
-                className={['card', 'user-card', !user.active ? 'is-muted' : ''].join(' ')}
-              >
-                <div className="user-card__head">
-                  <button type="button" className="user-card__identity-btn" onClick={openEdit}>
-                    <Avatar name={user.full_name} size="lg" />
+            const menuItems = buildUserMenuItems(
+              user,
+              { ...menuActionsFor(user), onEdit: openEdit },
+              canMutate,
+            )
+            const showMenu = menuItems.length > 0
+            const identity = (
+              <>
+                <Avatar name={user.full_name} size="lg" />
                     <span className="user-card__identity">
                       <span className="t-section">{user.full_name}</span>
                       <span className="t-caption text-muted">
                         או״ק <span className={monoClass(user.callsign)}>{user.callsign}</span>
                       </span>
                     </span>
-                  </button>
-                  <OverflowMenu
-                    open={menuUserId === user.id}
-                    onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
-                    items={buildUserMenuItems(user, {
-                      ...menuActionsFor(user),
-                      onEdit: openEdit,
-                    })}
-                  />
+              </>
+            )
+            return (
+              <div
+                key={user.id}
+                className={['card', 'user-card', !user.active ? 'is-muted' : ''].join(' ')}
+              >
+                <div className="user-card__head">
+                  {canMutate ? (
+                    <button type="button" className="user-card__identity-btn" onClick={openEdit}>
+                      {identity}
+                    </button>
+                  ) : (
+                    <div className="user-card__identity-btn user-card__identity-btn--static">
+                      {identity}
+                    </div>
+                  )}
+                  {showMenu ? (
+                    <OverflowMenu
+                      open={menuUserId === user.id}
+                      onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
+                      items={menuItems}
+                    />
+                  ) : null}
                 </div>
-                <button type="button" className="user-card__details" onClick={openEdit}>
-                  <div className="tags">
-                    {assignableRoles(user.roles).map((role) => (
-                      <span key={role} className="tag">
-                        {ROLE_LABEL[role]}
-                      </span>
-                    ))}
-                    {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
-                    {isInvitePending(user) ? (
-                      <span className="tag tag--pending">ממתין להרשמה</span>
-                    ) : null}
-                    {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
+                {canMutate ? (
+                  <button type="button" className="user-card__details" onClick={openEdit}>
+                    <div className="tags">
+                      <RoleTag roles={user.roles} />
+                      {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
+                      {isInvitePending(user) ? (
+                        <span className="tag tag--pending">ממתין להרשמה</span>
+                      ) : null}
+                      {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
+                    </div>
+                    <p className="t-caption text-muted">
+                      <span className="ltr">{user.email}</span>
+                    </p>
+                  </button>
+                ) : (
+                  <div className="user-card__details user-card__details--static">
+                    <div className="tags">
+                      <RoleTag roles={user.roles} />
+                      {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
+                      {isInvitePending(user) ? (
+                        <span className="tag tag--pending">ממתין להרשמה</span>
+                      ) : null}
+                      {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
+                    </div>
+                    <p className="t-caption text-muted">
+                      <span className="ltr">{user.email}</span>
+                    </p>
                   </div>
-                  <p className="t-caption text-muted">
-                    <span className="ltr">{user.email}</span>
-                  </p>
-                </button>
+                )}
               </div>
             )
           })}
@@ -1005,26 +1060,25 @@ export function AdminUsersPage() {
               <div className="form-section">
                 <h3 className="form-section__heading">תפקידים</h3>
               </div>
-              <p className="t-caption text-muted">ניתן לשלב תפקידים.</p>
+              <p className="t-caption text-muted">בחירת תפקיד כוללת את התפקידים שמתחתיו.</p>
               {ROLE_OPTIONS.map((option) => {
                 const lockOwnAdmin =
                   Boolean(draft.id) &&
                   draft.id === authUser?.id &&
                   option.role === 'admin' &&
                   draft.roles.includes('admin')
+                const implied = isAssignableRoleLocked(draft.roles, option.role)
                 return (
                   <Checkbox
                     key={option.role}
                     id={`role-${option.role}`}
                     label={option.label}
                     checked={draft.roles.includes(option.role)}
-                    disabled={lockOwnAdmin}
+                    disabled={lockOwnAdmin || implied}
                     onChange={(checked) => {
                       setDraft({
                         ...draft,
-                        roles: checked
-                          ? [...draft.roles, option.role]
-                          : draft.roles.filter((role) => role !== option.role),
+                        roles: toggleAssignableRole(draft.roles, option.role, checked),
                       })
                     }}
                   />

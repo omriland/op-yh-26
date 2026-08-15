@@ -1,3 +1,4 @@
+import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
 import { SNYK_SECURITY_BADGE } from '../../lib/securityBadge'
 
 /** Snyk dog mark (Simple Icons path) — fill via currentColor for both themes. */
@@ -19,7 +20,7 @@ function SnykLogo() {
   )
 }
 
-export function SnykBadge() {
+export function SnykBadge({ onOpenPrivacy }: { onOpenPrivacy: () => void }) {
   return (
     <footer className="security-badge">
       <a
@@ -32,6 +33,10 @@ export function SnykBadge() {
         <SnykLogo />
         <span className="security-badge__label">{SNYK_SECURITY_BADGE.label}</span>
       </a>
+      <span className="security-badge__sep" aria-hidden="true" />
+      <button type="button" className="security-badge__link" onClick={onOpenPrivacy}>
+        {PRIVACY_FOOTER_LINK.label}
+      </button>
     </footer>
   )
 }

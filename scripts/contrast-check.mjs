@@ -45,6 +45,7 @@ const P = {
   commandText: '#F2F6FA',
   commandTextSecondary: '#C3CEDC',
   commandTextMuted: '#9FB0C4',
+  plateField: '#F5C400',
 }
 
 const STROKE_STRONG_FIELD = rgba(15, 27, 45, 0.55)
@@ -185,6 +186,10 @@ for (const [surface, bg] of [
 pair('command', 'top app bar text', P.commandText, P.navyPage, TEXT)
 pair('command', 'toast text', P.commandText, P.navyOverlay, TEXT)
 
+// Israeli civil plate mark — theme-invariant (02-color.md).
+pair('artifact', 'plate serial on yellow', P.ink900, P.plateField, TEXT)
+pair('artifact', 'IL letters on euroband', P.paper0, P.blue800, TEXT)
+
 // ---------- known traps: these MUST fail (08-accessibility.md) ----------
 
 const traps = [
@@ -218,7 +223,9 @@ let currentTheme = ''
 for (const { theme, name, fg, bg, min } of pairs) {
   if (theme !== currentTheme) {
     currentTheme = theme
-    console.log(`\n${theme === 'field' ? 'שטח / Field' : 'מפקדה / Command'}`)
+    const heading =
+      theme === 'field' ? 'שטח / Field' : theme === 'command' ? 'מפקדה / Command' : 'Artifact'
+    console.log(`\n${heading}`)
   }
   const ratio = contrast(fg, bg)
   const ok = ratio >= min

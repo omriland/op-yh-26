@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { supabase } from '../lib/supabase'
-import { formatPhone, formatPlate, monoClass } from '../lib/format'
+import { formatPhone, monoClass } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
+import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -127,8 +128,7 @@ export function ProfilePage() {
                     label={
                       vehicle.archived ? `${vehicle.model} (בארכיון)` : vehicle.model
                     }
-                    value={formatPlate(vehicle.plate_number)}
-                    numeric
+                    value={<LicensePlate plate={vehicle.plate_number} />}
                     isolate
                   />
                 ))}

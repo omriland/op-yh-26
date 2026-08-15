@@ -1,6 +1,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { MoreVertical } from 'lucide-react'
+import {
+  OVERFLOW_MENU_MIN_HEIGHT,
+  OVERFLOW_MENU_MIN_WIDTH,
+  placeOverflowMenuPanel,
+} from '../../lib/overflowMenuPlacement'
 
 export type OverflowMenuItem = {
   label: string
@@ -18,8 +23,6 @@ type OverflowMenuProps = {
   trigger?: ReactNode
 }
 
-const PANEL_MIN_WIDTH = 180
-
 export function OverflowMenu({
   open,
   onOpenChange,
@@ -30,7 +33,9 @@ export function OverflowMenu({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const [coords, setCoords] = useState<{ top: number; left: number; maxHeight: number } | null>(
+    null,
+  )
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) {
@@ -44,15 +49,17 @@ export function OverflowMenu({
       if (!triggerEl) return
 
       const rect = triggerEl.getBoundingClientRect()
-      const panelHeight = panelEl?.offsetHeight ?? items.length * 48 + 8
-      const spaceBelow = window.innerHeight - rect.bottom
-      const openUp = spaceBelow < panelHeight + 8 && rect.top > spaceBelow
-      const top = openUp ? rect.top - panelHeight - 4 : rect.bottom + 4
-      const left = Math.min(
-        Math.max(8, rect.right - PANEL_MIN_WIDTH),
-        window.innerWidth - PANEL_MIN_WIDTH - 8,
+      const unconstrained = panelEl
+        ? panelEl.scrollHeight
+        : items.length * OVERFLOW_MENU_MIN_HEIGHT + 8
+      setCoords(
+        placeOverflowMenuPanel({
+          trigger: { top: rect.top, bottom: rect.bottom, right: rect.right },
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          panelHeight: unconstrained,
+          minWidth: OVERFLOW_MENU_MIN_WIDTH,
+        }),
       )
-      setCoords({ top, left })
     }
 
     place()
@@ -111,7 +118,7 @@ export function OverflowMenu({
               id={menuId}
               className="overflow-menu__panel overflow-menu__panel--portal"
               role="menu"
-              style={{ top: coords.top, left: coords.left }}
+              style={{ top: coords.top, left: coords.left, maxHeight: coords.maxHeight }}
             >
               {items.map((item) => (
                 <button

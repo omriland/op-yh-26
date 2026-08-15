@@ -658,6 +658,62 @@ textarea.field__input {
   color: var(--text-muted);
 }
 
+.ledger__row:has(.license-plate) {
+  align-items: center;
+}
+
+.ledger__row:has(.license-plate) .ledger__leader {
+  transform: none;
+}
+
+.ledger__value:has(.license-plate) {
+  max-width: none;
+}
+
+/* Israeli civil plate mark — profile vehicles only. Physical object; LTR. */
+.license-plate {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: 36px;
+  overflow: hidden;
+  background: var(--plate-field);
+  color: var(--plate-ink);
+  border: 1px solid var(--plate-ink);
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+}
+
+.license-plate__band {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-6);
+  background: var(--plate-band);
+  color: var(--plate-band-text);
+  gap: 1px;
+}
+
+.license-plate__flag {
+  display: block;
+  width: 16px;
+  height: 12px;
+}
+
+.license-plate__il {
+  font: 500 12px/12px var(--font-mono);
+  color: var(--plate-band-text);
+}
+
+.license-plate__serial {
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-2);
+  font: 500 16px/24px var(--font-mono);
+  color: var(--plate-ink);
+}
+
 /* ============================================================
    Form section (heading sitting on its rule)
    ============================================================ */
@@ -1133,9 +1189,19 @@ textarea.field__input {
 .security-badge {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
+  gap: var(--space-2);
   margin-block-start: auto;
   padding-block-start: var(--space-8);
+}
+
+.security-badge__sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  background: var(--stroke-hairline);
 }
 
 .security-badge__link {
@@ -1144,10 +1210,13 @@ textarea.field__input {
   gap: var(--space-2);
   min-height: 44px;
   padding-inline: var(--space-3);
+  border: 0;
   border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text-muted);
   font: 400 12px/16px var(--font-ui);
   text-decoration: none;
+  cursor: pointer;
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
@@ -1170,6 +1239,41 @@ textarea.field__input {
 
 .security-badge__link:active {
   color: var(--text-primary);
+}
+
+.privacy {
+  max-width: var(--content-max);
+  width: 100%;
+}
+
+.privacy__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-end: var(--space-6);
+}
+
+.privacy__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block-end: var(--space-6);
+}
+
+.privacy__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  list-style: none;
+}
+
+.privacy__contact {
+  padding: var(--space-4);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
 }
 
 /* In-flow (not position:fixed) — avoids iOS Safari fixed-bottom drift mid-scroll. */
@@ -1625,6 +1729,10 @@ textarea.field__input {
   .table tbody tr:hover {
     background: var(--accent-subtle);
     cursor: pointer;
+  }
+
+  .table tbody tr.is-static:hover {
+    cursor: default;
   }
 }
 
@@ -2589,6 +2697,11 @@ textarea.field__input {
   cursor: pointer;
 }
 
+.user-card__identity-btn--static,
+.user-card__details--static {
+  cursor: default;
+}
+
 .user-card__identity {
   display: flex;
   flex: 1;
@@ -2629,9 +2742,12 @@ textarea.field__input {
   box-shadow: var(--shadow-overlay);
 }
 
-/* Portaled above table overflow:hidden so the 3-dot menu is never clipped. */
+/* Portaled above table overflow:hidden so the 3-dot menu is never clipped.
+   max-height is set in JS to the remaining viewport; overflow lets long menus scroll. */
 .overflow-menu__panel--portal {
   position: fixed;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .overflow-menu__panel button {

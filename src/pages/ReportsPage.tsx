@@ -48,9 +48,6 @@ export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
       <div className="page-head">
         <div>
           <h1 className="t-title">דוחות וסטטיסטיקות</h1>
-          {kinds.length > 0 ? (
-            <p className="t-caption text-muted">בחרו דוח להצגה</p>
-          ) : null}
         </div>
       </div>
 

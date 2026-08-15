@@ -27,6 +27,7 @@ import { EventDetailPage } from './pages/EventDetailPage'
 import { EventFormPage } from './pages/EventFormPage'
 import { EventsPage } from './pages/EventsPage'
 import { LoginPage } from './pages/LoginPage'
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ResponderFillPage } from './pages/ResponderFillPage'
 import { ShiftDetailPage } from './pages/ShiftDetailPage'
@@ -57,6 +58,7 @@ function Gate() {
   const { session, loading, roles, passwordSetupReason, user, profile } = useAuth()
   const isDesktop = useIsDesktop()
   const [view, setView] = useState<AppView>('mine')
+  const [legalPage, setLegalPage] = useState<'privacy' | null>(null)
   const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
   const [shiftSurface, setShiftSurface] = useState<ShiftSurface>({ kind: 'list' })
   const [sectionReset, setSectionReset] = useState(0)
@@ -466,6 +468,7 @@ function Gate() {
       { view, eventSurface, shiftSurface, sectionReset },
       next,
     )
+    setLegalPage(null)
     setEventSurface(nextState.eventSurface)
     setShiftSurface(nextState.shiftSurface)
     setView(nextState.view)
@@ -473,6 +476,7 @@ function Gate() {
   }
 
   function goHome() {
+    setLegalPage(null)
     navigate(fallbackView)
   }
 
@@ -481,12 +485,16 @@ function Gate() {
       theme={shellTheme}
       withSidebar={shellWithSidebar}
       narrow={shellNarrow}
-      showSecurityBadge={shouldShowSecurityBadge(immersiveSurface)}
+      showSecurityBadge={shouldShowSecurityBadge(immersiveSurface) && legalPage === null}
+      onOpenPrivacy={() => setLegalPage('privacy')}
       view={activeView}
       onNavigate={navigate}
       onHome={goHome}
       entries={entries}
     >
+      {legalPage === 'privacy' ? (
+        <PrivacyPolicyPage onBack={() => setLegalPage(null)} />
+      ) : (
       <>
         {onReports ? (
           <div hidden={eventSurface.kind !== 'list'}>
@@ -640,6 +648,7 @@ function Gate() {
         />
       ) : null}
       </>
+      )}
     </AppShell>
   )
 }

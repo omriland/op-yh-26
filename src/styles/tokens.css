@@ -50,6 +50,14 @@
   --amber-field-on-tint: #7a5410;
   --amber-command: #e0b05c;
 
+  /* ---- Real-world artifact: Israeli civil plate (theme-invariant) ---- */
+  --plate-yellow: #f5c400;
+  --plate-field: var(--plate-yellow);
+  --plate-ink: var(--ink-900);
+  --plate-band: var(--blue-800);
+  --plate-band-text: var(--paper-0);
+  --plate-flag: var(--blue-800);
+
   /* ---- Typography: full stacks only, never a bare family name ---- */
   /* Display/titles share the UI face (Plex Sans Hebrew). Brand mark is Suez One only. */
   --font-display: 'IBM Plex Sans Hebrew', 'Heebo', 'Segoe UI', 'Arial Hebrew', 'Noto Sans Hebrew',

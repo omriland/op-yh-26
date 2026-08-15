@@ -2,9 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '../ui/Button'
 import { TextField } from '../ui/TextField'
 import { otpGateLede } from '../../lib/otpGateCopy'
+import { OTP_START_COOLDOWN_SEC } from '../../lib/otpStartPolicy'
 import { startOtp, verifyOtp, type OtpPurpose } from '../../lib/phoneOtp'
-
-const RESEND_COOLDOWN_SEC = 60
 
 /** Survives React Strict Mode remount so we do not fire two auto-starts. */
 const autoStartAt = new Map<string, number>()
@@ -44,7 +43,7 @@ export function OtpGate({
     const prev = autoStartAt.get(purpose) ?? 0
     if (Date.now() - prev < AUTO_START_DEDUP_MS) {
       setSentOnce(true)
-      setCooldown(RESEND_COOLDOWN_SEC)
+      setCooldown(OTP_START_COOLDOWN_SEC)
       return
     }
     autoStartAt.set(purpose, Date.now())
@@ -67,7 +66,7 @@ export function OtpGate({
       return
     }
     setSentOnce(true)
-    setCooldown(RESEND_COOLDOWN_SEC)
+    setCooldown(OTP_START_COOLDOWN_SEC)
   }
 
   async function onSubmit(event: FormEvent) {

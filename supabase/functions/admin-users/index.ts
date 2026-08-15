@@ -68,6 +68,26 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const ALLOWED_ROLES: AppRole[] = ["admin", "shift_lead", "responder"];
 
+const SUPER_ADMIN_LOCK_ERROR = "לא ניתן לערוך מנהל־על.";
+
+async function isSuperAdminRowLocked(
+  adminClient: ReturnType<typeof createClient>,
+  actorId: string,
+  targetId: string,
+): Promise<boolean> {
+  const userId = trim(targetId);
+  if (!userId) return false;
+  const { data, error } = await adminClient.rpc("super_admin_row_locked", {
+    target_id: userId,
+    actor_id: actorId,
+  });
+  if (error) {
+    console.error("super_admin_row_locked", error);
+    return true;
+  }
+  return Boolean(data);
+}
+
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -162,10 +182,14 @@ Deno.serve(async (req: Request) => {
   }
 
   if (body.action === "deactivate" || body.action === "reactivate") {
+    const locked = await isSuperAdminRowLocked(adminClient, user.id, body.user_id);
+    if (locked) return json(403, { error: SUPER_ADMIN_LOCK_ERROR });
     return handleActiveState(adminClient, body);
   }
 
   if (body.action === "delete") {
+    const locked = await isSuperAdminRowLocked(adminClient, user.id, body.user_id);
+    if (locked) return json(403, { error: SUPER_ADMIN_LOCK_ERROR });
     return handleDeleteUser(adminClient, user.id, body);
   }
 
@@ -174,6 +198,8 @@ Deno.serve(async (req: Request) => {
   }
 
   if (body.action === "resend_invite" || body.action === "copy_invite_link") {
+    const locked = await isSuperAdminRowLocked(adminClient, user.id, body.user_id);
+    if (locked) return json(403, { error: SUPER_ADMIN_LOCK_ERROR });
     return handlePrepareInviteLink(adminClient, body);
   }
 

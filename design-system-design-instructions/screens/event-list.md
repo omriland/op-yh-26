@@ -21,7 +21,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 ### Desktop (Command)
 
 - Sidebar: `אירועים` (active), `האירועים שלי` (if shift-lead and/or responder), section `ניהול` → `משתמשים`, `הגדרות` (admin only).
-- Content: title row (title + caption `מוצגים 200 האירועים האחרונים — אפשר להשתמש בחיפוש כדי לשלוף אירועים ישנים יותר` at `--type-caption` / `--text-muted`, then `אירוע חדש` primary) → filter chips + search input (width 280, icon magnifier, placeholder `חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק`) → **table** of the last 200 events by `event_date` (then `created_at`). Search queries the full database and hydrates matching rows that are outside that window.
+- Content: title row (title + caption `מציג את 200 האירועים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר` at `--type-caption` / `--text-muted`, then `אירוע חדש` primary) → filter chips + search input (width 280, icon magnifier, placeholder `חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק`) → **table** of the last 200 events by `event_date` (then `created_at`). Search queries the full database and hydrates matching rows that are outside that window.
 
 | Column | Content | Notes |
 |---|---|---|

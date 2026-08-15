@@ -72,6 +72,7 @@ type AppShellProps = {
   narrow: boolean
   /** List/admin/profile only — hide on immersive form/fill/detail. */
   showSecurityBadge?: boolean
+  onOpenPrivacy?: () => void
   view: AppView
   onNavigate: (view: AppView) => void
   /** Wordmark → role home (unit events / mine / profile). */
@@ -85,6 +86,7 @@ export function AppShell({
   withSidebar,
   narrow,
   showSecurityBadge = false,
+  onOpenPrivacy,
   view,
   onNavigate,
   onHome,
@@ -102,7 +104,9 @@ export function AppShell({
         {withSidebar ? <Sidebar view={view} onNavigate={onNavigate} entries={entries} /> : null}
         <main id="main" className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}>
           {children}
-          {showSecurityBadge ? <SnykBadge /> : null}
+          {showSecurityBadge && onOpenPrivacy ? (
+            <SnykBadge onOpenPrivacy={onOpenPrivacy} />
+          ) : null}
         </main>
       </div>
       {withSidebar ? null : <BottomTabBar view={view} onNavigate={onNavigate} entries={entries} />}

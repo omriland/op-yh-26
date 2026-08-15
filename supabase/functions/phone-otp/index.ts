@@ -29,7 +29,8 @@ const DEVICE_HEADER = "x-yahpaz-otp-device";
 const IMPERSONATING_HEADER = "x-yahpaz-impersonating";
 const LOGIN_TRUST_MS = 48 * 60 * 60 * 1000;
 const STEP_UP_MS = 20 * 60 * 1000;
-const START_COOLDOWN_MS = 60 * 1000;
+/** Keep in sync with `OTP_START_COOLDOWN_MS` in src/lib/otpStartPolicy.ts */
+const START_COOLDOWN_MS = 100 * 1000;
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const SOPRANO_API_URL = "https://sec.soprano.co.il/";
@@ -534,6 +535,13 @@ Deno.serve(async (req: Request) => {
     });
     if (roleError || !isAdmin) {
       return json(403, { error: "אין לך הרשאה לפעולה זו." });
+    }
+    const { data: locked, error: lockError } = await adminClient.rpc(
+      "super_admin_row_locked",
+      { target_id: body.user_id, actor_id: user.id },
+    );
+    if (lockError || locked) {
+      return json(403, { error: "לא ניתן לערוך מנהל־על." });
     }
     return handleSetOtpFlags(adminClient, user.id, body);
   }

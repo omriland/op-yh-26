@@ -48,7 +48,7 @@ const EVENT_LIST_SELECT = `
 export const UNIT_EVENTS_LIST_LIMIT = 200
 
 export function unitEventsListHint(limit: number): string {
-  return `מוצגים ${limit} האירועים האחרונים — אפשר להשתמש בחיפוש כדי לשלוף אירועים ישנים יותר`
+  return `מציג את ${limit} האירועים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר`
 }
 
 export function missingSearchEventIds(
