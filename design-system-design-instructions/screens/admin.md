@@ -19,9 +19,9 @@ Catalog: caption `בחרו דוח להצגה`; search `חיפוש לפי שם ד
 
 Admin-only under ניהול (`ניהול דלק`, Fuel icon). Opening lands on a chooser: caption `אני רוצה:` and two catalog cards — allocate quarterly cards, or see/export usage. Back `כרטיסי דלק` returns to the chooser. Spec: `docs/superpowers/specs/2026-08-15-yahpaz-fuel-cards-hub-design.md`.
 
-**Allocate:** existing quarterly workbook. Helper: ניהול חלוקת כרטיסי דלק לפי רבעון. יתרות עוברות באופן אוטומטי לרבעון הבא. ניתן להעביר יתרה שלילית או חיובית. Year + quarter, opening balance, month km, liters, editable cards, remaining, card numbers, save / lock. Spec: `docs/superpowers/specs/2026-08-11-yahpaz-quarterly-fuel-request-design.md`.
+**Allocate:** existing quarterly workbook. Helper includes `נספרים רק אירועים שתועדו במלואם.` Only `events.status = done` + lead-entered `total_km`. Spec: `docs/superpowers/specs/2026-08-15-yahpaz-fuel-allocation-completed-only-design.md`.
 
-**Usage:** `שימוש בדלק` — כונן · קילומטרים · אירועים · ליטרים (km÷6). Period picker (טווח / חודש / שנה / אחרונים) via react-day-picker, Gregorian RTL. Totals, search, CSV. Same km rules as סיכום ק״מ.
+**Usage:** `שימוש בדלק` — כונן · קילומטרים · אירועים · ליטרים (km÷6). Helper includes `מוצגים כל האירועים עם ק״מ, גם אם תועדו חלקית.` Period picker, totals, search, CSV. Same km inclusion as סיכום ק״מ (status not filtered).
 
 ## משתמשים (Users)
 

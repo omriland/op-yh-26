@@ -1,5 +1,7 @@
+import { includeEventInFuelAllocation } from './fuelAllocationPolicy'
 import { supabase } from './supabase'
 import { localDateRangeToUtcBounds } from './fuelRefundReport'
+import type { EventStatus } from './status'
 import {
   defaultFuelQuarter,
   litersFromPayableKm,
@@ -202,9 +204,10 @@ async function fetchParticipationsInQuarter(
       `
       responder_id,
       total_km,
-      events!inner(created_at)
+      events!inner(created_at, status)
     `,
     )
+    .eq('events.status', 'done')
     .not('total_km', 'is', null)
     .gte('events.created_at', startIso)
     .lte('events.created_at', endIso)
@@ -214,16 +217,19 @@ async function fetchParticipationsInQuarter(
   type Row = {
     responder_id: string
     total_km: number | null
-    events: { created_at: string } | { created_at: string }[]
+    events: { created_at: string; status: EventStatus } | { created_at: string; status: EventStatus }[]
   }
 
-  return ((data ?? []) as Row[]).map((row) => {
+  return ((data ?? []) as Row[]).flatMap((row) => {
     const event = Array.isArray(row.events) ? row.events[0] : row.events
-    return {
-      responder_id: row.responder_id,
-      total_km: row.total_km,
-      created_at: event?.created_at ?? '',
-    }
+    if (!event || !includeEventInFuelAllocation(event.status)) return []
+    return [
+      {
+        responder_id: row.responder_id,
+        total_km: row.total_km,
+        created_at: event.created_at,
+      },
+    ]
   })
 }
 

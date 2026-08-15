@@ -1328,6 +1328,11 @@ textarea.field__input {
   color: var(--text-secondary);
 }
 
+.mine-insight__notice {
+  margin-block-start: var(--space-2);
+  color: var(--text-primary);
+}
+
 /* Headers must be siblings under .event-groups (not wrapped with that
    day's cards). A one-card <section> clamps position:sticky to the card
    and the date bar paints through the event while scrolling. */

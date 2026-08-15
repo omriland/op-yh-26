@@ -21,6 +21,10 @@ import {
   viewerStamp,
   type EventStatus,
 } from '../lib/status'
+import {
+  INCOMPLETE_FUEL_REFUND_NOTICE,
+  shouldShowIncompleteFuelNotice,
+} from '../lib/fuelAllocationPolicy'
 import { formatDayHeading } from '../lib/format'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
@@ -209,6 +213,11 @@ export function EventsPage({
             <p className="t-body mine-insight__summary">
               {openMineSummary(openMineCount, events !== null)}
             </p>
+            {shouldShowIncompleteFuelNotice(openMineCount) ? (
+              <p className="t-body mine-insight__notice" role="note">
+                {INCOMPLETE_FUEL_REFUND_NOTICE}
+              </p>
+            ) : null}
           </div>
         </section>
       ) : (
