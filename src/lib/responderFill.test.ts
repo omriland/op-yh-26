@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  computeOdometerEnd,
   deriveEventStatusAfterParticipation,
   emptyResponderFillDraft,
-  odometerEndAutoHint,
   validateResponderFillDraft,
   type ResponderFillDraft,
 } from './responderFill'
@@ -26,46 +24,10 @@ describe('deriveEventStatusAfterParticipation', () => {
   })
 })
 
-describe('computeOdometerEnd', () => {
-  it('returns empty when start is empty', () => {
-    expect(computeOdometerEnd('', 12)).toBe('')
-  })
-
-  it('returns empty when totalKm is null', () => {
-    expect(computeOdometerEnd('100', null)).toBe('')
-  })
-
-  it('returns empty when start is not a number', () => {
-    expect(computeOdometerEnd('abc', 12)).toBe('')
-  })
-
-  it('adds lead km to start', () => {
-    expect(computeOdometerEnd('100', 12)).toBe('112')
-  })
-
-  it('returns start when totalKm is zero', () => {
-    expect(computeOdometerEnd('100', 0)).toBe('100')
-  })
-})
-
-describe('odometerEndAutoHint', () => {
-  it('explains auto-calc when lead km is missing', () => {
-    expect(odometerEndAutoHint(null)).toBe(
-      'מד אוץ סיום מחושב אוטומטית לפי הקילומטרים שהזין האחמ״ש — טרם הוזנו',
-    )
-  })
-
-  it('explains auto-calc with the lead km amount when present', () => {
-    expect(odometerEndAutoHint(12)).toBe(
-      'מד אוץ סיום מחושב אוטומטית לפי 12 הק״מ שהזין האחמ״ש',
-    )
-  })
-})
-
-describe('validateResponderFillDraft with totalKm', () => {
+describe('validateResponderFillDraft (user-entered odometer end)', () => {
   const plates = ['1234567']
 
-  it('draft mode does not require totalKm', () => {
+  it('draft mode does not require totalKm or end', () => {
     const errors = validateResponderFillDraft(
       draft({ odometer_start: '100' }),
       'draft',
@@ -73,14 +35,14 @@ describe('validateResponderFillDraft with totalKm', () => {
       null,
     )
     expect(errors.odometer_end).toBeUndefined()
-    expect(errors.form).toBeUndefined()
   })
 
-  it('complete mode errors when totalKm is missing', () => {
+  it('complete mode errors when totalKm is missing (generic copy, no number)', () => {
     const errors = validateResponderFillDraft(
       draft({
         vehicle_plate: '1234567',
         odometer_start: '100',
+        odometer_end: '112',
         route: 'כביש 1',
         treatment_detail: 'טיפול',
       }),
@@ -91,29 +53,70 @@ describe('validateResponderFillDraft with totalKm', () => {
     expect(errors.odometer_end).toBe(
       'האחמ״ש טרם הזין קילומטרים לאירוע. לא ניתן לסיים את הדיווח.',
     )
+    expect(JSON.stringify(errors)).not.toMatch(/\d{2,}/)
   })
 
-  it('complete mode accepts derived end from start + totalKm', () => {
-    const filled = draft({
-      vehicle_plate: '1234567',
-      odometer_start: '100',
-      odometer_end: computeOdometerEnd('100', 12),
-      route: 'כביש 1',
-      treatment_detail: 'טיפול',
-    })
-    const errors = validateResponderFillDraft(filled, 'complete', plates, 12)
+  it('complete mode requires user-entered end even when totalKm is set', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(errors.odometer_end).toBe('יש למלא מד אוץ סיום.')
+  })
+
+  it('complete mode accepts user end when totalKm is present', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '115',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      12,
+    )
     expect(errors).toEqual({})
   })
 
-  it('complete mode rejects totalKm of zero via range rule', () => {
-    const filled = draft({
-      vehicle_plate: '1234567',
-      odometer_start: '100',
-      odometer_end: computeOdometerEnd('100', 0),
-      route: 'כביש 1',
-      treatment_detail: 'טיפול',
-    })
-    const errors = validateResponderFillDraft(filled, 'complete', plates, 0)
+  it('complete mode allows totalKm of 0 when user end > start', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '110',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      0,
+    )
+    expect(errors).toEqual({})
+  })
+
+  it('rejects end <= start', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '100',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      12,
+    )
     expect(errors.odometer_end).toBe('מד אוץ סיום חייב להיות גדול ממד אוץ התחלה')
   })
 })
