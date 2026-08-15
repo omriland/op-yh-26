@@ -2770,6 +2770,11 @@ textarea.field__input {
   padding-block: var(--space-2);
 }
 
+.list-rows__item--stack {
+  align-items: flex-start;
+  padding-block: var(--space-3);
+}
+
 .list-rows__label {
   display: flex;
   flex-direction: column;

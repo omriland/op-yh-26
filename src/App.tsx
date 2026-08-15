@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { useIsDesktop } from './lib/useMediaQuery'
 import { AppShell, NAV_ICONS, type AppView } from './components/shell/AppShell'
 import { fetchNavAttention, type NavAttention } from './lib/navAttention'
+import { applyNavClick } from './lib/navReset'
 import { shouldShowSecurityBadge } from './lib/securityBadge'
 import { AdminSegmentBar } from './components/admin/AdminSegmentBar'
 import { EmptyState } from './components/ui/EmptyState'
@@ -21,6 +22,7 @@ import { AdminListsPage } from './pages/AdminListsPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { FuelQuarterPage } from './pages/FuelQuarterPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { UnitBroadcastPage } from './pages/UnitBroadcastPage'
 import { EventDetailPage } from './pages/EventDetailPage'
 import { EventFormPage } from './pages/EventFormPage'
 import { EventsPage } from './pages/EventsPage'
@@ -57,6 +59,7 @@ function Gate() {
   const [view, setView] = useState<AppView>('mine')
   const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
   const [shiftSurface, setShiftSurface] = useState<ShiftSurface>({ kind: 'list' })
+  const [sectionReset, setSectionReset] = useState(0)
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
     myShifts: false,
@@ -314,6 +317,7 @@ function Gate() {
       case 'reports':
         return manages
       case 'users':
+      case 'unit_broadcast':
       case 'fuel_quarter':
       case 'lists':
         return isAdmin
@@ -453,9 +457,14 @@ function Gate() {
   const commandShell = shellWithSidebar && shellTheme === 'command'
 
   function navigate(next: AppView) {
-    setEventSurface({ kind: 'list' })
-    setShiftSurface({ kind: 'list' })
-    setView(next)
+    const nextState = applyNavClick(
+      { view, eventSurface, shiftSurface, sectionReset },
+      next,
+    )
+    setEventSurface(nextState.eventSurface)
+    setShiftSurface(nextState.shiftSurface)
+    setView(nextState.view)
+    setSectionReset(nextState.sectionReset)
   }
 
   function goHome() {
@@ -483,6 +492,7 @@ function Gate() {
                 <AdminSegmentBar view="reports" onChange={navigate} />
               ) : null}
               <ReportsPage
+                key={sectionReset}
                 asTable={Boolean(commandShell)}
                 onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
               />
@@ -588,15 +598,18 @@ function Gate() {
               <AdminSegmentBar view={activeView} onChange={navigate} />
             ) : null}
             {activeView === 'lists' ? (
-              <AdminListsPage />
+              <AdminListsPage key={sectionReset} />
             ) : activeView === 'fuel_quarter' ? (
-              <FuelQuarterPage />
+              <FuelQuarterPage key={sectionReset} />
+            ) : activeView === 'unit_broadcast' ? (
+              <UnitBroadcastPage key={sectionReset} />
             ) : (
-              <AdminUsersPage />
+              <AdminUsersPage key={sectionReset} />
             )}
           </div>
       ) : onShifts ? (
         <ShiftsPage
+          key={sectionReset}
           scope={shiftScope}
           canManage={manages && shiftScope === 'unit'}
           onOpen={(shiftId) => setShiftSurface({ kind: 'detail', shiftId })}
@@ -608,6 +621,7 @@ function Gate() {
         />
       ) : onEvents ? (
         <EventsPage
+          key={sectionReset}
           scope={scope}
           asTable={Boolean(commandShell && scope === 'unit')}
           canCreate={manages && scope === 'unit'}

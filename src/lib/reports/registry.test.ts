@@ -37,4 +37,15 @@ describe('REPORT_KINDS', () => {
       'אירועים עם אותו הכונן, באותו מקום בחלון זמן של חצי שעה',
     )
   })
+
+  it('exports a date column on duplicate events (CSV uses the same headers)', () => {
+    expect(REPORT_KINDS.find((kind) => kind.id === 'duplicate_events')?.columns.map((column) => column.header)).toEqual([
+      'תאריך',
+      'שעה',
+      'כונן',
+      'סוג אירוע',
+      'כביש / מיקום',
+      'מספר אירוע',
+    ])
+  })
 })

@@ -59,6 +59,7 @@ No other shadows exist. No colored shadows ever.
 - **Form max-width:** 720 px (forms are documents; they don't stretch full-bleed).
 - **Page padding-inline:** 16 px mobile, 24 px tablet, 32 px desktop.
 - **Mobile shell:** top app bar (48 px, Command-ink in both themes) + content + bottom tab bar (56 px + safe-area) for primary navigation.
+- **Nav item click:** always returns that section's root (list / library / hub), even if that item is already current — e.g. a report runner → דוחות library; fuel usage → ניהול דלק chooser. Back-from-detail inside a section is unchanged until the nav item is clicked.
 - **Desktop Command shell:** sidebar at the **inline-start** (right side in RTL), default 240 px wide (user-resizable 190–265 px via invisible edge handle; preference in `localStorage`), `--surface-page` Command ink with hairline at its inline-end; content area beside it.
 - **Grid:** single column mobile. Desktop uses CSS grid with `gap: var(--space-6)`; event detail uses the split defined in `screens/event-detail.md`.
 

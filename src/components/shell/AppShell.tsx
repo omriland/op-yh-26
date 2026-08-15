@@ -15,6 +15,7 @@ import {
   Fuel,
   ListChecks,
   LogOut,
+  Megaphone,
   Settings,
   UserRound,
   Users,
@@ -48,6 +49,7 @@ export type AppView =
   | 'shifts'
   | 'my_shifts'
   | 'users'
+  | 'unit_broadcast'
   | 'reports'
   | 'fuel_quarter'
   | 'lists'
@@ -114,6 +116,7 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   shifts: <CalendarClock size={24} strokeWidth={1.75} aria-hidden="true" />,
   my_shifts: <CalendarCheck size={24} strokeWidth={1.75} aria-hidden="true" />,
   users: <Users size={24} strokeWidth={1.75} aria-hidden="true" />,
+  unit_broadcast: <Megaphone size={24} strokeWidth={1.75} aria-hidden="true" />,
   reports: <BarChart3 size={24} strokeWidth={1.75} aria-hidden="true" />,
   fuel_quarter: <Fuel size={24} strokeWidth={1.75} aria-hidden="true" />,
   lists: <Settings size={24} strokeWidth={1.75} aria-hidden="true" />,

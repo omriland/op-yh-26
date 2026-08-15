@@ -122,6 +122,7 @@ const duplicateEvents: ReportKind = {
   hasDateRange: false,
   csvFilename: 'אירועים-כפולים.csv',
   columns: [
+    { id: 'date', header: 'תאריך', numeric: true },
     { id: 'time', header: 'שעה', numeric: true },
     { id: 'responder', header: 'כונן' },
     { id: 'type', header: 'סוג אירוע' },
@@ -138,6 +139,7 @@ const duplicateEvents: ReportKind = {
           groupKey: cluster.id,
           groupLabel: `${formatDate(cluster.event_date)} · ${cluster.sizeLabel}`,
           values: [
+            formatDate(member.event_date),
             formatTime(member.started_at) ?? '—',
             person(member.full_name, member.callsign),
             eventType(member.event_type_name, member.is_cancelled),

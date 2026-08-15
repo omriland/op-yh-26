@@ -106,7 +106,7 @@ async function sendSopranoSms(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const user = Deno.env.get("SOPRANO_USER");
   const password = Deno.env.get("SOPRANO_PASSWORD");
-  const source = Deno.env.get("SOPRANO_SOURCE") || "EvenDerech";
+  const source = Deno.env.get("SOPRANO_SOURCE") || "YHPZ";
   if (!user || !password) {
     console.error("phone-otp: missing Soprano env");
     return { ok: false, error: "שירות ה-SMS אינו מוגדר. פנו למנהל המערכת." };
