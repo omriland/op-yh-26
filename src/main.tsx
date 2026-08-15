@@ -1,10 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './lib/bindAppViewport'
 import App from './App.tsx'
-import { bindAppViewportHeight } from './lib/appViewport'
-
-bindAppViewportHeight()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

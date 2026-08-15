@@ -7,6 +7,27 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>אבן דרך</title>
+    <script>
+      /* Early visual-viewport lock before modules load (iOS Safari chrome gap). */
+      (function () {
+        function syncAppHeight() {
+          var h =
+            (window.visualViewport && window.visualViewport.height) || window.innerHeight
+          document.documentElement.style.setProperty(
+            '--app-height',
+            Math.max(1, Math.round(h)) + 'px',
+          )
+          if (window.scrollX || window.scrollY) window.scrollTo(0, 0)
+        }
+        syncAppHeight()
+        window.addEventListener('resize', syncAppHeight)
+        window.addEventListener('orientationchange', syncAppHeight)
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', syncAppHeight)
+          window.visualViewport.addEventListener('scroll', syncAppHeight)
+        }
+      })()
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
