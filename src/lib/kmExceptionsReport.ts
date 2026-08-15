@@ -37,10 +37,14 @@ export type KmExceptionRow = {
 }
 
 /** Flatten events → exceptional responder rows; sort date desc, then km desc. */
-export function buildKmExceptionRows(events: KmExceptionEventSource[]): KmExceptionRow[] {
+export function buildKmExceptionRows(
+  events: KmExceptionEventSource[],
+  range?: { from: string; to: string },
+): KmExceptionRow[] {
   const rows: KmExceptionRow[] = []
 
   for (const event of events) {
+    if (range && (event.event_date < range.from || event.event_date > range.to)) continue
     for (const responder of event.responders) {
       // Lead-entered km only (`event_responders.total_km`). Participation
       // status does not matter — odometer fields are never used here.
@@ -88,12 +92,19 @@ const KM_EXCEPTION_SELECT = `
   )
 `
 
-export async function fetchKmExceptionRows(): Promise<KmExceptionRow[]> {
-  const { data, error } = await supabase
+export async function fetchKmExceptionRows(from?: string, to?: string): Promise<KmExceptionRow[]> {
+  let query = supabase
     .from('events')
     .select(KM_EXCEPTION_SELECT)
     .order('event_date', { ascending: false })
 
+  if (from) query = query.gte('event_date', from)
+  if (to) query = query.lte('event_date', to)
+
+  const { data, error } = await query
   if (error) throw new Error(error.message)
-  return buildKmExceptionRows((data ?? []) as unknown as KmExceptionEventSource[])
+  return buildKmExceptionRows(
+    (data ?? []) as unknown as KmExceptionEventSource[],
+    from && to ? { from, to } : undefined,
+  )
 }

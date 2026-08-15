@@ -1,8 +1,14 @@
 export type ReportAudience = 'admin' | 'admin_and_shift_lead'
 
+export type ReportViewer = {
+  userId: string
+  isAdmin: boolean
+}
+
 export type ReportInputs = {
   from?: string
   to?: string
+  viewer?: ReportViewer
 }
 
 export type ReportColumn = {
@@ -17,6 +23,7 @@ export type ReportTableRow = {
   eventId?: string
   groupKey?: string
   groupLabel?: string
+  searchText?: string
 }
 
 export type ReportKind = {
@@ -25,6 +32,8 @@ export type ReportKind = {
   includes: string
   audience: ReportAudience
   hasDateRange: boolean
+  hasPeriodPicker?: boolean
+  searchPlaceholder?: string
   csvFilename: string
   columns: ReportColumn[]
   load: (inputs: ReportInputs) => Promise<ReportTableRow[]>

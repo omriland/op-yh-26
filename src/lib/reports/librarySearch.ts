@@ -1,3 +1,5 @@
+import { searchQueryVariants } from '../searchQuery'
+
 export function normalizeReportQuery(value: string): string {
   return value
     .normalize('NFKD')
@@ -49,22 +51,40 @@ function tokenMatches(haystack: string, token: string): boolean {
   return words.some((word) => levenshtein(word, token) <= 1)
 }
 
+function tokensOf(query: string): string[] {
+  return normalizeReportQuery(query).split(' ').filter(Boolean)
+}
+
+function tokensMatchHaystack(haystack: string, tokens: string[]): boolean {
+  return tokens.every((token) => tokenMatches(haystack, token))
+}
+
+export function queryMatchesText(haystack: string, query: string): boolean {
+  const variants = searchQueryVariants(query)
+  if (variants.length === 0) return true
+  const normalized = normalizeReportQuery(haystack)
+  return variants.some((variant) => {
+    const tokens = tokensOf(variant)
+    return tokens.length === 0 || tokensMatchHaystack(normalized, tokens)
+  })
+}
+
 export function filterReportCatalog<T extends { title: string; includes: string }>(
   kinds: readonly T[],
   query: string,
 ): T[] {
-  const tokens = normalizeReportQuery(query).split(' ').filter(Boolean)
-  if (tokens.length === 0) return [...kinds]
+  const variants = searchQueryVariants(query)
+  if (variants.length === 0) return [...kinds]
 
   const scored: { kind: T; rank: number }[] = []
   for (const kind of kinds) {
     const title = normalizeReportQuery(kind.title)
     const includes = normalizeReportQuery(kind.includes)
     const haystack = `${title} ${includes}`
-    if (!tokens.every((token) => tokenMatches(haystack, token))) continue
+    if (!queryMatchesText(haystack, query)) continue
     scored.push({
       kind,
-      rank: tokens.every((token) => tokenMatches(title, token)) ? 0 : 1,
+      rank: variants.some((variant) => tokensMatchHaystack(title, tokensOf(variant))) ? 0 : 1,
     })
   }
 

@@ -15,7 +15,7 @@ const kinds = [
   {
     id: 'km_exceptions',
     title: 'חריגי ק״מ',
-    includes: 'השתתפויות עם 60 ק״מ ומעלה',
+    includes: 'אירועים עם 60 ק״מ ומעלה',
   },
   {
     id: 'duplicate_events',

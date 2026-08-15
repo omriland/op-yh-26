@@ -1,3 +1,4 @@
+import { searchQueryVariants } from './searchQuery'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 
@@ -226,15 +227,19 @@ export function doneFraction(event: EventListItem): string {
 
 /** Unit-list text search ids (shift_lead+). Empty trimmed needle → []. */
 export async function searchUnitEventIds(needle: string): Promise<string[]> {
-  const trimmed = needle.trim()
-  if (!trimmed) return []
+  const variants = searchQueryVariants(needle)
+  if (variants.length === 0) return []
 
-  const { data, error } = await supabase.rpc('search_unit_event_ids', {
-    p_needle: trimmed,
-  })
-
-  if (error) throw new Error(error.message)
-  return (data ?? []) as string[]
+  const batches = await Promise.all(
+    variants.map(async (variant) => {
+      const { data, error } = await supabase.rpc('search_unit_event_ids', {
+        p_needle: variant,
+      })
+      if (error) throw new Error(error.message)
+      return (data ?? []) as string[]
+    }),
+  )
+  return [...new Set(batches.flat())]
 }
 
 export function filterUnitEventsForList(

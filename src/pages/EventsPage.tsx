@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ClipboardList, ListChecks, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { textIncludesQuery } from '../lib/searchQuery'
 import {
   UNIT_EVENTS_LIST_LIMIT,
   fetchEvents,
@@ -156,14 +157,13 @@ export function EventsPage({
       return filterUnitEventsForList(source, { status: filter, searchIds })
     }
 
-    const needle = query.trim().toLowerCase()
+    const needle = query.trim()
     const filtered = events.filter((event) => {
       const matchesStatus = filter === 'all' || event.status === filter
       const haystack = [event.police_event_id, event.road?.name, event.location]
         .filter(Boolean)
         .join(' ')
-        .toLowerCase()
-      return matchesStatus && (!needle || haystack.includes(needle))
+      return matchesStatus && (!needle || textIncludesQuery(haystack, needle))
     })
 
     // Open assignments first — the responder's list is a to-do list.

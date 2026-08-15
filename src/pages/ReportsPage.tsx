@@ -14,19 +14,28 @@ type ReportsPageProps = {
 }
 
 export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
-  const { roles } = useAuth()
+  const { roles, profile, user } = useAuth()
   const [reportId, setReportId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const kinds = visibleReportKinds(REPORT_KINDS, roles)
   const kind = reportId ? reportKindById(reportId) : undefined
   const allowed = Boolean(kind && kinds.some((item) => item.id === kind.id))
   const filtered = useMemo(() => filterReportCatalog(kinds, query), [kinds, query])
+  const isAdmin = roles.includes('admin')
+  const viewer = useMemo(
+    () => ({
+      userId: profile?.id ?? user?.id ?? '',
+      isAdmin,
+    }),
+    [profile?.id, user?.id, isAdmin],
+  )
 
   if (allowed && kind) {
     return (
       <ReportRunner
         key={kind.id}
         kind={kind}
+        viewer={viewer}
         asTable={asTable}
         onBack={() => setReportId(null)}
         onOpenEvent={onOpenEvent}

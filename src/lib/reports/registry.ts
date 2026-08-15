@@ -1,12 +1,14 @@
 import { fetchDuplicateClusters } from '../duplicateEventsReport'
-import { loadFuelDetailReport } from '../fuelDetailReport'
 import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
-  loadFuelRefundReport,
 } from '../fuelRefundReport'
 import { formatDate, formatDayHeading, formatNumber, formatTime } from '../format'
 import { fetchKmExceptionRows } from '../kmExceptionsReport'
+import {
+  documentationFillLabel,
+  loadOpenDocumentationReport,
+} from '../openDocumentationReport'
 import type { ReportKind, ReportTableRow } from './types'
 
 function person(name: string | null | undefined, callsign: string | null | undefined): string {
@@ -30,74 +32,54 @@ function requireRange(inputs: { from?: string; to?: string }): { from: string; t
   return { from, to }
 }
 
-const kmSummary: ReportKind = {
-  id: 'km_summary',
-  title: 'סיכום ק״מ לפי כונן',
-  includes: 'קילומטרים ואירועים לכל כונן פעיל לפי תאריך דיווח',
-  audience: 'admin',
+const openDocumentation: ReportKind = {
+  id: 'open_documentation',
+  title: 'אירועים שהוזנו ע״י אחמ״ש ולא נסגרו ע״י מתנדב',
+  includes: 'אירועים שהוזנו על ידי אחמ״ש ומתנדב טרם השלים את התיעוד שלהם',
+  audience: 'admin_and_shift_lead',
   hasDateRange: true,
-  csvFilename: 'סיכום-קמ.csv',
+  hasPeriodPicker: true,
+  searchPlaceholder: 'חיפוש לפי מתנדב, מספר אירוע או מיקום',
+  csvFilename: 'אירועים-פתוחים-לתיעוד.csv',
   columns: [
-    { id: 'responder', header: 'כונן' },
-    { id: 'km', header: 'קילומטרים', numeric: true },
-    { id: 'events', header: 'אירועים', numeric: true },
-  ],
-  async load(inputs) {
-    const range = requireRange(inputs)
-    if (!range) return []
-    const rows = await loadFuelRefundReport(range.from, range.to)
-    return rows.map(
-      (row): ReportTableRow => ({
-        id: row.id,
-        values: [person(row.full_name, row.callsign), formatNumber(row.total_km), formatNumber(row.event_count)],
-      }),
-    )
-  },
-}
-
-const kmDetail: ReportKind = {
-  id: 'km_detail',
-  title: 'פירוט ק״מ לפי השתתפות',
-  includes: 'שורה לכל השתתפות עם ק״מ לפי תאריך דיווח',
-  audience: 'admin',
-  hasDateRange: true,
-  csvFilename: 'פירוט-קמ.csv',
-  columns: [
-    { id: 'responder', header: 'כונן' },
+    { id: 'police', header: 'מס אירוע', numeric: true },
     { id: 'date', header: 'תאריך', numeric: true },
-    { id: 'time', header: 'שעה', numeric: true },
-    { id: 'location', header: 'מיקום' },
-    { id: 'type', header: 'סוג אירוע' },
-    { id: 'km', header: 'סה״כ ק״מ', numeric: true },
-    { id: 'notes', header: 'הערות' },
+    { id: 'responder', header: 'מתנדב' },
+    { id: 'lead', header: 'אחמ״ש' },
+    { id: 'place', header: 'כביש ומיקום' },
+    { id: 'fill', header: 'סטטוס תיעוד' },
   ],
   async load(inputs) {
     const range = requireRange(inputs)
-    if (!range) return []
-    const rows = await loadFuelDetailReport(range.from, range.to)
-    return rows.map(
-      (row): ReportTableRow => ({
+    if (!range || !inputs.viewer) return []
+    const rows = await loadOpenDocumentationReport(range.from, range.to, inputs.viewer)
+    return rows.map((row): ReportTableRow => {
+      const responder = person(row.responder_name, row.responder_callsign)
+      const placeText = place(row.road_name, row.location)
+      return {
         id: row.id,
+        eventId: row.event_id,
+        searchText: [responder, row.police_event_id ?? '', placeText].join(' '),
         values: [
-          person(row.full_name, row.callsign),
-          formatDate(row.created_at),
-          formatTime(row.started_at) ?? '—',
-          row.location || '—',
-          row.event_type_name || '—',
-          formatNumber(row.total_km),
-          row.notes || '—',
+          row.police_event_id ?? '—',
+          formatDate(row.event_date),
+          responder,
+          person(row.shift_lead_name, row.shift_lead_callsign),
+          placeText,
+          documentationFillLabel(row.fill_status),
         ],
-      }),
-    )
+      }
+    })
   },
 }
 
 const kmExceptions: ReportKind = {
   id: 'km_exceptions',
   title: 'חריגי ק״מ',
-  includes: 'השתתפויות עם 60 ק״מ ומעלה',
+  includes: 'אירועים עם 60 ק״מ ומעלה',
   audience: 'admin_and_shift_lead',
-  hasDateRange: false,
+  hasDateRange: true,
+  hasPeriodPicker: true,
   csvFilename: 'חריגי-קמ.csv',
   columns: [
     { id: 'date', header: 'תאריך', numeric: true },
@@ -108,8 +90,10 @@ const kmExceptions: ReportKind = {
     { id: 'lead', header: 'אחמ״ש' },
     { id: 'police', header: 'מספר אירוע', numeric: true },
   ],
-  async load() {
-    const rows = await fetchKmExceptionRows()
+  async load(inputs) {
+    const range = requireRange(inputs)
+    if (!range) return []
+    const rows = await fetchKmExceptionRows(range.from, range.to)
     return rows.map(
       (row): ReportTableRow => ({
         id: `${row.event_id}:${row.responder_callsign}:${row.total_km}`,
@@ -133,7 +117,7 @@ const kmExceptions: ReportKind = {
 const duplicateEvents: ReportKind = {
   id: 'duplicate_events',
   title: 'אירועים כפולים',
-  includes: 'כונן + מקום + יום בחלון ±30 דקות',
+  includes: 'אירועים עם אותו הכונן, באותו מקום בחלון זמן של חצי שעה',
   audience: 'admin_and_shift_lead',
   hasDateRange: false,
   csvFilename: 'אירועים-כפולים.csv',
@@ -166,7 +150,7 @@ const duplicateEvents: ReportKind = {
   },
 }
 
-export const REPORT_KINDS: ReportKind[] = [kmSummary, kmDetail, kmExceptions, duplicateEvents]
+export const REPORT_KINDS: ReportKind[] = [openDocumentation, kmExceptions, duplicateEvents]
 
 export function reportKindById(id: string): ReportKind | undefined {
   return REPORT_KINDS.find((kind) => kind.id === id)

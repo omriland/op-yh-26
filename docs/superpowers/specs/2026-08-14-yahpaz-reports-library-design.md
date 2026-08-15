@@ -109,10 +109,10 @@ Calc rules **do not change**; only the shell does. Pointers: `2026-08-10-yahpaz-
 
 | id | Title | Includes | Audience | Inputs | Drill-in |
 |---|---|---|---|---|---|
-| `km_summary` | סיכום ק״מ לפי כונן | קילומטרים ואירועים לכל כונן פעיל לפי תאריך דיווח | admin | date range | no |
-| `km_detail` | פירוט ק״מ לפי השתתפות | שורה לכל השתתפות עם ק״מ לפי תאריך דיווח | admin | date range | no |
-| `km_exceptions` | חריגי ק״מ | השתתפויות עם 60 ק״מ ומעלה | admin + אחמ״ש | none | event detail |
-| `duplicate_events` | אירועים כפולים | כונן + מקום + יום בחלון ±30 דקות | admin + אחמ״ש | none | event detail |
+| `km_exceptions` | חריגי ק״מ | אירועים עם 60 ק״מ ומעלה | admin + אחמ״ש | PeriodPicker on `event_date` | event detail |
+| `duplicate_events` | אירועים כפולים | אירועים עם אותו הכונן, באותו מקום בחלון זמן של חצי שעה | admin + אחמ״ש | none | event detail |
+
+Retired from the catalog (2026-08-15): `km_summary` / `km_detail` — km usage lives under ניהול דלק.
 
 Retired UI: `FuelRefundPage` / `FuelRefundSegmentBar` / `ExceptionsPage` segment hub are unhooked. Libs stay. **ניהול כרטיסי דלק** unchanged.
 
@@ -139,6 +139,12 @@ Retired UI: `FuelRefundPage` / `FuelRefundSegmentBar` / `ExceptionsPage` segment
 - Date range: invalid `from > to` does not call `load`
 - Search: filters rows; CSV matches the filtered set
 - Existing lib tests stay the source of truth for km / duplicates math
+
+## Added after v1
+
+| id | Title | Spec |
+|---|---|---|
+| `open_documentation` | אירועים שהוזנו ע״י אחמ״ש ולא נסגרו ע״י מתנדב | `2026-08-15-yahpaz-open-documentation-report-design.md` |
 
 ## Later (not v1)
 

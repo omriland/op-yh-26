@@ -10,6 +10,7 @@ import { Button } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
 import { TextField } from '../ui/TextField'
 import { useToast } from '../ui/Toast'
+import { fieldsMatchQuery } from '../../lib/searchQuery'
 
 type ImpersonationPickerDialogProps = {
   open: boolean
@@ -58,14 +59,9 @@ export function ImpersonationPickerDialog({
     const base = presetTargetId
       ? candidates.filter((row) => row.id === presetTargetId)
       : candidates
-    const q = query.trim().toLowerCase()
+    const q = query.trim()
     if (!q || presetTargetId) return base
-    return base.filter(
-      (row) =>
-        row.full_name.toLowerCase().includes(q) ||
-        row.callsign.toLowerCase().includes(q) ||
-        row.email.toLowerCase().includes(q),
-    )
+    return base.filter((row) => fieldsMatchQuery([row.full_name, row.callsign, row.email], q))
   }, [candidates, query, presetTargetId])
 
   const selected = filtered.find((row) => row.id === selectedId) ??

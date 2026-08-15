@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar, ChevronRight, Link2, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { fieldsMatchQuery, textIncludesQuery } from '../lib/searchQuery'
 import {
   fetchAssignableUsers,
   fetchEventLookups,
@@ -302,26 +303,22 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const pickerOptions = useMemo(() => {
     if (!draft) return []
     const taken = new Set(draft.responder_ids)
-    const needle = pickerQuery.trim().toLowerCase()
+    const needle = pickerQuery.trim()
     return roster.filter((person) => {
       if (taken.has(person.id)) return false
       if (!needle) return true
-      return (
-        person.full_name.toLowerCase().includes(needle) ||
-        person.callsign.toLowerCase().includes(needle)
-      )
+      return fieldsMatchQuery([person.full_name, person.callsign], needle)
     })
   }, [draft, roster, pickerQuery])
 
   const eventPickerOptions = useMemo(() => {
     if (!draft) return []
     const taken = new Set(draft.event_ids)
-    const needle = eventPickerQuery.trim().toLowerCase()
+    const needle = eventPickerQuery.trim()
     return linkable.filter((event) => {
       if (taken.has(event.id)) return false
       if (!needle) return true
-      const label = eventLabel(event).toLowerCase()
-      return label.includes(needle)
+      return textIncludesQuery(eventLabel(event), needle)
     })
   }, [draft, linkable, eventPickerQuery])
 

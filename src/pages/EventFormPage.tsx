@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar, ChevronDown, ChevronRight, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { fieldsMatchQuery } from '../lib/searchQuery'
 import {
   applyCancelledChange,
   deriveEventStatus,
@@ -195,14 +196,11 @@ export function EventFormPage({
   const pickerOptions = useMemo(() => {
     if (!draft) return []
     const taken = new Set(draft.responders.map((row) => row.responder_id))
-    const needle = pickerQuery.trim().toLowerCase()
+    const needle = pickerQuery.trim()
     return roster.filter((person) => {
       if (taken.has(person.id)) return false
       if (!needle) return true
-      return (
-        person.full_name.toLowerCase().includes(needle) ||
-        person.callsign.toLowerCase().includes(needle)
-      )
+      return fieldsMatchQuery([person.full_name, person.callsign], needle)
     })
   }, [draft, roster, pickerQuery])
 

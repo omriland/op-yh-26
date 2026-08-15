@@ -163,4 +163,33 @@ describe('buildKmExceptionRows', () => {
       event_date: '2026-08-10',
     })
   })
+
+  it('keeps only event_date inside an inclusive range', () => {
+    const rows = buildKmExceptionRows(
+      [
+        event({
+          id: 'old',
+          event_date: '2026-07-31',
+          responders: [{ status: 'done', total_km: 80, profile: { full_name: 'א', callsign: 'A' } }],
+        }),
+        event({
+          id: 'start',
+          event_date: '2026-08-01',
+          responders: [{ status: 'done', total_km: 80, profile: { full_name: 'ב', callsign: 'B' } }],
+        }),
+        event({
+          id: 'end',
+          event_date: '2026-08-31',
+          responders: [{ status: 'done', total_km: 80, profile: { full_name: 'ג', callsign: 'C' } }],
+        }),
+        event({
+          id: 'next',
+          event_date: '2026-09-01',
+          responders: [{ status: 'done', total_km: 80, profile: { full_name: 'ד', callsign: 'D' } }],
+        }),
+      ],
+      { from: '2026-08-01', to: '2026-08-31' },
+    )
+    expect(rows.map((row) => row.event_id)).toEqual(['end', 'start'])
+  })
 })

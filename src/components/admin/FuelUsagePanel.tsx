@@ -9,6 +9,7 @@ import { isValidFuelRefundRange, loadFuelRefundReport } from '../../lib/fuelRefu
 import { formatLiters, toUsageRows, usageTotals, type FuelUsageRow } from '../../lib/fuelUsage'
 import { defaultPeriod, periodToRange, type PeriodValue } from '../../lib/periodRange'
 import { downloadCsv, toCsv } from '../../lib/reports/csv'
+import { fieldsMatchQuery } from '../../lib/searchQuery'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 
 export function FuelUsagePanel() {
@@ -87,11 +88,8 @@ export function FuelUsagePanel() {
         </div>
       </div>
 
-      <PeriodPicker value={period} onChange={setPeriod} />
-
-      {!rangeValid ? <p className="t-caption text-danger">טווח תאריכים לא תקין</p> : null}
-
-      <div className="admin-toolbar">
+      <div className="report-filters">
+        <PeriodPicker value={period} onChange={setPeriod} />
         <label className="search-field">
           <Search size={20} strokeWidth={1.75} aria-hidden="true" />
           <span className="visually-hidden">חיפוש בדוח</span>
@@ -103,6 +101,8 @@ export function FuelUsagePanel() {
           />
         </label>
       </div>
+
+      {!rangeValid ? <p className="t-caption text-danger">טווח תאריכים לא תקין</p> : null}
 
       {failed ? (
         <EmptyState
@@ -190,15 +190,18 @@ export function FuelUsagePanel() {
 }
 
 function filterUsageRows(rows: FuelUsageRow[], query: string): FuelUsageRow[] {
-  const needle = query.trim().toLowerCase()
+  const needle = query.trim()
   if (!needle) return rows
   return rows.filter((row) =>
-    [
-      row.full_name,
-      row.callsign,
-      formatNumber(row.total_km),
-      formatNumber(row.event_count),
-      formatLiters(row.total_km),
-    ].some((value) => value.toLowerCase().includes(needle)),
+    fieldsMatchQuery(
+      [
+        row.full_name,
+        row.callsign,
+        formatNumber(row.total_km),
+        formatNumber(row.event_count),
+        formatLiters(row.total_km),
+      ],
+      needle,
+    ),
   )
 }

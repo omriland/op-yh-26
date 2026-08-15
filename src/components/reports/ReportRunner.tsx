@@ -1,35 +1,43 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Calendar, ChevronRight, Download, Search, BarChart3 } from 'lucide-react'
+import { PeriodPicker } from '../admin/PeriodPicker'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
 import { TextField } from '../ui/TextField'
 import { downloadCsv, toCsv } from '../../lib/reports/csv'
 import { filterReportRows } from '../../lib/reports/search'
-import type { ReportKind, ReportTableRow } from '../../lib/reports/types'
+import type { ReportKind, ReportTableRow, ReportViewer } from '../../lib/reports/types'
 import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
 } from '../../lib/fuelRefundReport'
+import { defaultPeriod, periodToRange, type PeriodValue } from '../../lib/periodRange'
 
 type ReportRunnerProps = {
   kind: ReportKind
+  viewer: ReportViewer
   asTable: boolean
   onBack: () => void
   onOpenEvent?: (eventId: string) => void
 }
 
-export function ReportRunner({ kind, asTable, onBack, onOpenEvent }: ReportRunnerProps) {
+export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: ReportRunnerProps) {
+  const { userId, isAdmin } = viewer
   const defaults = defaultFuelRefundRange()
   const [from, setFrom] = useState(defaults.from)
   const [to, setTo] = useState(defaults.to)
+  const [period, setPeriod] = useState<PeriodValue>(() => defaultPeriod())
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<ReportTableRow[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
-  const rangeValid = !kind.hasDateRange || isValidFuelRefundRange(from, to)
-  const rangeError = kind.hasDateRange && from && to && !rangeValid ? 'טווח תאריכים לא תקין' : undefined
+  const periodRange = periodToRange(period)
+  const rangeFrom = kind.hasPeriodPicker ? periodRange.from : from
+  const rangeTo = kind.hasPeriodPicker ? periodRange.to : to
+  const rangeValid = !kind.hasDateRange || isValidFuelRefundRange(rangeFrom, rangeTo)
+  const rangeError = kind.hasDateRange && rangeFrom && rangeTo && !rangeValid ? 'טווח תאריכים לא תקין' : undefined
 
   useEffect(() => {
     if (!rangeValid) {
@@ -42,8 +50,9 @@ export function ReportRunner({ kind, asTable, onBack, onOpenEvent }: ReportRunne
     setRows(null)
     setFailed(false)
 
+    const nextViewer = { userId, isAdmin }
     void kind
-      .load(kind.hasDateRange ? { from, to } : {})
+      .load(kind.hasDateRange ? { from: rangeFrom, to: rangeTo, viewer: nextViewer } : { viewer: nextViewer })
       .then((next) => {
         if (active) setRows(next)
       })
@@ -54,7 +63,7 @@ export function ReportRunner({ kind, asTable, onBack, onOpenEvent }: ReportRunne
     return () => {
       active = false
     }
-  }, [kind, from, to, rangeValid, reloadKey])
+  }, [kind, rangeFrom, rangeTo, rangeValid, reloadKey, userId, isAdmin])
 
   const filtered = useMemo(() => (rows ? filterReportRows(rows, query) : []), [rows, query])
   const sections = useMemo(() => groupRows(filtered), [filtered])
@@ -97,55 +106,76 @@ export function ReportRunner({ kind, asTable, onBack, onOpenEvent }: ReportRunne
         </div>
       </div>
 
-      {kind.hasDateRange ? (
-        <div
-          className="admin-toolbar"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: asTable ? 'repeat(2, minmax(0, 16rem))' : '1fr',
-            gap: 'var(--space-3)',
-          }}
-        >
-          <TextField
-            label="מתאריך"
-            type="date"
-            required
-            value={from}
-            error={rangeError}
-            onChange={(event) => setFrom(event.target.value)}
-            affix={
-              <span className="field__affix" aria-hidden="true">
-                <Calendar size={20} strokeWidth={1.75} />
-              </span>
-            }
-          />
-          <TextField
-            label="עד תאריך"
-            type="date"
-            required
-            value={to}
-            onChange={(event) => setTo(event.target.value)}
-            affix={
-              <span className="field__affix" aria-hidden="true">
-                <Calendar size={20} strokeWidth={1.75} />
-              </span>
-            }
-          />
-        </div>
-      ) : null}
+      {kind.hasPeriodPicker ? (
+        <>
+          <div className="report-filters">
+            <PeriodPicker value={period} onChange={setPeriod} />
+            <label className="search-field">
+              <Search size={20} strokeWidth={1.75} aria-hidden="true" />
+              <span className="visually-hidden">חיפוש בדוח</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={kind.searchPlaceholder ?? 'חיפוש בדוח'}
+              />
+            </label>
+          </div>
+          {rangeError ? <p className="t-caption text-danger">{rangeError}</p> : null}
+        </>
+      ) : (
+        <>
+          {kind.hasDateRange ? (
+            <div
+              className="admin-toolbar"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: asTable ? 'repeat(2, minmax(0, 16rem))' : '1fr',
+                gap: 'var(--space-3)',
+              }}
+            >
+              <TextField
+                label="מתאריך"
+                type="date"
+                required
+                value={from}
+                error={rangeError}
+                onChange={(event) => setFrom(event.target.value)}
+                affix={
+                  <span className="field__affix" aria-hidden="true">
+                    <Calendar size={20} strokeWidth={1.75} />
+                  </span>
+                }
+              />
+              <TextField
+                label="עד תאריך"
+                type="date"
+                required
+                value={to}
+                onChange={(event) => setTo(event.target.value)}
+                affix={
+                  <span className="field__affix" aria-hidden="true">
+                    <Calendar size={20} strokeWidth={1.75} />
+                  </span>
+                }
+              />
+            </div>
+          ) : null}
 
-      <div className="admin-toolbar">
-        <label className="search-field">
-        <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-        <span className="visually-hidden">חיפוש בדוח</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          placeholder="חיפוש בדוח"
-        />
-      </label>
-      </div>
+          <div className="admin-toolbar">
+            <label className="search-field">
+              <Search size={20} strokeWidth={1.75} aria-hidden="true" />
+              <span className="visually-hidden">חיפוש בדוח</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={kind.searchPlaceholder ?? 'חיפוש בדוח'}
+              />
+            </label>
+          </div>
+        </>
+      )}
 
       {failed ? (
         <EmptyState

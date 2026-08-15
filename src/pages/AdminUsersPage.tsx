@@ -15,6 +15,7 @@ import {
   type AdminUserRow,
 } from '../lib/adminUsers'
 import { isInvitePending } from '../lib/adminUserStatus'
+import { fieldsMatchQuery } from '../lib/searchQuery'
 import { useAuth, type AppRole } from '../lib/auth'
 import { canImpersonateTarget } from '../lib/impersonationEligibility'
 import { isImpersonating } from '../lib/impersonationStash'
@@ -275,14 +276,9 @@ export function AdminUsersPage() {
 
   const filtered = useMemo(() => {
     if (!users) return []
-    const q = query.trim().toLowerCase()
+    const q = query.trim()
     if (!q) return users
-    return users.filter(
-      (user) =>
-        user.full_name.toLowerCase().includes(q) ||
-        user.callsign.toLowerCase().includes(q) ||
-        user.email.toLowerCase().includes(q),
-    )
+    return users.filter((user) => fieldsMatchQuery([user.full_name, user.callsign, user.email], q))
   }, [users, query])
 
   async function submitDraft() {
