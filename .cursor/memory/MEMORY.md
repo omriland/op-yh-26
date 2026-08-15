@@ -84,6 +84,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Fill-ready auto email:** when lead `total_km` first set on a participation → `responder-fill` `notify_fill_ready` (idempotent via `fill_ready_emailed_at`). Scoped 7-day `fill_token` for fill without Auth session; expired → login + `yahpaz:post_login_fill` return. Env: `RESEND_API_KEY`, optional `EMAIL_FROM` (default `alerts@send.yahpz.com`), `INVITE_REDIRECT_TO` for link base.
 - **Deployed (2026-08-12):** migration `20260812160000_event_fill_token.sql` applied; Edge Functions `send-email` + `responder-fill` ACTIVE on project `rtvizpsfvtjowbimugns`. Secrets: `RESEND_API_KEY`, `INVITE_REDIRECT_TO`, `EMAIL_FROM`.
 - **Merged + Netlify prod (2026-08-15):** email/fill-token merged to `infra/bootstrap`; production deploy live on https://yahpz.com (deploy `6a7ff55309294f5fc12c908a`).
+- **Merged + Netlify prod (2026-08-15):** mobile bottom chrome fix (`--app-height` / viewport lock) merged to `infra/bootstrap` (PR #7); live on https://yahpz.com.
 
 ## Shifts (design approved 2026-08-10; UX revise same day)
 
