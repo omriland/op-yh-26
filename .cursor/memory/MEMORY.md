@@ -39,8 +39,8 @@ Repo: `yhpz-2026`
 - Online fill-later (not true offline PWA)
 - Closed lists admin-managed: districts, event types, roads, vehicle kinds
 - UI HE/RTL only; EN column names in DB
-- **Kilometers for calculations / refunds:** only `event_responders.total_km` (lead-entered). `odometer_start` / `odometer_end` are logging only — never use them for sums, reports, or refunds.
-- **Responder fill odometer:** user enters `odometer_start` only; `odometer_end` is read-only `start + total_km`. Draft OK without lead km; complete requires `total_km > 0`. Spec: `2026-08-11-auto-odometer-end-design.md`.
+- **Kilometers for calculations / refunds:** only `event_responders.total_km` (lead-entered). `odometer_start` / `odometer_end` are logging / future discrepancy only — never use them for sums, reports, or refunds.
+- **Responder fill odometer:** user enters both `odometer_start` and `odometer_end`. Lead `total_km` is never shown on fill or to plain responders on event detail; complete still requires lead `total_km != null` (generic error). Spec: `2026-08-15-yahpaz-revert-auto-odometer-end-design.md` (supersedes auto-odometer-end).
 - **Odometer field labels (HE):** `מד אוץ התחלה` / `מד אוץ סיום` (not `ק"מ התחלה` / `ק"מ סיום`). Lead km field remains `קילומטרים`.
 
 ### Event statuses
