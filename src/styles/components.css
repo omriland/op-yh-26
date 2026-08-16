@@ -1274,6 +1274,42 @@ textarea.field__input {
   .nav-item:hover {
     background: var(--accent-subtle);
   }
+
+  .nav-item--cockpit:hover,
+  .nav-item--cockpit[aria-current='page']:hover {
+    background: color-mix(in srgb, var(--accent) 20%, var(--accent-subtle));
+    color: var(--accent);
+  }
+
+  .nav-item--cockpit:hover::after {
+    opacity: 1;
+    animation: spin 1.2s linear infinite;
+  }
+}
+
+.nav-item--cockpit {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.nav-item--cockpit::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: var(--sidebar-width);
+  height: var(--sidebar-width);
+  inset-inline-start: calc(var(--space-3) + 10px - (var(--sidebar-width) / 2));
+  inset-block-start: calc(50% - (var(--sidebar-width) / 2));
+  border-radius: var(--radius-full);
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--accent) 36%, transparent),
+    transparent 55deg,
+    transparent 360deg
+  );
+  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
 .shell__main {

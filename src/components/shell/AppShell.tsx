@@ -490,7 +490,9 @@ function Sidebar({
               <div className={create ? 'sidebar__row' : undefined}>
                 <button
                   type="button"
-                  className="nav-item"
+                  className={
+                    entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
+                  }
                   aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
                   aria-label={
                     entry.attention
