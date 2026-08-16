@@ -6,6 +6,7 @@ describe('REPORT_KINDS', () => {
   it('registers the library reports with spec audiences', () => {
     expect(REPORT_KINDS.map((kind) => [kind.id, kind.audience])).toEqual([
       ['open_documentation', 'admin_and_shift_lead'],
+      ['km_discrepancy', 'admin'],
       ['km_exceptions', 'admin_and_shift_lead'],
       ['duplicate_events', 'admin_and_shift_lead'],
     ])
@@ -14,6 +15,7 @@ describe('REPORT_KINDS', () => {
   it('filters the catalog by role', () => {
     expect(visibleReportKinds(REPORT_KINDS, ['admin']).map((kind) => kind.id)).toEqual([
       'open_documentation',
+      'km_discrepancy',
       'km_exceptions',
       'duplicate_events',
     ])
@@ -46,6 +48,24 @@ describe('REPORT_KINDS', () => {
       'סוג אירוע',
       'כביש / מיקום',
       'מספר אירוע',
+    ])
+  })
+
+  it('registers km discrepancy as admin-only with a responder-km action', () => {
+    const kind = REPORT_KINDS.find((item) => item.id === 'km_discrepancy')
+    expect(kind?.audience).toBe('admin')
+    expect(kind?.hasPeriodPicker).toBe(true)
+    expect(kind?.action?.columnId).toBe('responder_km')
+    expect(kind?.action?.hoverText).toBe('החלפת הקילומטרים של האחמ״ש במספר זה')
+    expect(kind?.columns.map((column) => column.header)).toEqual([
+      'מספר אירוע',
+      'תאריך',
+      'כביש ומיקום',
+      'מתנדב',
+      'אחמ״ש',
+      'ק״מ אחמ״ש',
+      'ק״מ מתנדב',
+      'הפרש',
     ])
   })
 })

@@ -21,9 +21,19 @@ export type ReportTableRow = {
   id: string
   values: string[]
   eventId?: string
+  assignmentId?: string
+  actionValue?: number
   groupKey?: string
   groupLabel?: string
   searchText?: string
+}
+
+export type ReportRowAction = {
+  columnId: string
+  hoverText: string
+  confirmTitle: string
+  confirmBody: (row: ReportTableRow) => string
+  apply: (row: ReportTableRow) => Promise<void>
 }
 
 export type ReportKind = {
@@ -36,6 +46,7 @@ export type ReportKind = {
   searchPlaceholder?: string
   csvFilename: string
   columns: ReportColumn[]
+  action?: ReportRowAction
   load: (inputs: ReportInputs) => Promise<ReportTableRow[]>
 }
 

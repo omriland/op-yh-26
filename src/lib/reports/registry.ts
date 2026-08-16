@@ -4,6 +4,11 @@ import {
   isValidFuelRefundRange,
 } from '../fuelRefundReport'
 import { formatDate, formatDayHeading, formatNumber, formatTime } from '../format'
+import {
+  applyLeadKmFromOdometer,
+  loadKmDiscrepancyReport,
+  policeEventLabel,
+} from '../kmDiscrepancyReport'
 import { fetchKmExceptionRows } from '../kmExceptionsReport'
 import {
   documentationFillLabel,
@@ -67,6 +72,64 @@ const openDocumentation: ReportKind = {
           person(row.shift_lead_name, row.shift_lead_callsign),
           placeText,
           documentationFillLabel(row.fill_status),
+        ],
+      }
+    })
+  },
+}
+
+const kmDiscrepancy: ReportKind = {
+  id: 'km_discrepancy',
+  title: 'אירועים עם פערי דיווח ק״מ',
+  includes: 'אירועים בהם יש פער בין דיווח האחמ״ש לבין הק״מ שהזין המתנדב',
+  audience: 'admin',
+  hasDateRange: true,
+  hasPeriodPicker: true,
+  searchPlaceholder: 'חיפוש לפי מתנדב, מספר אירוע או מיקום',
+  csvFilename: 'פערי-דיווח-קמ.csv',
+  columns: [
+    { id: 'police', header: 'מספר אירוע', numeric: true },
+    { id: 'date', header: 'תאריך', numeric: true },
+    { id: 'place', header: 'כביש ומיקום' },
+    { id: 'responder', header: 'מתנדב' },
+    { id: 'lead', header: 'אחמ״ש' },
+    { id: 'lead_km', header: 'ק״מ אחמ״ש', numeric: true },
+    { id: 'responder_km', header: 'ק״מ מתנדב', numeric: true },
+    { id: 'diff', header: 'הפרש', numeric: true },
+  ],
+  action: {
+    columnId: 'responder_km',
+    hoverText: 'החלפת הקילומטרים של האחמ״ש במספר זה',
+    confirmTitle: 'החלפת קילומטרים?',
+    confirmBody: (row) =>
+      `הקילומטרים שהזין האחמ״ש יוחלפו ב־${formatNumber(row.actionValue ?? 0)} ק״מ לפי מד האוץ של המתנדב.`,
+    async apply(row) {
+      if (!row.assignmentId) throw new Error('missing assignment')
+      await applyLeadKmFromOdometer(row.assignmentId)
+    },
+  },
+  async load(inputs) {
+    const range = requireRange(inputs)
+    if (!range) return []
+    const rows = await loadKmDiscrepancyReport(range.from, range.to)
+    return rows.map((row): ReportTableRow => {
+      const responder = person(row.responder_name, row.responder_callsign)
+      const placeText = place(row.road_name, row.location)
+      return {
+        id: row.id,
+        eventId: row.event_id,
+        assignmentId: row.assignment_id,
+        actionValue: row.responder_km,
+        searchText: [responder, row.police_event_id ?? '', placeText].join(' '),
+        values: [
+          policeEventLabel(row.police_event_id, row.is_cancelled),
+          formatDate(row.event_date),
+          placeText,
+          responder,
+          person(row.shift_lead_name, row.shift_lead_callsign),
+          formatNumber(row.lead_km),
+          formatNumber(row.responder_km),
+          formatNumber(row.diff),
         ],
       }
     })
@@ -152,7 +215,7 @@ const duplicateEvents: ReportKind = {
   },
 }
 
-export const REPORT_KINDS: ReportKind[] = [openDocumentation, kmExceptions, duplicateEvents]
+export const REPORT_KINDS: ReportKind[] = [openDocumentation, kmDiscrepancy, kmExceptions, duplicateEvents]
 
 export function reportKindById(id: string): ReportKind | undefined {
   return REPORT_KINDS.find((kind) => kind.id === id)
