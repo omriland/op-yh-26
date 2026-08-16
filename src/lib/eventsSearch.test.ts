@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  EVENT_LIST_SELECT,
   UNIT_EVENTS_LIST_LIMIT,
   filterUnitEventsForList,
   mergeEventLists,
@@ -15,14 +16,30 @@ function row(partial: Partial<EventListItem> & Pick<EventListItem, 'id' | 'statu
     patrol_callsign: null,
     location: null,
     is_cancelled: false,
+    origin: 'manual',
+    shift_id: null,
+    treatment_detail: null,
+    treatment_notes: null,
+    emergency_means: false,
     district: null,
     event_type: null,
     road: null,
     shift_lead: null,
+    last_saved: null,
+    shift: null,
+    shared_treated: [],
     responders: [],
     ...partial,
   }
 }
+
+describe('EVENT_LIST_SELECT embeds', () => {
+  it('hints both profile FKs so PostgREST does not return 300', () => {
+    expect(EVENT_LIST_SELECT).toContain('profiles!events_shift_lead_id_fkey')
+    expect(EVENT_LIST_SELECT).toContain('profiles!events_last_saved_by_fkey')
+    expect(EVENT_LIST_SELECT).not.toMatch(/shift_lead:profiles\(/)
+  })
+})
 
 describe('filterUnitEventsForList', () => {
   const events = [

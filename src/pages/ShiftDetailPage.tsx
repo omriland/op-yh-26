@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react'
 import { ChevronRight, ClipboardList } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
+  lastSavedByLabel,
+  policeEventLabel,
+  shiftBornFillStamp,
+} from '../lib/shiftBornEvents'
+import {
   canEditShiftByDate,
   fetchShiftDetail,
   SHIFT_KIND_LABELS,
   VEHICLE_TYPE_LABELS,
+  type ShiftBornEventSummary,
   type ShiftDetail,
 } from '../lib/shifts'
 import { deleteShift } from '../lib/shiftForm'
@@ -16,6 +22,7 @@ import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
+import { StampChip } from '../components/ui/StampChip'
 import { useToast } from '../components/ui/Toast'
 
 type ShiftDetailPageProps = {
@@ -25,16 +32,17 @@ type ShiftDetailPageProps = {
   onBack: () => void
   onEdit: () => void
   onDeleted: () => void
+  onOpenEvent?: (eventId: string) => void
 }
 
-function linkedEventLabel(row: ShiftDetail['linked_events'][number]): string {
-  const event = row.event
-  if (!event) return 'אירוע'
-  const head = event.police_event_id
-    ? `אירוע ${event.police_event_id}`
-    : formatDate(event.event_date)
-  const type = event.event_type?.name
-  return type ? `${head} · ${type}` : head
+function bornSnapshot(event: ShiftBornEventSummary) {
+  return {
+    status: event.status,
+    police_event_id: event.police_event_id,
+    treatment_detail: event.treatment_detail,
+    treatment_notes: event.treatment_notes,
+    treated_count: event.treated?.length ?? 0,
+  }
 }
 
 export function ShiftDetailPage({
@@ -44,6 +52,7 @@ export function ShiftDetailPage({
   onBack,
   onEdit,
   onDeleted,
+  onOpenEvent,
 }: ShiftDetailPageProps) {
   const { user } = useAuth()
   const { show } = useToast()
@@ -137,8 +146,8 @@ export function ShiftDetailPage({
     canManage || (viewerAssigned && canEditShiftByDate(shift.shift_date))
 
   const eventTypeCounts = shift.event_type_counts.filter((row) => row.count > 0)
-  const treatedCounts = shift.treated_vehicle_counts.filter((row) => row.count > 0)
-  const cancelledCount = shift.linked_events.filter((row) => row.event?.is_cancelled).length
+  const bornEvents = shift.born_events ?? []
+  const savedLabel = lastSavedByLabel(shift.last_saved?.full_name)
 
   async function confirmDeleteShift() {
     setDeleting(true)
@@ -173,7 +182,8 @@ export function ShiftDetailPage({
             {' · '}
             {shift.responders.length} כוננים
             {' · '}
-            {shift.linked_events.length} אירועים
+            {bornEvents.length} אירועים
+            {savedLabel ? ` · ${savedLabel}` : ''}
           </p>
         </div>
       </div>
@@ -269,23 +279,36 @@ export function ShiftDetailPage({
           </div>
 
           <div className="card stack-3">
-            <h2 className="t-section">אירועים מקושרים ({shift.linked_events.length})</h2>
-            {shift.linked_events.length === 0 ? (
-              <p className="t-body text-secondary">אין אירועים מקושרים.</p>
+            <h2 className="t-section">אירועים ממשמרת ({bornEvents.length})</h2>
+            {bornEvents.length === 0 ? (
+              <p className="t-body text-secondary">אין אירועים ממשמרת זו.</p>
             ) : (
-              <Ledger>
-                {shift.linked_events.map((row) => (
-                  <LedgerRow
-                    key={row.id}
-                    label={linkedEventLabel(row)}
-                    value={
-                      row.event ? (
-                        <span className="mono">{formatDate(row.event.event_date)}</span>
-                      ) : undefined
-                    }
-                  />
-                ))}
-              </Ledger>
+              <ul className="stack-3">
+                {bornEvents.map((event) => {
+                  const stamp = shiftBornFillStamp(bornSnapshot(event))
+                  const savedBy = lastSavedByLabel(event.last_saved?.full_name)
+                  return (
+                    <li key={event.id}>
+                      <button
+                        type="button"
+                        className="event-card"
+                        onClick={() => onOpenEvent?.(event.id)}
+                      >
+                        <span className="event-card__top">
+                          <span className="t-body-strong">
+                            {event.event_type?.name ?? 'אירוע'}
+                          </span>
+                          <StampChip {...stamp} />
+                        </span>
+                        <span className="t-caption text-muted">
+                          {policeEventLabel(event.police_event_id)}
+                          {savedBy ? ` · ${savedBy}` : ''}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
             )}
           </div>
 
@@ -298,19 +321,6 @@ export function ShiftDetailPage({
                   eventTypeCounts.length > 0
                     ? eventTypeCounts
                         .map((row) => `${row.event_type?.name ?? 'סוג'} × ${row.count}`)
-                        .join(', ')
-                    : '—'
-                }
-              />
-              {cancelledCount > 0 ? (
-                <LedgerRow label="בוטל" value={`בוטל × ${cancelledCount}`} />
-              ) : null}
-              <LedgerRow
-                label="רכבים שטופלו"
-                value={
-                  treatedCounts.length > 0
-                    ? treatedCounts
-                        .map((row) => `${row.vehicle_kind?.name ?? 'רכב'} × ${row.count}`)
                         .join(', ')
                     : '—'
                 }

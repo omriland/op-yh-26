@@ -252,7 +252,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
       id, status, event_date, police_event_id, district_id, patrol_callsign,
       event_type_id, road_id, location, location_place_id, location_lat, location_lng,
       notes, is_cancelled,
-      shift_lead:profiles(full_name, callsign),
+      shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
       responders:event_responders(
         id, responder_id, started_at, ended_at, total_km, emergency_means, status,
         vehicle_plate, odometer_start, odometer_end, route,

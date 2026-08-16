@@ -33,6 +33,8 @@ type ShiftsPageProps = {
   asTable: boolean
   canManage?: boolean
   onOpen: (shiftId: string) => void
+  onFill?: (shiftId: string) => void
+  onOpenEvent?: (eventId: string) => void
   onCreate?: () => void
 }
 
@@ -41,6 +43,8 @@ export function ShiftsPage({
   asTable,
   canManage = false,
   onOpen,
+  onFill,
+  onOpenEvent,
   onCreate,
 }: ShiftsPageProps) {
   const isDesktop = useIsDesktop()
@@ -238,13 +242,23 @@ export function ShiftsPage({
                   מברוק! אין לך עוד משמרות לתעד כרגע
                 </p>
               ) : (
-                <ShiftCards shifts={mineSections.pending} onOpen={onOpen} />
+                <ShiftCards
+                  shifts={mineSections.pending}
+                  onOpen={onOpen}
+                  onFill={onFill}
+                  onOpenEvent={onOpenEvent}
+                />
               )}
             </div>
           </DateGroup>
           {mineSections.future.length > 0 ? (
             <DateGroup heading="משמרות עתידיות">
-              <ShiftCards shifts={mineSections.future} onOpen={onOpen} />
+              <ShiftCards
+                shifts={mineSections.future}
+                onOpen={onOpen}
+                onFill={onFill}
+                onOpenEvent={onOpenEvent}
+              />
             </DateGroup>
           ) : null}
           <DateGroup heading="משמרות שתועדו">
@@ -254,7 +268,12 @@ export function ShiftsPage({
                   אין משמרות שתועדו בתקופה זו
                 </p>
               ) : (
-                <ShiftCards shifts={mineSections.logged} onOpen={onOpen} />
+                <ShiftCards
+                  shifts={mineSections.logged}
+                  onOpen={onOpen}
+                  onFill={onFill}
+                  onOpenEvent={onOpenEvent}
+                />
               )}
               {mineSections.hasMoreLogged ? (
                 <Button
@@ -276,12 +295,17 @@ export function ShiftsPage({
           onClear={() => setQuery('')}
         />
       ) : asTable ? (
-        <ShiftsTable shifts={visible} onOpen={onOpen} />
+        <ShiftsTable shifts={visible} onOpen={onOpen} onOpenEvent={onOpenEvent} />
       ) : (
         <DateGroups>
           {grouped.map(([day, items]) => (
             <DateGroup key={day} heading={formatDayHeading(day)}>
-              <ShiftCards shifts={items} onOpen={onOpen} />
+              <ShiftCards
+                shifts={items}
+                onOpen={onOpen}
+                onFill={onFill}
+                onOpenEvent={onOpenEvent}
+              />
             </DateGroup>
           ))}
         </DateGroups>
@@ -304,14 +328,24 @@ function SearchLoadingState() {
 function ShiftCards({
   shifts,
   onOpen,
+  onFill,
+  onOpenEvent,
 }: {
   shifts: ShiftListItem[]
   onOpen: (shiftId: string) => void
+  onFill?: (shiftId: string) => void
+  onOpenEvent?: (eventId: string) => void
 }) {
   return (
     <ul className="stack-3">
       {shifts.map((shift) => (
-        <ShiftCard key={shift.id} shift={shift} onOpen={onOpen} />
+        <ShiftCard
+          key={shift.id}
+          shift={shift}
+          onOpen={onOpen}
+          onFill={onFill}
+          onOpenEvent={onOpenEvent}
+        />
       ))}
     </ul>
   )

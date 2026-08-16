@@ -121,7 +121,7 @@ const KM_DISCREPANCY_SELECT = `
   police_event_id,
   location,
   road:roads(name),
-  shift_lead:profiles(full_name, callsign),
+  shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
   responders:event_responders(
     id,
     responder_id,

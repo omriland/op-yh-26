@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SHIFT_CREW_ERROR,
   buildShiftUpdatePayload,
   shiftEventAlreadyLinkedMessage,
+  validateShiftSave,
   type ShiftFormDraft,
 } from './shiftForm'
 
@@ -36,6 +38,29 @@ describe('shiftEventAlreadyLinkedMessage', () => {
     expect(shiftEventAlreadyLinkedMessage('   ')).toBe(
       'האירוע כבר מקושר למשמרת אחרת',
     )
+  })
+})
+
+describe('validateShiftSave crew size', () => {
+  it('requires between one and three responders', () => {
+    expect(validateShiftSave(baseDraft).some((row) => row.field === 'responder_ids')).toBe(
+      true,
+    )
+    expect(
+      validateShiftSave({ ...baseDraft, responder_ids: ['a'] }).some(
+        (row) => row.field === 'responder_ids',
+      ),
+    ).toBe(false)
+    expect(
+      validateShiftSave({ ...baseDraft, responder_ids: ['a', 'b', 'c'] }).some(
+        (row) => row.field === 'responder_ids',
+      ),
+    ).toBe(false)
+    expect(
+      validateShiftSave({ ...baseDraft, responder_ids: ['a', 'b', 'c', 'd'] }).map(
+        (row) => row.message,
+      ),
+    ).toContain(SHIFT_CREW_ERROR)
   })
 })
 

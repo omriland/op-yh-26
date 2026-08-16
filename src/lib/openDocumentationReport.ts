@@ -96,7 +96,7 @@ const OPEN_DOCUMENTATION_SELECT = `
   location,
   shift_lead_id,
   road:roads(name),
-  shift_lead:profiles(full_name, callsign),
+  shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
   responders:event_responders(
     responder_id,
     status,

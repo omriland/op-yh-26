@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, ChevronRight, Link2, Plus, Search, Trash2, UserRound } from 'lucide-react'
+import { Calendar, ChevronRight, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
-import { fieldsMatchQuery, textIncludesQuery } from '../lib/searchQuery'
+import { fieldsMatchQuery } from '../lib/searchQuery'
 import {
   fetchAssignableUsers,
   fetchEventLookups,
@@ -11,14 +11,13 @@ import {
 } from '../lib/eventForm'
 import {
   computeTotalKm,
-  loadLinkableEvents,
-  refreshRollups,
   saveShiftForm,
+  SHIFT_CREW_ERROR,
   validateShiftSave,
-  type LinkableEvent,
   type ShiftFormDraft,
   type ShiftSaveError,
 } from '../lib/shiftForm'
+import { lastSavedByLabel } from '../lib/shiftBornEvents'
 import {
   canEditShiftByDate,
   fetchShiftDetail,
@@ -27,7 +26,7 @@ import {
   type ShiftKind,
   type ShiftVehicleType,
 } from '../lib/shifts'
-import { digitsOnly, formatDate, formatPlate, monoClass } from '../lib/format'
+import { digitsOnly, formatPlate, monoClass } from '../lib/format'
 import { captureEvent } from '../lib/posthog'
 import { supabase } from '../lib/supabase'
 import { Avatar } from '../components/ui/Avatar'
@@ -114,24 +113,11 @@ async function fetchVehiclesForResponders(
   return (data ?? []) as PersonalVehicleOption[]
 }
 
-function eventLabel(event: {
-  police_event_id: string | null
-  event_date: string
-  event_type: { name: string } | null
-}): string {
-  const head = event.police_event_id
-    ? `אירוע ${event.police_event_id}`
-    : formatDate(event.event_date)
-  const type = event.event_type?.name
-  return type ? `${head} · ${type}` : head
-}
-
 export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) {
   const { user, roles } = useAuth()
   const { show } = useToast()
   const canManageLead = roles.includes('admin') || roles.includes('shift_lead')
   const assignSearchRef = useRef<HTMLInputElement>(null)
-  const eventSearchRef = useRef<HTMLInputElement>(null)
 
   const [draft, setDraft] = useState<ShiftFormDraft | null>(null)
   const [roster, setRoster] = useState<AssignableUser[]>([])
@@ -139,18 +125,13 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     Map<string, { full_name: string; callsign: string }>
   >(new Map())
   const [eventTypes, setEventTypes] = useState<LookupOption[]>([])
-  const [vehicleKinds, setVehicleKinds] = useState<LookupOption[]>([])
   const [personalVehicles, setPersonalVehicles] = useState<PersonalVehicleOption[]>([])
-  const [linkable, setLinkable] = useState<LinkableEvent[]>([])
-  const [linkedMeta, setLinkedMeta] = useState<Map<string, LinkableEvent>>(new Map())
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [errors, setErrors] = useState<FieldErrors>({})
   const [saving, setSaving] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerQuery, setPickerQuery] = useState('')
-  const [eventPickerOpen, setEventPickerOpen] = useState(false)
-  const [eventPickerQuery, setEventPickerQuery] = useState('')
+  const [lastSavedName, setLastSavedName] = useState<string | null>(null)
 
   const draftRef = useRef<ShiftFormDraft | null>(null)
   const canEditResponders = canManageLead
@@ -175,15 +156,11 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     setLoadState('loading')
 
     const lookupsPromise = canManageLead
-      ? Promise.all([fetchAssignableUsers(), fetchEventLookups(), loadLinkableEvents(shiftId)])
-      : Promise.all([
-          Promise.resolve([] as AssignableUser[]),
-          fetchEventLookups(),
-          loadLinkableEvents(shiftId),
-        ])
+      ? Promise.all([fetchAssignableUsers(), fetchEventLookups()])
+      : Promise.all([Promise.resolve([] as AssignableUser[]), fetchEventLookups()])
 
     Promise.all([lookupsPromise, shiftId ? fetchShiftDetail(shiftId) : Promise.resolve(null)])
-      .then(async ([[nextRoster, lookups, nextLinkable], existing]) => {
+      .then(async ([[nextRoster, lookups], existing]) => {
         if (!active) return
 
         if (shiftId && !existing) {
@@ -205,8 +182,6 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
 
         setRoster(nextRoster)
         setEventTypes(lookups.eventTypes)
-        setVehicleKinds(lookups.vehicleKinds)
-        setLinkable(nextLinkable)
 
         if (existing) {
           const profiles = new Map<string, { full_name: string; callsign: string }>()
@@ -236,32 +211,19 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
               event_type_id: row.event_type_id,
               count: row.count,
             })),
-            treated_vehicle_counts: existing.treated_vehicle_counts.map((row) => ({
-              vehicle_kind_id: row.vehicle_kind_id,
-              count: row.count,
-            })),
-            cancelled_count: existing.linked_events.filter((row) => row.event?.is_cancelled)
-              .length,
+            treated_vehicle_counts: [],
+            cancelled_count: 0,
+            expected_updated_at: existing.updated_at,
           }
-          const meta = new Map<string, LinkableEvent>()
-          for (const row of existing.linked_events) {
-            if (!row.event) continue
-            meta.set(row.event_id, {
-              id: row.event_id,
-              event_date: row.event.event_date,
-              police_event_id: row.event.police_event_id,
-              event_type: row.event.event_type,
-            })
-          }
-          setLinkedMeta(meta)
           draftRef.current = nextDraft
           setDraft(nextDraft)
+          setLastSavedName(existing.last_saved?.full_name ?? null)
         } else {
           const nextDraft = emptyDraft()
           draftRef.current = nextDraft
           setDraft(nextDraft)
-          setLinkedMeta(new Map())
           setAssignedProfiles(new Map())
+          setLastSavedName(null)
         }
 
         setLoadState('ready')
@@ -312,17 +274,6 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     })
   }, [draft, roster, pickerQuery])
 
-  const eventPickerOptions = useMemo(() => {
-    if (!draft) return []
-    const taken = new Set(draft.event_ids)
-    const needle = eventPickerQuery.trim()
-    return linkable.filter((event) => {
-      if (taken.has(event.id)) return false
-      if (!needle) return true
-      return textIncludesQuery(eventLabel(event), needle)
-    })
-  }, [draft, linkable, eventPickerQuery])
-
   const assignedPeople = useMemo(() => {
     if (!draft) return []
     return draft.responder_ids.map((id) => {
@@ -336,23 +287,6 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
       }
     })
   }, [draft, roster, assignedProfiles])
-
-  const linkedEvents = useMemo(() => {
-    if (!draft) return []
-    return draft.event_ids.map((id) => {
-      const fromMeta = linkedMeta.get(id)
-      if (fromMeta) return fromMeta
-      const fromLinkable = linkable.find((row) => row.id === id)
-      return (
-        fromLinkable ?? {
-          id,
-          event_date: draft.shift_date,
-          police_event_id: null,
-          event_type: null,
-        }
-      )
-    })
-  }, [draft, linkedMeta, linkable])
 
   const computedKm = draft
     ? computeTotalKm(draft.odometer_start, draft.odometer_end)
@@ -384,33 +318,8 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     })
   }
 
-  function bumpVehicleCount(vehicleKindId: string, delta: number) {
-    setDraft((current) => {
-      if (!current) return current
-      const prev =
-        current.treated_vehicle_counts.find((row) => row.vehicle_kind_id === vehicleKindId)
-          ?.count ?? 0
-      const count = Math.min(99, Math.max(0, prev + delta))
-      const others = current.treated_vehicle_counts.filter(
-        (row) => row.vehicle_kind_id !== vehicleKindId,
-      )
-      const next: ShiftFormDraft = {
-        ...current,
-        treated_vehicle_counts: [...others, { vehicle_kind_id: vehicleKindId, count }],
-      }
-      draftRef.current = next
-      return next
-    })
-  }
-
   function typeCountValue(eventTypeId: string): number {
     return draft?.event_type_counts.find((row) => row.event_type_id === eventTypeId)?.count ?? 0
-  }
-
-  function vehicleCountValue(vehicleKindId: string): number {
-    return (
-      draft?.treated_vehicle_counts.find((row) => row.vehicle_kind_id === vehicleKindId)?.count ?? 0
-    )
   }
 
   function openAssigner() {
@@ -418,14 +327,13 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     queueMicrotask(() => assignSearchRef.current?.focus())
   }
 
-  function openEventPicker() {
-    setEventPickerOpen(true)
-    queueMicrotask(() => eventSearchRef.current?.focus())
-  }
-
   function assignResponder(person: AssignableUser) {
     if (!draft || !canEditResponders) return
     if (draft.responder_ids.includes(person.id)) return
+    if (draft.responder_ids.length >= 3) {
+      show(SHIFT_CREW_ERROR, 'alert')
+      return
+    }
     setAssignedProfiles((current) => {
       const next = new Map(current)
       next.set(person.id, { full_name: person.full_name, callsign: person.callsign })
@@ -434,6 +342,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     updateDraft({ responder_ids: [...draft.responder_ids, person.id] })
     setPickerQuery('')
     setPickerOpen(false)
+    setErrors((current) => ({ ...current, responder_ids: undefined }))
   }
 
   function removeResponder(responderId: string) {
@@ -441,56 +350,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     updateDraft({
       responder_ids: draft.responder_ids.filter((id) => id !== responderId),
     })
-  }
-
-  function linkEvent(event: LinkableEvent) {
-    if (!draft) return
-    if (draft.event_ids.includes(event.id)) return
-    setLinkedMeta((current) => {
-      const next = new Map(current)
-      next.set(event.id, event)
-      return next
-    })
-    updateDraft({ event_ids: [...draft.event_ids, event.id] })
-    setEventPickerQuery('')
-    setEventPickerOpen(false)
-  }
-
-  function unlinkEvent(eventId: string) {
-    if (!draft) return
-    updateDraft({ event_ids: draft.event_ids.filter((id) => id !== eventId) })
-    setLinkedMeta((current) => {
-      const next = new Map(current)
-      next.delete(eventId)
-      return next
-    })
-  }
-
-  async function reloadLinkable(forShiftId?: string) {
-    try {
-      const rows = await loadLinkableEvents(forShiftId)
-      setLinkable(rows)
-    } catch {
-      /* keep previous list */
-    }
-  }
-
-  async function handleRefreshRollups() {
-    if (!draft) return
-    setRefreshing(true)
-    try {
-      const rollups = await refreshRollups(draft.event_ids)
-      updateDraft({
-        event_type_counts: rollups.event_type_counts,
-        treated_vehicle_counts: rollups.treated_vehicle_counts,
-        cancelled_count: rollups.cancelled_count,
-      })
-      show('הסיכום עודכן מהאירועים המקושרים', 'done')
-    } catch {
-      show('רענון הסיכום נכשל. בדקו את החיבור ונסו שוב.', 'alert')
-    } finally {
-      setRefreshing(false)
-    }
+    setErrors((current) => ({ ...current, responder_ids: undefined }))
   }
 
   async function handleSave() {
@@ -499,9 +359,12 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
 
     const fieldErrors = validateShiftSave(current)
     if (fieldErrors.length > 0) {
+      const crewInvalid = fieldErrors.some((row) => row.field === 'responder_ids')
       setErrors({
         ...fieldErrorsFrom(fieldErrors),
-        form: 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.',
+        form: crewInvalid
+          ? SHIFT_CREW_ERROR
+          : 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.',
       })
       show(fieldErrors[0]?.message ?? 'לא ניתן לשמור את המשמרת', 'alert')
       return
@@ -526,7 +389,6 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     }
     draftRef.current = nextDraft
     setDraft(nextDraft)
-    await reloadLinkable(result.shiftId)
     captureEvent('shift_saved', {
       shift_id: result.shiftId,
       is_new: !current.id,
@@ -587,7 +449,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   {errors.form}
                 </p>
               ) : (
-                <p className="t-caption text-muted">מילוי יומן משמרת וסיכום אירועים.</p>
+                <p className="t-caption text-muted">
+                  {lastSavedByLabel(lastSavedName) ?? 'מילוי יומן משמרת וסיכום אירועים.'}
+                </p>
               )}
             </div>
           </div>
@@ -751,6 +615,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   </div>
                 ) : null}
               </div>
+              {errors.responder_ids ? (
+                <p className="t-caption field__hint--error">{errors.responder_ids}</p>
+              ) : null}
 
               {assignedPeople.length === 0 ? (
                 <div className="assignment-empty">
@@ -791,107 +658,6 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
           <section className="form-section">
             <h2 className="form-section__heading">
               <span className="form-section__counter">חלק ג׳</span>
-              <span>אירועים מקושרים</span>
-            </h2>
-            <div className="form-section__fields">
-              <div className="responder-assign">
-                <div className="responder-assign__toolbar">
-                  <p className="t-label text-secondary">
-                    {linkedEvents.length === 0
-                      ? 'אין אירועים מקושרים'
-                      : `${linkedEvents.length} אירועים מקושרים`}
-                  </p>
-                  <div className="row-between" style={{ gap: 'var(--space-2)' }}>
-                    <Button
-                      variant="ghost"
-                      loading={refreshing}
-                      loadingLabel="מרענן…"
-                      disabled={draft.event_ids.length === 0}
-                      onClick={() => void handleRefreshRollups()}
-                    >
-                      רענן מהאירועים
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      icon={<Link2 size={20} strokeWidth={1.75} />}
-                      onClick={() =>
-                        eventPickerOpen ? setEventPickerOpen(false) : openEventPicker()
-                      }
-                      aria-expanded={eventPickerOpen}
-                    >
-                      {eventPickerOpen ? 'סגירת קישור' : 'קישור אירוע'}
-                    </Button>
-                  </div>
-                </div>
-
-                {eventPickerOpen ? (
-                  <div className="responder-picker__panel" role="listbox" aria-label="בחירת אירועים">
-                    <label className="search-field">
-                      <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-                      <span className="visually-hidden">חיפוש אירועים</span>
-                      <input
-                        ref={eventSearchRef}
-                        value={eventPickerQuery}
-                        onChange={(event) => setEventPickerQuery(event.target.value)}
-                        placeholder="חיפוש לפי מספר או סוג"
-                      />
-                    </label>
-                    <ul className="responder-picker__list">
-                      {eventPickerOptions.length === 0 ? (
-                        <li className="responder-picker__empty t-caption text-muted">
-                          אין אירועים פנויים לקישור.
-                        </li>
-                      ) : (
-                        eventPickerOptions.map((event) => (
-                          <li key={event.id}>
-                            <button
-                              type="button"
-                              className="responder-picker__option"
-                              onClick={() => linkEvent(event)}
-                            >
-                              <span className="responder-picker__meta">
-                                <span className="t-body-strong">{eventLabel(event)}</span>
-                                <span className="t-caption text-muted mono">
-                                  {formatDate(event.event_date)}
-                                </span>
-                              </span>
-                              <span className="responder-picker__add t-caption">קישור</span>
-                            </button>
-                          </li>
-                        ))
-                      )}
-                    </ul>
-                  </div>
-                ) : null}
-              </div>
-
-              {linkedEvents.length > 0 ? (
-                <ul className="stack-3">
-                  {linkedEvents.map((event) => (
-                    <li key={event.id} className="assignment-card">
-                      <div className="assignment-card__head">
-                        <div className="assignment-card__toggle" style={{ cursor: 'default' }}>
-                          <span className="assignment-card__identity">
-                            <span className="t-body-strong">{eventLabel(event)}</span>
-                            <span className="t-caption text-muted mono">
-                              {formatDate(event.event_date)}
-                            </span>
-                          </span>
-                        </div>
-                        <IconButton label="הסרת קישור" onClick={() => unlinkEvent(event.id)}>
-                          <Trash2 size={20} strokeWidth={1.75} />
-                        </IconButton>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="form-section">
-            <h2 className="form-section__heading">
-              <span className="form-section__counter">חלק ד׳</span>
               <span>סיכום אירועים</span>
             </h2>
             <div className="form-section__fields stack-4">
@@ -910,33 +676,13 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                 {eventTypes.length === 0 ? (
                   <p className="t-caption text-muted">אין סוגי אירוע ברשימה הסגורה.</p>
                 ) : null}
-                {draft.cancelled_count > 0 ? (
-                  <p className="t-body text-secondary">בוטל × {draft.cancelled_count}</p>
-                ) : null}
-              </div>
-
-              <div className="assignment-card__treated">
-                <p className="t-label text-secondary">רכבים שטופלו</p>
-                <div className="assignment-card__steppers">
-                  {vehicleKinds.map((kind) => (
-                    <CounterStepper
-                      key={kind.id}
-                      label={kind.name}
-                      value={vehicleCountValue(kind.id)}
-                      onDelta={(delta) => bumpVehicleCount(kind.id, delta)}
-                    />
-                  ))}
-                </div>
-                {vehicleKinds.length === 0 ? (
-                  <p className="t-caption text-muted">אין סוגי רכב ברשימה הסגורה.</p>
-                ) : null}
               </div>
             </div>
           </section>
 
           <section className="form-section">
             <h2 className="form-section__heading">
-              <span className="form-section__counter">חלק ה׳</span>
+              <span className="form-section__counter">חלק ד׳</span>
               <span>קילומטרים והערות</span>
             </h2>
             <div className="form-section__fields">

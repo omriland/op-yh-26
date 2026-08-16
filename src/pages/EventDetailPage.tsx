@@ -26,6 +26,7 @@ import { OverflowMenu } from '../components/ui/OverflowMenu'
 import { Skeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
 import { useToast } from '../components/ui/Toast'
+import { ShiftBornFillPage } from './ShiftBornFillPage'
 
 type EventDetailPageProps = {
   eventId: string
@@ -85,6 +86,10 @@ export function EventDetailPage({
       </Button>
     </div>
   )
+
+  if (state === 'ready' && event?.origin === 'shift') {
+    return <ShiftBornFillPage eventId={eventId} onBack={onBack} onCompleted={onBack} />
+  }
 
   if (state === 'unavailable') {
     return (

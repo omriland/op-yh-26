@@ -4,6 +4,7 @@ import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
   localDateRangeToUtcBounds,
+  type FuelRefundKmCredit,
   type FuelRefundParticipation,
   type FuelRefundProfile,
 } from './fuelRefundReport'
@@ -88,5 +89,21 @@ describe('buildFuelRefundRows', () => {
     const beni = rows.find((r) => r.id === 'a')!
     expect(beni.total_km).toBe(0)
     expect(beni.event_count).toBe(1)
+  })
+
+  it('adds private-shift km to the plate owner without incrementing event count', () => {
+    const credits: FuelRefundKmCredit[] = [
+      { responder_id: 'b', total_km: 40 },
+      { responder_id: 'missing', total_km: 9 },
+    ]
+    const rows = buildFuelRefundRows(
+      profiles,
+      [part({ responder_id: 'b', event_id: 'e1', total_km: 12 })],
+      credits,
+    )
+    const avi = rows.find((r) => r.id === 'b')!
+    expect(avi.total_km).toBe(52)
+    expect(avi.event_count).toBe(1)
+    expect(rows.find((r) => r.id === 'a')!.total_km).toBe(0)
   })
 })

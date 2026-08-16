@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { isShiftFuture, isShiftPendingLog } from './shifts'
+import { isShiftFuture, isShiftPendingLog, SHIFT_LIST_SELECT } from './shifts'
+
+describe('SHIFT_LIST_SELECT embeds', () => {
+  it('hints both profile FKs so PostgREST does not return 300', () => {
+    expect(SHIFT_LIST_SELECT).toContain('profiles!shifts_shift_lead_id_fkey')
+    expect(SHIFT_LIST_SELECT).toContain('profiles!shifts_last_saved_by_fkey')
+    expect(SHIFT_LIST_SELECT).not.toMatch(/shift_lead:profiles\(/)
+  })
+})
 
 describe('isShiftFuture', () => {
   it('is true only after today', () => {

@@ -84,7 +84,7 @@ const KM_EXCEPTION_SELECT = `
   location,
   event_type:event_types(name),
   road:roads(name),
-  shift_lead:profiles(full_name, callsign),
+  shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
   responders:event_responders(
     status,
     total_km,

@@ -1,5 +1,6 @@
 import { formatDate, monoClass } from '../../lib/format'
 import { doneFraction, type EventListItem } from '../../lib/events'
+import { SHIFT_BORN_CHIP } from '../../lib/shiftBornEvents'
 import { HoverTip } from '../ui/HoverTip'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventStatusTrail } from './EventStatusTrail'
@@ -28,7 +29,9 @@ export function EventsTable({ events, onOpen }: EventsTableProps) {
         <tbody>
           {events.map((event) => {
             const locationLabel =
-              [event.road?.name, event.location].filter(Boolean).join(' · ') || '—'
+              event.origin === 'shift'
+                ? SHIFT_BORN_CHIP
+                : [event.road?.name, event.location].filter(Boolean).join(' · ') || '—'
             return (
               <tr key={event.id} onClick={() => onOpen(event.id)}>
                 <td className="num mono">{formatDate(event.event_date)}</td>

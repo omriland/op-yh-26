@@ -152,7 +152,7 @@ export async function fetchResponderFillContext(
           id, status, event_date, police_event_id, location, is_cancelled,
           event_type:event_types(name),
           road:roads(name),
-          shift_lead:profiles(full_name, callsign),
+          shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
           responders:event_responders(
             id, responder_id, vehicle_plate, odometer_start, odometer_end,
             total_km, route, treatment_detail, treatment_notes, status, updated_at

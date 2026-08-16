@@ -1,6 +1,14 @@
 import { searchQueryVariants } from './searchQuery'
+import type { EventOrigin } from './shiftBornEvents'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
+import {
+  SHIFT_KIND_LABELS,
+  VEHICLE_TYPE_LABELS,
+  type ShiftKind,
+  type ShiftVehicleType,
+} from './shifts'
+import { formatDate, formatPlate } from './format'
 
 export type EventResponderSummary = {
   id: string
@@ -17,14 +25,27 @@ export type EventListItem = {
   location: string | null
   status: EventStatus
   is_cancelled: boolean
+  origin: EventOrigin
+  shift_id: string | null
+  treatment_detail: string | null
+  treatment_notes: string | null
+  emergency_means: boolean
   district: { name: string } | null
   event_type: { name: string } | null
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
+  last_saved: { full_name: string } | null
+  shift: {
+    shift_date: string
+    shift_kind: ShiftKind
+    vehicle_type: ShiftVehicleType
+    personal_vehicle: { plate_number: string } | null
+  } | null
+  shared_treated: { id: string }[]
   responders: EventResponderSummary[]
 }
 
-const EVENT_LIST_SELECT = `
+export const EVENT_LIST_SELECT = `
   id,
   event_date,
   police_event_id,
@@ -32,10 +53,23 @@ const EVENT_LIST_SELECT = `
   location,
   status,
   is_cancelled,
+  origin,
+  shift_id,
+  treatment_detail,
+  treatment_notes,
+  emergency_means,
   district:districts(name),
   event_type:event_types(name),
   road:roads(name),
-  shift_lead:profiles(full_name, callsign),
+  shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+  last_saved:profiles!events_last_saved_by_fkey(full_name),
+  shift:shifts!events_shift_id_fkey(
+    shift_date,
+    shift_kind,
+    vehicle_type,
+    personal_vehicle:vehicles!shifts_personal_vehicle_id_fkey(plate_number)
+  ),
+  shared_treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id),
   responders:event_responders(
     id,
     responder_id,
@@ -163,6 +197,7 @@ export type EventDetail = Omit<EventListItem, 'responders'> & {
   notes: string | null
   location_lat: number | null
   location_lng: number | null
+  updated_at: string
   responders: EventResponderDetail[]
 }
 
@@ -177,10 +212,24 @@ const EVENT_DETAIL_SELECT = `
   notes,
   status,
   is_cancelled,
+  origin,
+  shift_id,
+  treatment_detail,
+  treatment_notes,
+  emergency_means,
+  updated_at,
   district:districts(name),
   event_type:event_types(name),
   road:roads(name),
-  shift_lead:profiles(full_name, callsign),
+  shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+  last_saved:profiles!events_last_saved_by_fkey(full_name),
+  shift:shifts!events_shift_id_fkey(
+    shift_date,
+    shift_kind,
+    vehicle_type,
+    personal_vehicle:vehicles!shifts_personal_vehicle_id_fkey(plate_number)
+  ),
+  shared_treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id),
   responders:event_responders(
     id, responder_id, started_at, ended_at, vehicle_plate, total_km,
     odometer_start, odometer_end, route, treatment_detail, emergency_means,
@@ -252,4 +301,47 @@ export function filterUnitEventsForList(
     if (opts.searchIds === null) return true
     return opts.searchIds.has(event.id)
   })
+}
+
+export type MineEventBlock =
+  | { key: string; kind: 'standalone'; event: EventListItem }
+  | { key: string; kind: 'shift'; shiftId: string; title: string; events: EventListItem[] }
+
+export function shiftGroupTitle(event: EventListItem): string {
+  const shift = event.shift
+  if (!shift) return 'משמרת'
+  const kind = SHIFT_KIND_LABELS[shift.shift_kind]
+  const vehicle = VEHICLE_TYPE_LABELS[shift.vehicle_type]
+  const plate =
+    shift.vehicle_type === 'personal' && shift.personal_vehicle?.plate_number
+      ? formatPlate(shift.personal_vehicle.plate_number)
+      : null
+  const head = plate ? `${kind} · ${vehicle} · ${plate}` : `${kind} · ${vehicle}`
+  return `${formatDate(shift.shift_date)} · ${head}`
+}
+
+export function groupMineEventCards(events: EventListItem[]): MineEventBlock[] {
+  const blocks: MineEventBlock[] = []
+  const shiftIndex = new Map<string, number>()
+  for (const event of events) {
+    if (event.origin === 'shift' && event.shift_id) {
+      const existing = shiftIndex.get(event.shift_id)
+      if (existing != null) {
+        const block = blocks[existing]
+        if (block?.kind === 'shift') block.events.push(event)
+        continue
+      }
+      shiftIndex.set(event.shift_id, blocks.length)
+      blocks.push({
+        key: event.shift_id,
+        kind: 'shift',
+        shiftId: event.shift_id,
+        title: shiftGroupTitle(event),
+        events: [event],
+      })
+      continue
+    }
+    blocks.push({ key: event.id, kind: 'standalone', event })
+  }
+  return blocks
 }

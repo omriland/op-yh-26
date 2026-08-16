@@ -20,6 +20,8 @@ function row(partial: Partial<ShiftListItem> & Pick<ShiftListItem, 'id'>): Shift
     shift_lead: null,
     responders: [],
     linked_events: [],
+    born_events: [],
+    last_saved: null,
     ...partial,
   }
 }

@@ -8,6 +8,7 @@ import {
   fetchEventsByIds,
   fetchMyEvents,
   filterUnitEventsForList,
+  groupMineEventCards,
   mergeEventLists,
   missingSearchEventIds,
   ownParticipation,
@@ -23,6 +24,7 @@ import {
   type EventStatus,
   type StampDescriptor,
 } from '../lib/status'
+import { shiftBornFillStamp } from '../lib/shiftBornEvents'
 import { formatDayHeading } from '../lib/format'
 import { MINE_LOGGED_WINDOW_DAYS, partitionMineList } from '../lib/mineListSections'
 import { jerusalemToday } from '../lib/shifts'
@@ -156,6 +158,15 @@ export function EventsPage({
 
   const stampFor = useMemo(
     () => (event: EventListItem) => {
+      if (event.origin === 'shift') {
+        return shiftBornFillStamp({
+          status: event.status,
+          police_event_id: event.police_event_id,
+          treatment_detail: event.treatment_detail,
+          treatment_notes: event.treatment_notes,
+          treated_count: event.shared_treated?.length ?? 0,
+        })
+      }
       const mine = ownParticipation(event, user?.id)
       if (scope === 'mine') return participationStamp(mine ?? 'pending', true)
       return viewerStamp(event.status, mine)
@@ -445,9 +456,34 @@ function EventCards({
   onFill?: (eventId: string) => void
   userId?: string
 }) {
+  const blocks = groupMineEventCards(events)
   return (
     <ul className="stack-3">
-      {events.map((event) => {
+      {blocks.map((block) => {
+        if (block.kind === 'shift') {
+          return (
+            <li key={block.key} className="card stack-3">
+              <p className="t-label text-secondary">{block.title}</p>
+              <ul className="stack-3">
+                {block.events.map((event) => {
+                  const mineStatus = userId ? ownParticipation(event, userId) : null
+                  const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
+                  return (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      stamp={stampFor(event)}
+                      onOpen={onOpen}
+                      onFill={fillLabel && onFill ? onOpen : undefined}
+                      fillLabel={fillLabel ?? undefined}
+                    />
+                  )
+                })}
+              </ul>
+            </li>
+          )
+        }
+        const event = block.event
         const mineStatus = userId ? ownParticipation(event, userId) : null
         const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
         return (

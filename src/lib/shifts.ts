@@ -1,6 +1,6 @@
 import { searchQueryVariants } from './searchQuery'
 import { supabase } from './supabase'
-import type { ShiftStatus } from './status'
+import type { EventStatus, ShiftStatus } from './status'
 
 export type ShiftVehicleType = 'patrol_north' | 'patrol_center' | 'personal'
 
@@ -38,6 +38,19 @@ export type ShiftLinkedEventSummary = {
   event_id: string
 }
 
+export type ShiftBornEventSummary = {
+  id: string
+  event_date: string
+  police_event_id: string | null
+  status: EventStatus
+  treatment_detail: string | null
+  treatment_notes: string | null
+  emergency_means: boolean
+  event_type: { name: string } | null
+  last_saved: { full_name: string } | null
+  treated: { id: string }[]
+}
+
 export type ShiftListItem = {
   id: string
   shift_date: string
@@ -50,9 +63,11 @@ export type ShiftListItem = {
   shift_lead: { full_name: string; callsign: string } | null
   responders: ShiftResponderSummary[]
   linked_events: ShiftLinkedEventSummary[]
+  born_events: ShiftBornEventSummary[]
+  last_saved: { full_name: string } | null
 }
 
-const SHIFT_LIST_SELECT = `
+export const SHIFT_LIST_SELECT = `
   id,
   shift_date,
   shift_kind,
@@ -60,10 +75,23 @@ const SHIFT_LIST_SELECT = `
   status,
   odometer_start,
   odometer_end,
-  personal_vehicle:vehicles(plate_number),
-  shift_lead:profiles(full_name, callsign),
+  personal_vehicle:vehicles!shifts_personal_vehicle_id_fkey(plate_number),
+  shift_lead:profiles!shifts_shift_lead_id_fkey(full_name, callsign),
   responders:shift_responders(id, responder_id),
-  linked_events:shift_events(id, event_id)
+  linked_events:shift_events(id, event_id),
+  born_events:events!events_shift_id_fkey(
+    id,
+    event_date,
+    police_event_id,
+    status,
+    treatment_detail,
+    treatment_notes,
+    emergency_means,
+    event_type:event_types(name),
+    last_saved:profiles!events_last_saved_by_fkey(full_name),
+    treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id)
+  ),
+  last_saved:profiles!shifts_last_saved_by_fkey(full_name)
 `
 
 /** Default window for the unit shifts table. Search can hydrate older rows. */
@@ -221,6 +249,7 @@ export type ShiftDetail = Omit<ShiftListItem, 'responders' | 'linked_events'> & 
   personal_vehicle_id: string | null
   total_km: number | null
   notes: string | null
+  updated_at: string
   responders: ShiftResponderDetail[]
   linked_events: ShiftLinkedEventDetail[]
   event_type_counts: ShiftEventTypeCount[]
@@ -238,8 +267,22 @@ const SHIFT_DETAIL_SELECT = `
   odometer_end,
   total_km,
   notes,
-  personal_vehicle:vehicles(plate_number),
-  shift_lead:profiles(full_name, callsign),
+  updated_at,
+  personal_vehicle:vehicles!shifts_personal_vehicle_id_fkey(plate_number),
+  shift_lead:profiles!shifts_shift_lead_id_fkey(full_name, callsign),
+  last_saved:profiles!shifts_last_saved_by_fkey(full_name),
+  born_events:events!events_shift_id_fkey(
+    id,
+    event_date,
+    police_event_id,
+    status,
+    treatment_detail,
+    treatment_notes,
+    emergency_means,
+    event_type:event_types(name),
+    last_saved:profiles!events_last_saved_by_fkey(full_name),
+    treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id)
+  ),
   responders:shift_responders(
     id,
     responder_id,

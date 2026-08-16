@@ -487,12 +487,14 @@ function Gate() {
   const onEvents = activeView === 'events' || activeView === 'mine'
   const onShifts = activeView === 'shifts' || activeView === 'my_shifts'
   const onReports = activeView === 'reports'
-  const onEventHost = onEvents || onReports
+  const eventOverlay = eventSurface.kind !== 'list'
+  const onEventHost = onEvents || onReports || (onShifts && eventOverlay)
   const scope: 'unit' | 'mine' = manages && activeView !== 'mine' ? 'unit' : 'mine'
   const shiftScope: 'unit' | 'mine' = manages && activeView !== 'my_shifts' ? 'unit' : 'mine'
 
   const immersiveSurface =
     (onEventHost && (eventSurface.kind === 'form' || eventSurface.kind === 'fill')) ||
+    (onShifts && eventOverlay) ||
     (onShifts && (shiftSurface.kind === 'form' || shiftSurface.kind === 'detail'))
 
   // Desktop always keeps sidebar nav on list/admin/profile (fixes my-shifts with no navbar).
@@ -637,6 +639,7 @@ function Gate() {
           onBack={() => setShiftSurface({ kind: 'list' })}
           onEdit={() => setShiftSurface({ kind: 'form', shiftId: shiftSurface.shiftId })}
           onDeleted={() => setShiftSurface({ kind: 'list' })}
+          onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
         />
       ) : activeView === 'profile' ? (
         <ProfilePage />
@@ -666,6 +669,8 @@ function Gate() {
           asTable={Boolean(commandShell && shiftScope === 'unit')}
           canManage={manages && shiftScope === 'unit'}
           onOpen={(shiftId) => setShiftSurface({ kind: 'detail', shiftId })}
+          onFill={(shiftId) => setShiftSurface({ kind: 'form', shiftId })}
+          onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
           onCreate={
             manages && shiftScope === 'unit'
               ? () => setShiftSurface({ kind: 'form' })

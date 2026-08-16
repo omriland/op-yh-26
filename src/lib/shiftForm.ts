@@ -1,3 +1,4 @@
+import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import { supabase } from './supabase'
 import type { ShiftStatus } from './status'
 import type { ShiftKind, ShiftVehicleType } from './shifts'
@@ -17,6 +18,7 @@ export type ShiftFormDraft = {
   event_type_counts: { event_type_id: string; count: number }[]
   treated_vehicle_counts: { vehicle_kind_id: string; count: number }[]
   cancelled_count: number
+  expected_updated_at?: string | null
 }
 
 export function computeTotalKm(
@@ -72,8 +74,10 @@ export function suggestRollupsFromLinkedEvents(input: {
   }
 }
 
+export const SHIFT_CREW_ERROR = 'יש לשבץ בין כונן אחד לשלושה'
+
 export type ShiftSaveError = {
-  field: 'shift_date' | 'shift_kind' | 'vehicle_type' | 'personal_vehicle_id'
+  field: 'shift_date' | 'shift_kind' | 'vehicle_type' | 'personal_vehicle_id' | 'responder_ids'
   message: string
 }
 
@@ -91,6 +95,9 @@ export function validateShiftSave(draft: ShiftFormDraft): ShiftSaveError[] {
   }
   if (draft.vehicle_type === 'personal' && !draft.personal_vehicle_id) {
     errors.push({ field: 'personal_vehicle_id', message: 'יש לבחור לוחית לרכב פרטי' })
+  }
+  if (draft.responder_ids.length < 1 || draft.responder_ids.length > 3) {
+    errors.push({ field: 'responder_ids', message: SHIFT_CREW_ERROR })
   }
   return errors
 }
@@ -293,66 +300,6 @@ async function syncEventTypeCounts(
   return { ok: true }
 }
 
-async function syncTreatedVehicleCounts(
-  shiftId: string,
-  counts: { vehicle_kind_id: string; count: number }[],
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { data: existing, error: existingError } = await supabase
-    .from('shift_treated_vehicle_counts')
-    .select('id, vehicle_kind_id')
-    .eq('shift_id', shiftId)
-
-  if (existingError) {
-    return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
-  }
-
-  const keepKindIds = new Set(counts.map((row) => row.vehicle_kind_id))
-  const toRemove = (existing ?? []).filter(
-    (row) => !keepKindIds.has(row.vehicle_kind_id as string),
-  )
-
-  if (toRemove.length > 0) {
-    const { error } = await supabase
-      .from('shift_treated_vehicle_counts')
-      .delete()
-      .in(
-        'id',
-        toRemove.map((row) => row.id as string),
-      )
-    if (error) {
-      return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
-    }
-  }
-
-  const existingByKind = new Map(
-    (existing ?? []).map((row) => [row.vehicle_kind_id as string, row.id as string]),
-  )
-
-  for (const row of counts) {
-    const existingId = existingByKind.get(row.vehicle_kind_id)
-    if (existingId) {
-      const { error } = await supabase
-        .from('shift_treated_vehicle_counts')
-        .update({ count: row.count })
-        .eq('id', existingId)
-      if (error) {
-        return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
-      }
-    } else {
-      const { error } = await supabase.from('shift_treated_vehicle_counts').insert({
-        shift_id: shiftId,
-        vehicle_kind_id: row.vehicle_kind_id,
-        count: row.count,
-      })
-      if (error) {
-        return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
-      }
-    }
-  }
-
-  return { ok: true }
-}
-
 const SHIFT_IDENTITY_FORBIDDEN = 'אין הרשאה לשנות פרטי משמרת'
 
 export type ShiftUpdatePayload = {
@@ -364,6 +311,7 @@ export type ShiftUpdatePayload = {
   odometer_end: number | null
   total_km: number | null
   notes: string | null
+  last_saved_by?: string
   updated_at: string
 }
 
@@ -396,6 +344,12 @@ function mapShiftUpdateError(error: { message?: string }): string {
   if (error.message?.includes(SHIFT_IDENTITY_FORBIDDEN)) {
     return SHIFT_IDENTITY_FORBIDDEN
   }
+  if (error.message?.includes(STALE_SAVE_MESSAGE)) {
+    return STALE_SAVE_MESSAGE
+  }
+  if (error.message?.includes(COUNT_DECREASE_BLOCKED)) {
+    return COUNT_DECREASE_BLOCKED
+  }
   return 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
 }
 
@@ -411,7 +365,10 @@ export async function saveShiftForm(
   if (fieldErrors.length > 0) {
     return {
       ok: false,
-      error: 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.',
+      error:
+        fieldErrors.some((row) => row.field === 'responder_ids')
+          ? SHIFT_CREW_ERROR
+          : 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.',
       fieldErrors,
     }
   }
@@ -437,13 +394,26 @@ export async function saveShiftForm(
   const syncResponders = options?.syncResponders ?? true
 
   if (shiftId) {
-    const shiftPayload = buildShiftUpdatePayload(draft, { canEditIdentity })
-    const { error } = await supabase.from('shifts').update(shiftPayload).eq('id', shiftId)
+    const shiftPayload = {
+      ...buildShiftUpdatePayload(draft, { canEditIdentity }),
+      last_saved_by: shiftLeadId,
+    }
+    let query = supabase.from('shifts').update(shiftPayload).eq('id', shiftId)
+    if (draft.expected_updated_at) {
+      query = query.eq('updated_at', draft.expected_updated_at)
+    }
+    const { data, error } = await query.select('id').maybeSingle()
     if (error) {
       return { ok: false, error: mapShiftUpdateError(error) }
     }
+    if (!data) {
+      return { ok: false, error: STALE_SAVE_MESSAGE }
+    }
   } else {
-    const shiftPayload = buildShiftUpdatePayload(draft, { canEditIdentity: true })
+    const shiftPayload = {
+      ...buildShiftUpdatePayload(draft, { canEditIdentity: true }),
+      last_saved_by: shiftLeadId,
+    }
     const { data, error } = await supabase
       .from('shifts')
       .insert({ ...shiftPayload, shift_lead_id: shiftLeadId, status: nextStatus })
@@ -461,17 +431,15 @@ export async function saveShiftForm(
     if (!respondersSync.ok) return respondersSync
   }
 
-  const eventsSync = await syncShiftEvents(shiftId, draft.event_ids)
-  if (!eventsSync.ok) return eventsSync
-
   const typeCountsSync = await syncEventTypeCounts(shiftId, draft.event_type_counts)
   if (!typeCountsSync.ok) return typeCountsSync
 
-  const vehicleCountsSync = await syncTreatedVehicleCounts(
-    shiftId,
-    draft.treated_vehicle_counts,
-  )
-  if (!vehicleCountsSync.ok) return vehicleCountsSync
+  const { error: syncError } = await supabase.rpc('sync_shift_born_events', {
+    p_shift_id: shiftId,
+  })
+  if (syncError) {
+    return { ok: false, error: mapShiftUpdateError(syncError) }
+  }
 
   return { ok: true, shiftId, status: nextStatus }
 }

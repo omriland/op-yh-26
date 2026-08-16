@@ -21,6 +21,12 @@ export type FuelRefundRow = {
   event_count: number
 }
 
+/** Extra KM that is not an event participation (private-vehicle shift). */
+export type FuelRefundKmCredit = {
+  responder_id: string
+  total_km: number
+}
+
 function pad2(n: number) {
   return String(n).padStart(2, '0')
 }
@@ -56,6 +62,7 @@ export function localDateRangeToUtcBounds(
 export function buildFuelRefundRows(
   profiles: FuelRefundProfile[],
   participations: FuelRefundParticipation[],
+  credits: FuelRefundKmCredit[] = [],
 ): FuelRefundRow[] {
   // Only rows where the shift-lead entered kilometers — event/participation status ignored.
   const withKm = participations.filter((row) => row.total_km != null)
@@ -67,9 +74,15 @@ export function buildFuelRefundRows(
     else byUser.set(row.responder_id, [row])
   }
 
+  const extraByUser = new Map<string, number>()
+  for (const credit of credits) {
+    extraByUser.set(credit.responder_id, (extraByUser.get(credit.responder_id) ?? 0) + credit.total_km)
+  }
+
   const rows: FuelRefundRow[] = profiles.map((profile) => {
     const parts = byUser.get(profile.id) ?? []
-    const total_km = parts.reduce((sum, p) => sum + (p.total_km ?? 0), 0)
+    const total_km =
+      parts.reduce((sum, p) => sum + (p.total_km ?? 0), 0) + (extraByUser.get(profile.id) ?? 0)
     return {
       id: profile.id,
       full_name: profile.full_name,
@@ -116,9 +129,10 @@ export async function fetchParticipationsReportedInRange(
       responder_id,
       event_id,
       total_km,
-      events!inner(created_at)
+      events!inner(created_at, origin)
     `,
     )
+    .eq('events.origin', 'manual')
     .not('total_km', 'is', null)
     .gte('events.created_at', startIso)
     .lte('events.created_at', endIso)
@@ -132,13 +146,39 @@ export async function fetchParticipationsReportedInRange(
   }))
 }
 
+export async function fetchPersonalShiftKmCredits(
+  from: string,
+  to: string,
+): Promise<FuelRefundKmCredit[]> {
+  const { data, error } = await supabase
+    .from('shifts')
+    .select('total_km, personal_vehicle_id, vehicles!shifts_personal_vehicle_id_fkey(user_id)')
+    .eq('vehicle_type', 'personal')
+    .not('total_km', 'is', null)
+    .not('personal_vehicle_id', 'is', null)
+    .gte('shift_date', from)
+    .lte('shift_date', to)
+
+  if (error) throw new Error(error.message)
+
+  const credits: FuelRefundKmCredit[] = []
+  for (const row of data ?? []) {
+    const vehicle = row.vehicles as { user_id: string } | { user_id: string }[] | null
+    const ownerId = Array.isArray(vehicle) ? vehicle[0]?.user_id : vehicle?.user_id
+    if (!ownerId || row.total_km == null) continue
+    credits.push({ responder_id: ownerId, total_km: Number(row.total_km) })
+  }
+  return credits
+}
+
 export async function loadFuelRefundReport(
   from: string,
   to: string,
 ): Promise<FuelRefundRow[]> {
-  const [profiles, participations] = await Promise.all([
+  const [profiles, participations, credits] = await Promise.all([
     fetchActiveFuelRefundProfiles(),
     fetchParticipationsReportedInRange(from, to),
+    fetchPersonalShiftKmCredits(from, to),
   ])
-  return buildFuelRefundRows(profiles, participations)
+  return buildFuelRefundRows(profiles, participations, credits)
 }
