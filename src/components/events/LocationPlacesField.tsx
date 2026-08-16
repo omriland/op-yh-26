@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { LocationPlaceFields } from '../../lib/systemDistricts'
+import { emptyLocationPlaceFields, type LocationPlaceFields } from '../../lib/systemDistricts'
 import {
   fetchPlaceDetails,
   fetchPlacePredictions,
@@ -14,6 +14,10 @@ type LocationPlacesFieldProps = {
   onBlurCommit?: () => void
   error?: string
   required?: boolean
+  label?: string
+  placeholder?: string
+  /** Events keep a free-text first row. User addresses must pick a Google place. */
+  allowFreeText?: boolean
   onAutocompleteUnavailable?: () => void
 }
 
@@ -23,6 +27,9 @@ export function LocationPlacesField({
   onBlurCommit,
   error,
   required,
+  label = 'מיקום',
+  placeholder = 'הקלידו כתובת או שם מקום',
+  allowFreeText = true,
   onAutocompleteUnavailable,
 }: LocationPlacesFieldProps) {
   const fieldId = useId()
@@ -30,12 +37,17 @@ export function LocationPlacesField({
   const rootRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef(newPlacesSessionToken())
   const warnedRef = useRef(false)
+  const lastGoogleRef = useRef<LocationPlaceFields>(value)
   const unavailableRef = useRef(onAutocompleteUnavailable)
   unavailableRef.current = onAutocompleteUnavailable
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const [predictions, setPredictions] = useState<PlacePrediction[]>([])
   const [query, setQuery] = useState(value.location)
+
+  useEffect(() => {
+    if (value.location_place_id) lastGoogleRef.current = value
+  }, [value])
 
   useEffect(() => {
     setQuery(value.location)
@@ -95,7 +107,7 @@ export function LocationPlacesField({
     ? `שימוש ב־"${query.trim()}" כפי שהוזן`
     : 'שימוש בטקסט שהוזן'
 
-  const optionCount = 1 + predictions.length
+  const optionCount = (allowFreeText ? 1 : 0) + predictions.length
 
   function commitFreeText(text: string) {
     const trimmed = text.trim()
@@ -110,13 +122,27 @@ export function LocationPlacesField({
     setOpen(false)
   }
 
+  function revertPlacesOnly() {
+    const last = lastGoogleRef.current
+    if (last.location_place_id) {
+      onChange(last)
+      setQuery(last.location)
+    } else {
+      onChange(emptyLocationPlaceFields())
+      setQuery('')
+    }
+    setOpen(false)
+  }
+
   async function commitGoogle(prediction: PlacePrediction) {
     const details = await fetchPlaceDetails(prediction.placeId, sessionRef.current)
     sessionRef.current = newPlacesSessionToken()
     if (!details.ok) {
-      commitFreeText(
-        [prediction.primaryText, prediction.secondaryText].filter(Boolean).join(', '),
-      )
+      if (allowFreeText) {
+        commitFreeText(
+          [prediction.primaryText, prediction.secondaryText].filter(Boolean).join(', '),
+        )
+      }
       notifyUnavailable()
       return
     }
@@ -131,18 +157,23 @@ export function LocationPlacesField({
   }
 
   function selectIndex(index: number) {
-    if (index <= 0) {
-      commitFreeText(query)
+    if (allowFreeText) {
+      if (index <= 0) {
+        commitFreeText(query)
+        return
+      }
+      const prediction = predictions[index - 1]
+      if (prediction) void commitGoogle(prediction)
       return
     }
-    const prediction = predictions[index - 1]
+    const prediction = predictions[index]
     if (prediction) void commitGoogle(prediction)
   }
 
   return (
     <div className="field location-places" ref={rootRef}>
       <label className="field__label" htmlFor={fieldId}>
-        מיקום
+        {label}
         {required ? <span className="visually-hidden"> שדה חובה</span> : null}
       </label>
       <div className="field__control location-places__control">
@@ -158,7 +189,7 @@ export function LocationPlacesField({
           aria-describedby={error ? `${fieldId}-error` : undefined}
           required={required}
           data-blank={required && !query.trim() ? 'true' : undefined}
-          placeholder="הקלידו כתובת או שם מקום"
+          placeholder={placeholder}
           value={query}
           autoComplete="off"
           onChange={(event) => {
@@ -177,10 +208,17 @@ export function LocationPlacesField({
           onBlur={() => {
             window.setTimeout(() => {
               if (!rootRef.current?.contains(document.activeElement)) {
-                if (query.trim() && query.trim() !== value.location.trim()) {
-                  commitFreeText(query)
-                } else if (query.trim() && !value.location_place_id) {
-                  commitFreeText(query)
+                if (allowFreeText) {
+                  if (query.trim() && query.trim() !== value.location.trim()) {
+                    commitFreeText(query)
+                  } else if (query.trim() && !value.location_place_id) {
+                    commitFreeText(query)
+                  }
+                } else if (!query.trim()) {
+                  onChange(emptyLocationPlaceFields())
+                  setQuery('')
+                } else if (!value.location_place_id) {
+                  revertPlacesOnly()
                 }
                 setOpen(false)
                 onBlurCommit?.()
@@ -205,6 +243,7 @@ export function LocationPlacesField({
         />
         {open && query.trim() ? (
           <ul id={listboxId} className="location-places__list" role="listbox" aria-label="הצעות מיקום">
+            {allowFreeText ? (
             <li
               id={`${listboxId}-opt-0`}
               role="option"
@@ -223,8 +262,9 @@ export function LocationPlacesField({
             >
               {freeTextLabel}
             </li>
+            ) : null}
             {predictions.map((prediction, index) => {
-              const optionIndex = index + 1
+              const optionIndex = allowFreeText ? index + 1 : index
               return (
                 <li
                   key={prediction.placeId}

@@ -335,7 +335,7 @@ export function EventsPage({
               )}
             </div>
           </DateGroup>
-          <DateGroup heading="אירועים שתועדו">
+          <DateGroup heading="אירועים שתועדו" logged>
             <div className="stack-4">
               {mineSections.logged.length === 0 ? (
                 <p className="t-body text-secondary mine-section-empty">

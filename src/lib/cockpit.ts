@@ -1,4 +1,5 @@
 import { todayJerusalem } from './eventForm'
+import { geocodePlaceQuery } from './googlePlaces'
 import { supabase } from './supabase'
 
 export const COCKPIT_WINDOW_MS = 2 * 60 * 60 * 1000
@@ -11,10 +12,12 @@ export type CockpitReelItem = {
   status: 'draft' | 'in_progress' | 'partial' | 'done'
   is_cancelled: boolean
   location: string | null
+  location_lat: number | null
+  location_lng: number | null
   event_type: { name: string } | null
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
-  responders: { id: string }[]
+  responders: { id: string; ended_at: string | null }[]
 }
 
 const COCKPIT_REEL_SELECT = `
@@ -24,10 +27,12 @@ const COCKPIT_REEL_SELECT = `
   status,
   is_cancelled,
   location,
+  location_lat,
+  location_lng,
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
-  responders:event_responders(id)
+  responders:event_responders(id, ended_at)
 `
 
 export function isInCockpitWindow(createdAt: string, now: Date): boolean {
@@ -108,6 +113,223 @@ export function formatCockpitClock(iso: string): string {
     minute: '2-digit',
     hour12: false,
   }).format(new Date(iso))
+}
+
+export function formatCockpitAge(iso: string, now: Date): string {
+  const created = new Date(iso).getTime()
+  if (Number.isNaN(created)) return 'עכשיו'
+  const elapsed = now.getTime() - created
+  if (elapsed < 60_000) return 'עכשיו'
+  const minutes = Math.floor(elapsed / 60_000)
+  if (minutes === 1) return 'לפני דקה'
+  return `לפני ${minutes} דק׳`
+}
+
+export type CockpitEventPin = {
+  eventId: string
+  label: string
+  title: string
+  lat: number
+  lng: number
+}
+
+export function roadNumberForGeocode(roadName: string): string | null {
+  const paren = roadName.match(/\((\d+)\)/)
+  if (paren?.[1]) return paren[1]
+  const digits = roadName.match(/\d+/)
+  return digits?.[0] ?? null
+}
+
+/** Google query: road number first, then the free-text location. */
+export function eventGeocodeQuery(
+  road: string | null | undefined,
+  location: string | null | undefined,
+): string | null {
+  const roadName = road?.trim() ?? ''
+  const place = location?.trim() ?? ''
+  const number = roadName ? roadNumberForGeocode(roadName) : null
+  const roadPart = number ? `כביש ${number}` : roadName
+  if (!roadPart && !place) return null
+  if (!roadPart) return place
+  if (!place) return roadPart
+  if (place.includes(roadPart) || place.includes(roadName)) return place
+  return `${roadPart} ${place}`
+}
+
+export function cockpitEventPinLabel(event: {
+  event_type: { name: string } | null
+  road: { name: string } | null
+  location: string | null
+}): string {
+  const typeName = event.event_type?.name.trim() ?? ''
+  const roadName = event.road?.name.trim() ?? ''
+  const place = event.location?.trim() ?? ''
+  const number = roadName ? roadNumberForGeocode(roadName) : null
+  const roadBit = number ?? roadName
+  const placePart =
+    place && roadBit && (place.startsWith(roadBit) || place.includes(` ${roadBit} `))
+      ? place
+      : [roadBit, place].filter(Boolean).join(' ')
+  if (typeName && placePart) return `${typeName} · ${placePart}`
+  return typeName || placePart
+}
+
+function toCockpitEventPin(
+  event: {
+    id: string
+    police_event_id: string | null
+    location: string | null
+    event_type: { name: string } | null
+    road: { name: string } | null
+  },
+  lat: number,
+  lng: number,
+): CockpitEventPin {
+  const label = cockpitEventPinLabel(event) || cockpitReelTitle(event)
+  const title = cockpitReelTitle(event)
+  const detail = cockpitReelDetail(event)
+  return {
+    eventId: event.id,
+    label,
+    title: detail ? `${title} · ${detail}` : title,
+    lat,
+    lng,
+  }
+}
+
+export function cockpitEventStillOpenOnMap(event: {
+  responders?: { ended_at: string | null }[]
+}): boolean {
+  const responders = event.responders ?? []
+  if (responders.length === 0) return true
+  return responders.some((row) => !row.ended_at?.trim())
+}
+
+export function cockpitEventMapPins(
+  events: Array<{
+    id: string
+    police_event_id: string | null
+    location: string | null
+    location_lat: number | null
+    location_lng: number | null
+    event_type: { name: string } | null
+    road: { name: string } | null
+    responders?: { ended_at: string | null }[]
+  }>,
+): CockpitEventPin[] {
+  const pins: CockpitEventPin[] = []
+  for (const event of events) {
+    if (!cockpitEventStillOpenOnMap(event)) continue
+    if (event.location_lat == null || event.location_lng == null) continue
+    pins.push(toCockpitEventPin(event, event.location_lat, event.location_lng))
+  }
+  return pins
+}
+
+export async function geocodeCockpitEventPins(
+  events: Array<{
+    id: string
+    police_event_id: string | null
+    location: string | null
+    location_lat: number | null
+    location_lng: number | null
+    event_type: { name: string } | null
+    road: { name: string } | null
+    responders?: { ended_at: string | null }[]
+  }>,
+  lookup: (query: string) => Promise<{ lat: number; lng: number } | null> = geocodePlaceQuery,
+): Promise<CockpitEventPin[]> {
+  const pins: CockpitEventPin[] = []
+  await Promise.all(
+    events.map(async (event) => {
+      if (!cockpitEventStillOpenOnMap(event)) return
+      if (event.location_lat != null && event.location_lng != null) return
+      const query = eventGeocodeQuery(event.road?.name, event.location)
+      if (!query) return
+      const coords = await lookup(query)
+      if (!coords) return
+      pins.push(toCockpitEventPin(event, coords.lat, coords.lng))
+    }),
+  )
+  return pins
+}
+
+export function cockpitReelDetail(event: {
+  event_type: { name: string } | null
+  road: { name: string } | null
+  location: string | null
+}): string | null {
+  const parts = [event.event_type?.name, event.road?.name, event.location]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part))
+  return parts.length ? parts.join(' · ') : null
+}
+
+export function cockpitWindowCountLabel(count: number): string {
+  return `${count} בחלון`
+}
+
+export function cockpitNeighborId(
+  ids: string[],
+  currentId: string | undefined,
+  direction: -1 | 1,
+): string | undefined {
+  if (ids.length === 0) return undefined
+  if (!currentId) return direction === 1 ? ids[0] : ids[ids.length - 1]
+  const index = ids.indexOf(currentId)
+  if (index < 0) return direction === 1 ? ids[0] : ids[ids.length - 1]
+  const next = index + direction
+  if (next < 0 || next >= ids.length) return currentId
+  return ids[next]
+}
+
+export type CockpitShortcutEvent = {
+  key: string
+  code?: string
+  metaKey: boolean
+  ctrlKey: boolean
+  altKey?: boolean
+  repeat?: boolean
+}
+
+export type CockpitShortcut =
+  | { type: 'create' }
+  | { type: 'select'; direction: -1 | 1 }
+  | { type: 'delete' }
+
+export function cockpitShortcut(
+  event: CockpitShortcutEvent,
+  typing: boolean,
+): CockpitShortcut | null {
+  if (typing) return null
+  if (event.metaKey || event.ctrlKey || event.altKey) return null
+  if (event.key === 'ArrowDown' || event.code === 'ArrowDown') {
+    return { type: 'select', direction: 1 }
+  }
+  if (event.key === 'ArrowUp' || event.code === 'ArrowUp') {
+    return { type: 'select', direction: -1 }
+  }
+  if (event.repeat) return null
+  if (event.code === 'KeyN') return { type: 'create' }
+  if (event.key === 'Backspace' || event.key === 'Delete') return { type: 'delete' }
+  return null
+}
+
+type TypingLike = {
+  tagName?: string
+  isContentEditable?: boolean
+  closest?: (selector: string) => unknown
+}
+
+export function isCockpitTypingTarget(target: EventTarget | null | TypingLike): boolean {
+  if (!target || typeof target !== 'object') return false
+  const el = target as TypingLike
+  if (el.isContentEditable) return true
+  const tag = el.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+  return Boolean(
+    el.closest?.('[contenteditable="true"], [role="combobox"], [role="listbox"]'),
+  )
 }
 
 export function cockpitReelCaption(event: CockpitReelItem): string {

@@ -33,4 +33,11 @@ describe('DateGroups', () => {
       /<h2 class="group-head">אירועים הממתינים לתיעוד<\/h2><ul class="stack-3">[\s\S]*<\/ul><h2 class="group-head">אירועים שתועדו<\/h2>/,
     )
   })
+
+  it('marks the logged group so completed cards can recede', () => {
+    const html = renderToStaticMarkup(
+      createElement(DateGroup, { heading: 'אירועים שתועדו', logged: true }, 'x'),
+    )
+    expect(html).toContain('class="event-group event-group--logged"')
+  })
 })

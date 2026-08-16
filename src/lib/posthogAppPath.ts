@@ -49,7 +49,7 @@ export function appAnalyticsPath(input: AnalyticsPathInput): string | null {
     return input.eventId ? `/cockpit/${input.eventId}` : '/cockpit'
   }
 
-  if (input.view === 'users') return '/users'
+  if (input.view === 'contacts') return '/contacts'
   if (input.view === 'lists') return '/lists'
   if (input.view === 'fuel_quarter') return '/fuel-quarter'
   if (input.view === 'unit_broadcast') return '/unit-broadcast'

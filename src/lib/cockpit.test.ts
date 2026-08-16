@@ -5,12 +5,23 @@ import {
   canDeleteCockpitDraft,
   cockpitDeleteBlock,
   cockpitDeleteHint,
+  cockpitEventMapPins,
+  cockpitEventPinLabel,
+  cockpitEventStillOpenOnMap,
+  eventGeocodeQuery,
+  geocodeCockpitEventPins,
+  cockpitNeighborId,
+  cockpitReelDetail,
   cockpitReelLead,
   cockpitReelPlace,
   cockpitReelTitle,
   cockpitReelType,
+  cockpitShortcut,
+  cockpitWindowCountLabel,
   filterCockpitReel,
+  formatCockpitAge,
   formatCockpitClock,
+  isCockpitTypingTarget,
   isInCockpitWindow,
 } from './cockpit'
 
@@ -108,8 +119,276 @@ describe('cockpit reel details', () => {
   })
 })
 
+describe('cockpitEventMapPins', () => {
+  it('keeps only גלגלת events that have coordinates', () => {
+    const pins = cockpitEventMapPins([
+      {
+        id: 'with-place',
+        police_event_id: '12345',
+        location: 'מחלף השלום',
+        location_lat: 32.07,
+        location_lng: 34.79,
+        event_type: { name: 'תאונה' },
+        road: { name: 'כביש 20' },
+      },
+      {
+        id: 'no-place',
+        police_event_id: '999',
+        location: 'טקסט חופשי',
+        location_lat: null,
+        location_lng: null,
+        event_type: null,
+        road: null,
+      },
+    ])
+
+    expect(pins).toEqual([
+      {
+        eventId: 'with-place',
+        label: 'תאונה · 20 מחלף השלום',
+        title: '12345 · תאונה · כביש 20 · מחלף השלום',
+        lat: 32.07,
+        lng: 34.79,
+      },
+    ])
+  })
+
+  it('hides events whose responders all have an end time', () => {
+    const base = {
+      police_event_id: '1',
+      location: 'שורק',
+      location_lat: 31.9,
+      location_lng: 34.7,
+      event_type: { name: 'תאונה' },
+      road: { name: 'כביש 4' },
+    }
+    const pins = cockpitEventMapPins([
+      {
+        id: 'done',
+        ...base,
+        responders: [
+          { ended_at: '2026-08-16T10:00:00.000Z' },
+          { ended_at: '2026-08-16T10:05:00.000Z' },
+        ],
+      },
+      {
+        id: 'open',
+        ...base,
+        responders: [
+          { ended_at: '2026-08-16T10:00:00.000Z' },
+          { ended_at: null },
+        ],
+      },
+    ])
+    expect(pins.map((pin) => pin.eventId)).toEqual(['open'])
+  })
+})
+
+describe('cockpitEventStillOpenOnMap', () => {
+  it('keeps events with no responders or any responder still out', () => {
+    expect(cockpitEventStillOpenOnMap({ responders: [] })).toBe(true)
+    expect(cockpitEventStillOpenOnMap({ responders: [{ ended_at: null }] })).toBe(true)
+    expect(
+      cockpitEventStillOpenOnMap({
+        responders: [{ ended_at: '2026-08-16T10:00:00.000Z' }],
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('cockpitEventPinLabel', () => {
+  it('uses event type, road number, and location', () => {
+    expect(
+      cockpitEventPinLabel({
+        event_type: { name: 'תאונה' },
+        road: { name: 'כביש 4' },
+        location: 'שורק',
+      }),
+    ).toBe('תאונה · 4 שורק')
+  })
+})
+
+describe('eventGeocodeQuery', () => {
+  it('puts the road number before the location', () => {
+    expect(eventGeocodeQuery('כביש 20', 'מחלף השלום')).toBe('כביש 20 מחלף השלום')
+    expect(eventGeocodeQuery('עירוני (101)', 'דיזנגוף')).toBe('כביש 101 דיזנגוף')
+    expect(eventGeocodeQuery('כביש החוף', 'נתניה')).toBe('כביש החוף נתניה')
+    expect(eventGeocodeQuery(null, 'הרצל 1 תל אביב')).toBe('הרצל 1 תל אביב')
+    expect(eventGeocodeQuery('כביש 4', null)).toBe('כביש 4')
+    expect(eventGeocodeQuery(null, null)).toBeNull()
+  })
+})
+
+describe('geocodeCockpitEventPins', () => {
+  it('looks up events that have road or location but no coordinates', async () => {
+    const queries: string[] = []
+    const pins = await geocodeCockpitEventPins(
+      [
+        {
+          id: 'known',
+          police_event_id: '1',
+          location: 'מחלף',
+          location_lat: 32.1,
+          location_lng: 34.8,
+          event_type: null,
+          road: { name: 'כביש 20' },
+        },
+        {
+          id: 'lookup',
+          police_event_id: '2',
+          location: 'מחלף השלום',
+          location_lat: null,
+          location_lng: null,
+          event_type: { name: 'תאונה' },
+          road: { name: 'כביש 20' },
+        },
+        {
+          id: 'empty',
+          police_event_id: null,
+          location: null,
+          location_lat: null,
+          location_lng: null,
+          event_type: null,
+          road: null,
+        },
+      ],
+      async (query) => {
+        queries.push(query)
+        return { lat: 32.07, lng: 34.79 }
+      },
+    )
+
+    expect(queries).toEqual(['כביש 20 מחלף השלום'])
+    expect(pins).toEqual([
+      {
+        eventId: 'lookup',
+        label: 'תאונה · 20 מחלף השלום',
+        title: '2 · תאונה · כביש 20 · מחלף השלום',
+        lat: 32.07,
+        lng: 34.79,
+      },
+    ])
+  })
+})
+
 describe('formatCockpitClock', () => {
   it('shows Jerusalem wall-clock time', () => {
     expect(formatCockpitClock('2026-08-16T10:05:00.000Z')).toBe('13:05')
+  })
+})
+
+describe('formatCockpitAge', () => {
+  it('says עכשיו under a minute', () => {
+    expect(formatCockpitAge('2026-08-16T12:00:00.000Z', NOW)).toBe('עכשיו')
+    expect(formatCockpitAge('2026-08-16T11:59:01.000Z', NOW)).toBe('עכשיו')
+  })
+
+  it('uses compact Hebrew minutes inside the two-hour window', () => {
+    expect(formatCockpitAge('2026-08-16T11:59:00.000Z', NOW)).toBe('לפני דקה')
+    expect(formatCockpitAge('2026-08-16T11:48:00.000Z', NOW)).toBe('לפני 12 דק׳')
+    expect(formatCockpitAge('2026-08-16T10:30:00.000Z', NOW)).toBe('לפני 90 דק׳')
+  })
+})
+
+describe('cockpitReelDetail', () => {
+  it('joins type · road · location for a single scan line', () => {
+    expect(
+      cockpitReelDetail({
+        event_type: { name: 'תאונה' },
+        road: { name: 'כביש 20' },
+        location: 'מחלף השלום',
+      }),
+    ).toBe('תאונה · כביש 20 · מחלף השלום')
+    expect(
+      cockpitReelDetail({
+        event_type: { name: 'תאונה' },
+        road: null,
+        location: null,
+      }),
+    ).toBe('תאונה')
+    expect(
+      cockpitReelDetail({
+        event_type: null,
+        road: null,
+        location: null,
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('cockpitWindowCountLabel', () => {
+  it('shows how many events sit in the live window', () => {
+    expect(cockpitWindowCountLabel(0)).toBe('0 בחלון')
+    expect(cockpitWindowCountLabel(3)).toBe('3 בחלון')
+  })
+})
+
+describe('cockpitNeighborId', () => {
+  it('moves up to a newer row and down to an older one', () => {
+    const ids = ['new', 'mid', 'old']
+    expect(cockpitNeighborId(ids, 'mid', -1)).toBe('new')
+    expect(cockpitNeighborId(ids, 'mid', 1)).toBe('old')
+    expect(cockpitNeighborId(ids, 'new', -1)).toBe('new')
+    expect(cockpitNeighborId(ids, 'old', 1)).toBe('old')
+  })
+
+  it('selects an end when nothing is current', () => {
+    const ids = ['new', 'old']
+    expect(cockpitNeighborId(ids, undefined, 1)).toBe('new')
+    expect(cockpitNeighborId(ids, undefined, -1)).toBe('old')
+    expect(cockpitNeighborId([], undefined, 1)).toBeUndefined()
+  })
+})
+
+describe('cockpitShortcut', () => {
+  const idle = {
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    repeat: false,
+  }
+
+  it('creates with KeyN, moves with arrows, and arms delete with Backspace', () => {
+    expect(cockpitShortcut({ ...idle, key: 'נ', code: 'KeyN' }, false)).toEqual({
+      type: 'create',
+    })
+    expect(cockpitShortcut({ ...idle, key: 'ArrowDown', code: 'ArrowDown' }, false)).toEqual({
+      type: 'select',
+      direction: 1,
+    })
+    expect(cockpitShortcut({ ...idle, key: 'ArrowUp', code: 'ArrowUp' }, false)).toEqual({
+      type: 'select',
+      direction: -1,
+    })
+    expect(cockpitShortcut({ ...idle, key: 'Backspace', code: 'Backspace' }, false)).toEqual({
+      type: 'delete',
+    })
+  })
+
+  it('ignores shortcuts while typing or with modifiers', () => {
+    expect(cockpitShortcut({ ...idle, key: 'n', code: 'KeyN' }, true)).toBeNull()
+    expect(
+      cockpitShortcut({ ...idle, key: 'n', code: 'KeyN', metaKey: true }, false),
+    ).toBeNull()
+    expect(
+      cockpitShortcut({ ...idle, key: 'n', code: 'KeyN', repeat: true }, false),
+    ).toBeNull()
+  })
+})
+
+describe('isCockpitTypingTarget', () => {
+  it('treats fields and comboboxes as typing surfaces', () => {
+    expect(isCockpitTypingTarget({ tagName: 'INPUT' })).toBe(true)
+    expect(isCockpitTypingTarget({ tagName: 'TEXTAREA' })).toBe(true)
+    expect(isCockpitTypingTarget({ tagName: 'SELECT' })).toBe(true)
+    expect(isCockpitTypingTarget({ tagName: 'DIV', isContentEditable: true })).toBe(true)
+    expect(
+      isCockpitTypingTarget({
+        tagName: 'DIV',
+        closest: (selector: string) => (selector.includes('combobox') ? {} : null),
+      }),
+    ).toBe(true)
+    expect(isCockpitTypingTarget({ tagName: 'BUTTON', closest: () => null })).toBe(false)
+    expect(isCockpitTypingTarget(null)).toBe(false)
   })
 })

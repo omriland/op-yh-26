@@ -159,6 +159,31 @@ export async function fetchPlaceDetails(
   }
 }
 
+const geocodeCache = new Map<string, { lat: number; lng: number } | null>()
+
+/** First Places match for a free-text query (road + location). Cached per session. */
+export async function geocodePlaceQuery(
+  query: string,
+): Promise<{ lat: number; lng: number } | null> {
+  const trimmed = query.trim()
+  if (!trimmed) return null
+  if (geocodeCache.has(trimmed)) return geocodeCache.get(trimmed) ?? null
+
+  const predictions = await fetchPlacePredictions(trimmed)
+  if (!predictions.ok || predictions.predictions.length === 0) {
+    geocodeCache.set(trimmed, null)
+    return null
+  }
+  const details = await fetchPlaceDetails(predictions.predictions[0]!.placeId)
+  if (!details.ok) {
+    geocodeCache.set(trimmed, null)
+    return null
+  }
+  const coords = { lat: details.place.lat, lng: details.place.lng }
+  geocodeCache.set(trimmed, coords)
+  return coords
+}
+
 export function newPlacesSessionToken(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()

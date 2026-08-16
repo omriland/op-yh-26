@@ -1,27 +1,37 @@
-import { useEffect, useState } from 'react'
-import { Plus, Radar, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { MapPinned, Plus, Radar, Trash2, X } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   cockpitDeleteBlock,
   cockpitDeleteHint,
-  cockpitReelCaption,
+  cockpitEventMapPins,
+  geocodeCockpitEventPins,
+  cockpitNeighborId,
+  cockpitReelDetail,
   cockpitReelLead,
-  cockpitReelPlace,
   cockpitReelTitle,
-  cockpitReelType,
+  cockpitShortcut,
+  cockpitWindowCountLabel,
   fetchCockpitReel,
+  formatCockpitAge,
+  formatCockpitClock,
   insertCockpitDraft,
+  isCockpitTypingTarget,
   type CockpitDeleteHintKind,
+  type CockpitEventPin,
   type CockpitReelItem,
 } from '../lib/cockpit'
+import { hasSeenCockpitIntro, markCockpitIntroSeen } from '../lib/cockpitIntro'
 import { deleteEvent } from '../lib/events'
 import { monoClass } from '../lib/format'
 import { cancelledStamp, eventStamp } from '../lib/status'
 import { Button, IconButton } from '../components/ui/Button'
+import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
 import { useToast } from '../components/ui/Toast'
+import { OpsMapPanel } from '../components/map/OpsMapPanel'
 import { EventFormPage } from './EventFormPage'
 
 type CockpitPageProps = {
@@ -41,6 +51,30 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     kind: CockpitDeleteHintKind
   } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [now, setNow] = useState(() => new Date())
+  const [mapOpen, setMapOpen] = useState(false)
+  const [introOpen, setIntroOpen] = useState(false)
+  const knownEventPins = useMemo(() => cockpitEventMapPins(reel), [reel])
+  const [geocodedEventPins, setGeocodedEventPins] = useState<CockpitEventPin[]>([])
+  const eventPins = useMemo(() => {
+    const byId = new Map<string, CockpitEventPin>()
+    for (const pin of knownEventPins) byId.set(pin.eventId, pin)
+    for (const pin of geocodedEventPins) {
+      if (!byId.has(pin.eventId)) byId.set(pin.eventId, pin)
+    }
+    return [...byId.values()]
+  }, [knownEventPins, geocodedEventPins])
+
+  useEffect(() => {
+    if (!mapOpen) return
+    let active = true
+    void geocodeCockpitEventPins(reel).then((pins) => {
+      if (active) setGeocodedEventPins(pins)
+    })
+    return () => {
+      active = false
+    }
+  }, [mapOpen, reel])
 
   function clearDeletePrompt() {
     setArmedDeleteId(null)
@@ -62,6 +96,21 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   }, [reel, deleteHint])
 
   useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 15_000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
+    setIntroOpen(!hasSeenCockpitIntro(user.id))
+  }, [user])
+
+  function dismissIntro() {
+    if (user) markCockpitIntroSeen(user.id)
+    setIntroOpen(false)
+  }
+
+  useEffect(() => {
     let active = true
     fetchCockpitReel()
       .then((rows) => {
@@ -81,7 +130,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   }, [])
 
   async function createNew() {
-    if (!user) return
+    if (!user || creating) return
     setCreating(true)
     const result = await insertCockpitDraft(user.id)
     setCreating(false)
@@ -121,11 +170,65 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     }
   }
 
+  const createNewRef = useRef(createNew)
+  const confirmDeleteRef = useRef(confirmDelete)
+  const dismissIntroRef = useRef(dismissIntro)
+  createNewRef.current = createNew
+  confirmDeleteRef.current = confirmDelete
+  dismissIntroRef.current = dismissIntro
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (introOpen) {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          dismissIntroRef.current()
+        }
+        return
+      }
+      if (mapOpen && event.key === 'Escape' && !isCockpitTypingTarget(event.target)) {
+        event.preventDefault()
+        setMapOpen(false)
+        return
+      }
+      const action = cockpitShortcut(event, isCockpitTypingTarget(event.target))
+      if (!action) return
+      event.preventDefault()
+      if (action.type === 'create') {
+        void createNewRef.current()
+        return
+      }
+      if (action.type === 'select') {
+        const next = cockpitNeighborId(
+          reel.map((row) => row.id),
+          selectedEventId,
+          action.direction,
+        )
+        if (next && next !== selectedEventId) {
+          clearDeletePrompt()
+          onSelectEvent(next)
+        }
+        return
+      }
+      const current = reel.find((row) => row.id === selectedEventId)
+      if (current && deletingId !== current.id) void confirmDeleteRef.current(current)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [deletingId, introOpen, mapOpen, onSelectEvent, reel, selectedEventId])
+
   return (
     <div className="cockpit">
-      <aside className="cockpit__reel" aria-label="גלגלת">
+      <aside className="cockpit__reel" aria-label="יומן משמרת">
         <div className="cockpit__reel-head">
-          <h1 className="t-section">גלגלת</h1>
+          <div className="cockpit__reel-meta">
+            <p className="t-num-lg cockpit__clock" aria-label="שעון ירושלים">
+              {formatCockpitClock(now.toISOString())}
+            </p>
+            {loadState === 'ready' ? (
+              <p className="t-caption text-muted">{cockpitWindowCountLabel(reel.length)}</p>
+            ) : null}
+          </div>
           <Button
             block
             icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
@@ -172,8 +275,8 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             {reel.map((event) => {
               const current = event.id === selectedEventId
               const stamp = event.is_cancelled ? cancelledStamp() : eventStamp(event.status)
-              const typeName = cockpitReelType(event)
-              const place = cockpitReelPlace(event)
+              const policeId = event.police_event_id?.trim()
+              const detail = cockpitReelDetail(event)
               const lead = cockpitReelLead(event)
               const armed = armedDeleteId === event.id
               const hint =
@@ -192,16 +295,18 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                       onSelectEvent(event.id)
                     }}
                   >
-                    <span className="cockpit__item-top">
-                      <span
-                        className={[
-                          'cockpit__item-title',
-                          event.police_event_id?.trim() ? 'mono t-body-strong' : 't-body-strong',
-                        ].join(' ')}
-                      >
-                        {cockpitReelTitle(event)}
-                      </span>
+                    <span
+                      className={
+                        policeId
+                          ? 't-num-lg cockpit__item-id'
+                          : 't-body-strong cockpit__item-title is-draft'
+                      }
+                    >
+                      {cockpitReelTitle(event)}
                     </span>
+                    {detail ? (
+                      <span className="t-body text-secondary cockpit__item-detail">{detail}</span>
+                    ) : null}
                     <span className="cockpit__item-stamp">
                       <StampChip {...stamp} />
                       {lead ? (
@@ -216,9 +321,11 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                         </span>
                       ) : null}
                     </span>
-                    {typeName ? <span className="t-body">{typeName}</span> : null}
-                    {place ? <span className="t-body text-secondary">{place}</span> : null}
-                    <span className="t-caption text-muted">{cockpitReelCaption(event)}</span>
+                    <span className="cockpit__item-age">
+                      <span className="t-caption text-muted">
+                        {formatCockpitAge(event.created_at, now)}
+                      </span>
+                    </span>
                     {hint ? (
                       <span className="t-caption cockpit__delete-hint">{hint}</span>
                     ) : null}
@@ -300,6 +407,80 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
           />
         )}
       </section>
+      {mapOpen ? null : (
+        <button
+          type="button"
+          className="cockpit-map-tab"
+          aria-expanded={false}
+          aria-controls="cockpit-map-drawer"
+          onClick={() => setMapOpen(true)}
+        >
+          <MapPinned size={20} strokeWidth={1.75} aria-hidden="true" />
+          מפה
+        </button>
+      )}
+      {mapOpen ? (
+        <div
+          id="cockpit-map-drawer"
+          className="cockpit-map-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cockpit-map-title"
+        >
+          <header className="cockpit-map-drawer__head">
+            <h2 id="cockpit-map-title" className="t-section">
+              מפה
+            </h2>
+            <IconButton label="סגירת המפה" onClick={() => setMapOpen(false)}>
+              <X size={20} strokeWidth={1.75} aria-hidden="true" />
+            </IconButton>
+          </header>
+          <OpsMapPanel
+            fill
+            requirePins={false}
+            eventPins={eventPins}
+            onEventSelect={onSelectEvent}
+          />
+        </div>
+      ) : null}
+      <Dialog
+        open={introOpen}
+        title="מאחמ״שים? במשמרת האזנה?"
+        onClose={dismissIntro}
+        footer={
+          <Button autoFocus onClick={dismissIntro}>
+            הבנתי
+          </Button>
+        }
+      >
+        <div className="cockpit-intro">
+          <p className="t-body cockpit-intro__lead">
+            סידרנו לכם את סביבת האחמ״ש הכי נוחה שיש!
+          </p>
+          <ol className="cockpit-intro__steps">
+            <li className="cockpit-intro__step">
+              <span className="cockpit-intro__icon" aria-hidden="true">
+                <Plus size={20} strokeWidth={1.75} />
+              </span>
+              <p className="t-body">מוסיפים אירועים חדשים בגלגלת בצד ימין</p>
+            </li>
+            <li className="cockpit-intro__step">
+              <span className="cockpit-intro__icon" aria-hidden="true">
+                <Radar size={20} strokeWidth={1.75} />
+              </span>
+              <p className="t-body">מנהלים בקלות את כל האירועים הפתוחים</p>
+            </li>
+            <li className="cockpit-intro__step">
+              <span className="cockpit-intro__icon" aria-hidden="true">
+                <MapPinned size={20} strokeWidth={1.75} />
+              </span>
+              <p className="t-body">
+                נעזרים במפה בשמאל כדי למצוא מתנדבים קרובים לאירוע
+              </p>
+            </li>
+          </ol>
+        </div>
+      </Dialog>
     </div>
   )
 }

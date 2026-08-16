@@ -28,7 +28,7 @@ export function RolePreviewBar({ onRestored }: RolePreviewBarProps) {
   function onStop() {
     clearRolePreviewStash()
     setStash(null)
-    show('חזרתם לתפקידים שלכם.', 'done')
+    show('חזרת בהצלחה לתפקיד שלך.', 'done')
     onRestored()
   }
 

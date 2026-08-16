@@ -58,9 +58,8 @@ describe('appAnalyticsPath', () => {
       appAnalyticsPath({
         signedIn: true,
         otp: 'ok',
-        view: 'cockpit',
-        eventId: 'evt-9',
+        view: 'contacts',
       }),
-    ).toBe('/cockpit/evt-9')
+    ).toBe('/contacts')
   })
 })

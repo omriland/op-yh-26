@@ -5,12 +5,30 @@ type AppRole = "admin" | "shift_lead" | "responder";
 
 type VehicleInput = { plate_number: string; model: string };
 
+type VolunteerStatus =
+  | "administration"
+  | "basic_training"
+  | "phone_training"
+  | "personal_vehicle_training"
+  | "shifts_only"
+  | "active_volunteer";
+
+const VOLUNTEER_STATUSES: VolunteerStatus[] = [
+  "administration",
+  "basic_training",
+  "phone_training",
+  "personal_vehicle_training",
+  "shifts_only",
+  "active_volunteer",
+];
+
 type InviteBody = {
   action: "invite";
   full_name: string;
   email: string;
   callsign: string;
   phone?: string | null;
+  volunteer_status?: VolunteerStatus;
   roles: AppRole[];
   vehicles?: VehicleInput[];
 };
@@ -885,6 +903,9 @@ async function handleInvite(
   const email = trim(body.email).toLowerCase();
   const callsign = trim(body.callsign);
   const phone = trim(body.phone ?? "") || null;
+  const volunteerStatus = VOLUNTEER_STATUSES.includes(body.volunteer_status as VolunteerStatus)
+    ? (body.volunteer_status as VolunteerStatus)
+    : "active_volunteer";
   const roles = Array.isArray(body.roles)
     ? [...new Set(body.roles.filter((role): role is AppRole => ALLOWED_ROLES.includes(role)))]
     : [];
@@ -963,6 +984,7 @@ async function handleInvite(
       phone,
       email,
       active: true,
+      volunteer_status: volunteerStatus,
       invite_pending: true,
       invite_token: inviteToken,
       invite_token_expires_at: expiresAt,

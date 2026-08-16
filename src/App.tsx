@@ -20,6 +20,7 @@ import {
 import { reportsNavPlacement } from './lib/reports/access'
 import { AdminListsPage } from './pages/AdminListsPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
+import { UsersMapPage } from './pages/UsersMapPage'
 import { FuelQuarterPage } from './pages/FuelQuarterPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { UnitBroadcastPage } from './pages/UnitBroadcastPage'
@@ -34,6 +35,7 @@ import { ResponderFillPage } from './pages/ResponderFillPage'
 import { ShiftDetailPage } from './pages/ShiftDetailPage'
 import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
+import { ContactsPage } from './pages/ContactsPage'
 import { isImpersonating } from './lib/impersonationStash'
 import { usePresenceHeartbeat } from './lib/usePresenceHeartbeat'
 import { fetchOtpStatus } from './lib/phoneOtp'
@@ -333,6 +335,12 @@ function Gate() {
       })
     }
 
+    list.push({
+      view: 'contacts',
+      label: 'אנשי קשר',
+      icon: NAV_ICONS.contacts,
+    })
+
     // Shift-lead tools (admins also get these via manages).
     if (manages) {
       if (isDesktop) {
@@ -353,6 +361,12 @@ function Gate() {
         view: 'shifts',
         label: 'משמרות',
         icon: NAV_ICONS.shifts,
+        section: 'כלים לאחמ״ש',
+      })
+      list.push({
+        view: 'map',
+        label: 'מפה',
+        icon: NAV_ICONS.map,
         section: 'כלים לאחמ״ש',
       })
       if (reportsNavPlacement(roles) === 'shift_lead') {
@@ -404,8 +418,11 @@ function Gate() {
       case 'mine':
       case 'my_shifts':
         return hasMineList
+      case 'contacts':
+        return true
       case 'events':
       case 'shifts':
+      case 'map':
       case 'reports':
       case 'cockpit':
         return manages
@@ -719,6 +736,10 @@ function Gate() {
         />
       ) : activeView === 'profile' ? (
         <ProfilePage />
+      ) : activeView === 'map' ? (
+        <div className="page--wide">
+          <UsersMapPage key={sectionReset} />
+        </div>
       ) : isAdminHub && isAdminSegment(activeView) ? (
           <div
             className={['stack-4', activeView === 'users' ? 'page--wide' : '']
@@ -738,6 +759,10 @@ function Gate() {
               <AdminUsersPage key={sectionReset} />
             )}
           </div>
+      ) : activeView === 'contacts' ? (
+        <div className={isDesktop ? 'page--wide' : undefined}>
+          <ContactsPage key={sectionReset} />
+        </div>
       ) : onShifts ? (
         <ShiftsPage
           key={sectionReset}

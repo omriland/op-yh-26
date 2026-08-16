@@ -11,6 +11,7 @@ import {
   saveAdminUser,
   setAdminUserActive,
   setAdminUserPassword,
+  syncUserAddresses,
   unarchiveAdminVehicle,
   type AdminUserRow,
 } from '../lib/adminUsers'
@@ -58,10 +59,27 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { OverflowMenu, type OverflowMenuItem } from '../components/ui/OverflowMenu'
+import { SelectField } from '../components/ui/SelectField'
 import { PasswordField, TextField } from '../components/ui/TextField'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
+import { LocationPlacesField } from '../components/events/LocationPlacesField'
+import {
+  addressDraftError,
+  addressKindLabel,
+  draftsFromRows,
+  emptyAddressDrafts,
+  emptyExtraAddressDraft,
+  persistableAddresses,
+  type AddressDraft,
+} from '../lib/userAddresses'
+import {
+  DEFAULT_VOLUNTEER_STATUS,
+  VOLUNTEER_STATUS_OPTIONS,
+  volunteerStatusLabel,
+  type VolunteerStatus,
+} from '../lib/volunteerStatus'
 
 const ROLE_OPTIONS: { role: AssignableRole; label: string }[] = [
   { role: 'admin', label: 'מנהל' },
@@ -95,8 +113,10 @@ type Draft = {
   email: string
   callsign: string
   phone: string
+  volunteer_status: VolunteerStatus
   roles: AppRole[]
   vehicles: DraftVehicle[]
+  addresses: AddressDraft[]
 }
 
 function emptyDraft(): Draft {
@@ -105,8 +125,10 @@ function emptyDraft(): Draft {
     email: '',
     callsign: '',
     phone: '',
+    volunteer_status: DEFAULT_VOLUNTEER_STATUS,
     roles: ['responder'],
     vehicles: [],
+    addresses: emptyAddressDrafts(),
   }
 }
 
@@ -117,6 +139,7 @@ function draftFromUser(user: AdminUserRow): Draft {
     email: user.email,
     callsign: user.callsign,
     phone: user.phone ? formatPhone(user.phone) : '',
+    volunteer_status: user.volunteer_status,
     roles: withImpliedAssignableRoles(user.roles),
     vehicles: user.vehicles.map((vehicle) => ({
       key: vehicle.id,
@@ -125,6 +148,7 @@ function draftFromUser(user: AdminUserRow): Draft {
       model: vehicle.model,
       archived: vehicle.archived,
     })),
+    addresses: draftsFromRows(user.addresses),
   }
 }
 
@@ -332,7 +356,12 @@ export function AdminUsersPage() {
     if (!users) return []
     const q = query.trim()
     if (!q) return users
-    return users.filter((user) => fieldsMatchQuery([user.full_name, user.callsign, user.email], q))
+    return users.filter((user) =>
+      fieldsMatchQuery(
+        [user.full_name, user.callsign, user.email, volunteerStatusLabel(user.volunteer_status)],
+        q,
+      ),
+    )
   }, [users, query])
 
   async function submitDraft() {
@@ -359,6 +388,11 @@ export function AdminUsersPage() {
       setFormError('לא ניתן לשייך את אותה לוחית רישוי יותר מפעם אחת לאותו משתמש.')
       return
     }
+    const addressesError = addressDraftError(draft.addresses)
+    if (addressesError) {
+      setFormError(addressesError)
+      return
+    }
     if (draft.id && draft.id === authUser?.id && !draft.roles.includes('admin')) {
       setFormError('לא ניתן להסיר מעצמך את תפקיד המנהל.')
       return
@@ -373,6 +407,7 @@ export function AdminUsersPage() {
     }
 
     const phone = phoneDigits(draft.phone)
+    const addresses = persistableAddresses(draft.addresses)
 
     setSaving(true)
     try {
@@ -382,6 +417,7 @@ export function AdminUsersPage() {
           email: draft.email,
           callsign: draft.callsign,
           phone,
+          volunteer_status: draft.volunteer_status,
           roles: draft.roles,
           vehicles: draft.vehicles
             .filter((vehicle) => !vehicle.archived)
@@ -389,10 +425,26 @@ export function AdminUsersPage() {
               plate_number: v.plate_number,
               model: v.model,
             })),
+          addresses,
         })
         if (!result.ok) {
           setFormError(result.error)
           return
+        }
+        if (result.user_id && addresses.length > 0) {
+          const addressResult = await syncUserAddresses(result.user_id, addresses)
+          if (addressResult.error) {
+            const copied = await copyInviteLinkToClipboard(result.action_link)
+            show(
+              copied
+                ? 'המשתמש נוצר וקישור ההזמנה הועתק, אך שמירת הכתובות נכשלה. ערכו את המשתמש כדי לנסות שוב.'
+                : 'המשתמש נוצר, אך שמירת הכתובות נכשלה. ערכו את המשתמש כדי לנסות שוב.',
+              'alert',
+            )
+            setDraft(null)
+            setReloadKey((value) => value + 1)
+            return
+          }
         }
         const copied = await copyInviteLinkToClipboard(result.action_link)
         show(
@@ -407,6 +459,7 @@ export function AdminUsersPage() {
           full_name: draft.full_name,
           callsign: draft.callsign,
           phone,
+          volunteer_status: draft.volunteer_status,
           roles: draft.roles,
           vehicles: draft.vehicles.map((vehicle) => ({
             id: vehicle.id,
@@ -414,6 +467,7 @@ export function AdminUsersPage() {
             model: vehicle.model,
             archived: vehicle.archived,
           })),
+          addresses,
         })
         if (result.error) {
           setFormError(result.error)
@@ -796,7 +850,7 @@ export function AdminUsersPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="חיפוש לפי שם, או״ק או דוא״ל"
+            placeholder="חיפוש לפי שם, או״ק, דוא״ל או סטטוס"
           />
         </label>
       </div>
@@ -855,6 +909,7 @@ export function AdminUsersPage() {
                 <th>דוא״ל</th>
                 <th>טלפון</th>
                 <th>תפקיד</th>
+                <th>סטטוס</th>
                 <th className="table-col--otp">OTP</th>
                 <th>רכבים</th>
                 <th>כניסה אחרונה</th>
@@ -907,6 +962,7 @@ export function AdminUsersPage() {
                       {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
                     </div>
                   </td>
+                  <td>{volunteerStatusLabel(user.volunteer_status)}</td>
                   <td className="table-col--otp table-cell--nowrap">
                     {otpLabel ? (
                       <span className="t-caption text-secondary" title={otpLabel === 'שניהם' ? 'OTP כניסה ו-OTP משתמשים' : undefined}>
@@ -1001,6 +1057,7 @@ export function AdminUsersPage() {
                   <button type="button" className="user-card__details" onClick={openEdit}>
                     <div className="tags">
                       <RoleTag roles={user.roles} />
+                      <span className="tag">{volunteerStatusLabel(user.volunteer_status)}</span>
                       {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
                       {isInvitePending(user) ? (
                         <span className="tag tag--pending">ממתין להרשמה</span>
@@ -1015,6 +1072,7 @@ export function AdminUsersPage() {
                   <div className="user-card__details user-card__details--static">
                     <div className="tags">
                       <RoleTag roles={user.roles} />
+                      <span className="tag">{volunteerStatusLabel(user.volunteer_status)}</span>
                       {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
                       {isInvitePending(user) ? (
                         <span className="tag tag--pending">ממתין להרשמה</span>
@@ -1113,6 +1171,18 @@ export function AdminUsersPage() {
                   setDraft({ ...draft, phone: formatPhone(event.target.value) })
                 }
                 hint="10 ספרות, למשל: 050-1234567"
+              />
+              <SelectField
+                label="סטטוס"
+                required
+                value={draft.volunteer_status}
+                options={VOLUNTEER_STATUS_OPTIONS}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    volunteer_status: event.target.value as VolunteerStatus,
+                  })
+                }
               />
             </section>
 
@@ -1234,6 +1304,92 @@ export function AdminUsersPage() {
                 }
               >
                 הוספת רכב
+              </Button>
+            </section>
+
+            <section className="stack-4">
+              <div className="form-section">
+                <h3 className="form-section__heading">כתובות</h3>
+              </div>
+              <p className="t-caption text-muted">
+                בית ועבודה הם ברירת מחדל. אפשר להשאיר ריק או לבחור כתובת מגוגל בלבד.
+              </p>
+              {draft.addresses.map((address, index) => (
+                <div key={address.key} className="address-row">
+                  <div
+                    className={[
+                      'address-row__fields',
+                      address.kind === 'other' ? 'address-row__fields--extra' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    {address.kind === 'other' ? (
+                      <TextField
+                        label="שם הכתובת"
+                        value={address.label}
+                        onChange={(event) => {
+                          const addresses = [...draft.addresses]
+                          addresses[index] = { ...address, label: event.target.value }
+                          setDraft({ ...draft, addresses })
+                        }}
+                      />
+                    ) : null}
+                    <LocationPlacesField
+                      label={
+                        address.kind === 'other' ? 'כתובת' : addressKindLabel(address.kind)
+                      }
+                      allowFreeText={false}
+                      placeholder="הקלידו כתובת ובחרו מהרשימה"
+                      value={{
+                        location: address.location,
+                        location_place_id: address.location_place_id,
+                        location_lat: address.location_lat,
+                        location_lng: address.location_lng,
+                      }}
+                      onChange={(next) => {
+                        const addresses = [...draft.addresses]
+                        addresses[index] = {
+                          ...address,
+                          location: next.location,
+                          location_place_id: next.location_place_id,
+                          location_lat: next.location_lat,
+                          location_lng: next.location_lng,
+                        }
+                        setDraft({ ...draft, addresses })
+                      }}
+                      onAutocompleteUnavailable={() =>
+                        show('השלמת כתובת מגוגל אינה זמינה כרגע.', 'alert')
+                      }
+                    />
+                    {address.kind === 'other' ? (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="הסרת כתובת"
+                        onClick={() =>
+                          setDraft({
+                            ...draft,
+                            addresses: draft.addresses.filter((row) => row.key !== address.key),
+                          })
+                        }
+                      >
+                        <Trash2 size={20} strokeWidth={1.75} />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+              <Button
+                variant="ghost"
+                onClick={() =>
+                  setDraft({
+                    ...draft,
+                    addresses: [...draft.addresses, emptyExtraAddressDraft()],
+                  })
+                }
+              >
+                הוספת כתובת
               </Button>
             </section>
 

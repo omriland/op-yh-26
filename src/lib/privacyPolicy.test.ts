@@ -32,6 +32,7 @@ describe('PRIVACY_POLICY', () => {
     expect(text).toMatch(/אירוע/)
     expect(text).toMatch(/משמרת/)
     expect(text).toMatch(/לוחית/)
+    expect(text).toMatch(/כתובת בית/)
     expect(text).not.toMatch(/בגד|חולצה|נשק|רישיון נשק/)
   })
 

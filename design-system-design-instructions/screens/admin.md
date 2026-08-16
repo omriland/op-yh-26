@@ -5,7 +5,7 @@ The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וס
 ## Navigation
 
 - Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`, `תפוצה לכלל היחידה`, `פרופיל`.
-- Mobile tab bar (admin): `ניהול` only among admin destinations; segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות` | `תפוצה לכלל היחידה`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `ניהול` (role-gated). Profile via app-bar menu.
+- Mobile tab bar (admin): `ניהול` only among admin destinations; segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות` | `תפוצה לכלל היחידה`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `מפה` · `ניהול` (role-gated). Profile via app-bar menu. `מפה` lives under כלים לאחמ״ש (after משמרות), not ניהול — אחמ״ש and מנהל.
 
 ## תפוצה לכלל היחידה
 
@@ -34,17 +34,18 @@ Admin-only under ניהול (`ניהול דלק`, Fuel icon). Opening lands on a
 ### List
 
 - Title `משתמשים` + primary `משתמש חדש`.
-- Search input (name / callsign / email).
-- Desktop table: שם מלא (optional presence disc at inline-start of the name: green `--status-done` `פעיל עכשיו` ≤ 3 min, orange `--status-partial` `פעיל לאחרונה` ≤ 15 min; `--radius-full` disc, size `--space-2`; never color-only — `title` + visually-hidden label) · או״ק (mono) · דוא״ל (LTR isolate) · טלפון (LTR isolate, mono) · תפקיד · רכבים (count). Role column renders one small neutral chip (`--type-caption`, secondary-chip chrome — NOT stamps) for the **highest** role only: `מנהל־על` · `מנהל` · `אחמ״ש` · `כונן`.
-- Mobile: user cards — presence disc (same rules) then avatar 40 + name + callsign with ⋮ overflow menu at inline-end (same actions as the desktop row), one highest-role chip + status chips, caption line with email. Vertical gaps `--space-3` between head / chips / email; no detail hairline under the head.
+- Search input (name / callsign / email / status).
+- Desktop table: שם מלא (optional presence disc at inline-start of the name: green `--status-done` `פעיל עכשיו` ≤ 3 min, orange `--status-partial` `פעיל לאחרונה` ≤ 15 min; `--radius-full` disc, size `--space-2`; never color-only — `title` + visually-hidden label) · או״ק (mono) · דוא״ל (LTR isolate) · טלפון (LTR isolate, mono) · תפקיד · סטטוס · רכבים (count). Role column renders one small neutral chip (`--type-caption`, secondary-chip chrome — NOT stamps) for the **highest** role only: `מנהל־על` · `מנהל` · `אחמ״ש` · `כונן`. Status is a closed list (not a stamp): `מנהלה` · `חניכה בסיסית` · `חניכה טלפונית` · `חניכה ברכב פרטי` · `משמרות בלבד` · `מתנדב פעיל`.
+- Mobile: user cards — presence disc (same rules) then avatar 40 + name + callsign with ⋮ overflow menu at inline-end (same actions as the desktop row), one highest-role chip + volunteer-status chip + status chips, caption line with email. Vertical gaps `--space-3` between head / chips / email; no detail hairline under the head.
 
 ### Create / Edit user (dialog on desktop, full screen on mobile)
 
 Sections:
 
-1. `פרטים` — שם מלא (required) · דוא״ל (required; sends invite) · או״ק · טלפון.
+1. `פרטים` — שם מלא (required) · דוא״ל (required; sends invite) · או״ק · טלפון · סטטוס (required select: `מנהלה` · `חניכה בסיסית` · `חניכה טלפונית` · `חניכה ברכב פרטי` · `משמרות בלבד` · `מתנדב פעיל`; default `מתנדב פעיל`). Admin-only; users cannot change their own.
 2. `תפקידים` — three checkboxes: `מנהל` / `אחמ״ש` / `כונן`. Checking a role also checks every lower role and greys those out. Helper: `בחירת תפקיד כוללת את התפקידים שמתחתיו.` At least one required. `super_admin` is not a checkbox.
 3. `רכבים` — repeatable rows: לוחית רישוי (mono, LTR) + דגם + remove icon-button; ghost `הוספת רכב` below. A user may have several vehicles.
+4. `כתובות` — always two slots `בית` / `עבודה` (optional). Each is Places-only (no free-text row). Ghost `הוספת כתובת` adds an extra row: `שם הכתובת` + Places field + remove. Empty slots are not stored. Caption: `בית ועבודה הם ברירת מחדל. אפשר להשאיר ריק או לבחור כתובת מגוגל בלבד.`
 
 Actions: primary `שמירת משתמש` / secondary `ביטול`. New-user success toast: `המשתמש נוצר ונשלחה הזמנה בדוא״ל`.
 
@@ -56,6 +57,10 @@ Super Admin only (DB-granted `super_admin`, not in role checkboxes):
 - Overflow `צפייה כמשתמש זה` + avatar menu `צפייה כמשתמש` → real session swap; banner `צופה כ־…` + `חזרה לחשבון שלי`. Spec: `2026-08-11-yahpaz-super-admin-impersonation-design.md`.
 - Avatar menu `צפייה בתפקיד אחר` → client-only role mask (כונן / אחמ״ש / מנהל) for nav + cards; banner `צופה כתפקיד …` + `חזרה לתפקיד שלי`. Hidden while impersonating. Does not swap Auth/RLS.
 - Regular admins cannot mutate a Super Admin row (edit, OTP, invite resend, deactivate, delete). Hide those overflow items; hide `⋮` if the menu would be empty; row/card must not open the editor. Super Admins may still edit each other. Server: RLS + Edge 403 `לא ניתן לערוך מנהל־על.` Spec: `2026-08-15-yahpaz-super-admin-mark-and-lock-design.md`.
+
+## מפה
+
+אחמ״ש + מנהל, under כלים לאחמ״ש after `משמרות` (not a ניהול tab). Title `מפה`. Caption `חפשו כתובת כדי לראות מי הכוננים הקרובים. כל סיכה היא כתובת אחת של משתמש פעיל.` Interactive Google Map. Places-only search `חיפוש כתובת` (no free text). On pick: search pin labeled with the chosen address (`--status-partial` disc), center the address and fit a 30 km box in each direction, and list `כוננים קרובים` — one row per user (their nearest address) only if that address is within 30 km, nearest-first, distance `מ׳` / `ק״מ`. Empty in-range: `אין כוננים בטווח 30 ק״מ.` Tap a row to pan/zoom to that address. User pins: `--accent` disc + raised caption (`או״ק · בית/עבודה/שם`). Hover/focus tooltip sits flush under the pin caption (`left: 50%` + `translateX(-50%)` in map pixel space): solid `--surface-raised` fill, `--text-primary`, `--accent` border + overlay shadow; `חניכה ברכב פרטי` uses `--status-alert` text/border. Active users only; hide `מנהלה` / `חניכה בסיסית` / `משמרות בלבד`. Empty: `אין כתובות להצגה` + `כשתמלאו כתובת למשתמש פעיל, היא תופיע כאן.` Missing key: `המפה אינה זמינה`. Canvas min-height 720px, `--radius-md`, hairline, `--surface-sunken`.
 
 ## הגדרות (Closed lists)
 

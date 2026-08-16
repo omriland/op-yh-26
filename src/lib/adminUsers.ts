@@ -4,6 +4,8 @@ import { findDuplicatePlate, phoneDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import { syncUserRolesDiff } from './syncUserRolesDiff'
 import { fetchAdminLastActive, mergeLastActive } from './userPresence'
+import type { PersistableAddress, UserAddressRow } from './userAddresses'
+import { parseVolunteerStatus, type VolunteerStatus } from './volunteerStatus'
 
 export type AdminVehicle = {
   id: string
@@ -25,8 +27,10 @@ export type AdminUserRow = {
   invite_pending: boolean
   otp_login_enabled: boolean
   otp_users_page_enabled: boolean
+  volunteer_status: VolunteerStatus
   roles: AppRole[]
   vehicles: AdminVehicle[]
+  addresses: UserAddressRow[]
 }
 
 export type InviteUserInput = {
@@ -34,8 +38,10 @@ export type InviteUserInput = {
   email: string
   callsign: string
   phone?: string | null
+  volunteer_status: VolunteerStatus
   roles: AppRole[]
   vehicles: { plate_number: string; model: string }[]
+  addresses: PersistableAddress[]
 }
 
 export type SaveUserInput = {
@@ -43,8 +49,10 @@ export type SaveUserInput = {
   full_name: string
   callsign: string
   phone?: string | null
+  volunteer_status: VolunteerStatus
   roles: AppRole[]
   vehicles: { id?: string; plate_number: string; model: string; archived?: boolean }[]
+  addresses: PersistableAddress[]
 }
 
 async function callAdminUsers(
@@ -93,7 +101,7 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   const { data: profiles, error } = await supabase
     .from('profiles')
     .select(
-      'id, full_name, email, callsign, phone, active, invite_pending, otp_login_enabled, otp_users_page_enabled',
+      'id, full_name, email, callsign, phone, active, invite_pending, otp_login_enabled, otp_users_page_enabled, volunteer_status',
     )
     .order('full_name')
 
@@ -102,14 +110,19 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   const ids = (profiles ?? []).map((row) => row.id)
   if (ids.length === 0) return []
 
-  const [{ data: roleRows }, { data: vehicleRows }, { data: loginRows }] = await Promise.all([
-    supabase.from('user_roles').select('user_id, role').in('user_id', ids),
-    supabase
-      .from('vehicles')
-      .select('id, user_id, plate_number, model, archived')
-      .in('user_id', ids),
-    supabase.rpc('admin_list_last_sign_in'),
-  ])
+  const [{ data: roleRows }, { data: vehicleRows }, { data: addressRows }, { data: loginRows }] =
+    await Promise.all([
+      supabase.from('user_roles').select('user_id, role').in('user_id', ids),
+      supabase
+        .from('vehicles')
+        .select('id, user_id, plate_number, model, archived')
+        .in('user_id', ids),
+      supabase
+        .from('user_addresses')
+        .select('id, user_id, kind, label, formatted_address, place_id, lat, lng')
+        .in('user_id', ids),
+      supabase.rpc('admin_list_last_sign_in'),
+    ])
 
   const lastSignInByUser = new Map(
     ((loginRows ?? []) as { user_id: string; last_sign_in_at: string | null }[]).map((row) => [
@@ -130,6 +143,7 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     invite_pending: Boolean(profile.invite_pending),
     otp_login_enabled: Boolean(profile.otp_login_enabled),
     otp_users_page_enabled: Boolean(profile.otp_users_page_enabled),
+    volunteer_status: parseVolunteerStatus(profile.volunteer_status),
     roles: (roleRows ?? [])
       .filter((row) => row.user_id === profile.id)
       .map((row) => row.role as AppRole),
@@ -140,6 +154,17 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
         plate_number: row.plate_number as string,
         model: row.model as string,
         archived: Boolean(row.archived),
+      })),
+    addresses: (addressRows ?? [])
+      .filter((row) => row.user_id === profile.id)
+      .map((row) => ({
+        id: row.id as string,
+        kind: row.kind as UserAddressRow['kind'],
+        label: (row.label as string | null) ?? null,
+        formatted_address: row.formatted_address as string,
+        place_id: row.place_id as string,
+        lat: Number(row.lat),
+        lng: Number(row.lng),
       })),
   }))
 
@@ -154,12 +179,22 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   return mergeLastActive(rows, presenceRows).sort(compareAdminUsers)
 }
 
-export function inviteAdminUser(input: InviteUserInput) {
-  return callAdminUsers({
+export async function inviteAdminUser(input: InviteUserInput) {
+  const result = await callAdminUsers({
     action: 'invite',
     ...input,
     phone: input.phone ? phoneDigits(input.phone) : null,
   })
+  if (result.ok && result.user_id) {
+    await supabase
+      .from('profiles')
+      .update({
+        volunteer_status: input.volunteer_status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', result.user_id)
+  }
+  return result
 }
 
 export function setAdminUserActive(userId: string, active: boolean) {
@@ -232,6 +267,7 @@ export async function saveAdminUser(input: SaveUserInput): Promise<{ error: stri
       full_name: input.full_name.trim(),
       callsign: input.callsign.trim(),
       phone: input.phone ? phoneDigits(input.phone) || null : null,
+      volunteer_status: input.volunteer_status,
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.id)
@@ -247,6 +283,74 @@ export async function saveAdminUser(input: SaveUserInput): Promise<{ error: stri
 
   const vehiclesSync = await syncUserVehicles(input.id, input.vehicles)
   if (vehiclesSync.error) return vehiclesSync
+
+  const addressesSync = await syncUserAddresses(input.id, input.addresses)
+  if (addressesSync.error) return addressesSync
+
+  return { error: null }
+}
+
+export async function syncUserAddresses(
+  userId: string,
+  nextAddresses: PersistableAddress[],
+): Promise<{ error: string | null }> {
+  const { data: existing, error: readError } = await supabase
+    .from('user_addresses')
+    .select('id')
+    .eq('user_id', userId)
+
+  if (readError) {
+    return { error: 'שמירת הכתובות נכשלה.' }
+  }
+
+  const nextWithIds = nextAddresses.filter((address) => address.id)
+  const nextIds = new Set(nextWithIds.map((address) => address.id!))
+
+  for (const row of existing ?? []) {
+    if (!nextIds.has(row.id as string)) {
+      const { error } = await supabase.from('user_addresses').delete().eq('id', row.id)
+      if (error) {
+        return { error: 'שמירת הכתובות נכשלה.' }
+      }
+    }
+  }
+
+  for (const address of nextWithIds) {
+    const { error } = await supabase
+      .from('user_addresses')
+      .update({
+        kind: address.kind,
+        label: address.label,
+        formatted_address: address.formatted_address,
+        place_id: address.place_id,
+        lat: address.lat,
+        lng: address.lng,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', address.id!)
+      .eq('user_id', userId)
+    if (error) {
+      return { error: 'שמירת הכתובות נכשלה.' }
+    }
+  }
+
+  const toInsert = nextAddresses.filter((address) => !address.id)
+  if (toInsert.length > 0) {
+    const { error } = await supabase.from('user_addresses').insert(
+      toInsert.map((address) => ({
+        user_id: userId,
+        kind: address.kind,
+        label: address.label,
+        formatted_address: address.formatted_address,
+        place_id: address.place_id,
+        lat: address.lat,
+        lng: address.lng,
+      })),
+    )
+    if (error) {
+      return { error: 'שמירת הכתובות נכשלה.' }
+    }
+  }
 
   return { error: null }
 }

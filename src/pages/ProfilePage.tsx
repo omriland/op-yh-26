@@ -4,6 +4,7 @@ import { useAuth, type AppRole } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { formatNumber, formatPhone, monoClass } from '../lib/format'
 import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
+import { addressKindLabel, fetchOwnAddresses, type UserAddressRow } from '../lib/userAddresses'
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
@@ -25,6 +26,7 @@ type Vehicle = { id: string; plate_number: string; model: string; archived: bool
 export function ProfilePage() {
   const { profile, roles, signOut } = useAuth()
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null)
+  const [addresses, setAddresses] = useState<UserAddressRow[] | null>(null)
 
   useEffect(() => {
     if (!profile) return
@@ -43,6 +45,14 @@ export function ProfilePage() {
             })),
           )
         }
+      })
+
+    fetchOwnAddresses(profile.id)
+      .then((rows) => {
+        if (active) setAddresses(rows)
+      })
+      .catch(() => {
+        if (active) setAddresses([])
       })
 
     return () => {
@@ -133,6 +143,29 @@ export function ProfilePage() {
           {statsUpdated ? (
             <p className="profile-stats__caption t-caption text-muted">{statsUpdated}</p>
           ) : null}
+        </section>
+
+        <section className="card">
+          <div className="form-section">
+            <h2 className="form-section__heading">כתובות</h2>
+          </div>
+          <div style={{ marginBlockStart: 'var(--space-4)' }}>
+            {addresses === null ? (
+              <Skeleton height={24} />
+            ) : addresses.length === 0 ? (
+              <p className="t-body text-muted">לא רשומות כתובות. פנו למנהל המערכת להוספת כתובת.</p>
+            ) : (
+              <Ledger>
+                {addresses.map((address) => (
+                  <LedgerRow
+                    key={address.id}
+                    label={addressKindLabel(address.kind, address.label)}
+                    value={address.formatted_address}
+                  />
+                ))}
+              </Ledger>
+            )}
+          </div>
         </section>
 
         <section className="card">
