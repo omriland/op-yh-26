@@ -115,9 +115,7 @@ export function ProfilePage() {
         </section>
 
         <section className="card">
-          <div className="form-section">
-            <h2 className="form-section__heading">סיכום פעילות</h2>
-          </div>
+          <h2 className="t-section">סיכום פעילות</h2>
           <div className="profile-stats" style={{ marginBlockStart: 'var(--space-4)' }}>
             <div className="profile-stats__cell">
               <p className="t-label text-secondary">אירועים שטופלו</p>
