@@ -6,11 +6,11 @@ import { MineShiftEventGroup } from './MineShiftEventGroup'
 describe('MineShiftEventGroup', () => {
   it('starts collapsed so grouped events are hidden until opened', () => {
     const html = renderToStaticMarkup(
-      createElement(
-        MineShiftEventGroup,
-        { title: 'משמרת · 16.08.2026 · בוקר · ניידת צפון', eventCount: 2 },
-        createElement('li', { className: 'card' }, 'אירוע ממשמרת'),
-      ),
+      createElement(MineShiftEventGroup, {
+        title: 'משמרת · 16.08.2026 · בוקר · ניידת צפון',
+        eventCount: 2,
+        children: createElement('li', { className: 'card' }, 'אירוע ממשמרת'),
+      }),
     )
 
     expect(html).toContain('aria-expanded="false"')

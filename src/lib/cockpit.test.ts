@@ -78,22 +78,16 @@ describe('cockpit reel details', () => {
   it('blocks delete only while responders are allocated', () => {
     expect(
       canDeleteCockpitDraft({
-        event_type: { name: 'תאונה' },
-        road: { name: 'כביש 20' },
         responders: [],
       }),
     ).toBe(true)
     expect(
       cockpitDeleteBlock({
-        event_type: { name: 'תאונה' },
-        road: { name: 'כביש 20' },
         responders: [{ id: 'r1' }],
       }),
     ).toBe('responders')
     expect(
       cockpitDeleteBlock({
-        event_type: null,
-        road: null,
         responders: [],
       }),
     ).toBeNull()
