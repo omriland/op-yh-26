@@ -11,8 +11,8 @@ describe('otpSmsProvider', () => {
     expect(otpSmsProvider('login_device')).toBe('twilio')
   })
 
-  it('keeps users-page OTP on Soprano', () => {
-    expect(otpSmsProvider('users_page')).toBe('soprano')
+  it('sends users-page OTP through Twilio', () => {
+    expect(otpSmsProvider('users_page')).toBe('twilio')
   })
 })
 

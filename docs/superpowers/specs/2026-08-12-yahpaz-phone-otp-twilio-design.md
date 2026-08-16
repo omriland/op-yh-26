@@ -1,7 +1,7 @@
 # Phone OTP (Twilio Verify) — design
 
 Date: 2026-08-12  
-Status: implemented (login OTP: Twilio Messaging Service on RespondersTLV; users-page OTP + broadcasts: Soprano)
+Status: implemented (login + users-page OTP: Twilio Messaging Service on RespondersTLV; unit broadcasts: Soprano)
 
 ## Problem
 
@@ -12,7 +12,7 @@ Some users should prove possession of their Israeli mobile after password login 
 | Topic | Choice |
 |---|---|
 | Auth model | Password first; SMS OTP is **step-up 2FA**, not phone-only login |
-| Provider | **Split:** login OTP → existing Twilio project **RespondersTLV** (Programmable Messaging, `Hebrew Card Manager Auth`); users-page OTP + unit broadcasts → **Soprano**. Codes still generated in Edge + `otp_challenges`. |
+| Provider | **Split:** login OTP + users-page OTP → existing Twilio project **RespondersTLV** (Programmable Messaging, `Hebrew Card Manager Auth`); unit broadcasts → **Soprano**. Codes still generated in Edge + `otp_challenges`. |
 | Why not Twilio Verify | This account already delivers IL OTP via Messaging API; Verify would add ~$0.05/success and a new sender. |
 | Why not Supabase Phone MFA | Advanced MFA Phone add-on ≈ **$75/mo**; still needs custom 48h device trust + users-page step-up |
 | Phone numbers | Israeli only; stored as 10 local digits on `profiles.phone`; send as E.164 `+972…` |
@@ -45,7 +45,7 @@ Navigate to משתמשים
 Admin ⋮ → set_otp_flags (requires valid phone to enable)
 ```
 
-Secrets (Supabase Edge only): `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_MESSAGING_SERVICE_SID` (login OTP); `SOPRANO_USER`, `SOPRANO_PASSWORD`, `SOPRANO_SOURCE` (users-page OTP + broadcasts).
+Secrets (Supabase Edge only): `TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_MESSAGING_SERVICE_SID` (login + users-page OTP); `SOPRANO_USER`, `SOPRANO_PASSWORD`, `SOPRANO_SOURCE` (unit broadcasts).
 
 ### Why Twilio Verify (not raw Messaging)
 

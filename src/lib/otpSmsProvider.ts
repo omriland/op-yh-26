@@ -5,8 +5,13 @@ export type OtpSmsProvider = 'twilio' | 'soprano'
 
 export const OTP_SMS_MESSAGE_PREFIX = 'קוד האימות באבן דרך: '
 
+/** Login + users-page OTP use Twilio. Unit broadcasts stay on Soprano. */
 export function otpSmsProvider(purpose: OtpSmsPurpose): OtpSmsProvider {
-  return purpose === 'login_device' ? 'twilio' : 'soprano'
+  switch (purpose) {
+    case 'login_device':
+    case 'users_page':
+      return 'twilio'
+  }
 }
 
 export function buildOtpSmsMessage(code: string): string {
