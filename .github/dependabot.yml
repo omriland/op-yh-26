@@ -1,0 +1,16 @@
+# Keep npm dependencies current with weekly PRs.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      production-deps:
+        dependency-type: production
+      development-deps:
+        dependency-type: development
