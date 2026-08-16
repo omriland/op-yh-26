@@ -257,6 +257,39 @@ describe('buildKmDiscrepancyRows', () => {
     expect(rows.map((row) => row.assignment_id)).toEqual(['a-high', 'a-low', 'a-old'])
   })
 
+  it('breaks ties on responder name with Hebrew localeCompare', () => {
+    const rows = buildKmDiscrepancyRows(
+      [
+        event({
+          id: 'tie',
+          event_date: '2026-08-15',
+          responders: [
+            {
+              id: 'a-dana',
+              responder_id: 'r2',
+              status: 'done',
+              total_km: 2,
+              odometer_start: 0,
+              odometer_end: 10,
+              profile: { full_name: 'דנה כהן', callsign: 'D1' },
+            },
+            {
+              id: 'a-avi',
+              responder_id: 'r1',
+              status: 'done',
+              total_km: 10,
+              odometer_start: 0,
+              odometer_end: 18,
+              profile: { full_name: 'אבי לוי', callsign: 'A1' },
+            },
+          ],
+        }),
+      ],
+      range,
+    )
+    expect(rows.map((row) => row.responder_name)).toEqual(['אבי לוי', 'דנה כהן'])
+  })
+
   it('includes zero lead km when the odometer delta differs', () => {
     const rows = buildKmDiscrepancyRows(
       [
@@ -303,6 +336,9 @@ describe('resolveLeadKmReplacement', () => {
     ).toEqual({ status: 'invalid' })
     expect(
       resolveLeadKmReplacement({ total_km: 10, odometer_start: null, odometer_end: 118 }),
+    ).toEqual({ status: 'invalid' })
+    expect(
+      resolveLeadKmReplacement({ total_km: 10, odometer_start: 100, odometer_end: null }),
     ).toEqual({ status: 'invalid' })
   })
 })

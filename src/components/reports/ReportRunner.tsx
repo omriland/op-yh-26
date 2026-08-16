@@ -348,12 +348,15 @@ function ReportTable({
               key={row.id}
               onClick={row.eventId && onOpenEvent ? () => onOpenEvent(row.eventId!) : undefined}
             >
-              {kind.columns.map((column, index) => (
+              {kind.columns.map((column, index) => {
+                const isActionCell = Boolean(kind.action && actionColumnId === column.id)
+                return (
                 <td
                   key={column.id}
                   className={column.numeric ? 'num mono' : undefined}
+                  onClick={isActionCell ? (event) => event.stopPropagation() : undefined}
                 >
-                  {kind.action && actionColumnId === column.id ? (
+                  {isActionCell ? (
                     <ReportActionValue
                       kind={kind}
                       row={row}
@@ -364,7 +367,8 @@ function ReportTable({
                     row.values[index] ?? '—'
                   )}
                 </td>
-              ))}
+                )
+              })}
             </tr>
           ))}
         </tbody>

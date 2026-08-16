@@ -2944,7 +2944,7 @@ textarea.field__input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
+  width: 100%;
   min-height: 44px;
   margin: 0;
   padding: 0;

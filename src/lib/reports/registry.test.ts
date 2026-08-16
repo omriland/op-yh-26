@@ -57,6 +57,14 @@ describe('REPORT_KINDS', () => {
     expect(kind?.hasPeriodPicker).toBe(true)
     expect(kind?.action?.columnId).toBe('responder_km')
     expect(kind?.action?.hoverText).toBe('החלפת הקילומטרים של האחמ״ש במספר זה')
+    expect(kind?.action?.confirmTitle).toBe('החלפת קילומטרים?')
+    const confirmBody = kind?.action?.confirmBody({
+      id: 'row-1',
+      values: [],
+      actionValue: 18,
+    })
+    expect(confirmBody).toContain('18')
+    expect(confirmBody).toContain('לפי מד האוץ של המתנדב')
     expect(kind?.columns.map((column) => column.header)).toEqual([
       'מספר אירוע',
       'תאריך',
