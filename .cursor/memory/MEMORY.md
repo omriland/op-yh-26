@@ -160,8 +160,10 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 
 - Linked (2026-08-09): GitHub `omriland/yhpz-2026`, branch `infra/bootstrap`
 - Build env set: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (all contexts); `NODE_VERSION=22`
-- **Security headers (2026-08-16):** `netlify.toml` sets HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` (camera/mic/geo/payment off). CSP deferred (Fonts/Maps/PostHog/Supabase).
-- **Edge CORS allowlist (2026-08-16):** functions reject `*`; reflect Origin only for `yahpz.com` / www, `yahpaz-2026.netlify.app`, Netlify `*--yahpaz-2026.netlify.app` previews, and `localhost:5173` / `127.0.0.1:5173`. Shared: `supabase/functions/_shared/cors.ts`. **Requires Edge Function redeploy** to take effect on Supabase.
+- **Security headers (2026-08-16):** `netlify.toml` sets HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` (camera/mic/geo/payment off). CSP deferred (Fonts/Maps/PostHog/Supabase). **LIVE on https://yahpz.com** (merged PR #9 → `infra/bootstrap`; browser smoke PASS, clean console).
+- **Edge CORS allowlist (2026-08-16):** functions reject `*`; reflect Origin only for `yahpz.com` / www, `yahpaz-2026.netlify.app`, Netlify `*--yahpaz-2026.netlify.app` previews, and `localhost:5173` / `127.0.0.1:5173`. Shared: `supabase/functions/_shared/cors.ts`. **Code on `infra/bootstrap`; live Edge still `*` until redeploy** (needs `SUPABASE_ACCESS_TOKEN`). Workflow: `.github/workflows/deploy-edge-functions.yml` (skips if secret missing).
+- **Dependabot (2026-08-16):** weekly npm updates via `.github/dependabot.yml` on `infra/bootstrap`.
+
 
 ## Auth URLs
 
