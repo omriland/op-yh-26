@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, ClipboardList, ListChecks, Plus, Search } from 'lucide-react'
+import { ClipboardList, ListChecks, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { textIncludesQuery } from '../lib/searchQuery'
 import {
@@ -21,8 +21,11 @@ import {
   participationStamp,
   viewerStamp,
   type EventStatus,
+  type StampDescriptor,
 } from '../lib/status'
 import { formatDayHeading } from '../lib/format'
+import { MINE_LOGGED_WINDOW_DAYS, partitionMineList } from '../lib/mineListSections'
+import { jerusalemToday } from '../lib/shifts'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
 import { DateGroup, DateGroups } from '../components/ui/DateGroups'
@@ -61,6 +64,8 @@ export function EventsPage({
   const [searchIds, setSearchIds] = useState<ReadonlySet<string> | null>(null)
   const [searchExtras, setSearchExtras] = useState<EventListItem[]>([])
   const [reloadKey, setReloadKey] = useState(0)
+  const [searching, setSearching] = useState(false)
+  const [loggedWindows, setLoggedWindows] = useState(1)
 
   useEffect(() => {
     let active = true
@@ -85,9 +90,14 @@ export function EventsPage({
   }, [asTable, scope, user, reloadKey])
 
   useEffect(() => {
+    setLoggedWindows(1)
+  }, [reloadKey, scope])
+
+  useEffect(() => {
     if (scope !== 'unit') {
       setSearchIds(null)
       setSearchExtras([])
+      setSearching(false)
       return
     }
 
@@ -95,6 +105,7 @@ export function EventsPage({
     if (!trimmed) {
       setSearchIds(null)
       setSearchExtras([])
+      setSearching(false)
       return
     }
 
@@ -102,6 +113,7 @@ export function EventsPage({
 
     setSearchIds(new Set())
     setSearchExtras([])
+    setSearching(true)
 
     let cancelled = false
     const handle = window.setTimeout(() => {
@@ -124,12 +136,14 @@ export function EventsPage({
           if (!cancelled) {
             setSearchExtras(extras)
             setSearchIds(new Set(ids))
+            setSearching(false)
           }
         })
         .catch(() => {
           if (cancelled) return
           setSearchIds(null)
           setSearchExtras([])
+          setSearching(false)
           show('חיפוש האירועים נכשל. נסו שוב.', 'alert')
         })
     }, 250)
@@ -175,6 +189,16 @@ export function EventsPage({
   }, [events, filter, query, scope, user?.id, searchIds, searchExtras])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
+  const mineSections = useMemo(() => {
+    if (scope !== 'mine' || !events) return null
+    return partitionMineList(events, {
+      dateOf: (event) => event.event_date,
+      bucket: (event) =>
+        ownParticipation(event, user?.id) !== 'done' ? 'pending' : 'logged',
+      today: jerusalemToday(),
+      windowsLoaded: loggedWindows,
+    })
+  }, [events, loggedWindows, scope, user?.id])
   const openMineCount = useMemo(() => {
     if (scope !== 'mine' || !events) return 0
     return events.filter((event) => ownParticipation(event, user?.id) !== 'done').length
@@ -275,9 +299,56 @@ export function EventsPage({
         ) : (
           <EventListSkeleton />
         )
+      ) : searching ? (
+        <SearchLoadingState />
+      ) : scope === 'mine' && mineSections ? (
+        <DateGroups>
+          <DateGroup heading="אירועים ממתינים לתיעוד">
+            <div className="stack-4">
+              {mineSections.pending.length === 0 ? (
+                <p className="t-body text-secondary mine-section-empty">
+                  מברוק! אין לך עוד אירועים לתעד כרגע
+                </p>
+              ) : (
+                <EventCards
+                  events={mineSections.pending}
+                  stampFor={stampFor}
+                  onOpen={onOpen}
+                  onFill={onFill}
+                  userId={user?.id}
+                />
+              )}
+            </div>
+          </DateGroup>
+          <DateGroup heading="אירועים שתועדו">
+            <div className="stack-4">
+              {mineSections.logged.length === 0 ? (
+                <p className="t-body text-secondary mine-section-empty">
+                  אין אירועים שתועדו בתקופה זו
+                </p>
+              ) : (
+                <EventCards
+                  events={mineSections.logged}
+                  stampFor={stampFor}
+                  onOpen={onOpen}
+                  onFill={onFill}
+                  userId={user?.id}
+                />
+              )}
+              {mineSections.hasMoreLogged ? (
+                <Button
+                  variant="secondary"
+                  block
+                  onClick={() => setLoggedWindows((windows) => windows + 1)}
+                >
+                  {`הצג ${MINE_LOGGED_WINDOW_DAYS} יום נוספים`}
+                </Button>
+              ) : null}
+            </div>
+          </DateGroup>
+        </DateGroups>
       ) : visible.length === 0 ? (
         <ListEmptyState
-          scope={scope}
           filtered={filter !== 'all' || query.trim() !== ''}
           canCreate={canCreate && Boolean(onCreate)}
           onCreate={onCreate}
@@ -292,23 +363,7 @@ export function EventsPage({
         <DateGroups>
           {grouped.map(([day, items]) => (
             <DateGroup key={day} heading={formatDayHeading(day)}>
-              <ul className="stack-3">
-                {items.map((event) => {
-                  const mineStatus =
-                    scope === 'mine' ? ownParticipation(event, user?.id) : null
-                  const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
-                  return (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      stamp={stampFor(event)}
-                      onOpen={onOpen}
-                      onFill={fillLabel && onFill ? onFill : undefined}
-                      fillLabel={fillLabel ?? undefined}
-                    />
-                  )
-                })}
-              </ul>
+              <EventCards events={items} stampFor={stampFor} onOpen={onOpen} />
             </DateGroup>
           ))}
         </DateGroups>
@@ -317,14 +372,23 @@ export function EventsPage({
   )
 }
 
+function SearchLoadingState() {
+  return (
+    <div aria-busy="true" aria-live="polite">
+      <EmptyState
+        icon={<Search size={40} strokeWidth={1.75} aria-hidden="true" />}
+        title="טוען אירועים…"
+      />
+    </div>
+  )
+}
+
 function ListEmptyState({
-  scope,
   filtered,
   canCreate,
   onCreate,
   onClear,
 }: {
-  scope: 'unit' | 'mine'
   filtered: boolean
   canCreate: boolean
   onCreate?: () => void
@@ -340,16 +404,6 @@ function ListEmptyState({
             ניקוי סינון
           </Button>
         }
-      />
-    )
-  }
-
-  if (scope === 'mine') {
-    return (
-      <EmptyState
-        icon={<CheckCircle2 size={40} strokeWidth={1.75} aria-hidden="true" />}
-        title="אין דיווחים שממתינים לך"
-        caption="כשתשובצו לאירוע, הוא יופיע כאן."
       />
     )
   }
@@ -376,6 +430,39 @@ function openMineSummary(count: number, ready: boolean): string {
   if (count === 1) return 'יש לך אירוע אחד לתעד.'
   if (count === 2) return 'יש לך שני אירועים לתעד.'
   return `יש לך ${count} אירועים לתעד.`
+}
+
+function EventCards({
+  events,
+  stampFor,
+  onOpen,
+  onFill,
+  userId,
+}: {
+  events: EventListItem[]
+  stampFor: (event: EventListItem) => StampDescriptor
+  onOpen: (eventId: string) => void
+  onFill?: (eventId: string) => void
+  userId?: string
+}) {
+  return (
+    <ul className="stack-3">
+      {events.map((event) => {
+        const mineStatus = userId ? ownParticipation(event, userId) : null
+        const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
+        return (
+          <EventCard
+            key={event.id}
+            event={event}
+            stamp={stampFor(event)}
+            onOpen={onOpen}
+            onFill={fillLabel && onFill ? onFill : undefined}
+            fillLabel={fillLabel ?? undefined}
+          />
+        )
+      })}
+    </ul>
+  )
 }
 
 function groupByDate(events: EventListItem[]): [string, EventListItem[]][] {

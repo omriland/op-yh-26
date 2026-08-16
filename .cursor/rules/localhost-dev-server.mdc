@@ -1,0 +1,33 @@
+---
+description: Never kill or restart the user's localhost Vite server
+alwaysApply: true
+---
+
+# Localhost stays running
+
+The user keeps `npm run dev` (Vite, usually `http://localhost:5173`) running. **Do not touch it.**
+
+## Never do this without asking first
+
+- `kill`, `pkill`, `killall`, `fuser -k`, or `lsof … | xargs kill` on `node`, `vite`, or ports `5173` / `4173`
+- Stop, restart, or replace an existing `npm run dev` / `vite` / `vite preview` process
+- Start a second Vite on the same port (it will steal or fail the user's server)
+- Clear / reuse the terminal that is already serving localhost
+
+## Do this instead
+
+- Assume HMR picks up file edits. Do not restart the server after code changes.
+- Check the terminals folder before starting any long-running process. If Vite is already up, leave it.
+- Run tests with `npx vitest run` / `npx tsc --noEmit` — these do not need the dev server.
+- If a restart is truly required (e.g. `.env.local` change), **ask the user first** and wait for yes.
+
+## Example
+
+```bash
+# ❌ BAD — frees the port by killing the user's server
+lsof -ti :5173 | xargs kill
+pkill -f vite
+
+# ✅ GOOD — inspect only; never signal the process
+# Read the terminals folder. If localhost is already serving, continue the task.
+```

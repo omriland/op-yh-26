@@ -1,5 +1,5 @@
 import type { ParticipationStatus } from './status'
-import { jerusalemToday } from './shifts'
+import { isShiftPendingLog, jerusalemToday } from './shifts'
 import { supabase } from './supabase'
 
 export type NavAttention = {
@@ -25,11 +25,7 @@ export function hasOpenMineShifts(
   shifts: ShiftAttentionRow[],
   today: string = jerusalemToday(),
 ): boolean {
-  return shifts.some(
-    (shift) =>
-      shift.shift_date <= today &&
-      (shift.odometer_start == null || shift.odometer_end == null),
-  )
+  return shifts.some((shift) => isShiftPendingLog(shift, today))
 }
 
 /** Appended to nav labels for screen readers when a red attention dot is shown. */

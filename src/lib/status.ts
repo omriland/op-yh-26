@@ -26,12 +26,24 @@ const EVENT_STAMPS: Record<EventStatus, StampDescriptor> = {
   done: { label: 'הושלם', tone: 'done' },
 }
 
-export const EVENT_FILTERS: { value: EventStatus | 'all'; label: string }[] = [
+export const EVENT_FILTERS: { value: EventStatus | 'all'; label: string; tip?: string }[] = [
   { value: 'all', label: 'הכול' },
-  { value: 'in_progress', label: 'ממתין לתיעוד' },
-  { value: 'partial', label: 'תועד חלקית' },
-  { value: 'done', label: 'הושלם' },
-  { value: 'draft', label: 'אירוע בהזנה' },
+  {
+    value: 'in_progress',
+    label: 'ממתין לתיעוד',
+    tip: 'הוזן ע"י אחמש וטרם תועד ע"י מתנדב',
+  },
+  {
+    value: 'partial',
+    label: 'תועד חלקית',
+    tip: 'מתנדב החל בתיעוד אך לא השלים אותו',
+  },
+  { value: 'done', label: 'הושלם', tip: 'אירוע סגור שתועד במלואו' },
+  {
+    value: 'draft',
+    label: 'אירוע בהזנה',
+    tip: 'טיוטה נשמרה ע"י אחמ"ש. טרם זמין למתנדב לתיעוד',
+  },
 ]
 
 export function eventStamp(status: EventStatus): StampDescriptor {

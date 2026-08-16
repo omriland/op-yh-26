@@ -21,6 +21,18 @@ export function formatDate(value: string | Date): string {
   return dateFormatter.format(toDate(value)).replace(/\//g, '.')
 }
 
+/** Hebrew weekday letter: א'…ו', ש' for Saturday. */
+const HEBREW_WEEKDAY_LETTERS = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"] as const
+
+export function hebrewWeekdayLetter(value: string | Date): string {
+  return HEBREW_WEEKDAY_LETTERS[calendarDate(value).getDay()] ?? ''
+}
+
+/** `16.08.2026 (א')` */
+export function formatDateWithWeekday(value: string | Date): string {
+  return `${formatDate(value)} (${hebrewWeekdayLetter(value)})`
+}
+
 /** DD.MM.YYYY, HH:mm */
 export function formatDateTime(value: string | Date): string {
   return dateTimeFormatter.format(toDate(value)).replace(/\//g, '.')
@@ -159,6 +171,14 @@ export function initials(fullName: string): string {
 
 function toDate(value: string | Date): Date {
   return value instanceof Date ? value : new Date(value)
+}
+
+/** YYYY-MM-DD as a local calendar day — avoids UTC off-by-one on weekday. */
+function calendarDate(value: string | Date): Date {
+  if (value instanceof Date) return value
+  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return toDate(value)
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
 }
 
 function startOfDay(date: Date): Date {

@@ -38,6 +38,7 @@ import { TextField } from '../components/ui/TextField'
 import { TimeField } from '../components/ui/TimeField'
 import { Toggle } from '../components/ui/Toggle'
 import { EventListSkeleton } from '../components/ui/Skeleton'
+import { captureEvent } from '../lib/posthog'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 import {
@@ -229,6 +230,10 @@ export function EventFormPage({
   }
 
   function finishAfterSave(eventIdSaved: string, options?: PersistOptions) {
+    captureEvent('event_saved', {
+      event_id: eventIdSaved,
+      action: options?.createNew ? 'save_and_new' : 'save',
+    })
     show('האירוע נשמר', 'done')
     if (options?.createNew) {
       resetToCreateForm()

@@ -16,7 +16,8 @@ import {
   stripPasswordSetupFromUrl,
   type PasswordSetupReason,
 } from './passwordSetup'
-import { clearImpersonationStash } from './impersonationStash'
+import { IMPERSONATION_CHANGE_EVENT, clearImpersonationStash } from './impersonationStash'
+import { identifyPosthogUser, resetPosthogUser } from './posthog'
 import { passwordStrengthError } from './passwordRules'
 import { supabase } from './supabase'
 
@@ -230,6 +231,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const [impersonationTick, setImpersonationTick] = useState(0)
+  useEffect(() => {
+    const onChange = () => setImpersonationTick((n) => n + 1)
+    window.addEventListener(IMPERSONATION_CHANGE_EVENT, onChange)
+    return () => window.removeEventListener(IMPERSONATION_CHANGE_EVENT, onChange)
+  }, [])
+
+  useEffect(() => {
+    if (loading) return
+    if (!session?.user) return
+    identifyPosthogUser({
+      userId: session.user.id,
+      email: profile?.email,
+      name: profile?.full_name,
+      callsign: profile?.callsign,
+      roles,
+    })
+  }, [loading, session, profile, roles, impersonationTick])
+
   const signIn = useCallback(async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
@@ -340,6 +360,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearImpersonationStash()
     clearPasswordSetupIntent()
     setPasswordSetupReason(null)
+    resetPosthogUser()
     await supabase.auth.signOut()
   }, [])
 

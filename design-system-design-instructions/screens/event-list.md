@@ -14,7 +14,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 
 - Top app bar (standard).
 - Title row: `אירועים` (`--type-title`) at inline-start; if role can create → primary button `אירוע חדש` (icon-plus + label) at inline-end. On narrow widths the button may compress to icon-only 44×44 with `aria-label="אירוע חדש"`.
-- Filter row: horizontally scrollable chips (`scrollbar-hide`), height 36 px, secondary-chip chrome: `הכול` · `ממתין לתיעוד` · `תועד חלקית` · `הושלם` · `אירוע בהזנה`. Active chip = `--accent-subtle` bg + `--accent` text + `--accent` border. These are filters, NOT stamps — they use normal chip chrome, not stamp styling.
+- Filter row: horizontally scrollable chips (`scrollbar-hide`), height 36 px, secondary-chip chrome: `הכול` · `ממתין לתיעוד` · `תועד חלקית` · `הושלם` · `אירוע בהזנה`. Active chip = `--accent-subtle` bg + `--accent` text + `--accent` border. These are filters, NOT stamps — they use normal chip chrome, not stamp styling. Status chips (not `הכול`) show an instant Command hover tip with the status meaning.
 - List: event cards (per `06-components.md`), gap `--space-3`, grouped by date with sticky group headers (`--type-label`, `--text-muted`, e.g. `היום · 09.08.2026`).
 - Bottom tab bar: `אירועים` (active) · `האירועים שלי` (if shift-lead and/or responder — leads also go on events) · `ניהול` (admin only) · `פרופיל`.
 

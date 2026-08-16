@@ -8,6 +8,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { StampChip } from '../components/ui/StampChip'
 import { PasswordField, TextField } from '../components/ui/TextField'
+import { captureEvent } from '../lib/posthog'
 
 type Mode = 'signin' | 'reset' | 'reset-sent' | 'set-password' | 'password-set'
 
@@ -55,7 +56,12 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
     setError(null)
     const result = await signIn(email.trim(), password)
     setBusy(false)
-    if (result.error) setError(result.error)
+    if (result.error) {
+      captureEvent('login_failed')
+      setError(result.error)
+    } else {
+      captureEvent('login_succeeded')
+    }
   }
 
   async function onReset(event: FormEvent) {
@@ -95,6 +101,7 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
       setError(result.error)
       return
     }
+    captureEvent('password_set')
     setPassword('')
     setConfirmPassword('')
     setMode('password-set')

@@ -1,4 +1,4 @@
-import { formatDate, formatPlate, monoClass } from '../../lib/format'
+import { formatDate, formatPlate, hebrewWeekdayLetter, monoClass } from '../../lib/format'
 import {
   SHIFT_KIND_LABELS,
   VEHICLE_TYPE_LABELS,
@@ -39,6 +39,7 @@ export function ShiftCard({ shift, onOpen }: ShiftCardProps) {
         </span>
         <span className="event-card__meta">
           <span className="mono">{formatDate(shift.shift_date)}</span>
+          {` (${hebrewWeekdayLetter(shift.shift_date)})`}
         </span>
       </button>
     </li>

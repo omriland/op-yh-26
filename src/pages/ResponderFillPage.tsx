@@ -28,6 +28,7 @@ import { StampChip } from '../components/ui/StampChip'
 import { TextAreaField } from '../components/ui/TextAreaField'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
+import { captureEvent } from '../lib/posthog'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 
@@ -187,6 +188,10 @@ export function ResponderFillPage({
       first?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
     }
+    captureEvent('responder_fill_completed', {
+      event_id: ctx.eventId,
+      via_token: Boolean(fillToken),
+    })
     show('הדיווח הושלם', 'done')
     onCompleted()
   }

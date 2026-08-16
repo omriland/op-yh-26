@@ -12,3 +12,5 @@ alwaysApply: true
 - Visual language: **"רשומה" (Official Record) design system — single source of truth: `design-system-design-instructions/`** (read `00-how-to-use.md` first, follow its contract). The old hebrew-card-manager / Responders TLV reference is dead — do not use it.
 - Spec: `docs/superpowers/specs/2026-08-09-yahpaz-volunteers-events-design.md`
 - Do not commit secrets (`.env.local`, API tokens pasted in chat)
+- Do not kill/restart the user's localhost Vite server — see `localhost-dev-server.mdc`
+- Small tasks: implement directly; skip spec/plan/brainstorm — see `small-tasks-just-implement.mdc`

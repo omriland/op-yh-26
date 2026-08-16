@@ -770,6 +770,11 @@ textarea.field__input {
   display: none;
 }
 
+.chip-tip {
+  flex: none;
+  display: inline-flex;
+}
+
 .chip {
   flex: none;
   height: 36px;
@@ -1494,6 +1499,11 @@ textarea.field__input {
 
 .mine-insight__summary {
   color: var(--text-secondary);
+}
+
+.mine-section-empty {
+  margin: 0;
+  padding-block: var(--space-3);
 }
 
 /* Headers must be siblings under .event-groups (not wrapped with that

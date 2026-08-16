@@ -1,7 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { digitsOnly, formatLastLogin } from './format'
+import { digitsOnly, formatDateWithWeekday, formatLastLogin, hebrewWeekdayLetter } from './format'
 
 const NOW = new Date('2026-08-10T12:00:00')
+
+describe('hebrewWeekdayLetter', () => {
+  it('uses א׳–ו׳ and ש׳ for Saturday', () => {
+    expect(hebrewWeekdayLetter('2026-08-16')).toBe("א'")
+    expect(hebrewWeekdayLetter('2026-08-17')).toBe("ב'")
+    expect(hebrewWeekdayLetter('2026-08-21')).toBe("ו'")
+    expect(hebrewWeekdayLetter('2026-08-15')).toBe("ש'")
+  })
+})
+
+describe('formatDateWithWeekday', () => {
+  it('puts the weekday letter in brackets after the date', () => {
+    expect(formatDateWithWeekday('2026-08-16')).toBe("16.08.2026 (א')")
+  })
+})
 
 describe('digitsOnly', () => {
   it('keeps digits and strips letters, signs, and decimals', () => {

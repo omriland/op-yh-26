@@ -28,6 +28,7 @@ import {
   type ShiftVehicleType,
 } from '../lib/shifts'
 import { digitsOnly, formatDate, formatPlate, monoClass } from '../lib/format'
+import { captureEvent } from '../lib/posthog'
 import { supabase } from '../lib/supabase'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
@@ -526,6 +527,10 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     draftRef.current = nextDraft
     setDraft(nextDraft)
     await reloadLinkable(result.shiftId)
+    captureEvent('shift_saved', {
+      shift_id: result.shiftId,
+      is_new: !current.id,
+    })
     show('המשמרת נשמרה', 'done')
     onSaved(result.shiftId)
   }

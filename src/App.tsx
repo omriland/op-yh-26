@@ -43,6 +43,8 @@ import {
   stashPostLoginFill,
 } from './lib/fillTokenIntent'
 import { loadFillByToken } from './lib/responderFillToken'
+import { captureAppPageview } from './lib/posthog'
+import { appAnalyticsPath } from './lib/posthogAppPath'
 
 type EventSurface =
   | { kind: 'list' }
@@ -194,6 +196,40 @@ function Gate() {
       active = false
     }
   }, [hasMineList, user, attentionRefreshKey])
+
+  const analyticsPath = useMemo(
+    () =>
+      appAnalyticsPath({
+        loading: loading || !fillBootDone || tokenFill.status === 'checking',
+        signedIn: Boolean(session),
+        passwordSetup: Boolean(passwordSetupReason),
+        tokenFill: tokenFill.status === 'idle' ? 'idle' : tokenFill.status,
+        tokenEventId: tokenFill.status === 'ready' ? tokenFill.eventId : undefined,
+        otp: loginOtp.state,
+        legalPage,
+        view,
+        eventKind: eventSurface.kind,
+        eventId: eventSurface.kind === 'list' ? undefined : eventSurface.eventId,
+        shiftKind: shiftSurface.kind,
+        shiftId: shiftSurface.kind === 'list' ? undefined : shiftSurface.shiftId,
+      }),
+    [
+      loading,
+      fillBootDone,
+      tokenFill,
+      session,
+      passwordSetupReason,
+      loginOtp.state,
+      legalPage,
+      view,
+      eventSurface,
+      shiftSurface,
+    ],
+  )
+
+  useEffect(() => {
+    if (analyticsPath) captureAppPageview(analyticsPath)
+  }, [analyticsPath])
 
   useEffect(() => {
     if (!session || passwordSetupReason) {
@@ -627,6 +663,7 @@ function Gate() {
         <ShiftsPage
           key={sectionReset}
           scope={shiftScope}
+          asTable={Boolean(commandShell && shiftScope === 'unit')}
           canManage={manages && shiftScope === 'unit'}
           onOpen={(shiftId) => setShiftSurface({ kind: 'detail', shiftId })}
           onCreate={

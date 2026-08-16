@@ -1,0 +1,27 @@
+---
+description: Small tasks — implement directly; skip design/spec/plan process
+alwaysApply: true
+---
+
+# Small tasks: just implement
+
+User instruction overrides Superpowers process skills (brainstorming, writing-plans, executing-plans, design specs) for **small** work.
+
+## Treat as small — implement immediately
+
+- Copy, labels, RTL/CSS tweaks, one-screen layout fixes
+- Clear bugfixes with an obvious expected result
+- Wiring an existing pattern (toast, dialog, form field, report row)
+- Rules, memory, config, one-liner env/docs notes
+- A few files, no new product surface, no schema/RLS, no open product question
+
+For these: **do not** write a spec, plan, or design doc; **do not** switch to plan mode; **do not** run brainstorming. Edit the code and verify.
+
+## Still do the full process
+
+- New screens, flows, or roles
+- Schema / RLS / Edge Function / auth changes
+- Ambiguous UX or more than one reasonable product choice
+- Anything the user explicitly asks to design or spec first
+
+If unsure whether it is small, implement the obvious slice and ask one question — do not start a design document.
