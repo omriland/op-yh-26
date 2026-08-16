@@ -4078,3 +4078,30 @@ textarea.field__input {
     margin-inline-end: auto;
   }
 }
+
+/* ============================================================
+   Profile lifetime stats
+   ============================================================ */
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.profile-stats__cell {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-4);
+}
+
+.profile-stats__cell + .profile-stats__cell {
+  border-inline-start: 1px solid var(--stroke-hairline);
+}
+
+.profile-stats__value {
+  display: block;
+  margin-block-start: var(--space-2);
+}
+
+.profile-stats__caption {
+  margin-block-start: var(--space-4);
+}

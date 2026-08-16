@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { supabase } from '../lib/supabase'
-import { formatPhone, monoClass } from '../lib/format'
+import { formatNumber, formatPhone, monoClass } from '../lib/format'
+import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
@@ -67,6 +68,8 @@ export function ProfilePage() {
     )
   }
 
+  const statsUpdated = formatLifetimeStatsUpdatedAt(profile.lifetime_stats_updated_at)
+
   return (
     <div>
       <h1 className="t-title">פרופיל</h1>
@@ -109,6 +112,29 @@ export function ProfilePage() {
               )}
             </div>
           </div>
+        </section>
+
+        <section className="card">
+          <div className="form-section">
+            <h2 className="form-section__heading">סיכום פעילות</h2>
+          </div>
+          <div className="profile-stats" style={{ marginBlockStart: 'var(--space-4)' }}>
+            <div className="profile-stats__cell">
+              <p className="t-label text-secondary">אירועים שטופלו</p>
+              <span className="profile-stats__value t-num-lg">
+                {formatNumber(profile.lifetime_event_count)}
+              </span>
+            </div>
+            <div className="profile-stats__cell">
+              <p className="t-label text-secondary">קילומטרים</p>
+              <span className="profile-stats__value t-num-lg">
+                {formatNumber(profile.lifetime_km)}
+              </span>
+            </div>
+          </div>
+          {statsUpdated ? (
+            <p className="profile-stats__caption t-caption text-muted">{statsUpdated}</p>
+          ) : null}
         </section>
 
         <section className="card">
