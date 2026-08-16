@@ -353,6 +353,33 @@ export function hasEventMinimum(
   return Object.keys(validateEventMinimum(draft, districts)).length === 0
 }
 
+export function canPersistEventDraft(
+  draft: EventFormDraft,
+  districts: LookupOption[] = [],
+  options?: { allowPartial?: boolean },
+): EventFormErrors {
+  if (options?.allowPartial) {
+    return draft.event_date ? {} : { event_date: 'יש לבחור תאריך.' }
+  }
+  return validateEventMinimum(draft, districts)
+}
+
+export function eventForeignIds(
+  draft: EventFormDraft,
+  options?: { allowPartial?: boolean },
+): {
+  event_type_id: string | null
+  road_id: string | null
+  district_id: string | null
+} {
+  const allowPartial = Boolean(options?.allowPartial)
+  return {
+    event_type_id: draft.event_type_id || (allowPartial ? null : draft.event_type_id),
+    road_id: draft.road_id || (allowPartial ? null : draft.road_id),
+    district_id: draft.district_id || null,
+  }
+}
+
 /** Persist place ids/coords only when a Google pick is current. */
 export function buildLocationPayload(draft: EventFormDraft): {
   location: string | null
@@ -411,13 +438,15 @@ export async function saveEventForm(input: {
   districts: LookupOption[]
   isAdmin: boolean
   previousIsCancelled: boolean
+  allowPartial?: boolean
 }): Promise<
   | { ok: true; eventId: string; status: EventStatus; assignmentIds: Record<string, string> }
   | { ok: false; error: string; fieldErrors?: EventFormErrors }
 > {
   const { draft, shiftLeadId, vehicleKinds, districts, isAdmin, previousIsCancelled } = input
+  const allowPartial = Boolean(input.allowPartial)
 
-  const fieldErrors = validateEventMinimum(draft, districts)
+  const fieldErrors = canPersistEventDraft(draft, districts, { allowPartial })
   if (Object.keys(fieldErrors).length > 0) {
     const needsLocation = Boolean(fieldErrors.location)
     return {
@@ -446,13 +475,14 @@ export async function saveEventForm(input: {
   const nextStatus = deriveEventStatus(draft)
 
   const locationPayload = buildLocationPayload(draft)
+  const foreignIds = eventForeignIds(draft, { allowPartial })
   const eventPayload = {
     event_date: draft.event_date,
     police_event_id: draft.police_event_id.trim() || null,
-    district_id: draft.district_id || null,
+    district_id: foreignIds.district_id,
     patrol_callsign: draft.patrol_callsign.trim() || null,
-    event_type_id: draft.event_type_id,
-    road_id: draft.road_id,
+    event_type_id: foreignIds.event_type_id,
+    road_id: foreignIds.road_id,
     location: locationPayload.location,
     location_place_id: locationPayload.location_place_id,
     location_lat: locationPayload.location_lat,

@@ -174,11 +174,11 @@ Opening a half-filled event is allowed — that is how a teammate sees that some
 
 ## Lists and grouping
 
-Fill states on a shift-born event: **ריק** / **בתהליך** (not empty, not `done`) / **הושלם** (`status = done`).
+Fill states on a shift-born event: **ממתין למילוי פרטים** / **בתהליך** (not empty, not `done`) / **הושלם** (`status = done`).
 
 **המשמרות שלי** — existing buckets (pending / future / logged). Shift card expands to its shift-born events: type, מספר אירוע or `ללא מספר`, fill state, optional `נשמר ע״י …`. Tap event → shared fill. Tap shift header / `מילוי משמרת` → debrief. Future: expand for view only.
 
-**האירועים שלי** — still by date. Standalone cards unchanged. Shift-born events sit under a shift subheader (date · שם משמרת · רכב). Tap → shared fill.
+**האירועים שלי** — buckets by logging state. Standalone cards unchanged. Shift-born events sit under a shift subheader (`משמרת` · date · שם משמרת · רכב), collapsed by default; tap to expand. Tap event → shared fill.
 
 **אירועים (unit, lead/admin)** — shift-born rows appear with chip **ממשמרת**. Open → shared fill, not the standalone event form. No “link to shift”.
 

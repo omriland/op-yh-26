@@ -252,12 +252,17 @@ export async function fetchEventDetail(eventId: string): Promise<EventDetail | n
   return (data as unknown as EventDetail) ?? null
 }
 
-/** Hard-delete. RLS: admin only. Cascades event_responders + treated vehicles. */
+/** Hard-delete. RLS: admin, or shift-lead on a recent event with no responders. Cascades children. */
 export async function deleteEvent(
   eventId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await supabase.from('events').delete().eq('id', eventId)
-  if (error) {
+  const { data, error } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', eventId)
+    .select('id')
+    .maybeSingle()
+  if (error || !data) {
     return { ok: false, error: 'מחיקת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
   }
   return { ok: true }
@@ -319,7 +324,7 @@ export function shiftGroupTitle(event: EventListItem): string {
       ? formatPlate(shift.personal_vehicle.plate_number)
       : null
   const head = plate ? `${kind} · ${vehicle} · ${plate}` : `${kind} · ${vehicle}`
-  return `${formatDate(shift.shift_date)} · ${head}`
+  return `משמרת · ${formatDate(shift.shift_date)} · ${head}`
 }
 
 export function groupMineEventCards(events: EventListItem[]): MineEventBlock[] {

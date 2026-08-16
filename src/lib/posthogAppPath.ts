@@ -13,7 +13,7 @@ export type AnalyticsPathInput = {
   shiftId?: string
 }
 
-/** Virtual path for this view-state SPA — real URLs stay on `/`. */
+/** Virtual path for analytics. Cockpit is also a real URL (`/cockpit`, `/cockpit/:id`). */
 export function appAnalyticsPath(input: AnalyticsPathInput): string | null {
   if (input.loading || input.tokenFill === 'checking') return null
   if (input.legalPage === 'privacy') return '/privacy'
@@ -43,6 +43,10 @@ export function appAnalyticsPath(input: AnalyticsPathInput): string | null {
     }
     if (input.shiftKind === 'detail' && input.shiftId) return `${root}/${input.shiftId}`
     return root
+  }
+
+  if (input.view === 'cockpit') {
+    return input.eventId ? `/cockpit/${input.eventId}` : '/cockpit'
   }
 
   if (input.view === 'users') return '/users'

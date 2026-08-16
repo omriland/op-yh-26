@@ -4,28 +4,33 @@ import { describe, expect, it } from 'vitest'
 import { DateGroup, DateGroups } from './DateGroups'
 
 describe('DateGroups', () => {
-  it('keeps date headers as siblings so sticky is not trapped in a one-card section', () => {
+  it('scopes each sticky header to its own group so it cannot stay pinned over later sections', () => {
     const html = renderToStaticMarkup(
       createElement(
         DateGroups,
         null,
         createElement(
           DateGroup,
-          { heading: '30.11.2026' },
+          { heading: 'אירועים הממתינים לתיעוד' },
           createElement('ul', { className: 'stack-3' }, createElement('li', { className: 'card' }, 'א')),
         ),
         createElement(
           DateGroup,
-          { heading: '29.11.2026' },
+          { heading: 'אירועים שתועדו' },
           createElement('ul', { className: 'stack-3' }, createElement('li', { className: 'card' }, 'ב')),
         ),
       ),
     )
 
     expect(html.startsWith('<div class="event-groups">')).toBe(true)
-    expect(html).not.toContain('<section')
-    expect(html).toMatch(
-      /<h2 class="group-head">30\.11\.2026<\/h2><ul class="stack-3">[\s\S]*<\/ul><h2 class="group-head">29\.11\.2026<\/h2>/,
+    expect(html).toContain(
+      '<section class="event-group"><h2 class="group-head">אירועים הממתינים לתיעוד</h2><ul class="stack-3"><li class="card">א</li></ul></section>',
+    )
+    expect(html).toContain(
+      '<section class="event-group"><h2 class="group-head">אירועים שתועדו</h2><ul class="stack-3"><li class="card">ב</li></ul></section>',
+    )
+    expect(html).not.toMatch(
+      /<h2 class="group-head">אירועים הממתינים לתיעוד<\/h2><ul class="stack-3">[\s\S]*<\/ul><h2 class="group-head">אירועים שתועדו<\/h2>/,
     )
   })
 })

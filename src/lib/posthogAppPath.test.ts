@@ -54,5 +54,13 @@ describe('appAnalyticsPath', () => {
         shiftId: 'sh-1',
       }),
     ).toBe('/my-shifts/sh-1')
+    expect(
+      appAnalyticsPath({
+        signedIn: true,
+        otp: 'ok',
+        view: 'cockpit',
+        eventId: 'evt-9',
+      }),
+    ).toBe('/cockpit/evt-9')
   })
 })

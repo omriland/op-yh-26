@@ -23,6 +23,7 @@ import { AdminUsersPage } from './pages/AdminUsersPage'
 import { FuelQuarterPage } from './pages/FuelQuarterPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { UnitBroadcastPage } from './pages/UnitBroadcastPage'
+import { CockpitPage } from './pages/CockpitPage'
 import { EventDetailPage } from './pages/EventDetailPage'
 import { EventFormPage } from './pages/EventFormPage'
 import { EventsPage } from './pages/EventsPage'
@@ -45,6 +46,7 @@ import {
 import { loadFillByToken } from './lib/responderFillToken'
 import { captureAppPageview } from './lib/posthog'
 import { appAnalyticsPath } from './lib/posthogAppPath'
+import { applyCockpitUrl, parseCockpitPath } from './lib/cockpitPath'
 
 type EventSurface =
   | { kind: 'list' }
@@ -57,14 +59,23 @@ type ShiftSurface =
   | { kind: 'detail'; shiftId: string }
   | { kind: 'form'; shiftId?: string }
 
+function readCockpitBoot(): { eventId?: string } | null {
+  if (typeof window === 'undefined') return null
+  return parseCockpitPath(window.location.pathname)
+}
+
 function Gate() {
   const { session, loading, roles, passwordSetupReason, user, profile } = useAuth()
   const isDesktop = useIsDesktop()
-  const [view, setView] = useState<AppView>('mine')
+  const cockpitBoot = useRef(readCockpitBoot()).current
+  const [view, setView] = useState<AppView>(cockpitBoot ? 'cockpit' : 'mine')
   const [legalPage, setLegalPage] = useState<'privacy' | null>(null)
   const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
   const [shiftSurface, setShiftSurface] = useState<ShiftSurface>({ kind: 'list' })
   const [sectionReset, setSectionReset] = useState(0)
+  const [cockpitEventId, setCockpitEventId] = useState<string | undefined>(
+    cockpitBoot?.eventId,
+  )
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
     myShifts: false,
@@ -173,6 +184,27 @@ function Gate() {
   // Leads also go on events — same personal list/fill surface, not only the responder role.
   const hasMineList = responds || roles.includes('shift_lead')
 
+  useEffect(() => {
+    if (loginOtp.state !== 'ok') return
+    applyCockpitUrl(window.history, window.location, cockpitEventId, view === 'cockpit' && manages)
+  }, [loginOtp.state, view, cockpitEventId, manages])
+
+  useEffect(() => {
+    function onPop() {
+      const parsed = parseCockpitPath(window.location.pathname)
+      if (parsed) {
+        setLegalPage(null)
+        setView('cockpit')
+        setCockpitEventId(parsed.eventId)
+        return
+      }
+      setCockpitEventId(undefined)
+      setView((current) => (current === 'cockpit' ? 'mine' : current))
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
   // Refresh attention when returning to list surfaces after fill/save.
   const attentionRefreshKey = `${eventSurface.kind}:${shiftSurface.kind}:${view}`
 
@@ -209,7 +241,12 @@ function Gate() {
         legalPage,
         view,
         eventKind: eventSurface.kind,
-        eventId: eventSurface.kind === 'list' ? undefined : eventSurface.eventId,
+        eventId:
+          view === 'cockpit'
+            ? cockpitEventId
+            : eventSurface.kind === 'list'
+              ? undefined
+              : eventSurface.eventId,
         shiftKind: shiftSurface.kind,
         shiftId: shiftSurface.kind === 'list' ? undefined : shiftSurface.shiftId,
       }),
@@ -224,6 +261,7 @@ function Gate() {
       view,
       eventSurface,
       shiftSurface,
+      cockpitEventId,
     ],
   )
 
@@ -297,6 +335,14 @@ function Gate() {
 
     // Shift-lead tools (admins also get these via manages).
     if (manages) {
+      if (isDesktop) {
+        list.push({
+          view: 'cockpit',
+          label: 'הקוקפיט',
+          icon: NAV_ICONS.cockpit,
+          section: 'כלים לאחמ״ש',
+        })
+      }
       list.push({
         view: 'events',
         label: 'אירועים',
@@ -361,6 +407,7 @@ function Gate() {
       case 'events':
       case 'shifts':
       case 'reports':
+      case 'cockpit':
         return manages
       case 'users':
       case 'unit_broadcast':
@@ -492,7 +539,9 @@ function Gate() {
   const scope: 'unit' | 'mine' = manages && activeView !== 'mine' ? 'unit' : 'mine'
   const shiftScope: 'unit' | 'mine' = manages && activeView !== 'my_shifts' ? 'unit' : 'mine'
 
+  const onCockpit = activeView === 'cockpit'
   const immersiveSurface =
+    onCockpit ||
     (onEventHost && (eventSurface.kind === 'form' || eventSurface.kind === 'fill')) ||
     (onShifts && eventOverlay) ||
     (onShifts && (shiftSurface.kind === 'form' || shiftSurface.kind === 'detail'))
@@ -500,8 +549,8 @@ function Gate() {
   // Desktop always keeps sidebar nav on list/admin/profile (fixes my-shifts with no navbar).
   const shellWithSidebar = isDesktop && !immersiveSurface
   const shellTheme: 'command' | 'field' =
-    shellWithSidebar && (manages || isAdminHub) ? 'command' : 'field'
-  const shellNarrow = isDesktop && immersiveSurface
+    onCockpit || (shellWithSidebar && (manages || isAdminHub)) ? 'command' : 'field'
+  const shellNarrow = isDesktop && immersiveSurface && !onCockpit
   const commandShell = shellWithSidebar && shellTheme === 'command'
 
   function navigate(next: AppView) {
@@ -512,6 +561,7 @@ function Gate() {
     setLegalPage(null)
     setEventSurface(nextState.eventSurface)
     setShiftSurface(nextState.shiftSurface)
+    setCockpitEventId(undefined)
     setView(nextState.view)
     setSectionReset(nextState.sectionReset)
   }
@@ -555,6 +605,12 @@ function Gate() {
     >
       {legalPage === 'privacy' ? (
         <PrivacyPolicyPage onBack={() => setLegalPage(null)} />
+      ) : onCockpit ? (
+        <CockpitPage
+          key={sectionReset}
+          selectedEventId={cockpitEventId}
+          onSelectEvent={setCockpitEventId}
+        />
       ) : (
       <>
         {onReports ? (

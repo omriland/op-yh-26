@@ -27,7 +27,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 |---|---|---|
 | תאריך | `DD.MM.YYYY` | `--type-numeric` |
 | מספר אירוע | police_event_id | mono |
-| סוג אירוע | lookup label | |
+| סוג אירוע | lookup label | shift-born appends ` (משמרת)` |
 | כביש / מיקום | road + location | truncate 1 line |
 | אחמ״ש | shift-lead name | `—` when `origin = shift` (no meaningful lead on shift-born events) |
 | כוננים | done-count fraction `2/3` | mono |

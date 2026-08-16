@@ -3,7 +3,7 @@ import { Button } from '../ui/Button'
 import { formatDate, monoClass } from '../../lib/format'
 import type { StampDescriptor } from '../../lib/status'
 import type { EventListItem } from '../../lib/events'
-import { policeEventLabel, SHIFT_BORN_CHIP } from '../../lib/shiftBornEvents'
+import { policeEventLabel } from '../../lib/shiftBornEvents'
 import { EventTypeLabel } from './EventTypeLabel'
 
 type EventCardProps = {
@@ -19,15 +19,12 @@ export function EventCard({ event, stamp, onOpen, onFill, fillLabel }: EventCard
   const place = [event.road?.name, event.location].filter(Boolean).join(' · ')
 
   return (
-    <li className="card stack-3">
+    <li className="card event-card-shell">
       <button type="button" className="event-card" onClick={() => onOpen(event.id)}>
-        <span className="event-card__top">
+        <span className="event-card__type">
           <EventTypeLabel event={event} as="section" fallback="אירוע" />
-          <StampChip {...stamp} />
         </span>
-        <span className="t-body text-secondary">
-          {event.origin === 'shift' ? SHIFT_BORN_CHIP : place || '—'}
-        </span>
+        <span className="event-card__place t-body text-secondary">{place || '—'}</span>
         <span className="event-card__meta">
           <span className="mono">{formatDate(event.event_date)}</span>
           {event.district?.name ? <span>· {event.district.name}</span> : null}
@@ -43,16 +40,25 @@ export function EventCard({ event, stamp, onOpen, onFill, fillLabel }: EventCard
           ) : null}
         </span>
       </button>
+      <button
+        type="button"
+        className="event-card__stamp"
+        onClick={() => onOpen(event.id)}
+        tabIndex={-1}
+      >
+        <StampChip {...stamp} />
+      </button>
       {onFill && fillLabel ? (
-        <Button
-          block
-          onClick={(eventClick) => {
-            eventClick.stopPropagation()
-            onFill(event.id)
-          }}
-        >
-          {fillLabel}
-        </Button>
+        <div className="event-card__fill">
+          <Button
+            onClick={(eventClick) => {
+              eventClick.stopPropagation()
+              onFill(event.id)
+            }}
+          >
+            {fillLabel}
+          </Button>
+        </div>
       ) : null}
     </li>
   )

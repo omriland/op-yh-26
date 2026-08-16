@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import {
   applyCancelledChange,
+  canPersistEventDraft,
   deriveEventStatus,
   emptyEventDraft,
   fetchAssignableUsers,
@@ -14,7 +15,6 @@ import {
   mergeAssignmentIds,
   saveEventForm,
   totalTreatedQuantity,
-  validateEventMinimum,
   type AssignableUser,
   type EventFormDraft,
   type EventFormErrors,
@@ -47,18 +47,23 @@ import {
   districtCodeById,
   districtNeedsPlacesLocation,
 } from '../lib/systemDistricts'
+import { COCKPIT_AUTOSAVE_MS } from '../lib/cockpit'
 import { LocationPlacesField } from '../components/events/LocationPlacesField'
 
 type EventFormPageProps = {
   eventId?: string
   /** Expand + scroll this assigned responder when the form opens. */
   focusResponderId?: string
+  /** Inbox embed: no back/save chrome, persist incomplete drafts. */
+  variant?: 'page' | 'cockpit'
   onCancel: () => void
   onSaved: (eventId: string) => void
   /** After save, stay on a blank create form for the next event. */
   onSavedAndCreateNew: () => void
   /** Keep parent route in sync after the first autosave creates the row. */
   onEventId?: (eventId: string) => void
+  /** Quiet persist — refresh the גלגלת without leaving the form. */
+  onPersisted?: (eventId: string) => void
 }
 
 type SavePulse = 'idle' | 'saving' | 'saved' | 'error'
@@ -73,16 +78,19 @@ type PersistOptions = {
 export function EventFormPage({
   eventId,
   focusResponderId,
+  variant = 'page',
   onCancel,
   onSaved,
   onSavedAndCreateNew,
   onEventId,
+  onPersisted,
 }: EventFormPageProps) {
   const { user, profile, roles } = useAuth()
   const { show } = useToast()
   const isAdmin = roles.includes('admin')
   const canManage = isAdmin || roles.includes('shift_lead')
   const assignSearchRef = useRef<HTMLInputElement>(null)
+  const assignSectionRef = useRef<HTMLDivElement>(null)
 
   const [lookups, setLookups] = useState<EventLookups | null>(null)
   const [roster, setRoster] = useState<AssignableUser[]>([])
@@ -264,18 +272,21 @@ export function EventFormPage({
         return true
       }
 
-      if (!hasEventMinimum(current, currentLookups.districts)) {
+      const allowPartial = variant === 'cockpit'
+      const persistErrors = canPersistEventDraft(current, currentLookups.districts, {
+        allowPartial,
+      })
+      if (Object.keys(persistErrors).length > 0) {
         // Don't create a row until date + type + road are set; stay quiet on background autosave.
         if (!current.id && !options?.navigate && !options?.createNew && !options?.revealErrors) {
           setSavePulse('idle')
           return false
         }
-        const fieldErrors = validateEventMinimum(current, currentLookups.districts)
-        setErrors(fieldErrors)
+        setErrors(persistErrors)
         setSavePulse('error')
         if (options?.navigate || options?.createNew || options?.revealErrors) {
           show(
-            fieldErrors.location
+            persistErrors.location
               ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור אירוע.'
               : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
             'alert',
@@ -309,6 +320,7 @@ export function EventFormPage({
         districts: currentLookups.districts,
         isAdmin,
         previousIsCancelled,
+        allowPartial,
       })
 
       if (!result.ok) {
@@ -365,6 +377,7 @@ export function EventFormPage({
       setDraft(nextDraft)
       if (!current.id) skipReloadForId.current = result.eventId
       onEventId?.(result.eventId)
+      onPersisted?.(result.eventId)
 
       const stillDirty = JSON.stringify(nextDraft) !== JSON.stringify(savedWithIds)
       if (stillDirty) {
@@ -465,12 +478,21 @@ export function EventFormPage({
 
   function openAssigner() {
     setPickerOpen(true)
-    queueMicrotask(() => assignSearchRef.current?.focus())
+    queueMicrotask(() => {
+      assignSearchRef.current?.focus()
+      if (variant === 'cockpit') {
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        assignSectionRef.current?.scrollIntoView({
+          block: 'start',
+          behavior: reduceMotion ? 'auto' : 'smooth',
+        })
+      }
+    })
   }
 
   function assignResponder(person: AssignableUser) {
     if (!lookups || !draft) return
-    if (!hasEventMinimum(draft, lookups.districts)) {
+    if (variant !== 'cockpit' && !hasEventMinimum(draft, lookups.districts)) {
       void persistLatest({ revealErrors: true })
       return
     }
@@ -553,8 +575,28 @@ export function EventFormPage({
     leaveConfirm || removeTarget !== null || overnightPrompt !== null || pickerOpen
 
   useDesktopFormSubmit(() => void persistExplicit(), {
-    enabled: loadState === 'ready' && Boolean(draft) && !saving && !dialogOpen,
+    enabled:
+      variant !== 'cockpit' &&
+      loadState === 'ready' &&
+      Boolean(draft) &&
+      !saving &&
+      !dialogOpen,
   })
+
+  useEffect(() => {
+    if (variant !== 'cockpit' || !draft || loadState !== 'ready') return
+    if (JSON.stringify(draft) === baseline) return
+    const timer = window.setTimeout(() => {
+      void persistLatest()
+    }, COCKPIT_AUTOSAVE_MS)
+    return () => window.clearTimeout(timer)
+  }, [variant, draft, baseline, loadState])
+
+  useEffect(() => {
+    return () => {
+      if (variant === 'cockpit') void persistLatest()
+    }
+  }, [variant])
 
   async function leaveForm() {
     if (dirty) {
@@ -621,27 +663,33 @@ export function EventFormPage({
       : savePulse === 'saved'
         ? 'נשמר'
         : savePulse === 'error'
-          ? needsMinimum
-            ? placesLocation
-              ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום.'
-              : 'יש למלא תאריך, סוג אירוע וכביש.'
-            : 'השמירה נכשלה — נסו שוב'
-          : needsMinimum && !draft.id
-            ? placesLocation
-              ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור את האירוע.'
-              : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור את האירוע.'
-            : displayStatus === 'draft'
-              ? 'נשמר כאירוע בהזנה עד שישובץ כונן.'
-              : 'השינויים נשמרים אוטומטית.'
+          ? variant === 'cockpit'
+            ? 'השמירה נכשלה — נסו שוב'
+            : needsMinimum
+              ? placesLocation
+                ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום.'
+                : 'יש למלא תאריך, סוג אירוע וכביש.'
+              : 'השמירה נכשלה — נסו שוב'
+          : variant === 'cockpit'
+            ? 'השינויים נשמרים אוטומטית.'
+            : needsMinimum && !draft.id
+              ? placesLocation
+                ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור את האירוע.'
+                : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור את האירוע.'
+              : displayStatus === 'draft'
+                ? 'נשמר כאירוע בהזנה עד שישובץ כונן.'
+                : 'השינויים נשמרים אוטומטית.'
 
   return (
     <div className="event-form">
       <div className="event-form__panel" data-theme="field">
         <header className="event-form__head">
+          {variant === 'cockpit' ? null : (
           <button type="button" className="event-form__back" onClick={requestCancel}>
             <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" />
             <span>חזרה</span>
           </button>
+          )}
 
             <div className="event-form__title-row">
             <div className="event-form__title-block">
@@ -864,7 +912,7 @@ export function EventFormPage({
               <span>כוננים</span>
             </h2>
             <div className="form-section__fields">
-              <div className="responder-assign">
+              <div className="responder-assign" ref={assignSectionRef}>
                 <div className="responder-assign__toolbar">
                   <p className="t-label text-secondary">
                     {draft.responders.length === 0
@@ -1071,6 +1119,7 @@ export function EventFormPage({
           </section>
         </div>
 
+        {variant === 'cockpit' ? null : (
         <FormStickyFooter>
           <div className="event-form__footer-actions">
             <Button
@@ -1092,6 +1141,7 @@ export function EventFormPage({
             </Button>
           </div>
         </FormStickyFooter>
+        )}
       </div>
 
       <Dialog

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   COUNT_DECREASE_BLOCKED,
+  SHIFT_BORN_TYPE_MARK,
   STALE_SAVE_MESSAGE,
   eventLeadDisplayName,
+  eventTypeName,
   isShiftBornEventEmpty,
   lastSavedByLabel,
   shiftBornFillStamp,
@@ -44,8 +46,11 @@ describe('shiftBornFillStamp', () => {
     })
   })
 
-  it('marks empty open events as empty', () => {
-    expect(shiftBornFillStamp(snapshot())).toEqual({ label: 'ריק', tone: 'draft' })
+  it('marks empty open events as waiting for details', () => {
+    expect(shiftBornFillStamp(snapshot())).toEqual({
+      label: 'ממתין למילוי פרטים',
+      tone: 'draft',
+    })
   })
 
   it('marks non-empty open events as in progress', () => {
@@ -72,6 +77,15 @@ describe('lastSavedByLabel', () => {
     expect(lastSavedByLabel('עמרי')).toBe('נשמר ע״י עמרי')
     expect(lastSavedByLabel(null)).toBeNull()
     expect(lastSavedByLabel('  ')).toBeNull()
+  })
+})
+
+describe('eventTypeName', () => {
+  it('appends (משמרת) next to the type on shift-born events', () => {
+    expect(SHIFT_BORN_TYPE_MARK).toBe('(משמרת)')
+    expect(eventTypeName('גרירה', 'shift')).toBe('גרירה (משמרת)')
+    expect(eventTypeName('גרירה', 'manual')).toBe('גרירה')
+    expect(eventTypeName('גרירה')).toBe('גרירה')
   })
 })
 

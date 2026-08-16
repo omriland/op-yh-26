@@ -3,9 +3,15 @@ import type { EventStatus, StampDescriptor } from './status'
 export const STALE_SAVE_MESSAGE = 'מישהו שמר לפניך — רעננו'
 export const COUNT_DECREASE_BLOCKED = 'לא ניתן להקטין — קיימים אירועים שמולאו'
 export const SHIFT_BORN_CHIP = 'ממשמרת'
+/** Shown in brackets next to the event type on list cards/tables. */
+export const SHIFT_BORN_TYPE_MARK = '(משמרת)'
 export const NO_POLICE_EVENT_ID = 'ללא מספר'
 
 export type EventOrigin = 'manual' | 'shift'
+
+export function eventTypeName(name: string, origin?: EventOrigin): string {
+  return origin === 'shift' ? `${name} ${SHIFT_BORN_TYPE_MARK}` : name
+}
 
 export type ShiftBornEventSnapshot = {
   status: EventStatus
@@ -34,7 +40,7 @@ export function isShiftBornEventEmpty(event: ShiftBornEventSnapshot): boolean {
 
 export function shiftBornFillStamp(event: ShiftBornEventSnapshot): StampDescriptor {
   if (event.status === 'done') return { label: 'הושלם', tone: 'done' }
-  if (isShiftBornEventEmpty(event)) return { label: 'ריק', tone: 'draft' }
+  if (isShiftBornEventEmpty(event)) return { label: 'ממתין למילוי פרטים', tone: 'draft' }
   return { label: 'בתהליך', tone: 'partial' }
 }
 

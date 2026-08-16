@@ -113,10 +113,11 @@ Groups fields under a rule: hairline spanning full width; heading (`--type-secti
 Base: `--surface-raised`, hairline outline, radius `--radius-md`, padding `--space-4` (mobile) / `--space-5` (desktop). No shadow (elevation 1).
 
 **Event card** (list item): 
-- Row 1: event type (`--type-section`) at inline-start + stamp chip at inline-end.
+- Row 1: event type (`--type-section`) at inline-start + stamp chip at inline-end. Shift-born: type is `{name} (משמרת)`.
 - Row 2: road + location, `--type-body`, `--text-secondary`.
 - Row 3 (`--type-caption`, `--text-muted`): date · שלוחה · מספר אירוע (mono).
 - Entire card is one tap target; pressed state = `--surface-sunken` flash. Chevron NOT needed (the card is obviously tappable; keep it clean).
+- Mine-list open card: primary `השלמת הפרטים שלי` / `המשך מילוי הפרטים` — full-width under the body on mobile; on desktop shrink-wrap under the stamp at inline-end.
 
 **Responder card** (inside event detail): header row = avatar (28 px) + name + callsign (mono, caption) + stamp at inline-end; body = ledger rows of that responder's fields. When it's the viewer's own open card, a primary button `השלמת הפרטים שלי` sits at the card footer, full-width on mobile.
 

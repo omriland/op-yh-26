@@ -1,7 +1,10 @@
 import type { EventListItem } from '../../lib/events'
+import { eventTypeName } from '../../lib/shiftBornEvents'
 
 type EventTypeLabelProps = {
-  event: Pick<EventListItem, 'event_type' | 'is_cancelled'>
+  event: Pick<EventListItem, 'event_type' | 'is_cancelled'> & {
+    origin?: EventListItem['origin']
+  }
   /** Card title uses section tone; table cell uses body. */
   as?: 'section' | 'body'
   fallback?: string
@@ -13,7 +16,7 @@ export function EventTypeLabel({
   as = 'body',
   fallback = '—',
 }: EventTypeLabelProps) {
-  const name = event.event_type?.name ?? fallback
+  const name = eventTypeName(event.event_type?.name ?? fallback, event.origin)
   const cancelled = Boolean(event.is_cancelled)
 
   return (

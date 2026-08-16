@@ -568,7 +568,18 @@ textarea.field__input {
   }
 }
 
+.event-card-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'body stamp'
+    'fill fill';
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+}
+
 .event-card {
+  grid-area: body;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -587,6 +598,39 @@ textarea.field__input {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+.event-card__stamp {
+  grid-area: stamp;
+  align-self: start;
+  justify-self: end;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.event-card__fill {
+  grid-area: fill;
+}
+
+.event-card__fill .btn {
+  width: 100%;
+}
+
+@media (min-width: 1025px) {
+  .event-card-shell:has(.event-card__fill) {
+    grid-template-areas:
+      'body stamp'
+      'body fill';
+  }
+
+  .event-card__fill {
+    justify-self: end;
+  }
+
+  .event-card__fill .btn {
+    width: auto;
+  }
 }
 
 .event-card__meta {
@@ -1427,6 +1471,22 @@ textarea.field__input {
   padding-block-end: 0;
 }
 
+/* Same inset on the start edge: padding-block-start would leave group headers
+   floating mid-list instead of flush with the app bar. */
+.shell__main:has(.event-groups) {
+  padding-block-start: 0;
+}
+
+.shell__main:has(.event-groups) > * {
+  padding-block-start: var(--space-6);
+}
+
+@media (min-width: 1025px) {
+  .shell__main:has(.event-groups) > * {
+    padding-block-start: var(--space-12);
+  }
+}
+
 .shell__main:has(.event-form__footer) > .event-form,
 .shell__main:has(.event-form__footer) > .responder-fill {
   flex: 1 0 auto;
@@ -1546,19 +1606,18 @@ textarea.field__input {
   padding-block: var(--space-3);
 }
 
-/* Headers must be siblings under .event-groups (not wrapped with that
-   day's cards). A one-card <section> clamps position:sticky to the card
-   and the date bar paints through the event while scrolling. */
+/* Each .event-group is the sticky containing block. Sibling headers under
+   one parent stay pinned across later sections (pending title over logged cards). */
 .event-groups {
   display: block;
 }
 
-.event-groups > .group-head + * {
-  margin-block-end: var(--space-4);
+.event-group {
+  overflow: visible;
 }
 
-.event-groups > .group-head + *:last-child {
-  margin-block-end: 0;
+.event-group + .event-group {
+  margin-block-start: var(--space-4);
 }
 
 .group-head {
@@ -2059,6 +2118,16 @@ textarea.field__input {
   width: 40px;
   height: 40px;
   color: var(--text-muted);
+}
+
+.empty__media {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.btn--compact-icon svg {
+  transform: scale(0.7);
 }
 
 .skeleton {
@@ -4144,4 +4213,182 @@ textarea.field__input {
 
 .profile-stats__caption {
   margin-block-start: var(--space-4);
+}
+
+/* ============================================================
+   Shift-lead cockpit (קוקפיט)
+   ============================================================ */
+
+.shell__main:has(> .cockpit) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.shell__main > .cockpit {
+  max-width: none;
+  height: 100%;
+}
+
+.cockpit {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--surface-page);
+}
+
+.cockpit__reel {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-height: 0;
+  max-height: 40%;
+  border-block-end: 1px solid var(--stroke-hairline);
+  background: var(--surface-page);
+}
+
+.cockpit__reel-head {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-block-end: 1px solid var(--stroke-hairline);
+}
+
+.cockpit__reel-body {
+  padding: var(--space-4);
+}
+
+.cockpit__reel-empty {
+  margin: 0;
+}
+
+.cockpit__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.cockpit__row {
+  display: flex;
+  align-items: stretch;
+  border-block-end: 1px solid var(--stroke-hairline);
+}
+
+.cockpit__row.is-current {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.cockpit__delete {
+  flex: none;
+  align-self: start;
+  margin-block-start: var(--space-2);
+  margin-inline-end: var(--space-2);
+}
+
+.cockpit__delete-hint {
+  color: var(--status-alert);
+}
+
+.cockpit__item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  border-radius: 0;
+}
+
+.cockpit__item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.cockpit__item-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cockpit__item-stamp {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cockpit__item[aria-current='true'] {
+  background: transparent;
+  color: inherit;
+}
+
+.cockpit__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.cockpit__stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior-y: contain;
+  padding: var(--space-4);
+  padding-block-end: 50vh;
+  scroll-padding-block: var(--space-4);
+}
+
+.cockpit__stage:has(> .empty) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-block-end: var(--space-4);
+}
+
+.cockpit__stage .event-form {
+  justify-content: flex-start;
+}
+
+.cockpit__stage .event-form__panel {
+  padding-block-end: var(--space-8);
+}
+
+@media (hover: hover) {
+  .cockpit__row:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+@media (min-width: 1025px) {
+  .cockpit {
+    flex-direction: row;
+  }
+
+  .cockpit__reel {
+    flex: 0 0 calc(var(--sidebar-width) * 1.5);
+    max-height: none;
+    height: 100%;
+    border-block-end: 0;
+    border-inline-end: 1px solid var(--stroke-hairline);
+  }
+
+  .cockpit__stage {
+    padding: var(--space-8);
+    padding-block-end: 50vh;
+    scroll-padding-block: var(--space-8);
+  }
+
+  .cockpit__stage:has(> .empty) {
+    padding-block-end: var(--space-8);
+  }
 }

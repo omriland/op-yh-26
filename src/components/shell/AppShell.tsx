@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Eye,
   Fuel,
+  Gauge,
   ListChecks,
   LogOut,
   Megaphone,
@@ -61,6 +62,7 @@ export type AppView =
   | 'mine'
   | 'shifts'
   | 'my_shifts'
+  | 'cockpit'
   | 'users'
   | 'unit_broadcast'
   | 'reports'
@@ -116,7 +118,7 @@ export function AppShell({
       <a className="skip-link" href="#main">
         דילוג לתוכן
       </a>
-      <TopAppBar onNavigate={onNavigate} onHome={onHome} />
+      <TopAppBar view={view} onNavigate={onNavigate} onHome={onHome} />
       <ImpersonationBar onRestored={onHome} />
       <RolePreviewBar onRestored={onHome} />
       <UpdateAvailableNotice />
@@ -147,6 +149,7 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   mine: <ListChecks size={24} strokeWidth={1.75} aria-hidden="true" />,
   shifts: <CalendarClock size={24} strokeWidth={1.75} aria-hidden="true" />,
   my_shifts: <CalendarCheck size={24} strokeWidth={1.75} aria-hidden="true" />,
+  cockpit: <Gauge size={24} strokeWidth={1.75} aria-hidden="true" />,
   users: <Users size={24} strokeWidth={1.75} aria-hidden="true" />,
   unit_broadcast: <Megaphone size={24} strokeWidth={1.75} aria-hidden="true" />,
   reports: <BarChart3 size={24} strokeWidth={1.75} aria-hidden="true" />,
@@ -161,9 +164,11 @@ function isNavCurrent(entry: NavEntry, view: AppView) {
 
 /** Always Command ink — the constant institutional band, in both theme contexts. */
 function TopAppBar({
+  view,
   onNavigate,
   onHome,
 }: {
+  view: AppView
   onNavigate: (view: AppView) => void
   onHome: () => void
 }) {
@@ -239,9 +244,15 @@ function TopAppBar({
           onClick={onHome}
           aria-label="חזרה למסך הראשי"
         >
-          <span className="appbar__system">אבן דרך</span>
-          <span className="appbar__brand-rule" aria-hidden="true" />
-          <span className="appbar__unit">היחידה הארצית לפינוי צירים</span>
+          <span className="appbar__system">
+            {view === 'cockpit' ? 'אבן דרך - הקוקפיט' : 'אבן דרך'}
+          </span>
+          {view === 'cockpit' ? null : (
+            <>
+              <span className="appbar__brand-rule" aria-hidden="true" />
+              <span className="appbar__unit">היחידה הארצית לפינוי צירים</span>
+            </>
+          )}
         </button>
         <div className="menu-anchor" ref={anchorRef}>
           <button

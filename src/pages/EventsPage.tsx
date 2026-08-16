@@ -35,6 +35,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { FilterChips } from '../components/ui/FilterChips'
 import { EventCard } from '../components/events/EventCard'
+import { MineShiftEventGroup } from '../components/events/MineShiftEventGroup'
 import { EventsTable } from '../components/events/EventsTable'
 import { useToast } from '../components/ui/Toast'
 
@@ -329,6 +330,7 @@ export function EventsPage({
                   onOpen={onOpen}
                   onFill={onFill}
                   userId={user?.id}
+                  collapsibleShiftGroups
                 />
               )}
             </div>
@@ -346,6 +348,7 @@ export function EventsPage({
                   onOpen={onOpen}
                   onFill={onFill}
                   userId={user?.id}
+                  collapsibleShiftGroups
                 />
               )}
               {mineSections.hasMoreLogged ? (
@@ -451,37 +454,49 @@ function EventCards({
   onOpen,
   onFill,
   userId,
+  collapsibleShiftGroups = false,
 }: {
   events: EventListItem[]
   stampFor: (event: EventListItem) => StampDescriptor
   onOpen: (eventId: string) => void
   onFill?: (eventId: string) => void
   userId?: string
+  collapsibleShiftGroups?: boolean
 }) {
   const blocks = groupMineEventCards(events)
   return (
     <ul className="stack-3">
       {blocks.map((block) => {
         if (block.kind === 'shift') {
+          const groupedCards = block.events.map((event) => {
+            const mineStatus = userId ? ownParticipation(event, userId) : null
+            const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
+            return (
+              <EventCard
+                key={event.id}
+                event={event}
+                stamp={stampFor(event)}
+                onOpen={onOpen}
+                onFill={fillLabel && onFill ? onOpen : undefined}
+                fillLabel={fillLabel ?? undefined}
+              />
+            )
+          })
+          if (collapsibleShiftGroups) {
+            return (
+              <MineShiftEventGroup
+                key={block.key}
+                title={block.title}
+                eventCount={block.events.length}
+              >
+                {groupedCards}
+              </MineShiftEventGroup>
+            )
+          }
           return (
             <li key={block.key} className="card stack-3">
               <p className="t-label text-secondary">{block.title}</p>
-              <ul className="stack-3">
-                {block.events.map((event) => {
-                  const mineStatus = userId ? ownParticipation(event, userId) : null
-                  const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
-                  return (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      stamp={stampFor(event)}
-                      onOpen={onOpen}
-                      onFill={fillLabel && onFill ? onOpen : undefined}
-                      fillLabel={fillLabel ?? undefined}
-                    />
-                  )
-                })}
-              </ul>
+              <ul className="stack-3">{groupedCards}</ul>
             </li>
           )
         }
