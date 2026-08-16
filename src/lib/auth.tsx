@@ -33,6 +33,9 @@ export type Profile = {
   must_change_password: boolean
   otp_login_enabled: boolean
   otp_users_page_enabled: boolean
+  lifetime_event_count: number
+  lifetime_km: number
+  lifetime_stats_updated_at: string | null
 }
 
 type AuthState = {
@@ -62,7 +65,7 @@ async function loadProfileAndRoles(userId: string) {
     supabase
       .from('profiles')
       .select(
-        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled',
+        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled, lifetime_event_count, lifetime_km, lifetime_stats_updated_at',
       )
       .eq('id', userId)
       .maybeSingle(),
@@ -76,6 +79,12 @@ async function loadProfileAndRoles(userId: string) {
           ...row,
           otp_login_enabled: Boolean(row.otp_login_enabled),
           otp_users_page_enabled: Boolean(row.otp_users_page_enabled),
+          lifetime_event_count: Number(row.lifetime_event_count ?? 0),
+          lifetime_km: Number(row.lifetime_km ?? 0),
+          lifetime_stats_updated_at:
+            typeof row.lifetime_stats_updated_at === 'string'
+              ? row.lifetime_stats_updated_at
+              : null,
         }
       : null,
     roles: (roleRows ?? []).map((r) => r.role as AppRole),
