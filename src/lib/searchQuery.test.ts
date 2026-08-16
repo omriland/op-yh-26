@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { mapEnKeysToHe, searchQueryVariants, textIncludesQuery } from './searchQuery'
+import {
+  filterSelectOptions,
+  mapEnKeysToHe,
+  searchQueryVariants,
+  textIncludesQuery,
+} from './searchQuery'
 import { filterReportCatalog, queryMatchesText } from './reports/librarySearch'
 
 describe('mapEnKeysToHe', () => {
@@ -47,5 +52,23 @@ describe('filterReportCatalog EN layout', () => {
 
   it('finds a Hebrew report title typed on an English keyboard', () => {
     expect(filterReportCatalog(kinds, 'fpukho').map((kind) => kind.id)).toEqual(['duplicate_events'])
+  })
+})
+
+describe('filterSelectOptions', () => {
+  const roads = [
+    { value: '1', label: 'כביש 1' },
+    { value: '4', label: 'כביש 4' },
+    { value: 'h', label: 'כביש החוף' },
+  ]
+
+  it('returns all options when the query is blank', () => {
+    expect(filterSelectOptions(roads, '  ')).toEqual(roads)
+  })
+
+  it('filters by label and accepts English-keyboard Hebrew', () => {
+    expect(filterSelectOptions(roads, '4').map((row) => row.value)).toEqual(['4'])
+    expect(filterSelectOptions(roads, 'החוף').map((row) => row.label)).toEqual(['כביש החוף'])
+    expect(filterSelectOptions(roads, 'fcha 1').map((row) => row.label)).toEqual(['כביש 1'])
   })
 })

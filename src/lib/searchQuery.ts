@@ -59,3 +59,11 @@ export function fieldsMatchQuery(
 ): boolean {
   return fields.some((field) => field != null && textIncludesQuery(String(field), query))
 }
+
+export function filterSelectOptions<T extends { label: string }>(
+  options: readonly T[],
+  query: string,
+): T[] {
+  if (!query.trim()) return [...options]
+  return options.filter((option) => textIncludesQuery(option.label, query))
+}

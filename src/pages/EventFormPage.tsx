@@ -800,6 +800,8 @@ export function EventFormPage({
                 <SelectField
                   label="כביש"
                   required
+                  searchable
+                  searchPlaceholder="חיפוש כביש"
                   value={draft.road_id}
                   error={errors.road_id}
                   options={lookups.roads.map((row) => ({ value: row.id, label: row.name }))}

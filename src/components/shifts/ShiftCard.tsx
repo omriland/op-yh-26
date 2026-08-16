@@ -30,6 +30,8 @@ function bornSnapshot(event: ShiftBornEventSummary) {
     police_event_id: event.police_event_id,
     treatment_detail: event.treatment_detail,
     treatment_notes: event.treatment_notes,
+    road_id: event.road_id,
+    location: event.location,
     treated_count: event.treated?.length ?? 0,
   }
 }

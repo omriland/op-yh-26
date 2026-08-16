@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   COUNT_DECREASE_BLOCKED,
   STALE_SAVE_MESSAGE,
+  eventLeadDisplayName,
   isShiftBornEventEmpty,
   lastSavedByLabel,
   shiftBornFillStamp,
@@ -30,6 +31,8 @@ describe('isShiftBornEventEmpty', () => {
     expect(isShiftBornEventEmpty(snapshot({ treatment_detail: 'חילוץ' }))).toBe(false)
     expect(isShiftBornEventEmpty(snapshot({ treatment_notes: 'הערה' }))).toBe(false)
     expect(isShiftBornEventEmpty(snapshot({ treated_count: 1 }))).toBe(false)
+    expect(isShiftBornEventEmpty(snapshot({ road_id: 'road-1' }))).toBe(false)
+    expect(isShiftBornEventEmpty(snapshot({ location: 'צומת' }))).toBe(false)
   })
 })
 
@@ -50,6 +53,17 @@ describe('shiftBornFillStamp', () => {
       label: 'בתהליך',
       tone: 'partial',
     })
+  })
+})
+
+describe('eventLeadDisplayName', () => {
+  it('hides אחמ״ש on shift-born events', () => {
+    expect(eventLeadDisplayName('shift', 'עמרי')).toBeNull()
+  })
+
+  it('keeps the lead name on standalone events', () => {
+    expect(eventLeadDisplayName('manual', 'עמרי')).toBe('עמרי')
+    expect(eventLeadDisplayName('manual', '  ')).toBeNull()
   })
 })
 

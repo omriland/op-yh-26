@@ -17,7 +17,7 @@ Responders need the system to create those events, attach them to the shift, and
 - Assigned responders see today + history; future shifts are view-only (already true)
 - Responder debrief: shift KM + type-counts. **No** “רכבים שטופלו” on the shift
 - Saving counts creates/updates **shift-born** `events` attached to the shift
-- Shift-born events have **no** KM, path, road, or location
+- Shift-born events have **no** KM or path. Responders fill כביש + מיקום on the shared event (optional; not required to save).
 - Shared fill once per event (treatment block + מספר אירוע) by any assigned crew member
 - Optimistic concurrency: stale save rejected; show who last saved
 - Grouped UI: expand a shift on המשמרות שלי; group shift-born events under the shift on האירועים שלי
@@ -48,7 +48,7 @@ Responders need the system to create those events, attach them to the shift, and
 | Overwrite | Optimistic save (`updated_at`); second saver sees «מישהו שמר לפניך — רעננו» |
 | Count changes | Live sync: increase creates empty events; decrease deletes **empty** only; block if a filled event would be dropped |
 | Shift KM / refunds | Patrol: logging only, not in החזר דלק. רכב פרטי: `total_km` added to the plate owner |
-| Shift-born fill fields | Current responder treatment block **minus** path and KM: מספר אירוע, פירוט טיפול, רכבים שטופלו, אמצעי חירום, הערות |
+| Shift-born fill fields | Current responder treatment block **minus** path and KM: מספר אירוע, כביש, מיקום, פירוט טיפול, רכבים שטופלו, אמצעי חירום, הערות |
 | Manual link | Removed. New shift events come only from type-counts |
 | Crew size | 1–3 responders |
 | Identity fields | Unchanged lock: responders cannot change date / שם משמרת / vehicle / plate |
@@ -70,7 +70,7 @@ Responders need the system to create those events, attach them to the shift, and
 
 Check: `(origin = 'manual' AND shift_id IS NULL) OR (origin = 'shift' AND shift_id IS NOT NULL)`.
 
-**Shift-born defaults on create:** `event_date = shifts.shift_date`, `event_type_id` from the count row, `shift_lead_id = shifts.shift_lead_id`, `road_id` / `location` / `district_id` / `location_*` = null, `status = in_progress`. Road and location are **not** required when `origin = shift`.
+**Shift-born defaults on create:** `event_date = shifts.shift_date`, `event_type_id` from the count row, `shift_lead_id = shifts.shift_lead_id` (NOT NULL leftover; **not shown or used** as identity — who the אחמ״ש is does not matter), `road_id` / `location` / `district_id` / `location_*` = null, `status = in_progress`. Road and location start empty and are filled on the shared event; they are **not** required to save when `origin = shift`.
 
 **Standalone create/update validation is unchanged** (date, type, road, location when the system district is selected).
 
@@ -107,6 +107,8 @@ A shift-born event is **empty** iff all of:
 - `police_event_id` is null or blank
 - `treatment_detail` is null or blank
 - `treatment_notes` is null or blank
+- `road_id` is null
+- `location` is null or blank
 - `emergency_means` is false
 - no `event_treated_vehicles` rows with that `event_id`
 
@@ -148,7 +150,7 @@ Save: optimistic update on `shifts`, then `sync_shift_born_events`. Future shift
 
 ### Shift-born event fill (any assigned crew member)
 
-Fields: מספר אירוע, פירוט טיפול, רכבים שטופלו, אמצעי חירום, הערות. No path, KM, כביש, or מיקום.
+Fields: מספר אירוע, כביש, מיקום, פירוט טיפול, רכבים שטופלו, אמצעי חירום, הערות. No path or KM. כביש is the closed-list select; מיקום is free text (Places not required — shift-born events have no שלוחה).
 
 - **שמירה** updates the shared event columns + treated-vehicle rows; status stays `in_progress` unless already `done`
 - **סיום** marks the event `done` and all its participations `done`

@@ -12,6 +12,8 @@ export type ShiftBornEventSnapshot = {
   police_event_id: string | null
   treatment_detail: string | null
   treatment_notes: string | null
+  road_id?: string | null
+  location?: string | null
   treated_count: number
 }
 
@@ -24,6 +26,8 @@ export function isShiftBornEventEmpty(event: ShiftBornEventSnapshot): boolean {
     blank(event.police_event_id) &&
     blank(event.treatment_detail) &&
     blank(event.treatment_notes) &&
+    blank(event.road_id) &&
+    blank(event.location) &&
     event.treated_count <= 0
   )
 }
@@ -43,4 +47,14 @@ export function lastSavedByLabel(name: string | null | undefined): string | null
 export function policeEventLabel(policeEventId: string | null | undefined): string {
   const trimmed = policeEventId?.trim()
   return trimmed ? trimmed : NO_POLICE_EVENT_ID
+}
+
+/** Shift-born events have no meaningful אחמ״ש — the crew shares the fill. */
+export function eventLeadDisplayName(
+  origin: EventOrigin,
+  name: string | null | undefined,
+): string | null {
+  if (origin === 'shift') return null
+  const trimmed = name?.trim()
+  return trimmed ? trimmed : null
 }

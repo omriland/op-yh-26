@@ -16,6 +16,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { StampChip } from '../components/ui/StampChip'
+import { SelectField } from '../components/ui/SelectField'
 import { TextAreaField } from '../components/ui/TextAreaField'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
@@ -171,7 +172,6 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           <Ledger>
             <LedgerRow label="תאריך" value={formatDate(ctx.event.event_date)} numeric />
             <LedgerRow label="סוג אירוע" value={ctx.event.event_type?.name ?? undefined} />
-            <LedgerRow label="אחמ״ש" value={ctx.event.shift_lead?.full_name ?? undefined} />
           </Ledger>
         </section>
 
@@ -184,6 +184,22 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               value={draft.police_event_id}
               disabled={readOnly}
               onChange={(event) => patchDraft({ police_event_id: event.target.value })}
+            />
+            <SelectField
+              label="כביש"
+              searchable
+              searchPlaceholder="חיפוש כביש"
+              value={draft.road_id}
+              disabled={readOnly}
+              options={ctx.roads.map((road) => ({ value: road.id, label: road.name }))}
+              onChange={(event) => patchDraft({ road_id: event.target.value })}
+            />
+            <TextField
+              label="מיקום"
+              placeholder="למשל: מחלף שורק, לכיוון צפון"
+              value={draft.location}
+              disabled={readOnly}
+              onChange={(event) => patchDraft({ location: event.target.value })}
             />
             <TextAreaField
               label="פירוט הטיפול"

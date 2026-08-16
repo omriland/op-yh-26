@@ -2,12 +2,15 @@ import {
   useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Search } from 'lucide-react'
+import { isSelectSearchNavKey, nextActiveIndex } from '../../lib/selectFieldNav'
+import { filterSelectOptions } from '../../lib/searchQuery'
 
 type Option = { value: string; label: string }
 
@@ -23,6 +26,9 @@ type SelectFieldProps = {
   disabled?: boolean
   id?: string
   name?: string
+  /** Filter field at the top of the menu — used for long closed lists like כביש. */
+  searchable?: boolean
+  searchPlaceholder?: string
 }
 
 export function SelectField({
@@ -37,16 +43,20 @@ export function SelectField({
   onChange,
   disabled,
   name,
+  searchable = false,
+  searchPlaceholder = 'חיפוש',
 }: SelectFieldProps) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
   const listboxId = `${fieldId}-listbox`
+  const searchId = `${fieldId}-search`
   const describedBy = error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined
   const selectedValue = typeof value === 'string' ? value : value != null ? String(value) : ''
   const isBlank = Boolean(required) && !selectedValue
   const selected = options.find((option) => option.value === selectedValue)
 
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(-1)
   const [coords, setCoords] = useState<{
     top: number
@@ -57,7 +67,14 @@ export function SelectField({
 
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLUListElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  const visibleOptions = useMemo(
+    () => (searchable ? filterSelectOptions(options, query) : options),
+    [options, query, searchable],
+  )
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) {
@@ -72,7 +89,7 @@ export function SelectField({
       const spaceBelow = window.innerHeight - rect.bottom - 8
       const spaceAbove = rect.top - 8
       const openUp = spaceBelow < 160 && spaceAbove > spaceBelow
-      const maxHeight = Math.min(280, Math.max(120, openUp ? spaceAbove : spaceBelow))
+      const maxHeight = Math.min(searchable ? 360 : 280, Math.max(120, openUp ? spaceAbove : spaceBelow))
       const top = openUp ? Math.max(8, rect.top - maxHeight - 4) : rect.bottom + 4
       setCoords({
         top,
@@ -89,15 +106,20 @@ export function SelectField({
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
     }
-  }, [open, options.length])
+  }, [open, options.length, searchable, visibleOptions.length])
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setQuery('')
+      return
+    }
 
     const selectedIndex = options.findIndex((option) => option.value === selectedValue)
-    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
-    // Defer so the portal listbox exists before focusing.
-    queueMicrotask(() => menuRef.current?.focus())
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : options.length > 0 ? 0 : -1)
+    queueMicrotask(() => {
+      if (searchable) searchRef.current?.focus()
+      else listRef.current?.focus()
+    })
 
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node
@@ -118,20 +140,29 @@ export function SelectField({
       document.removeEventListener('mousedown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, options, selectedValue])
+  }, [open, options, searchable, selectedValue])
 
   useEffect(() => {
     if (!open || activeIndex < 0) return
-    const option = menuRef.current?.querySelector<HTMLElement>(
+    const option = listRef.current?.querySelector<HTMLElement>(
       `[data-option-index="${activeIndex}"]`,
     )
     option?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex, open])
 
+  function closeMenu() {
+    setOpen(false)
+    setQuery('')
+    triggerRef.current?.focus()
+  }
+
   function commit(next: string) {
     onChange?.({ target: { value: next } })
-    setOpen(false)
-    triggerRef.current?.focus()
+    closeMenu()
+  }
+
+  function moveActive(delta: number) {
+    setActiveIndex((index) => nextActiveIndex(index, visibleOptions.length, delta))
   }
 
   function onTriggerKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
@@ -142,15 +173,15 @@ export function SelectField({
     }
   }
 
-  function onMenuKeyDown(event: ReactKeyboardEvent<HTMLUListElement>) {
+  function onListKeyDown(event: ReactKeyboardEvent) {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setActiveIndex((index) => Math.min(options.length - 1, Math.max(0, index) + 1))
+      moveActive(1)
       return
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault()
-      setActiveIndex((index) => Math.max(0, (index < 0 ? options.length : index) - 1))
+      moveActive(-1)
       return
     }
     if (event.key === 'Home') {
@@ -160,20 +191,25 @@ export function SelectField({
     }
     if (event.key === 'End') {
       event.preventDefault()
-      setActiveIndex(options.length - 1)
+      setActiveIndex(visibleOptions.length - 1)
       return
     }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      const option = options[activeIndex]
+      const option = visibleOptions[activeIndex]
       if (option) commit(option.value)
       return
     }
     if (event.key === 'Escape') {
       event.preventDefault()
-      setOpen(false)
-      triggerRef.current?.focus()
+      closeMenu()
     }
+  }
+
+  function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (!isSelectSearchNavKey(event.key)) return
+    event.stopPropagation()
+    onListKeyDown(event)
   }
 
   return (
@@ -208,9 +244,7 @@ export function SelectField({
           }}
           onKeyDown={onTriggerKeyDown}
         >
-          <span className="select-field__value">
-            {selected?.label ?? placeholder}
-          </span>
+          <span className="select-field__value">{selected?.label ?? placeholder}</span>
         </button>
         <span
           className={['field__affix', open ? 'select-field__chevron is-open' : 'select-field__chevron']
@@ -233,56 +267,83 @@ export function SelectField({
 
       {open && coords
         ? createPortal(
-            <ul
+            <div
               ref={menuRef}
-              id={listboxId}
               className="select-field__menu"
-              role="listbox"
-              tabIndex={-1}
-              aria-labelledby={fieldId}
               style={{
                 top: coords.top,
                 left: coords.left,
                 width: coords.width,
                 maxHeight: coords.maxHeight,
               }}
-              onKeyDown={onMenuKeyDown}
             >
-              {options.length === 0 ? (
-                <li className="select-field__empty t-caption text-muted" role="presentation">
-                  אין אפשרויות
-                </li>
-              ) : (
-                options.map((option, index) => {
-                  const isSelected = option.value === selectedValue
-                  const isActive = index === activeIndex
-                  return (
-                    <li key={option.value} role="presentation">
-                      <button
-                        type="button"
-                        role="option"
-                        data-option-index={index}
-                        className={[
-                          'select-field__option',
-                          isSelected ? 'is-selected' : '',
-                          isActive ? 'is-active' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                        aria-selected={isSelected}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        onClick={() => commit(option.value)}
-                      >
-                        <span className="select-field__option-label">{option.label}</span>
-                        {isSelected ? (
-                          <Check size={18} strokeWidth={2} aria-hidden="true" />
-                        ) : null}
-                      </button>
-                    </li>
-                  )
-                })
-              )}
-            </ul>,
+              {searchable ? (
+                <div className="select-field__search">
+                  <label className="search-field" htmlFor={searchId}>
+                    <Search size={20} strokeWidth={1.75} aria-hidden="true" />
+                    <input
+                      ref={searchRef}
+                      id={searchId}
+                      type="search"
+                      value={query}
+                      placeholder={searchPlaceholder}
+                      autoComplete="off"
+                      aria-label={searchPlaceholder}
+                      aria-controls={listboxId}
+                      onChange={(event) => {
+                        setQuery(event.target.value)
+                        setActiveIndex(0)
+                      }}
+                      onKeyDown={onSearchKeyDown}
+                    />
+                  </label>
+                </div>
+              ) : null}
+              <ul
+                ref={listRef}
+                id={listboxId}
+                className="select-field__list"
+                role="listbox"
+                tabIndex={-1}
+                aria-labelledby={fieldId}
+                onKeyDown={onListKeyDown}
+              >
+                {visibleOptions.length === 0 ? (
+                  <li className="select-field__empty t-caption text-muted" role="presentation">
+                    {searchable && query.trim() ? 'אין תוצאות' : 'אין אפשרויות'}
+                  </li>
+                ) : (
+                  visibleOptions.map((option, index) => {
+                    const isSelected = option.value === selectedValue
+                    const isActive = index === activeIndex
+                    return (
+                      <li key={option.value} role="presentation">
+                        <button
+                          type="button"
+                          role="option"
+                          data-option-index={index}
+                          className={[
+                            'select-field__option',
+                            isSelected ? 'is-selected' : '',
+                            isActive ? 'is-active' : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          aria-selected={isSelected}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onClick={() => commit(option.value)}
+                        >
+                          <span className="select-field__option-label">{option.label}</span>
+                          {isSelected ? (
+                            <Check size={18} strokeWidth={2} aria-hidden="true" />
+                          ) : null}
+                        </button>
+                      </li>
+                    )
+                  })
+                )}
+              </ul>
+            </div>,
             document.body,
           )
         : null}

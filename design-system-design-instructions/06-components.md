@@ -44,7 +44,7 @@ Numeric fields (odometer, ק״מ, plate): value in `--type-numeric`; `inputmode=
 
 ## Select / Combobox
 
-Same field chrome as text input. Chevron (mirrored — points down always, but positioned at inline-end). Options menu: elevation-2 overlay, item height 44 px, selected item gets `--accent-subtle` bg + `--accent` text + check icon at inline-end. Closed lists (שלוחה, סוג אירוע, כביש, סוג רכב) are always selects fed by admin data — never free text.
+Same field chrome as text input. Chevron (mirrored — points down always, but positioned at inline-end). Options menu: elevation-2 overlay, item height 44 px, selected item gets `--accent-subtle` bg + `--accent` text + check icon at inline-end. Closed lists (שלוחה, סוג אירוע, כביש, סוג רכב) are always selects fed by admin data — never free text. **כביש** menus include a sticky search field (`חיפוש כביש`) that filters options as you type (Hebrew + English-keyboard variants). Other closed lists stay a plain select.
 
 ## Date input
 

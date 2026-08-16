@@ -131,6 +131,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     Map<string, { full_name: string; callsign: string }>
   >(new Map())
   const [eventTypes, setEventTypes] = useState<LookupOption[]>([])
+  const [roads, setRoads] = useState<LookupOption[]>([])
   const [personalVehicles, setPersonalVehicles] = useState<PersonalVehicleOption[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -189,6 +190,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
 
         setRoster(nextRoster)
         setEventTypes(lookups.eventTypes)
+        setRoads(lookups.roads)
 
         if (existing) {
           const profiles = new Map<string, { full_name: string; callsign: string }>()
@@ -717,11 +719,11 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
               </div>
               {bornRows.length === 0 ? (
                 <p className="t-caption text-muted">
-                  שמרו את מספר האירועים לפי סוג כדי ליצור אירועים למילוי מספר ופרטי טיפול.
+                  שמרו את מספר האירועים לפי סוג כדי ליצור אירועים למילוי מספר, מיקום ופרטי טיפול.
                 </p>
               ) : (
                 <div className="stack-4">
-                  <p className="t-label text-secondary">מספר אירוע ופרטי טיפול</p>
+                  <p className="t-label text-secondary">מספר אירוע, מיקום ופרטי טיפול</p>
                   {bornRows.map((row) => (
                     <div key={row.id} className="stack-3">
                       <TextField
@@ -730,6 +732,24 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                         value={row.draft.police_event_id}
                         onChange={(event) =>
                           patchBornDraft(row.id, { police_event_id: event.target.value })
+                        }
+                      />
+                      <SelectField
+                        label={`כביש · ${row.typeName}`}
+                        searchable
+                        searchPlaceholder="חיפוש כביש"
+                        value={row.draft.road_id}
+                        options={roads.map((road) => ({ value: road.id, label: road.name }))}
+                        onChange={(event) =>
+                          patchBornDraft(row.id, { road_id: event.target.value })
+                        }
+                      />
+                      <TextField
+                        label={`מיקום · ${row.typeName}`}
+                        placeholder="למשל: מחלף שורק, לכיוון צפון"
+                        value={row.draft.location}
+                        onChange={(event) =>
+                          patchBornDraft(row.id, { location: event.target.value })
                         }
                       />
                       <TextAreaField

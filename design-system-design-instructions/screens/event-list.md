@@ -20,7 +20,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 
 ### Desktop (Command)
 
-- Sidebar: `אירועים` (active), `האירועים שלי` (if shift-lead and/or responder), section `ניהול` → `משתמשים`, `הגדרות` (admin only).
+- Sidebar: `אירועים` (active), `האירועים שלי` (if shift-lead and/or responder), section `ניהול` → `משתמשים`, `הגדרות` (admin only). Desktop only: a separate icon-plus (`אירוע חדש` / `משמרת חדשה`) sits at the inline-end of the `אירועים` / `משמרות` rows — same 40 px height as the nav item, not part of the tab hit target. Hidden on the mobile tab bar.
 - Content: title row (title + caption `מציג את 200 האירועים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר` at `--type-caption` / `--text-muted`, then `אירוע חדש` primary) → filter chips + search input (width 280, icon magnifier, placeholder `חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק`) → **table** of the last 200 events by `event_date` (then `created_at`). Search queries the full database and hydrates matching rows that are outside that window.
 
 | Column | Content | Notes |
@@ -29,7 +29,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 | מספר אירוע | police_event_id | mono |
 | סוג אירוע | lookup label | |
 | כביש / מיקום | road + location | truncate 1 line |
-| אחמ״ש | shift-lead name | |
+| אחמ״ש | shift-lead name | `—` when `origin = shift` (no meaningful lead on shift-born events) |
 | כוננים | done-count fraction `2/3` | mono |
 | סטטוס תיעוד | compact pipeline + stamp | event-level position dots + current stamp label (not viewer-relative) |
 

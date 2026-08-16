@@ -16,6 +16,7 @@ import {
   ListChecks,
   LogOut,
   Megaphone,
+  Plus,
   Settings,
   UserCog,
   UserRound,
@@ -33,6 +34,8 @@ import {
   clearRolePreviewStash,
   isRolePreviewing,
 } from '../../lib/rolePreviewStash'
+import { sidebarCreateAction } from '../../lib/sidebarCreate'
+import { IconButton } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
@@ -88,6 +91,9 @@ type AppShellProps = {
   /** Wordmark → role home (unit events / mine / profile). */
   onHome: () => void
   entries: NavEntry[]
+  /** Desktop sidebar only — create shortcuts beside אירועים / משמרות. */
+  onCreateEvent?: () => void
+  onCreateShift?: () => void
   children: ReactNode
 }
 
@@ -101,6 +107,8 @@ export function AppShell({
   onNavigate,
   onHome,
   entries,
+  onCreateEvent,
+  onCreateShift,
   children,
 }: AppShellProps) {
   return (
@@ -113,7 +121,15 @@ export function AppShell({
       <RolePreviewBar onRestored={onHome} />
       <UpdateAvailableNotice />
       <div className="shell__body">
-        {withSidebar ? <Sidebar view={view} onNavigate={onNavigate} entries={entries} /> : null}
+        {withSidebar ? (
+          <Sidebar
+            view={view}
+            onNavigate={onNavigate}
+            entries={entries}
+            onCreateEvent={onCreateEvent}
+            onCreateShift={onCreateShift}
+          />
+        ) : null}
         <main id="main" className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}>
           {children}
           {showSecurityBadge && onOpenPrivacy ? (
@@ -302,7 +318,7 @@ function TopAppBar({
                   }}
                 >
                   <UserCog size={20} strokeWidth={1.75} aria-hidden="true" />
-                  חזרה לתפקידים שלי
+                  חזרה לתפקיד שלי
                 </button>
               ) : null}
               {viewingAsOther ? (
@@ -361,10 +377,14 @@ function Sidebar({
   view,
   onNavigate,
   entries,
+  onCreateEvent,
+  onCreateShift,
 }: {
   view: AppView
   onNavigate: (view: AppView) => void
   entries: NavEntry[]
+  onCreateEvent?: () => void
+  onCreateShift?: () => void
 }) {
   const [width, setWidth] = useState(() => {
     try {
@@ -452,23 +472,35 @@ function Sidebar({
         {entries.map((entry, index) => {
           const prev = entries[index - 1]
           const showSection = entry.section && entry.section !== prev?.section
+          const create = sidebarCreateAction(entry.view, onCreateEvent, onCreateShift)
           return (
             <div key={entry.view}>
               {showSection ? <p className="sidebar__section">{entry.section}</p> : null}
-              <button
-                type="button"
-                className="nav-item"
-                aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
-                aria-label={
-                  entry.attention
-                    ? `${entry.label}${navAttentionAriaSuffix(true)}`
-                    : undefined
-                }
-                onClick={() => onNavigate(entry.view)}
-              >
-                <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-                {entry.label}
-              </button>
+              <div className={create ? 'sidebar__row' : undefined}>
+                <button
+                  type="button"
+                  className="nav-item"
+                  aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
+                  aria-label={
+                    entry.attention
+                      ? `${entry.label}${navAttentionAriaSuffix(true)}`
+                      : undefined
+                  }
+                  onClick={() => onNavigate(entry.view)}
+                >
+                  <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+                  {entry.label}
+                </button>
+                {create ? (
+                  <IconButton
+                    className="sidebar__create"
+                    label={create.label}
+                    onClick={create.onCreate}
+                  >
+                    <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
+                  </IconButton>
+                ) : null}
+              </div>
             </div>
           )
         })}

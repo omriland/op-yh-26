@@ -45,6 +45,8 @@ export type ShiftBornEventSummary = {
   status: EventStatus
   treatment_detail: string | null
   treatment_notes: string | null
+  road_id: string | null
+  location: string | null
   emergency_means: boolean
   event_type: { name: string } | null
   last_saved: { full_name: string } | null
@@ -87,6 +89,8 @@ export const SHIFT_LIST_SELECT = `
     status,
     treatment_detail,
     treatment_notes,
+    road_id,
+    location,
     emergency_means,
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
@@ -279,6 +283,8 @@ const SHIFT_DETAIL_SELECT = `
     status,
     treatment_detail,
     treatment_notes,
+    road_id,
+    location,
     emergency_means,
     updated_at,
     event_type:event_types(name),

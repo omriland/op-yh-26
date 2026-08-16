@@ -164,6 +164,8 @@ export function EventsPage({
           police_event_id: event.police_event_id,
           treatment_detail: event.treatment_detail,
           treatment_notes: event.treatment_notes,
+          location: event.location,
+          road_id: event.road?.name,
           treated_count: event.shared_treated?.length ?? 0,
         })
       }

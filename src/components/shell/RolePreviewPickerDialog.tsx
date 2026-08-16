@@ -42,7 +42,7 @@ export function RolePreviewPickerDialog({
     >
       <div className="stack-4">
         <p className="t-caption text-muted">
-          תראו את הניווט והכרטיסים כפי שמופיעים בתפקיד שנבחר. לחצו «חזרה לתפקידים שלי» כדי
+          תראו את הניווט והכרטיסים כפי שמופיעים בתפקיד שנבחר. לחצו «חזרה לתפקיד שלי» כדי
           לשוב.
         </p>
         <ul className="impersonation-picker__list">

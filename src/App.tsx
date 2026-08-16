@@ -532,6 +532,26 @@ function Gate() {
       onNavigate={navigate}
       onHome={goHome}
       entries={entries}
+      onCreateEvent={
+        manages
+          ? () => {
+              setLegalPage(null)
+              setView('events')
+              setEventSurface({ kind: 'form' })
+              setShiftSurface({ kind: 'list' })
+            }
+          : undefined
+      }
+      onCreateShift={
+        manages
+          ? () => {
+              setLegalPage(null)
+              setView('shifts')
+              setShiftSurface({ kind: 'form' })
+              setEventSurface({ kind: 'list' })
+            }
+          : undefined
+      }
     >
       {legalPage === 'privacy' ? (
         <PrivacyPolicyPage onBack={() => setLegalPage(null)} />

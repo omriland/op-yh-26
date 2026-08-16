@@ -1,6 +1,6 @@
 import { formatDate, monoClass } from '../../lib/format'
 import { doneFraction, type EventListItem } from '../../lib/events'
-import { SHIFT_BORN_CHIP } from '../../lib/shiftBornEvents'
+import { eventLeadDisplayName, SHIFT_BORN_CHIP } from '../../lib/shiftBornEvents'
 import { HoverTip } from '../ui/HoverTip'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventStatusTrail } from './EventStatusTrail'
@@ -49,7 +49,7 @@ export function EventsTable({ events, onOpen }: EventsTableProps) {
                     {locationLabel}
                   </HoverTip>
                 </td>
-                <td>{event.shift_lead?.full_name ?? '—'}</td>
+                <td>{eventLeadDisplayName(event.origin, event.shift_lead?.full_name) ?? '—'}</td>
                 <td className="num mono">{doneFraction(event)}</td>
                 <td className="table-cell--status">
                   <EventStatusTrail

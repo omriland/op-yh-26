@@ -211,15 +211,36 @@ textarea.field__input {
 .select-field__menu {
   position: fixed;
   z-index: 60;
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: var(--space-2);
-  overflow: auto;
-  list-style: none;
+  overflow: hidden;
   border: 1px solid var(--stroke-hairline);
   border-radius: var(--radius-md);
   background: var(--surface-overlay);
   box-shadow: var(--shadow-overlay);
   animation: menu-in var(--duration-base) var(--ease-standard);
+}
+
+.select-field__list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.select-field__search {
+  flex: none;
+  margin-block-end: var(--space-1);
+  padding-block-end: var(--space-1);
+  background: var(--surface-overlay);
+}
+
+.select-field__search .search-field {
+  width: 100%;
 }
 
 .select-field__empty {
@@ -1114,6 +1135,25 @@ textarea.field__input {
   flex-direction: column;
   gap: var(--space-1);
   width: 100%;
+}
+
+.sidebar__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sidebar__row .nav-item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar__create {
+  flex: none;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
 }
 
 .sidebar__section-label {

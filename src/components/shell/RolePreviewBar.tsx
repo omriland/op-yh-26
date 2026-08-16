@@ -38,7 +38,7 @@ export function RolePreviewBar({ onRestored }: RolePreviewBarProps) {
         צופה כתפקיד {rolePreviewLabel(stash.role)}
       </p>
       <Button variant="secondary" onClick={onStop}>
-        חזרה לתפקידים שלי
+        חזרה לתפקיד שלי
       </Button>
     </div>
   )
