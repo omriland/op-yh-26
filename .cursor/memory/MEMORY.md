@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ## What this is
 
@@ -74,6 +74,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Mobile shell: viewport-locked flex (`height: var(--app-height)` from `visualViewport` via `bindAppViewportHeight`; html/body/#root `overflow: hidden`); `.shell__main` scrolls; bottom tab bar **in-flow** (not `position: fixed`) to avoid iOS Safari mid-scroll drift / blank gap below chrome. Sticky form footers use `inset-block-end: 0` against main.
 - Snyk security badge: English “Protected by Snyk” + logo in `AppShell` footer on non-immersive logged-in screens; links to snyk.io. Spec: `docs/superpowers/specs/2026-08-11-snyk-security-badge-design.md`
 - Unit events desktop search: RPC `search_unit_event_ids` — police id / road / location / shift-lead + responder name & או״ק. Spec: `docs/superpowers/specs/2026-08-12-yahpaz-events-search-by-responder-design.md`
+- **KM discrepancy report (2026-08-16):** אירועים עם פערי דיווח ק״מ shipped in reports library; spec `docs/superpowers/specs/2026-08-16-yahpaz-km-discrepancy-report-design.md`; admin-only; compares odometer delta vs lead `total_km`; confirm replace writes `total_km` only (odometers unchanged).
 
 ## Email (Resend)
 
