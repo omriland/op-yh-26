@@ -2499,7 +2499,7 @@ textarea.field__input {
 .dialog-root {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 70;
   display: grid;
   place-items: end center;
 }

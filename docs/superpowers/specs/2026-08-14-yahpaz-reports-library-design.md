@@ -145,6 +145,7 @@ Retired UI: `FuelRefundPage` / `FuelRefundSegmentBar` / `ExceptionsPage` segment
 | id | Title | Spec |
 |---|---|---|
 | `open_documentation` | אירועים שהוזנו ע״י אחמ״ש ולא נסגרו ע״י מתנדב | `2026-08-15-yahpaz-open-documentation-report-design.md` |
+| `km_discrepancy` | אירועים עם פערי דיווח ק״מ | `2026-08-16-yahpaz-km-discrepancy-report-design.md` |
 
 ## Later (not v1)
 
