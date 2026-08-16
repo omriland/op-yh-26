@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Gauge, Plus, Trash2 } from 'lucide-react'
+import { Plus, Radar, Trash2 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   cockpitDeleteBlock,
@@ -143,7 +143,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
         ) : loadState === 'error' ? (
           <div className="cockpit__reel-body">
             <EmptyState
-              icon={<Gauge size={40} strokeWidth={1.75} aria-hidden="true" />}
+              icon={<Radar size={40} strokeWidth={1.75} aria-hidden="true" />}
               title="לא ניתן לטעון את הגלגלת"
               caption="בדקו את החיבור ונסו שוב."
               action={
@@ -284,7 +284,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
           />
         ) : (
           <EmptyState
-            icon={<Gauge size={40} strokeWidth={1.75} aria-hidden="true" />}
+            icon={<Radar size={40} strokeWidth={1.75} aria-hidden="true" />}
             title="אין אירוע נבחר"
             caption="לחצו על אירוע חדש או בחרו שורה בגלגלת."
             action={
