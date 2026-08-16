@@ -3,6 +3,7 @@ import { AlertCircle, KeyRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { monoClass } from '../lib/format'
 import { passwordStrengthError } from '../lib/passwordRules'
+import { timingSafeEqual } from '../lib/timingSafeEqual'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { StampChip } from '../components/ui/StampChip'
@@ -83,7 +84,7 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
       setError(strengthError)
       return
     }
-    if (password !== confirmPassword) {
+    if (!timingSafeEqual(password, confirmPassword)) {
       setError('הסיסמאות אינן תואמות.')
       return
     }
