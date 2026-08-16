@@ -162,11 +162,14 @@ export async function applyLeadKmFromOdometer(assignmentId: string): Promise<'re
   if (resolved.status === 'invalid') throw new Error('invalid odometer replacement')
   if (resolved.status === 'already_aligned') return 'already_aligned'
 
-  const { error: updateError } = await supabase
+  const { data: updated, error: updateError } = await supabase
     .from('event_responders')
     .update({ total_km: resolved.totalKm, updated_at: new Date().toISOString() })
     .eq('id', assignmentId)
+    .select('id')
+    .maybeSingle()
 
   if (updateError) throw new Error(updateError.message)
+  if (!updated) throw new Error('update blocked')
   return 'replaced'
 }
