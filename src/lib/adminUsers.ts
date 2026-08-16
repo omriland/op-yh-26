@@ -1,6 +1,6 @@
 import type { AppRole } from './auth'
 import { compareAdminUsers } from './adminUserStatus'
-import { findDuplicatePlate, phoneDigits, plateDigits } from './format'
+import { findDuplicatePlate, phoneDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import { syncUserRolesDiff } from './syncUserRolesDiff'
 import { fetchAdminLastActive, mergeLastActive } from './userPresence'
@@ -294,7 +294,7 @@ async function syncUserVehicles(
       continue
     }
 
-    const plate = plateDigits(vehicle.plate_number) || vehicle.plate_number.trim()
+    const plate = plateNumberForSave(vehicle.plate_number) || vehicle.plate_number.trim()
     const model = vehicle.model.trim()
     if (!plate || !model) continue
     const { error } = await supabase
@@ -321,7 +321,7 @@ async function syncUserVehicles(
     const { error } = await supabase.from('vehicles').insert(
       toInsert.map((vehicle) => ({
         user_id: userId,
-        plate_number: plateDigits(vehicle.plate_number) || vehicle.plate_number.trim(),
+        plate_number: plateNumberForSave(vehicle.plate_number) || vehicle.plate_number.trim(),
         model: vehicle.model.trim(),
         archived: false,
       })),

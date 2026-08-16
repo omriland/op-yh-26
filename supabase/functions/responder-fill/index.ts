@@ -61,6 +61,13 @@ function plateDigits(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
+function formatPlate(raw: string): string {
+  const digits = plateDigits(raw);
+  if (digits.length === 7) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+  if (digits.length === 8) return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+  return raw.trim();
+}
+
 function appOrigin(): string {
   const raw = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
   try {
@@ -419,7 +426,7 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
   const { data: updated, error } = await adminClient
     .from("event_responders")
     .update({
-      vehicle_plate: plateDigits(draft.vehicle_plate) || null,
+      vehicle_plate: formatPlate(draft.vehicle_plate) || null,
       odometer_start: start,
       odometer_end: end,
       route: draft.route.trim() || null,

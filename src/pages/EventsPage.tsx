@@ -316,7 +316,7 @@ export function EventsPage({
         <SearchLoadingState />
       ) : scope === 'mine' && mineSections ? (
         <DateGroups>
-          <DateGroup heading="אירועים ממתינים לתיעוד">
+          <DateGroup heading="אירועים הממתינים לתיעוד">
             <div className="stack-4">
               {mineSections.pending.length === 0 ? (
                 <p className="t-body text-secondary mine-section-empty">

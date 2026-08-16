@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { digitsOnly, formatDateWithWeekday, formatLastLogin, hebrewWeekdayLetter } from './format'
+import {
+  digitsOnly,
+  formatDateWithWeekday,
+  formatLastLogin,
+  formatPlate,
+  hebrewWeekdayLetter,
+  plateNumberForSave,
+} from './format'
 
 const NOW = new Date('2026-08-10T12:00:00')
 
@@ -23,6 +30,36 @@ describe('digitsOnly', () => {
     expect(digitsOnly('12a3.5')).toBe('1235')
     expect(digitsOnly('-10 +2')).toBe('102')
     expect(digitsOnly('')).toBe('')
+  })
+})
+
+describe('formatPlate', () => {
+  it('formats 7 digits as XX-XXX-XX', () => {
+    expect(formatPlate('1234567')).toBe('12-345-67')
+  })
+
+  it('formats 8 digits as XXX-XX-XXX', () => {
+    expect(formatPlate('12345678')).toBe('123-45-678')
+  })
+
+  it('ignores dashes the typist already placed, including in the wrong spots', () => {
+    expect(formatPlate('12-34-567')).toBe('12-345-67')
+    expect(formatPlate('123-456-78')).toBe('123-45-678')
+    expect(formatPlate('1-2-3-4-5-6-7')).toBe('12-345-67')
+  })
+
+  it('leaves incomplete values as typed', () => {
+    expect(formatPlate('76543')).toBe('76543')
+    expect(formatPlate('12-34')).toBe('12-34')
+  })
+})
+
+describe('plateNumberForSave', () => {
+  it('stores the hyphenated form and treats blank as empty', () => {
+    expect(plateNumberForSave('1234567')).toBe('12-345-67')
+    expect(plateNumberForSave('  123-45-678  ')).toBe('123-45-678')
+    expect(plateNumberForSave('   ')).toBeNull()
+    expect(plateNumberForSave(null)).toBeNull()
   })
 })
 

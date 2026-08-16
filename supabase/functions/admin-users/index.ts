@@ -104,6 +104,13 @@ function trim(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function formatPlate(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 7) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+  if (digits.length === 8) return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+  return raw.trim();
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -981,7 +988,7 @@ async function handleInvite(
     const { error: vehiclesError } = await adminClient.from("vehicles").insert(
       vehicles.map((vehicle) => ({
         user_id: userId,
-        plate_number: trim(vehicle.plate_number).replace(/\D/g, "") || trim(vehicle.plate_number),
+        plate_number: formatPlate(trim(vehicle.plate_number)),
         model: trim(vehicle.model),
       })),
     );

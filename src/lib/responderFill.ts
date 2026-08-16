@@ -1,4 +1,4 @@
-import { plateDigits } from './format'
+import { plateDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 
@@ -317,7 +317,7 @@ async function saveParticipation(input: {
   const { data: updated, error } = await supabase
     .from('event_responders')
     .update({
-      vehicle_plate: plateDigits(input.draft.vehicle_plate) || null,
+      vehicle_plate: plateNumberForSave(input.draft.vehicle_plate),
       odometer_start: start,
       odometer_end: end,
       route: input.draft.route.trim() || null,
