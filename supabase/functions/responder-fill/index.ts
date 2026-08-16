@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import {
+  buildCorsHeaders,
+  jsonResponse as json,
+  runWithCors,
+} from "../_shared/cors.ts";
 import { ctaButtonHtml, sendTransactionalEmail } from "../_shared/email.ts";
 
 type LoadBody = { action: "load_by_token"; fill_token: string };
@@ -26,17 +31,8 @@ type RequestBody = LoadBody | SaveBody | NotifyBody;
 
 const FILL_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const ALLOW_HEADERS = "authorization, x-client-info, apikey, content-type";
 
-function json(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
 
 function trim(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -140,6 +136,8 @@ function validateDraft(
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = buildCorsHeaders(req, ALLOW_HEADERS);
+  return runWithCors(corsHeaders, async () => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -178,6 +176,7 @@ Deno.serve(async (req: Request) => {
   }
 
   return json(400, { error: "פעולה לא מוכרת." });
+  });
 });
 
 type AssignmentRow = {
