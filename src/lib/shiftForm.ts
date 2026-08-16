@@ -102,10 +102,6 @@ export function validateShiftSave(draft: ShiftFormDraft): ShiftSaveError[] {
   return errors
 }
 
-function isShiftEventConflict(error: { code?: string }): boolean {
-  return error.code === '23505'
-}
-
 export function shiftEventAlreadyLinkedMessage(policeEventId: string | null | undefined): string {
   const number = policeEventId?.trim()
   if (number) return `אירוע ${number} כבר מקושר למשמרת אחרת`
@@ -175,64 +171,6 @@ async function syncShiftResponders(
       })),
     )
     if (error) {
-      return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
-    }
-  }
-
-  return { ok: true }
-}
-
-async function syncShiftEvents(
-  shiftId: string,
-  eventIds: string[],
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { data: existing, error: existingError } = await supabase
-    .from('shift_events')
-    .select('id, event_id')
-    .eq('shift_id', shiftId)
-
-  if (existingError) {
-    return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
-  }
-
-  const keepIds = new Set(eventIds)
-  const toRemove = (existing ?? []).filter((row) => !keepIds.has(row.event_id as string))
-
-  if (toRemove.length > 0) {
-    const { error } = await supabase
-      .from('shift_events')
-      .delete()
-      .in(
-        'id',
-        toRemove.map((row) => row.id as string),
-      )
-    if (error) {
-      return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
-    }
-  }
-
-  const existingEventIds = new Set((existing ?? []).map((row) => row.event_id as string))
-  const toAdd = eventIds.filter((eventId) => !existingEventIds.has(eventId))
-
-  for (const eventId of toAdd) {
-    const { error } = await supabase.from('shift_events').insert({
-      shift_id: shiftId,
-      event_id: eventId,
-    })
-    if (error) {
-      if (isShiftEventConflict(error)) {
-        const { data: conflicted } = await supabase
-          .from('events')
-          .select('police_event_id')
-          .eq('id', eventId)
-          .maybeSingle()
-        return {
-          ok: false,
-          error: shiftEventAlreadyLinkedMessage(
-            (conflicted?.police_event_id as string | null | undefined) ?? null,
-          ),
-        }
-      }
       return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
     }
   }

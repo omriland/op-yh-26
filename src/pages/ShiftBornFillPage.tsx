@@ -126,8 +126,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     }
   }
 
-  useDesktopFormSubmit({
-    onSubmit: () => void onSave(),
+  useDesktopFormSubmit(() => void onSave(), {
     enabled: loadState === 'ready' && Boolean(draft) && !readOnly && !saving && !completing,
   })
 
