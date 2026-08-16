@@ -53,7 +53,7 @@ Repo: `yhpz-2026`
 
 ## Schema (high level)
 
-- `profiles`, `vehicles`, `user_roles`
+- `profiles` (includes `lifetime_event_count`, `lifetime_km`, `lifetime_stats_updated_at`), `vehicles`, `user_roles`
 - Lookups: `districts`, `event_types`, `roads`, `vehicle_kinds`
 - `events`, `event_responders`, `event_treated_vehicles`
 - RLS stubs in place; migration: `supabase/migrations/20260809120000_init.sql`
@@ -75,6 +75,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Snyk security badge: English “Protected by Snyk” + logo in `AppShell` footer on non-immersive logged-in screens; links to snyk.io. Spec: `docs/superpowers/specs/2026-08-11-snyk-security-badge-design.md`
 - Unit events desktop search: RPC `search_unit_event_ids` — police id / road / location / shift-lead + responder name & או״ק. Spec: `docs/superpowers/specs/2026-08-12-yahpaz-events-search-by-responder-design.md`
 - **KM discrepancy report (2026-08-16):** אירועים עם פערי דיווח ק״מ shipped in reports library; spec `docs/superpowers/specs/2026-08-16-yahpaz-km-discrepancy-report-design.md`; admin-only; compares odometer delta vs lead `total_km`; confirm replace writes `total_km` only (odometers unchanged).
+- **Profile lifetime stats (2026-08-16):** פרופיל card `סיכום פעילות` reads snapshot columns on `profiles` (events + km; same inclusion as החזר דלק). `refresh_profile_lifetime_stats()` + `pg_cron` 07:00/19:00 Asia/Jerusalem. Clients cannot write the columns. Spec: `2026-08-16-yahpaz-profile-lifetime-stats-design.md`.
 
 ## Email (Resend)
 
