@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import {
+  buildCorsHeaders,
+  jsonResponse as json,
+  runWithCors,
+} from "../_shared/cors.ts";
 import { buildOtpSmsMessage, otpSmsProvider } from "../_shared/otpSms.ts";
 
 type OtpPurpose = "login_device" | "users_page";
@@ -38,20 +43,11 @@ const SOPRANO_API_URL = "https://sec.soprano.co.il/";
 const TWILIO_MESSAGES_URL = (accountSid: string) =>
   `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-yahpaz-otp-device, x-yahpaz-impersonating",
-};
+const ALLOW_HEADERS =
+  "authorization, x-client-info, apikey, content-type, x-yahpaz-otp-device, x-yahpaz-impersonating";
 
 const startCooldown = new Map<string, number>();
 
-function json(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
 
 function phoneDigits(raw: string): string {
   return raw.replace(/\D/g, "").slice(0, 10);
@@ -520,6 +516,8 @@ async function handleOtpVerify(
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = buildCorsHeaders(req, ALLOW_HEADERS);
+  return runWithCors(corsHeaders, async () => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -594,4 +592,5 @@ Deno.serve(async (req: Request) => {
   }
 
   return json(400, { error: "פעולה לא מוכרת." });
+  });
 });
