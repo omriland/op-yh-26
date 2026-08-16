@@ -68,10 +68,10 @@ exception
 end;
 $$;
 
--- pg_cron on Supabase has no timezone arg/column (pg_cron 1.6.4); cron runs in UTC.
--- 07:00 and 19:00 Asia/Jerusalem (IDT, UTC+3) => 04:00 and 16:00 UTC.
+-- pg_cron 1.6.4 has no timezone arg; hourly cron with Asia/Jerusalem hour guard.
 select cron.schedule(
   'refresh-profile-lifetime-stats',
-  '0 4,16 * * *',
-  'select public.refresh_profile_lifetime_stats()'
+  '0 * * * *',
+  $cmd$select public.refresh_profile_lifetime_stats()
+    where extract(hour from timezone('Asia/Jerusalem', now())) in (7, 19)$cmd$
 );
