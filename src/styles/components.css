@@ -1376,6 +1376,38 @@ textarea.field__input {
   }
 }
 
+/* Sticky form actions must meet the scrollport bottom. Main's padding-block-end
+   otherwise insets sticky `inset-block-end: 0` and fields scroll through the gap. */
+.shell__main:has(.event-form__footer) {
+  padding-block-end: 0;
+}
+
+.shell__main:has(.event-form__footer) > .event-form,
+.shell__main:has(.event-form__footer) > .responder-fill {
+  flex: 1 0 auto;
+  min-height: 100%;
+}
+
+.shell__main:has(.event-form__footer) > .event-form {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.shell__main:has(.event-form__footer) > .responder-fill {
+  display: flex;
+  flex-direction: column;
+}
+
+.shell__main:has(.event-form__footer) .event-form__panel {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  border-block-end: 0;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+
 /* ============================================================
    Page furniture
    ============================================================ */
@@ -3680,12 +3712,16 @@ textarea.field__input {
   gap: var(--space-4);
 }
 
+.event-form__panel:has(> .event-form__footer) > :nth-last-child(2) {
+  margin-block-end: var(--space-8);
+}
+
 .event-form__footer {
   /* Stick to the bottom of .shell__main (the only scrollport), just above the tab bar. */
   position: sticky;
   inset-block-end: 0;
   z-index: 5;
-  margin-block-start: var(--space-8);
+  margin-block-start: auto;
   margin-inline: calc(-1 * var(--space-5));
   padding: var(--space-4) var(--space-5);
   border-block-start: 1px solid var(--stroke-hairline);
@@ -3693,6 +3729,10 @@ textarea.field__input {
   /* Keep the bar opaque over scrolling fields on mobile. */
   background-clip: padding-box;
   transition: box-shadow var(--duration-base) var(--ease-standard);
+}
+
+.shell:not(:has(.tabbar)) .event-form__footer {
+  padding-block-end: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
 }
 
 .event-form__footer--scroll-cue {
