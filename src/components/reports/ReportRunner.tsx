@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Calendar, ChevronRight, Download, Search, BarChart3 } from 'lucide-react'
 import { PeriodPicker } from '../admin/PeriodPicker'
 import { Button } from '../ui/Button'
+import { Dialog } from '../ui/Dialog'
 import { EmptyState } from '../ui/EmptyState'
+import { HoverTip } from '../ui/HoverTip'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
 import { TextField } from '../ui/TextField'
+import { useToast } from '../ui/Toast'
 import { downloadCsv, toCsv } from '../../lib/reports/csv'
 import { filterReportRows } from '../../lib/reports/search'
 import type { ReportKind, ReportTableRow, ReportViewer } from '../../lib/reports/types'
@@ -24,6 +27,7 @@ type ReportRunnerProps = {
 
 export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: ReportRunnerProps) {
   const { userId, isAdmin } = viewer
+  const { show } = useToast()
   const defaults = defaultFuelRefundRange()
   const [from, setFrom] = useState(defaults.from)
   const [to, setTo] = useState(defaults.to)
@@ -32,6 +36,8 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
   const [rows, setRows] = useState<ReportTableRow[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [pendingRow, setPendingRow] = useState<ReportTableRow | null>(null)
+  const [applying, setApplying] = useState(false)
 
   const periodRange = periodToRange(period)
   const rangeFrom = kind.hasPeriodPicker ? periodRange.from : from
@@ -67,6 +73,21 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
 
   const filtered = useMemo(() => (rows ? filterReportRows(rows, query) : []), [rows, query])
   const sections = useMemo(() => groupRows(filtered), [filtered])
+
+  async function confirmReplace() {
+    if (!kind.action || !pendingRow) return
+    setApplying(true)
+    try {
+      await kind.action.apply(pendingRow)
+      setRows((current) => (current ?? []).filter((row) => row.id !== pendingRow.id))
+      show('הקילומטרים עודכנו', 'done')
+    } catch {
+      show('עדכון הקילומטרים נכשל. בדקו את החיבור ונסו שוב.', 'alert')
+    } finally {
+      setApplying(false)
+      setPendingRow(null)
+    }
+  }
 
   function exportCsv() {
     if (filtered.length === 0) return
@@ -204,6 +225,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
                   kind={kind}
                   rows={section.rows}
                   onOpenEvent={onOpenEvent}
+                  onAction={kind.action ? setPendingRow : undefined}
                 />
               ) : (
                 <ul className="stack-3">
@@ -213,6 +235,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
                       kind={kind}
                       row={row}
                       onOpenEvent={onOpenEvent}
+                      onAction={kind.action ? setPendingRow : undefined}
                     />
                   ))}
                 </ul>
@@ -221,6 +244,28 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
           ))}
         </div>
       )}
+
+      {kind.action ? (
+        <Dialog
+          open={pendingRow != null}
+          title={kind.action.confirmTitle}
+          onClose={() => {
+            if (!applying) setPendingRow(null)
+          }}
+          footer={
+            <>
+              <Button variant="primary" loading={applying} loadingLabel="מחליף…" onClick={() => void confirmReplace()}>
+                החלפה
+              </Button>
+              <Button variant="secondary" disabled={applying} onClick={() => setPendingRow(null)}>
+                ביטול
+              </Button>
+            </>
+          }
+        >
+          <p className="t-body">{pendingRow ? kind.action.confirmBody(pendingRow) : null}</p>
+        </Dialog>
+      ) : null}
     </div>
   )
 }
@@ -244,15 +289,47 @@ function groupRows(rows: ReportTableRow[]) {
   }))
 }
 
+function ReportActionValue({
+  kind,
+  row,
+  value,
+  onAction,
+}: {
+  kind: ReportKind
+  row: ReportTableRow
+  value: string
+  onAction?: (row: ReportTableRow) => void
+}) {
+  if (!kind.action || !onAction) return <>{value}</>
+  return (
+    <HoverTip text={kind.action.hoverText} mode="always">
+      <button
+        type="button"
+        className="report-km-action"
+        onClick={(event) => {
+          event.stopPropagation()
+          onAction(row)
+        }}
+      >
+        {value}
+      </button>
+    </HoverTip>
+  )
+}
+
 function ReportTable({
   kind,
   rows,
   onOpenEvent,
+  onAction,
 }: {
   kind: ReportKind
   rows: ReportTableRow[]
   onOpenEvent?: (eventId: string) => void
+  onAction?: (row: ReportTableRow) => void
 }) {
+  const actionColumnId = kind.action?.columnId
+
   return (
     <div className="table-wrap">
       <table className="table">
@@ -276,7 +353,16 @@ function ReportTable({
                   key={column.id}
                   className={column.numeric ? 'num mono' : undefined}
                 >
-                  {row.values[index] ?? '—'}
+                  {kind.action && actionColumnId === column.id ? (
+                    <ReportActionValue
+                      kind={kind}
+                      row={row}
+                      value={row.values[index] ?? '—'}
+                      onAction={onAction}
+                    />
+                  ) : (
+                    row.values[index] ?? '—'
+                  )}
                 </td>
               ))}
             </tr>
@@ -291,17 +377,51 @@ function ReportCard({
   kind,
   row,
   onOpenEvent,
+  onAction,
 }: {
   kind: ReportKind
   row: ReportTableRow
   onOpenEvent?: (eventId: string) => void
+  onAction?: (row: ReportTableRow) => void
 }) {
+  const actionId = kind.action?.columnId
   const title = row.values[0] ?? '—'
   const rest = kind.columns.slice(1).map((column, index) => ({
+    id: column.id,
     header: column.header,
     value: row.values[index + 1] ?? '—',
     numeric: column.numeric,
+    isAction: Boolean(actionId && column.id === actionId),
   }))
+
+  if (kind.action && onAction) {
+    return (
+      <li className="card stack-2">
+        <button
+          type="button"
+          className="event-card"
+          onClick={row.eventId && onOpenEvent ? () => onOpenEvent(row.eventId!) : undefined}
+        >
+          <span className="t-body">{title}</span>
+          {rest
+            .filter((item) => !item.isAction)
+            .map((item) => (
+              <span key={item.header} className="t-caption text-muted">
+                {item.header}: <span className={item.numeric ? 'mono' : undefined}>{item.value}</span>
+              </span>
+            ))}
+        </button>
+        {rest
+          .filter((item) => item.isAction)
+          .map((item) => (
+            <span key={item.header} className="t-caption">
+              {item.header}:{' '}
+              <ReportActionValue kind={kind} row={row} value={item.value} onAction={onAction} />
+            </span>
+          ))}
+      </li>
+    )
+  }
 
   const body = (
     <>
