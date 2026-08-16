@@ -19,6 +19,12 @@ import {
 } from '../lib/shiftForm'
 import { lastSavedByLabel } from '../lib/shiftBornEvents'
 import {
+  saveShiftBornEventFill,
+  shiftBornEventFillRowsFrom,
+  type ShiftBornEventFillRow,
+} from '../lib/shiftBornFill'
+import {
+  SHIFT_TOO_EARLY_MESSAGE,
   canEditShiftByDate,
   fetchShiftDetail,
   SHIFT_KIND_OPTIONS,
@@ -132,6 +138,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerQuery, setPickerQuery] = useState('')
   const [lastSavedName, setLastSavedName] = useState<string | null>(null)
+  const [bornRows, setBornRows] = useState<ShiftBornEventFillRow[]>([])
 
   const draftRef = useRef<ShiftFormDraft | null>(null)
   const canEditResponders = canManageLead
@@ -218,12 +225,14 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
           draftRef.current = nextDraft
           setDraft(nextDraft)
           setLastSavedName(existing.last_saved?.full_name ?? null)
+          setBornRows(shiftBornEventFillRowsFrom(existing.born_events ?? []))
         } else {
           const nextDraft = emptyDraft()
           draftRef.current = nextDraft
           setDraft(nextDraft)
           setAssignedProfiles(new Map())
           setLastSavedName(null)
+          setBornRows([])
         }
 
         setLoadState('ready')
@@ -322,6 +331,14 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     return draft?.event_type_counts.find((row) => row.event_type_id === eventTypeId)?.count ?? 0
   }
 
+  function patchBornDraft(eventId: string, patch: Partial<ShiftBornEventFillRow['draft']>) {
+    setBornRows((current) =>
+      current.map((row) =>
+        row.id === eventId ? { ...row, draft: { ...row.draft, ...patch } } : row,
+      ),
+    )
+  }
+
   function openAssigner() {
     setPickerOpen(true)
     queueMicrotask(() => assignSearchRef.current?.focus())
@@ -372,6 +389,27 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
 
     setSaving(true)
     setErrors({})
+
+    for (const row of bornRows) {
+      const fill = await saveShiftBornEventFill({
+        eventId: row.id,
+        expectedUpdatedAt: row.expected_updated_at,
+        draft: row.draft,
+        complete: false,
+      })
+      if (!fill.ok) {
+        setSaving(false)
+        setErrors({ form: fill.error })
+        show(fill.error, 'alert')
+        return
+      }
+      setBornRows((currentRows) =>
+        currentRows.map((item) =>
+          item.id === row.id ? { ...item, expected_updated_at: fill.updated_at } : item,
+        ),
+      )
+    }
+
     const result = await saveShiftForm(current, user.id, {
       syncResponders: canManageLead,
       canEditIdentity: canManageLead,
@@ -401,7 +439,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     return (
       <EmptyState
         icon={<Calendar size={40} strokeWidth={1.75} />}
-        title="ניתן לערוך החל מתאריך המשמרת"
+        title={SHIFT_TOO_EARLY_MESSAGE}
         action={
           <Button variant="secondary" onClick={onBack}>
             חזרה
@@ -677,6 +715,34 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   <p className="t-caption text-muted">אין סוגי אירוע ברשימה הסגורה.</p>
                 ) : null}
               </div>
+              {bornRows.length === 0 ? (
+                <p className="t-caption text-muted">
+                  שמרו את מספר האירועים לפי סוג כדי ליצור אירועים למילוי מספר ופרטי טיפול.
+                </p>
+              ) : (
+                <div className="stack-4">
+                  <p className="t-label text-secondary">מספר אירוע ופרטי טיפול</p>
+                  {bornRows.map((row) => (
+                    <div key={row.id} className="stack-3">
+                      <TextField
+                        label={`מספר אירוע · ${row.typeName}`}
+                        numeric
+                        value={row.draft.police_event_id}
+                        onChange={(event) =>
+                          patchBornDraft(row.id, { police_event_id: event.target.value })
+                        }
+                      />
+                      <TextAreaField
+                        label={`פירוט הטיפול · ${row.typeName}`}
+                        value={row.draft.treatment_detail}
+                        onChange={(event) =>
+                          patchBornDraft(row.id, { treatment_detail: event.target.value })
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 

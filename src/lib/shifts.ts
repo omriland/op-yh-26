@@ -48,7 +48,8 @@ export type ShiftBornEventSummary = {
   emergency_means: boolean
   event_type: { name: string } | null
   last_saved: { full_name: string } | null
-  treated: { id: string }[]
+  updated_at?: string
+  treated: { id?: string; vehicle_kind_id?: string; quantity?: number }[]
 }
 
 export type ShiftListItem = {
@@ -279,9 +280,10 @@ const SHIFT_DETAIL_SELECT = `
     treatment_detail,
     treatment_notes,
     emergency_means,
+    updated_at,
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
-    treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id)
+    treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(vehicle_kind_id, quantity)
   ),
   responders:shift_responders(
     id,
@@ -331,6 +333,18 @@ export function jerusalemToday(): string {
 /** Assigned responders may edit on the shift date or later; future stays view-only. */
 export function canEditShiftByDate(shiftDate: string): boolean {
   return shiftDate <= jerusalemToday()
+}
+
+export const SHIFT_TOO_EARLY_MESSAGE = 'ניתן לערוך החל מתאריך המשמרת'
+
+/** Lead/admin may document any date; responders only on/after the shift date. */
+export function canDocumentShift(input: {
+  shiftDate: string
+  canManageLead: boolean
+  today?: string
+}): boolean {
+  if (input.canManageLead) return true
+  return !isShiftFuture(input.shiftDate, input.today)
 }
 
 export function isShiftFuture(

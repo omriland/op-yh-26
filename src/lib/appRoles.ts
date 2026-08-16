@@ -22,9 +22,13 @@ export function highestRole(roles: readonly AppRole[]): AppRole | null {
   return found
 }
 
+export function roleLabel(role: AppRole): string {
+  return ROLE_LABEL[role]
+}
+
 export function highestRoleLabel(roles: readonly AppRole[]): string | null {
   const role = highestRole(roles)
-  return role ? ROLE_LABEL[role] : null
+  return role ? roleLabel(role) : null
 }
 
 export function impliedAssignableRoles(role: AssignableRole): AssignableRole[] {

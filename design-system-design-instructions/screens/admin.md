@@ -5,7 +5,7 @@ The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וס
 ## Navigation
 
 - Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`, `תפוצה לכלל היחידה`, `פרופיל`.
-- Mobile tab bar (admin): `משתמשים` only among admin destinations; segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות` | `תפוצה לכלל היחידה`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `משתמשים` (role-gated). Profile via app-bar menu.
+- Mobile tab bar (admin): `ניהול` only among admin destinations; segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות` | `תפוצה לכלל היחידה`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `ניהול` (role-gated). Profile via app-bar menu.
 
 ## תפוצה לכלל היחידה
 
@@ -54,6 +54,7 @@ Super Admin only (DB-granted `super_admin`, not in role checkboxes):
 
 - Overflow `הגדרת סיסמה` → password + confirm + checkbox `חייב להחליף סיסמה בכניסה הבאה`. Spec: `2026-08-11-yahpaz-super-admin-set-password-design.md`.
 - Overflow `צפייה כמשתמש זה` + avatar menu `צפייה כמשתמש` → real session swap; banner `צופה כ־…` + `חזרה לחשבון שלי`. Spec: `2026-08-11-yahpaz-super-admin-impersonation-design.md`.
+- Avatar menu `צפייה בתפקיד אחר` → client-only role mask (כונן / אחמ״ש / מנהל) for nav + cards; banner `צופה כתפקיד …` + `חזרה לתפקידים שלי`. Hidden while impersonating. Does not swap Auth/RLS.
 - Regular admins cannot mutate a Super Admin row (edit, OTP, invite resend, deactivate, delete). Hide those overflow items; hide `⋮` if the menu would be empty; row/card must not open the editor. Super Admins may still edit each other. Server: RLS + Edge 403 `לא ניתן לערוך מנהל־על.` Spec: `2026-08-15-yahpaz-super-admin-mark-and-lock-design.md`.
 
 ## הגדרות (Closed lists)

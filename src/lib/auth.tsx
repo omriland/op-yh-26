@@ -17,6 +17,12 @@ import {
   type PasswordSetupReason,
 } from './passwordSetup'
 import { IMPERSONATION_CHANGE_EVENT, clearImpersonationStash } from './impersonationStash'
+import { effectiveRoles } from './rolePreview'
+import {
+  ROLE_PREVIEW_CHANGE_EVENT,
+  clearRolePreviewStash,
+  readRolePreviewStash,
+} from './rolePreviewStash'
 import { identifyPosthogUser, resetPosthogUser } from './posthog'
 import { passwordStrengthError } from './passwordRules'
 import { supabase } from './supabase'
@@ -241,11 +247,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const [impersonationTick, setImpersonationTick] = useState(0)
+  const [rolePreviewTick, setRolePreviewTick] = useState(0)
   useEffect(() => {
     const onChange = () => setImpersonationTick((n) => n + 1)
     window.addEventListener(IMPERSONATION_CHANGE_EVENT, onChange)
     return () => window.removeEventListener(IMPERSONATION_CHANGE_EVENT, onChange)
   }, [])
+  useEffect(() => {
+    const onChange = () => setRolePreviewTick((n) => n + 1)
+    window.addEventListener(ROLE_PREVIEW_CHANGE_EVENT, onChange)
+    return () => window.removeEventListener(ROLE_PREVIEW_CHANGE_EVENT, onChange)
+  }, [])
+
+  const visibleRoles = useMemo(
+    () => effectiveRoles(roles, readRolePreviewStash()?.role ?? null),
+    [roles, rolePreviewTick],
+  )
 
   useEffect(() => {
     if (loading) return
@@ -255,9 +272,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: profile?.email,
       name: profile?.full_name,
       callsign: profile?.callsign,
-      roles,
+      roles: visibleRoles,
     })
-  }, [loading, session, profile, roles, impersonationTick])
+  }, [loading, session, profile, visibleRoles, impersonationTick, rolePreviewTick])
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -367,6 +384,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     clearImpersonationStash()
+    clearRolePreviewStash()
     clearPasswordSetupIntent()
     setPasswordSetupReason(null)
     resetPosthogUser()
@@ -378,7 +396,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user: session?.user ?? null,
       profile,
-      roles,
+      roles: visibleRoles,
       loading,
       passwordSetupReason,
       authBootstrapError,
@@ -392,7 +410,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       session,
       profile,
-      roles,
+      visibleRoles,
       loading,
       passwordSetupReason,
       authBootstrapError,

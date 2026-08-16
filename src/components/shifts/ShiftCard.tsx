@@ -20,6 +20,8 @@ type ShiftCardProps = {
   onOpen: (shiftId: string) => void
   onFill?: (shiftId: string) => void
   onOpenEvent?: (eventId: string) => void
+  fillDisabled?: boolean
+  fillDisabledReason?: string
 }
 
 function bornSnapshot(event: ShiftBornEventSummary) {
@@ -32,7 +34,14 @@ function bornSnapshot(event: ShiftBornEventSummary) {
   }
 }
 
-export function ShiftCard({ shift, onOpen, onFill, onOpenEvent }: ShiftCardProps) {
+export function ShiftCard({
+  shift,
+  onOpen,
+  onFill,
+  onOpenEvent,
+  fillDisabled = false,
+  fillDisabledReason,
+}: ShiftCardProps) {
   const [open, setOpen] = useState(false)
   const responderCount = shift.responders.length
   const born = shift.born_events ?? []
@@ -81,7 +90,17 @@ export function ShiftCard({ shift, onOpen, onFill, onOpenEvent }: ShiftCardProps
           />
         </button>
       </div>
-      <Button block onClick={() => (onFill ?? onOpen)(shift.id)}>
+      <Button
+        block
+        disabled={fillDisabled}
+        title={fillDisabled ? fillDisabledReason : undefined}
+        aria-label={
+          fillDisabled && fillDisabledReason
+            ? `תיעוד משמרת. ${fillDisabledReason}`
+            : undefined
+        }
+        onClick={() => (onFill ?? onOpen)(shift.id)}
+      >
         תיעוד משמרת
       </Button>
       {open ? (

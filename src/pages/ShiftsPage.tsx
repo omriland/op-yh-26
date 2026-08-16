@@ -3,6 +3,8 @@ import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   UNIT_SHIFTS_LIST_LIMIT,
+  SHIFT_TOO_EARLY_MESSAGE,
+  canDocumentShift,
   fetchMyShifts,
   fetchShifts,
   fetchShiftsByIds,
@@ -48,7 +50,8 @@ export function ShiftsPage({
   onCreate,
 }: ShiftsPageProps) {
   const isDesktop = useIsDesktop()
-  const { user } = useAuth()
+  const { user, roles } = useAuth()
+  const canManageLead = roles.includes('admin') || roles.includes('shift_lead')
   const { show } = useToast()
   const [shifts, setShifts] = useState<ShiftListItem[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -247,6 +250,7 @@ export function ShiftsPage({
                   onOpen={onOpen}
                   onFill={onFill}
                   onOpenEvent={onOpenEvent}
+                  canManageLead={canManageLead}
                 />
               )}
             </div>
@@ -258,6 +262,7 @@ export function ShiftsPage({
                 onOpen={onOpen}
                 onFill={onFill}
                 onOpenEvent={onOpenEvent}
+                canManageLead={canManageLead}
               />
             </DateGroup>
           ) : null}
@@ -273,6 +278,7 @@ export function ShiftsPage({
                   onOpen={onOpen}
                   onFill={onFill}
                   onOpenEvent={onOpenEvent}
+                  canManageLead={canManageLead}
                 />
               )}
               {mineSections.hasMoreLogged ? (
@@ -305,6 +311,7 @@ export function ShiftsPage({
                 onOpen={onOpen}
                 onFill={onFill}
                 onOpenEvent={onOpenEvent}
+                canManageLead={canManageLead}
               />
             </DateGroup>
           ))}
@@ -330,11 +337,13 @@ function ShiftCards({
   onOpen,
   onFill,
   onOpenEvent,
+  canManageLead,
 }: {
   shifts: ShiftListItem[]
   onOpen: (shiftId: string) => void
   onFill?: (shiftId: string) => void
   onOpenEvent?: (eventId: string) => void
+  canManageLead: boolean
 }) {
   return (
     <ul className="stack-3">
@@ -345,6 +354,8 @@ function ShiftCards({
           onOpen={onOpen}
           onFill={onFill}
           onOpenEvent={onOpenEvent}
+          fillDisabled={!canDocumentShift({ shiftDate: shift.shift_date, canManageLead })}
+          fillDisabledReason={SHIFT_TOO_EARLY_MESSAGE}
         />
       ))}
     </ul>

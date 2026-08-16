@@ -17,6 +17,7 @@ import {
   LogOut,
   Megaphone,
   Settings,
+  UserCog,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -26,12 +27,20 @@ import {
   IMPERSONATION_CHANGE_EVENT,
   isImpersonating,
 } from '../../lib/impersonationStash'
+import { canStartRolePreview } from '../../lib/rolePreview'
+import {
+  ROLE_PREVIEW_CHANGE_EVENT,
+  clearRolePreviewStash,
+  isRolePreviewing,
+} from '../../lib/rolePreviewStash'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
 import { ImpersonationBar } from './ImpersonationBar'
+import { RolePreviewBar } from './RolePreviewBar'
 import { UpdateAvailableNotice } from './UpdateAvailableNotice'
 import { ImpersonationPickerDialog } from './ImpersonationPickerDialog'
+import { RolePreviewPickerDialog } from './RolePreviewPickerDialog'
 import {
   SIDEBAR_WIDTH_DEFAULT,
   SIDEBAR_WIDTH_MAX,
@@ -101,6 +110,7 @@ export function AppShell({
       </a>
       <TopAppBar onNavigate={onNavigate} onHome={onHome} />
       <ImpersonationBar onRestored={onHome} />
+      <RolePreviewBar onRestored={onHome} />
       <UpdateAvailableNotice />
       <div className="shell__body">
         {withSidebar ? <Sidebar view={view} onNavigate={onNavigate} entries={entries} /> : null}
@@ -145,9 +155,16 @@ function TopAppBar({
   const { show } = useToast()
   const [open, setOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [rolePickerOpen, setRolePickerOpen] = useState(false)
   const [viewingAsOther, setViewingAsOther] = useState(() => isImpersonating())
+  const [previewingRole, setPreviewingRole] = useState(() => isRolePreviewing())
   const [restoreBusy, setRestoreBusy] = useState(false)
   const isSuperAdmin = roles.includes('super_admin')
+  const showRolePreview = canStartRolePreview({
+    actualRoles: roles,
+    impersonating: viewingAsOther,
+    previewing: previewingRole,
+  })
   const anchorRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
@@ -155,6 +172,12 @@ function TopAppBar({
     const sync = () => setViewingAsOther(isImpersonating())
     window.addEventListener(IMPERSONATION_CHANGE_EVENT, sync)
     return () => window.removeEventListener(IMPERSONATION_CHANGE_EVENT, sync)
+  }, [])
+
+  useEffect(() => {
+    const sync = () => setPreviewingRole(isRolePreviewing())
+    window.addEventListener(ROLE_PREVIEW_CHANGE_EVENT, sync)
+    return () => window.removeEventListener(ROLE_PREVIEW_CHANGE_EVENT, sync)
   }, [])
 
   async function restoreOwnAccount() {
@@ -251,6 +274,37 @@ function TopAppBar({
                   צפייה כמשתמש
                 </button>
               ) : null}
+              {showRolePreview ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="menu__item"
+                  onClick={() => {
+                    setOpen(false)
+                    setRolePickerOpen(true)
+                  }}
+                >
+                  <UserCog size={20} strokeWidth={1.75} aria-hidden="true" />
+                  צפייה בתפקיד אחר
+                </button>
+              ) : null}
+              {previewingRole ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="menu__item"
+                  onClick={() => {
+                    setOpen(false)
+                    clearRolePreviewStash()
+                    setPreviewingRole(false)
+                    show('חזרתם לתפקידים שלכם.', 'done')
+                    onHome()
+                  }}
+                >
+                  <UserCog size={20} strokeWidth={1.75} aria-hidden="true" />
+                  חזרה לתפקידים שלי
+                </button>
+              ) : null}
               {viewingAsOther ? (
                 <button
                   type="button"
@@ -282,6 +336,11 @@ function TopAppBar({
           onStarted={onHome}
         />
       ) : null}
+      <RolePreviewPickerDialog
+        open={rolePickerOpen}
+        onClose={() => setRolePickerOpen(false)}
+        onStarted={onHome}
+      />
     </>
   )
 }

@@ -6,6 +6,7 @@ import {
   readImpersonationStash,
   writeImpersonationStash,
 } from './impersonationStash'
+import { clearRolePreviewStash } from './rolePreviewStash'
 
 export type ImpersonationTargetSummary = {
   id: string
@@ -114,6 +115,7 @@ export async function startImpersonation(
   if (readImpersonationStash()) {
     return { error: 'כבר במצב צפייה כמשתמש אחר.' }
   }
+  clearRolePreviewStash()
 
   const { data: sessionData } = await supabase.auth.getSession()
   const session = sessionData.session

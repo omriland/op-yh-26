@@ -1,6 +1,7 @@
 import { fetchEventLookups, type LookupOption } from './eventForm'
 import { fetchEventDetail, type EventDetail } from './events'
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
+import type { EventStatus } from './status'
 import { supabase } from './supabase'
 
 export type ShiftBornFillDraft = {
@@ -24,6 +25,48 @@ export function emptyShiftBornFillDraft(): ShiftBornFillDraft {
     treatment_notes: '',
     treated: [],
   }
+}
+
+export type ShiftBornEventFillRow = {
+  id: string
+  typeName: string
+  status: EventStatus
+  expected_updated_at: string
+  draft: ShiftBornFillDraft
+}
+
+export function shiftBornEventFillRowsFrom(
+  events: ReadonlyArray<{
+    id: string
+    status: EventStatus
+    police_event_id: string | null
+    treatment_detail: string | null
+    treatment_notes: string | null
+    updated_at?: string | null
+    event_type: { name: string } | null
+    treated: ReadonlyArray<{ vehicle_kind_id?: string | null; quantity?: number | null }>
+  }>,
+): ShiftBornEventFillRow[] {
+  return events.flatMap((event) => {
+    if (!event.updated_at) return []
+    return [
+      {
+        id: event.id,
+        typeName: event.event_type?.name ?? 'אירוע',
+        status: event.status,
+        expected_updated_at: event.updated_at,
+        draft: {
+          police_event_id: event.police_event_id ?? '',
+          treatment_detail: event.treatment_detail ?? '',
+          treatment_notes: event.treatment_notes ?? '',
+          treated: event.treated.flatMap((row) => {
+            if (!row.vehicle_kind_id || !row.quantity || row.quantity <= 0) return []
+            return [{ vehicle_kind_id: row.vehicle_kind_id, quantity: row.quantity }]
+          }),
+        },
+      },
+    ]
+  })
 }
 
 export async function fetchShiftBornFillContext(

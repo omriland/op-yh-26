@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { isShiftFuture, isShiftPendingLog, SHIFT_LIST_SELECT } from './shifts'
+import {
+  canDocumentShift,
+  isShiftFuture,
+  isShiftPendingLog,
+  SHIFT_LIST_SELECT,
+} from './shifts'
 
 describe('SHIFT_LIST_SELECT embeds', () => {
   it('hints both profile FKs so PostgREST does not return 300', () => {
@@ -14,6 +19,44 @@ describe('isShiftFuture', () => {
     expect(isShiftFuture('2026-08-17', '2026-08-16')).toBe(true)
     expect(isShiftFuture('2026-08-16', '2026-08-16')).toBe(false)
     expect(isShiftFuture('2026-08-15', '2026-08-16')).toBe(false)
+  })
+})
+
+describe('canDocumentShift', () => {
+  const today = '2026-08-16'
+
+  it('lets a lead document a future shift', () => {
+    expect(
+      canDocumentShift({
+        shiftDate: '2026-08-20',
+        canManageLead: true,
+        today,
+      }),
+    ).toBe(true)
+  })
+
+  it('lets a responder document today or earlier, not a future shift', () => {
+    expect(
+      canDocumentShift({
+        shiftDate: today,
+        canManageLead: false,
+        today,
+      }),
+    ).toBe(true)
+    expect(
+      canDocumentShift({
+        shiftDate: '2026-08-10',
+        canManageLead: false,
+        today,
+      }),
+    ).toBe(true)
+    expect(
+      canDocumentShift({
+        shiftDate: '2026-08-20',
+        canManageLead: false,
+        today,
+      }),
+    ).toBe(false)
   })
 })
 
