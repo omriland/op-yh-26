@@ -28,6 +28,7 @@ import {
 import type { CockpitEventPin } from '../../lib/cockpit'
 import { fetchLiveMapPins, subscribeLiveMapPins, type LiveMapPin } from '../../lib/liveMapPins'
 import { freshLivePins, LIVE_PIN_STALE_CHECK_MS, planLivePinSync } from '../../lib/liveTrack'
+import { opsMapViewTrigger, shouldRefitOpsMapView } from '../../lib/opsMapView'
 
 export type SearchOrigin = {
   location: string
@@ -41,6 +42,8 @@ type MapSession = {
   searchOverlay: MapPinOverlay | null
 }
 
+const EMPTY_EVENT_PINS: CockpitEventPin[] = []
+
 type OpsMapPanelProps = {
   eventPins?: CockpitEventPin[]
   onEventSelect?: (eventId: string) => void
@@ -49,7 +52,7 @@ type OpsMapPanelProps = {
 }
 
 export function OpsMapPanel({
-  eventPins = [],
+  eventPins = EMPTY_EVENT_PINS,
   onEventSelect,
   fill = false,
   requirePins = true,
@@ -251,7 +254,7 @@ function applyMapView(
   eventPins: CockpitEventPin[],
   origin: SearchOrigin | null,
   focusUserId: string | null,
-) {
+): boolean {
   session.searchOverlay?.setMap(null)
   session.searchOverlay = null
 
@@ -283,10 +286,14 @@ function applyMapView(
   if (focus) {
     session.map.panTo({ lat: focus.lat, lng: focus.lng })
     session.map.setZoom(14)
-    return
+    return true
   }
 
-  if (!bounds.isEmpty()) session.map.fitBounds(bounds, origin ? 0 : 64)
+  if (!bounds.isEmpty()) {
+    session.map.fitBounds(bounds, origin ? 0 : 64)
+    return true
+  }
+  return false
 }
 
 function OpsMapCanvas({
@@ -312,6 +319,12 @@ function OpsMapCanvas({
   const liveOverlaysRef = useRef(new Map<string, MapPinOverlay>())
   const onEventSelectRef = useRef(onEventSelect)
   onEventSelectRef.current = onEventSelect
+  const userHasMovedMapRef = useRef(false)
+  const applyingViewRef = useRef(true)
+  const viewInitializedRef = useRef(false)
+  const prevOriginRef = useRef(origin)
+  const prevFocusUserIdRef = useRef(focusUserId)
+  const mapListenersRef = useRef<{ remove: () => void }[]>([])
   const [mapError, setMapError] = useState<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
 
@@ -331,6 +344,17 @@ function OpsMapCanvas({
           fullscreenControl: true,
           gestureHandling: 'greedy',
         })
+        function markUserMoved() {
+          if (applyingViewRef.current) return
+          userHasMovedMapRef.current = true
+        }
+        mapListenersRef.current = [
+          map.addListener('dragstart', markUserMoved),
+          map.addListener('zoom_changed', markUserMoved),
+          map.addListener('idle', () => {
+            applyingViewRef.current = false
+          }),
+        ]
         sessionRef.current = { maps, map, searchOverlay: null }
         setMapReady(true)
       })
@@ -340,12 +364,17 @@ function OpsMapCanvas({
 
     return () => {
       cancelled = true
+      for (const listener of mapListenersRef.current) listener.remove()
+      mapListenersRef.current = []
       for (const overlay of staticOverlaysRef.current) overlay.setMap(null)
       staticOverlaysRef.current = []
       for (const overlay of liveOverlaysRef.current.values()) overlay.setMap(null)
       liveOverlaysRef.current.clear()
       sessionRef.current?.searchOverlay?.setMap(null)
       sessionRef.current = null
+      userHasMovedMapRef.current = false
+      applyingViewRef.current = true
+      viewInitializedRef.current = false
       setMapReady(false)
     }
   }, [])
@@ -391,7 +420,18 @@ function OpsMapCanvas({
   useEffect(() => {
     const session = sessionRef.current
     if (!session || !mapReady) return
-    applyMapView(session, pins, eventPins, origin, focusUserId)
+    const trigger = opsMapViewTrigger({
+      initialized: viewInitializedRef.current,
+      originChanged: origin !== prevOriginRef.current,
+      focusChanged: focusUserId !== prevFocusUserIdRef.current,
+    })
+    prevOriginRef.current = origin
+    prevFocusUserIdRef.current = focusUserId
+    if (!shouldRefitOpsMapView(trigger, userHasMovedMapRef.current)) return
+    applyingViewRef.current = true
+    const moved = applyMapView(session, pins, eventPins, origin, focusUserId)
+    viewInitializedRef.current = true
+    if (!moved) applyingViewRef.current = false
   }, [mapReady, origin, focusUserId, pins, eventPins])
 
   useEffect(() => {

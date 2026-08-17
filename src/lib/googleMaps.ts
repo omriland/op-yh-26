@@ -19,10 +19,15 @@ export type MapsApi = {
   }
 }
 
+export type MapsEventListener = {
+  remove: () => void
+}
+
 export type GoogleMap = {
   fitBounds: (bounds: GoogleBounds, padding?: number) => void
   panTo: (center: { lat: number; lng: number }) => void
   setZoom: (zoom: number) => void
+  addListener: (eventName: string, handler: () => void) => MapsEventListener
 }
 
 type GoogleLatLng = { lat: () => number; lng: () => number }
