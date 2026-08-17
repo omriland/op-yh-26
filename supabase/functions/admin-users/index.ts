@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  buildCorsHeaders,
+  jsonResponse as json,
+  runWithCors,
+} from "../_shared/cors.ts";
 
 type AppRole = "admin" | "shift_lead" | "responder";
 
@@ -106,17 +111,7 @@ async function isSuperAdminRowLocked(
   return Boolean(data);
 }
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-function json(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+const ALLOW_HEADERS = "authorization, x-client-info, apikey, content-type";
 
 function trim(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -130,6 +125,8 @@ function formatPlate(raw: string): string {
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = buildCorsHeaders(req, ALLOW_HEADERS);
+  return runWithCors(corsHeaders, async () => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -229,6 +226,7 @@ Deno.serve(async (req: Request) => {
   }
 
   return json(400, { error: "פעולה לא מוכרת." });
+  });
 });
 
 function passwordStrengthError(password: string): string | null {

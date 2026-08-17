@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import {
+  buildCorsHeaders,
+  jsonResponse as json,
+  runWithCors,
+} from "../_shared/cors.ts";
 
 type BroadcastChannel = "email" | "sms" | "both";
 type BroadcastAudience = "all" | "admins" | "shift_leads";
@@ -17,18 +22,9 @@ const SUBJECT_MAX = 200;
 const BODY_MAX = 2000;
 const IMPERSONATING_HEADER = "x-yahpaz-impersonating";
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-yahpaz-impersonating",
-};
+const ALLOW_HEADERS =
+  "authorization, x-client-info, apikey, content-type, x-yahpaz-impersonating";
 
-function json(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
 
 function trim(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -66,6 +62,8 @@ function isAudience(value: unknown): value is BroadcastAudience {
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = buildCorsHeaders(req, ALLOW_HEADERS);
+  return runWithCors(corsHeaders, async () => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -210,6 +208,7 @@ Deno.serve(async (req: Request) => {
     skipped_no_phone: skippedNoPhone,
     skipped_no_email: skippedNoEmail,
     failed_count: failedCount,
+  });
   });
 });
 
