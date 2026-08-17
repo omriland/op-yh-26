@@ -10,7 +10,7 @@ Front door for **אבן דרך**. Not a split shell — a Command portal with on
 ## Brand
 
 - Platform: **אבן דרך** (oversized login wordmark)
-- Beside it (RTL lockup): **היחידה הארצית לפינוי צירים**, separated by a vertical hairline
+- Beside it (RTL lockup): two stacked lines — **היחידה הארצית** / **לפינוי צירים**, separated by a vertical hairline. Do not wrap to three lines.
 
 ## Layout (all breakpoints)
 
@@ -18,7 +18,8 @@ Front door for **אבן דרך**. Not a split shell — a Command portal with on
 ┌─────────────────────────────────────────┐
 │         COMMAND STAGE (full viewport)   │
 │                                         │
-│      אבן דרך │ היחידה הארצית…          │
+│      אבן דרך │ היחידה הארצית           │
+│              │ לפינוי צירים            │
 │                                         │
 │      ┌───────────────────────────┐      │
 │      │  FIELD CARD               │      │

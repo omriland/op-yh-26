@@ -4,13 +4,16 @@ The responder's world. Optimized for one job: finish your part of the record, of
 
 ## האירועים שלי (list)
 
-Same event-card list component as `event-list.md`, filtered to the viewer's assignments, with one change: **the card's stamp reflects MY participation status**, not the event status. Shown to responders and to shift-lead/admin who also have a mine list.
+Same event-card list component as `event-list.md`, filtered to the viewer's assignments, with one change: **the card's stamp reflects MY participation status**, not the event status. Shown to responders and to shift-lead/admin who also have a mine list. This surface is an **inbox**, then an **archive** — two tabs of the same personal list, not a second unit-events page.
 
-- Desktop: insight strip at top (accent rail + subtle tint): loud mono open-count only (no caption under the digit) + eyebrow `האירועים שלי` + `שלום, {first name}` + sentence `יש לך N אירועים לתעד.` (zero → `אין אירועים שממתינים לתיעוד.`). When open count ≥ 3, add note `שימו לב! אירועים שלא תועדו במלואם לא נכללים בהחזר הדלק הרבעוני`.
-- Mobile: no insight strip (too tall). Compact page title `האירועים שלי` only; pending/logged group headings carry the list.
-- List is grouped by logging state, not by date: `אירועים הממתינים לתיעוד` (always shown; empty copy `מברוק! אין לך עוד אירועים לתעד כרגע`) then `אירועים שתועדו` (last 30 days; cards at 0.7 opacity so they recede vs pending; secondary `הצג 30 יום נוספים` loads another 30-day window).
-- Card gains a fill CTA when open: `השלמת הפרטים שלי` when participation is `pending`; `המשך מילוי הפרטים` after `שמירת טיוטה` (`in_progress`). Stamp becomes `טיוטה נשמרה`. Mobile: full-width footer primary. Desktop (≥1025): shrink-wrap, aligned with the stamp at inline-end, directly under it.
-- Shift-born events group under a shift header (`משמרת` · date · שם משמרת · רכב). The group starts collapsed; tap the header (chevron) to expand or collapse. Shift-born type still shows `(משמרת)` in brackets next to the event type — not a separate `ממשמרת` line.
+- Tabs under the header (`role="tablist"`, chip chrome): `ממתינים לתיעוד` (open count as plain text after the label when count > 0, e.g. `ממתינים לתיעוד 3` — not a stamp) · `תועדו`. Default tab: `ממתינים לתיעוד`.
+- Desktop: insight strip at top (accent rail + subtle tint): loud mono open-count only (no caption under the digit) + eyebrow `האירועים שלי` + `שלום, {first name}` + sentence `יש לך N אירועים לתעד.` (zero → `אין אירועים שממתינים לתיעוד.`). When open count ≥ 3, add note `שימו לב! אירועים שלא תועדו במלואם לא נכללים בהחזר הדלק הרבעוני`. Tabs sit under the strip.
+- Mobile: no insight strip (too tall). Compact page title `האירועים שלי` + the same summary sentence + the fuel note when count ≥ 3. Tabs sit under that.
+- **ממתינים לתיעוד:** raised event cards only. Card tap and primary `השלמת הפרטים שלי` / `המשך מילוי הפרטים` open fill (`returnTo: 'list'`). Ghost `פרטי האירוע` opens detail. Meta line is date · מספר אירוע (no שלוחה). Stamp is not a second tap target.
+- Shift-born events on `ממתינים לתיעוד` group under a shift **subheader** (`משמרת` · date · שם משמרת · רכב) — heading + whitespace, never a card wrapping cards. Caption is the open count (`2 לתעד` / `אירוע אחד לתעד`). The group starts **open** when it has items to log. Shift-born type still shows `(משמרת)` in brackets next to the event type.
+- **תועדו:** stacked list in one `list-rows` container (hairline dividers, not faded cards). Row tap → detail. No fill CTA. Search field (`חיפוש לפי מספר אירוע, כביש, מיקום`) filters the loaded window. Caption `תועדו · 30 יום אחרונים`. Secondary `הצג 30 יום נוספים` loads another 30-day window.
+- Empty `ממתינים לתיעוד`: empty-state icon + `אין אירועים שממתינים לתיעוד.` + caption `אירוע חדש יופיע כאן כשישויך אליך.` If the archive has rows (or more windows exist), ghost `לצפייה באירועים שתועדו`. No celebration copy, no exclamation.
+- Empty `תועדו` (no query): `אין אירועים שתועדו בתקופה זו`. Search miss: `אין אירועים שתועדו התואמים ל־“{query}”` + ghost `ניקוי חיפוש`.
 - Desktop responder-only: same list centered, max-width 720. No table view — this surface stays personal, not managerial.
 
 ## השלמת הפרטים שלי (fill flow)

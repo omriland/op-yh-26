@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { Check } from 'lucide-react'
+import { useState, type KeyboardEvent } from 'react'
 import {
   AVAILABILITY_OPTIONS,
   availabilityReturnCaption,
@@ -10,8 +11,8 @@ import {
   type AvailabilityWrite,
 } from '../../lib/availability'
 import { Button } from '../ui/Button'
-import { FilterChips } from '../ui/FilterChips'
 import { TextField } from '../ui/TextField'
+import { AvailabilityDot } from './AvailabilityDot'
 
 export function AvailabilityEditor({
   formId = 'availability-form',
@@ -62,10 +63,29 @@ export function AvailabilityEditor({
     onSave(write)
   }
 
+  function selectStatus(next: AvailabilityStatus) {
+    if (disabled) return
+    setStatus(next)
+    setError(undefined)
+    if (next === 'available') setAvailableFrom('')
+  }
+
+  function onChoiceKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+    event.preventDefault()
+    const next = status === 'available' ? 'unavailable' : 'available'
+    selectStatus(next)
+    const group = event.currentTarget.closest('[role="radiogroup"]')
+    const options = group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+    if (!options?.length) return
+    const current = [...options].indexOf(event.currentTarget)
+    options[current === 0 ? 1 : 0]?.focus()
+  }
+
   return (
     <form
       id={formId}
-      className="stack-4"
+      className="availability-editor stack-4"
       onSubmit={(event) => {
         event.preventDefault()
         submit()
@@ -76,17 +96,37 @@ export function AvailabilityEditor({
           {disabledCaption}
         </p>
       ) : null}
-      <FilterChips
-        label="זמינות"
-        value={status}
-        options={AVAILABILITY_OPTIONS}
-        onChange={(next) => {
-          if (disabled) return
-          setStatus(next)
-          setError(undefined)
-          if (next === 'available') setAvailableFrom('')
-        }}
-      />
+      <div className="availability-choice" role="radiogroup" aria-label="זמינות">
+        {AVAILABILITY_OPTIONS.map((option) => {
+          const selected = status === option.value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              tabIndex={selected ? 0 : -1}
+              className="availability-choice__option"
+              disabled={disabled}
+              onClick={() => selectStatus(option.value)}
+              onKeyDown={onChoiceKeyDown}
+            >
+              <span aria-hidden="true">
+                <AvailabilityDot status={option.value} />
+              </span>
+              <span className="availability-choice__label">{option.label}</span>
+              {selected ? (
+                <Check
+                  className="availability-choice__check"
+                  size={20}
+                  strokeWidth={1.75}
+                  aria-hidden="true"
+                />
+              ) : null}
+            </button>
+          )
+        })}
+      </div>
       {status === 'unavailable' ? (
         <TextField
           label="תאריך חזרה"
@@ -112,7 +152,7 @@ export function AvailabilityEditor({
             שמירה
           </Button>
           {onCancel ? (
-            <Button type="button" variant="secondary" disabled={saving} onClick={onCancel}>
+            <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>
               ביטול
             </Button>
           ) : null}

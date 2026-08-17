@@ -1,6 +1,6 @@
 # Screen — Event List / Home (אירועים)
 
-The landing screen after login. Role-filtered: shift-leads/admins see unit events; responders land on "האירועים שלי" (see `responder-fill.md` — same list component, filtered to own assignments).
+The landing screen after login. Role-filtered: shift-leads/admins see unit events; responders land on "האירועים שלי" (see `responder-fill.md` — inbox/archive tabs, not this date-grouped unit list).
 
 ## Theme context
 

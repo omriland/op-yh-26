@@ -115,9 +115,11 @@ Base: `--surface-raised`, hairline outline, radius `--radius-md`, padding `--spa
 **Event card** (list item): 
 - Row 1: event type (`--type-section`) at inline-start + stamp chip at inline-end. Shift-born: type is `{name} (משמרת)`.
 - Row 2: road + location, `--type-body`, `--text-secondary`.
-- Row 3 (`--type-caption`, `--text-muted`): date · שלוחה · מספר אירוע (mono).
-- Entire card is one tap target; pressed state = `--surface-sunken` flash. Chevron NOT needed (the card is obviously tappable; keep it clean).
-- Mine-list open card: primary `השלמת הפרטים שלי` / `המשך מילוי הפרטים` — full-width under the body on mobile; on desktop shrink-wrap under the stamp at inline-end.
+- Row 3 (`--type-caption`, `--text-muted`): date · שלוחה · מספר אירוע (mono). Mine inbox (`ממתינים לתיעוד`) drops שלוחה — date · מספר אירוע only.
+- Entire card is one tap target; pressed state = `--surface-sunken` flash. Chevron NOT needed (the card is obviously tappable; keep it clean). Unit list → event detail. Mine inbox open card → fill.
+- Mine-list open card: primary `השלמת הפרטים שלי` / `המשך מילוי הפרטים` — full-width under the body on mobile; on desktop shrink-wrap under the stamp at inline-end. Ghost `פרטי האירוע` opens detail (inline-start of the fill row on desktop; under the primary on mobile).
+
+**Mine archive row** (`תועדו`): not a card. One stacked list (`list-rows`) with hairline dividers. Row: type + place + date/id at inline-start, stamp at inline-end. Tap → detail. No fill CTA, no opacity fade.
 
 **Responder card** (inside event detail): header row = avatar (28 px) + name + callsign (mono, caption) + stamp at inline-end; body = ledger rows of that responder's fields. When it's the viewer's own open card, a primary button `השלמת הפרטים שלי` sits at the card footer, full-width on mobile.
 
@@ -131,7 +133,7 @@ Header row: `--surface-sunken`, `--type-label` `--text-secondary`, height 40 px.
 
 ## Navigation
 
-**Top app bar** (all contexts): height 48 px, ALWAYS Command navy (`#182A47` = Command `--surface-page`, text `#F2F6FA`) even in Field theme — the constant institutional band. Contains: wordmark at inline-start — desktop `היחידה הארצית לפינוי צירים` (IBM Plex Sans Hebrew 700, 15 px, ellipsis if needed); mobile `יחפ״צ` (18 px) — **duty availability** control then user menu at inline-end. Desktop: compact `זמין` / `לא זמין` selector (concentric discs: outer `--space-4` `--status-done-tint` / `--status-alert-tint`, inner `--space-2` `--status-done` / `--status-alert`; no blur; never color-only) **inline-start of the avatar**, min height 40 px, `aria-label="זמינות"`, popover editor (chips + optional `תאריך חזרה`; save on primary). Mobile: the same row lives **inside the avatar menu** under the name/callsign header and opens a Dialog — not on the bar. Impersonation: view-only, caption `צפייה כמשתמש — לא ניתן לשנות זמינות.` Hairline bottom rule `rgba(242,246,250,0.15)`.
+**Top app bar** (all contexts): height 48 px, ALWAYS Command navy (`#182A47` = Command `--surface-page`, text `#F2F6FA`) even in Field theme — the constant institutional band. Contains: wordmark at inline-start — desktop `היחידה הארצית לפינוי צירים` (IBM Plex Sans Hebrew 700, 15 px, ellipsis if needed); mobile `יחפ״צ` (18 px) — **duty availability** control then user menu at inline-end. Desktop: compact `זמין` / `לא זמין` selector (concentric discs: outer `--space-4` `--status-done-tint` / `--status-alert-tint`, inner `--space-2` `--status-done` / `--status-alert`; no blur; never color-only) **inline-start of the avatar**, min height 40 px, `aria-label="זמינות"`, popover editor (Command overlay; fill-only choice rows + optional `תאריך חזרה`; save on primary, cancel ghost). Mobile: the same row lives **inside the avatar menu** under the name/callsign header and opens a Dialog — not on the bar. Impersonation: view-only, caption `צפייה כמשתמש — לא ניתן לשנות זמינות.` Hairline bottom rule `rgba(242,246,250,0.15)`.
 
 **Bottom tab bar** (mobile): height 56 px + `env(safe-area-inset-bottom)`, `--surface-raised`, top hairline. 3–4 tabs by role (see screen blueprints). When a role has more destinations, the last tab is `עוד` and opens a bottom sheet of the rest. Tab: icon 24 px + `--type-caption` label; active = `--accent` icon+label + 2px top indicator bar; inactive = `--text-muted`. No badges with counts unless a blueprint says so.
 

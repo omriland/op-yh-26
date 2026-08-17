@@ -18,7 +18,8 @@ type LoginPageProps = {
 }
 
 const PLATFORM_NAME = 'אבן דרך'
-const UNIT_LINE = 'היחידה הארצית לפינוי צירים'
+const UNIT_LINE_1 = 'היחידה הארצית'
+const UNIT_LINE_2 = 'לפינוי צירים'
 
 export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
   const {
@@ -141,7 +142,10 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
           <div className="login__lockup">
             <h1 className="login__wordmark">{PLATFORM_NAME}</h1>
             <span className="login__divider" aria-hidden="true" />
-            <p className="login__unit">{UNIT_LINE}</p>
+            <p className="login__unit">
+              <span className="login__unit-line">{UNIT_LINE_1}</span>
+              <span className="login__unit-line">{UNIT_LINE_2}</span>
+            </p>
           </div>
         </header>
 

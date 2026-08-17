@@ -31,6 +31,18 @@ import {
 } from '../lib/fuelAllocationPolicy'
 import { formatDayHeading } from '../lib/format'
 import { MINE_LOGGED_WINDOW_DAYS, partitionMineList } from '../lib/mineListSections'
+import {
+  MINE_LOGGED_EMPTY_TITLE,
+  MINE_PENDING_EMPTY_CAPTION,
+  MINE_PENDING_EMPTY_TITLE,
+  MINE_PENDING_EMPTY_VIEW_LOGGED,
+  mineEventMatchesQuery,
+  mineLoggedNoResultsTitle,
+  openMineSummary,
+  shiftGroupPendingCaption,
+  shiftGroupShouldStartOpen,
+  type MineInboxTab,
+} from '../lib/mineInbox'
 import { jerusalemToday } from '../lib/shifts'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
@@ -39,6 +51,8 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { FilterChips } from '../components/ui/FilterChips'
 import { EventCard } from '../components/events/EventCard'
+import { MineInboxTabs } from '../components/events/MineInboxTabs'
+import { MineLoggedEventRow } from '../components/events/MineLoggedEventRow'
 import { MineShiftEventGroup } from '../components/events/MineShiftEventGroup'
 import { EventsTable } from '../components/events/EventsTable'
 import { useToast } from '../components/ui/Toast'
@@ -73,6 +87,8 @@ export function EventsPage({
   const [reloadKey, setReloadKey] = useState(0)
   const [searching, setSearching] = useState(false)
   const [loggedWindows, setLoggedWindows] = useState(1)
+  const [mineTab, setMineTab] = useState<MineInboxTab>('pending')
+  const [loggedQuery, setLoggedQuery] = useState('')
 
   useEffect(() => {
     let active = true
@@ -98,6 +114,8 @@ export function EventsPage({
 
   useEffect(() => {
     setLoggedWindows(1)
+    setMineTab('pending')
+    setLoggedQuery('')
   }, [reloadKey, scope])
 
   useEffect(() => {
@@ -217,6 +235,10 @@ export function EventsPage({
       windowsLoaded: loggedWindows,
     })
   }, [events, loggedWindows, scope, user?.id])
+  const loggedVisible = useMemo(() => {
+    if (!mineSections) return []
+    return mineSections.logged.filter((event) => mineEventMatchesQuery(event, loggedQuery))
+  }, [loggedQuery, mineSections])
   const openMineCount = useMemo(() => {
     if (scope !== 'mine' || !events) return 0
     return events.filter((event) => ownParticipation(event, user?.id) !== 'done').length
@@ -260,10 +282,14 @@ export function EventsPage({
             </div>
           </section>
         ) : (
-          <div className="page-head">
-            <div className="page-head__intro">
-              <h1 className="t-title">האירועים שלי</h1>
-            </div>
+          <div className="mine-inbox-head">
+            <h1 className="t-title">האירועים שלי</h1>
+            <p className="t-body text-secondary">{openMineSummary(openMineCount, events !== null)}</p>
+            {shouldShowIncompleteFuelNotice(openMineCount) ? (
+              <p className="t-body mine-inbox-head__notice" role="note">
+                {INCOMPLETE_FUEL_REFUND_NOTICE}
+              </p>
+            ) : null}
           </div>
         )
       ) : (
@@ -312,7 +338,16 @@ export function EventsPage({
           onChange={setFilter}
           label="סינון לפי סטטוס תיעוד"
         />
-      ) : null}
+      ) : (
+        <MineInboxTabs
+          tab={mineTab}
+          pendingCount={openMineCount}
+          onChange={(next) => {
+            setMineTab(next)
+            if (next !== 'logged') setLoggedQuery('')
+          }}
+        />
+      )}
 
       {failed ? (
         <EmptyState
@@ -333,53 +368,42 @@ export function EventsPage({
       ) : searching ? (
         <SearchLoadingState />
       ) : scope === 'mine' && mineSections ? (
-        <DateGroups>
-          <DateGroup heading="אירועים הממתינים לתיעוד">
-            <div className="stack-4">
-              {mineSections.pending.length === 0 ? (
-                <p className="t-body text-secondary mine-section-empty">
-                  מברוק! אין לך עוד אירועים לתעד כרגע
-                </p>
-              ) : (
-                <EventCards
-                  events={mineSections.pending}
-                  stampFor={stampFor}
-                  onOpen={onOpen}
-                  onFill={onFill}
-                  userId={user?.id}
-                  collapsibleShiftGroups
-                />
-              )}
-            </div>
-          </DateGroup>
-          <DateGroup heading="אירועים שתועדו" logged>
-            <div className="stack-4">
-              {mineSections.logged.length === 0 ? (
-                <p className="t-body text-secondary mine-section-empty">
-                  אין אירועים שתועדו בתקופה זו
-                </p>
-              ) : (
-                <EventCards
-                  events={mineSections.logged}
-                  stampFor={stampFor}
-                  onOpen={onOpen}
-                  onFill={onFill}
-                  userId={user?.id}
-                  collapsibleShiftGroups
-                />
-              )}
-              {mineSections.hasMoreLogged ? (
-                <Button
-                  variant="secondary"
-                  block
-                  onClick={() => setLoggedWindows((windows) => windows + 1)}
-                >
-                  {`הצג ${MINE_LOGGED_WINDOW_DAYS} יום נוספים`}
-                </Button>
-              ) : null}
-            </div>
-          </DateGroup>
-        </DateGroups>
+        mineTab === 'pending' ? (
+          mineSections.pending.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+              title={MINE_PENDING_EMPTY_TITLE}
+              caption={MINE_PENDING_EMPTY_CAPTION}
+              action={
+                mineSections.logged.length > 0 || mineSections.hasMoreLogged ? (
+                  <Button variant="ghost" onClick={() => setMineTab('logged')}>
+                    {MINE_PENDING_EMPTY_VIEW_LOGGED}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <EventCards
+              events={mineSections.pending}
+              stampFor={stampFor}
+              onOpen={onOpen}
+              onFill={onFill}
+              userId={user?.id}
+              mode="inbox"
+              collapsibleShiftGroups
+            />
+          )
+        ) : (
+          <MineLoggedList
+            events={loggedVisible}
+            query={loggedQuery}
+            onQueryChange={setLoggedQuery}
+            stampFor={stampFor}
+            onOpen={onOpen}
+            hasMore={mineSections.hasMoreLogged}
+            onLoadMore={() => setLoggedWindows((windows) => windows + 1)}
+          />
+        )
       ) : visible.length === 0 ? (
         <ListEmptyState
           filtered={filter !== 'all' || query.trim() !== ''}
@@ -457,12 +481,72 @@ function ListEmptyState({
   )
 }
 
-function openMineSummary(count: number, ready: boolean): string {
-  if (!ready) return 'טוען את הדיווחים שלך…'
-  if (count === 0) return 'אין אירועים שממתינים לתיעוד.'
-  if (count === 1) return 'יש לך אירוע אחד לתעד.'
-  if (count === 2) return 'יש לך שני אירועים לתעד.'
-  return `יש לך ${count} אירועים לתעד.`
+function MineLoggedList({
+  events,
+  query,
+  onQueryChange,
+  stampFor,
+  onOpen,
+  hasMore,
+  onLoadMore,
+}: {
+  events: EventListItem[]
+  query: string
+  onQueryChange: (value: string) => void
+  stampFor: (event: EventListItem) => StampDescriptor
+  onOpen: (eventId: string) => void
+  hasMore: boolean
+  onLoadMore: () => void
+}) {
+  const trimmed = query.trim()
+  return (
+    <div className="stack-4">
+      <div className="admin-toolbar">
+        <label className="search-field">
+          <Search size={20} strokeWidth={1.75} aria-hidden="true" />
+          <span className="visually-hidden">חיפוש אירועים שתועדו</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="חיפוש לפי מספר אירוע, כביש, מיקום"
+          />
+        </label>
+      </div>
+      <p className="t-caption text-muted mine-logged-caption">
+        {`תועדו · ${MINE_LOGGED_WINDOW_DAYS} יום אחרונים`}
+      </p>
+      {events.length === 0 ? (
+        <EmptyState
+          icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+          title={trimmed ? mineLoggedNoResultsTitle(trimmed) : MINE_LOGGED_EMPTY_TITLE}
+          action={
+            trimmed ? (
+              <Button variant="ghost" onClick={() => onQueryChange('')}>
+                ניקוי חיפוש
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <ul className="list-rows">
+          {events.map((event) => (
+            <MineLoggedEventRow
+              key={event.id}
+              event={event}
+              stamp={stampFor(event)}
+              onOpen={onOpen}
+            />
+          ))}
+        </ul>
+      )}
+      {hasMore ? (
+        <Button variant="secondary" block onClick={onLoadMore}>
+          {`הצג ${MINE_LOGGED_WINDOW_DAYS} יום נוספים`}
+        </Button>
+      ) : null}
+    </div>
+  )
 }
 
 function EventCards({
@@ -472,6 +556,7 @@ function EventCards({
   onFill,
   userId,
   collapsibleShiftGroups = false,
+  mode = 'default',
 }: {
   events: EventListItem[]
   stampFor: (event: EventListItem) => StampDescriptor
@@ -479,6 +564,7 @@ function EventCards({
   onFill?: (eventId: string) => void
   userId?: string
   collapsibleShiftGroups?: boolean
+  mode?: 'default' | 'inbox'
 }) {
   const blocks = groupMineEventCards(events)
   return (
@@ -494,24 +580,31 @@ function EventCards({
                 event={event}
                 stamp={stampFor(event)}
                 onOpen={onOpen}
-                onFill={fillLabel && onFill ? onOpen : undefined}
+                onFill={fillLabel && onFill ? onFill : undefined}
                 fillLabel={fillLabel ?? undefined}
+                mode={mode}
               />
             )
           })
           if (collapsibleShiftGroups) {
+            const pendingCount = block.events.length
             return (
               <MineShiftEventGroup
                 key={block.key}
                 title={block.title}
-                eventCount={block.events.length}
+                caption={
+                  mode === 'inbox'
+                    ? shiftGroupPendingCaption(pendingCount)
+                    : `${pendingCount} אירועים`
+                }
+                defaultOpen={shiftGroupShouldStartOpen(pendingCount)}
               >
                 {groupedCards}
               </MineShiftEventGroup>
             )
           }
           return (
-            <li key={block.key} className="card stack-3">
+            <li key={block.key} className="stack-3">
               <p className="t-label text-secondary">{block.title}</p>
               <ul className="stack-3">{groupedCards}</ul>
             </li>
@@ -528,6 +621,7 @@ function EventCards({
             onOpen={onOpen}
             onFill={fillLabel && onFill ? onFill : undefined}
             fillLabel={fillLabel ?? undefined}
+            mode={mode}
           />
         )
       })}

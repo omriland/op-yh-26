@@ -219,6 +219,7 @@ export function AvailabilityPopoverTrigger({
             <div
               ref={panelRef}
               className="menu availability-popover"
+              data-theme="command"
               role="dialog"
               aria-label="זמינות"
               style={{ top: coords.top, insetInlineEnd: coords.insetInlineEnd }}
@@ -270,7 +271,7 @@ function AvailabilityDialog({
           >
             שמירה
           </Button>
-          <Button variant="secondary" disabled={saving} onClick={onClose}>
+          <Button variant="ghost" disabled={saving} onClick={onClose}>
             ביטול
           </Button>
         </>
