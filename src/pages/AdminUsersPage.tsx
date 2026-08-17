@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArchiveRestore, Plus, Search, Trash2, UserRound } from 'lucide-react'
+import { ArchiveRestore, Plus, RefreshCw, Search, Trash2, UserRound } from 'lucide-react'
 import {
   archiveAdminVehicle,
   deleteAdminUser,
@@ -254,6 +254,7 @@ export function AdminUsersPage() {
   }
   const [query, setQuery] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -345,6 +346,25 @@ export function AdminUsersPage() {
       active = false
     }
   }, [reloadKey])
+
+  async function refreshUsers() {
+    if (refreshing) return
+    const keepRows = users !== null
+    setRefreshing(true)
+    setFailed(false)
+    try {
+      const rows = await fetchAdminUsers()
+      setUsers(rows)
+    } catch {
+      if (keepRows) {
+        show('טעינת המשתמשים נכשלה. בדקו את החיבור ונסו שוב.', 'alert')
+      } else {
+        setFailed(true)
+      }
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const usersLoaded = users !== null
   useEffect(() => {
@@ -846,29 +866,52 @@ export function AdminUsersPage() {
 
   return (
     <div>
-      <div className="row-between" style={{ marginBlockEnd: 'var(--space-6)' }}>
+      <div className="page-head">
         <h1 className="t-title">משתמשים</h1>
-        {isDesktop ? (
-          <Button
-            onClick={() => {
-              setFormError(null)
-              setDraft(emptyDraft())
-            }}
-            icon={<Plus size={20} strokeWidth={1.75} />}
-          >
-            משתמש חדש
-          </Button>
-        ) : (
-          <IconButton
-            label="משתמש חדש"
-            onClick={() => {
-              setFormError(null)
-              setDraft(emptyDraft())
-            }}
-          >
-            <Plus size={20} strokeWidth={1.75} />
-          </IconButton>
-        )}
+        <div className="page-head__actions">
+          {isDesktop ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => void refreshUsers()}
+                loading={refreshing}
+                loadingLabel="מרענן…"
+                disabled={users === null && !failed}
+                icon={<RefreshCw size={20} strokeWidth={1.75} />}
+              >
+                רענון
+              </Button>
+              <Button
+                onClick={() => {
+                  setFormError(null)
+                  setDraft(emptyDraft())
+                }}
+                icon={<Plus size={20} strokeWidth={1.75} />}
+              >
+                משתמש חדש
+              </Button>
+            </>
+          ) : (
+            <>
+              <IconButton
+                label="רענון"
+                onClick={() => void refreshUsers()}
+                disabled={refreshing || (users === null && !failed)}
+              >
+                <RefreshCw size={20} strokeWidth={1.75} />
+              </IconButton>
+              <IconButton
+                label="משתמש חדש"
+                onClick={() => {
+                  setFormError(null)
+                  setDraft(emptyDraft())
+                }}
+              >
+                <Plus size={20} strokeWidth={1.75} />
+              </IconButton>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="admin-toolbar">
@@ -897,7 +940,12 @@ export function AdminUsersPage() {
           title="טעינת המשתמשים נכשלה"
           caption="בדקו את החיבור ונסו שוב."
           action={
-            <Button variant="secondary" onClick={() => setReloadKey((v) => v + 1)}>
+            <Button
+              variant="secondary"
+              onClick={() => void refreshUsers()}
+              loading={refreshing}
+              loadingLabel="מרענן…"
+            >
               רענון
             </Button>
           }
