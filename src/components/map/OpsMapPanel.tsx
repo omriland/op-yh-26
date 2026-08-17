@@ -27,7 +27,7 @@ import {
 } from '../../lib/userAddresses'
 import type { CockpitEventPin } from '../../lib/cockpit'
 import { fetchLiveMapPins, subscribeLiveMapPins, type LiveMapPin } from '../../lib/liveMapPins'
-import { planLivePinSync } from '../../lib/liveTrack'
+import { freshLivePins, LIVE_PIN_STALE_CHECK_MS, planLivePinSync } from '../../lib/liveTrack'
 
 export type SearchOrigin = {
   location: string
@@ -57,6 +57,7 @@ export function OpsMapPanel({
   const { show } = useToast()
   const [pins, setPins] = useState<MapPin[] | null>(null)
   const [livePins, setLivePins] = useState<LiveMapPin[]>([])
+  const [clockMs, setClockMs] = useState(() => Date.now())
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState(emptyLocationPlaceFields())
   const [origin, setOrigin] = useState<SearchOrigin | null>(null)
@@ -95,6 +96,13 @@ export function OpsMapPanel({
     }
   }, [])
 
+  useEffect(() => {
+    const id = window.setInterval(() => setClockMs(Date.now()), LIVE_PIN_STALE_CHECK_MS)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const visibleLivePins = useMemo(() => freshLivePins(livePins, clockMs), [livePins, clockMs])
+
   const nearby = useMemo(
     () => (origin && pins ? nearbyResponders(pins, origin, SEARCH_VIEW_RADIUS_KM) : []),
     [origin, pins],
@@ -117,7 +125,7 @@ export function OpsMapPanel({
     }
   }
 
-  const hasPins = (pins?.length ?? 0) > 0 || eventPins.length > 0 || livePins.length > 0
+  const hasPins = (pins?.length ?? 0) > 0 || eventPins.length > 0 || visibleLivePins.length > 0
   const showMap = !requirePins || hasPins || Boolean(origin)
 
   return (
@@ -165,7 +173,7 @@ export function OpsMapPanel({
             <OpsMapCanvas
               pins={pins}
               eventPins={eventPins}
-              livePins={livePins}
+              livePins={visibleLivePins}
               origin={origin}
               focusUserId={focusUserId}
               onEventSelect={onEventSelect}

@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   LIVE_PING_MIN_INTERVAL_MS,
   LIVE_PING_MIN_MOVE_M,
+  LIVE_PIN_STALE_AFTER_MS,
   buildTrackSms,
   canStartTracking,
+  freshLivePins,
+  isLivePinFresh,
   isLiveTrackSmsAllowed,
   liveEventLine,
   livePinLabel,
@@ -318,6 +321,32 @@ describe('live-track SMS allowlist', () => {
     const allowlist = parseLiveTrackSmsAllowlist('336, 12')
     expect(isLiveTrackSmsAllowed('12', allowlist)).toBe(true)
     expect(isLiveTrackSmsAllowed('99', allowlist)).toBe(false)
+  })
+})
+
+describe('fresh live pins', () => {
+  const recordedAt = '2026-08-17T10:00:00.000Z'
+  const at = Date.parse(recordedAt)
+
+  it('keeps a pin through 30s after the last ping', () => {
+    expect(isLivePinFresh(recordedAt, at + LIVE_PIN_STALE_AFTER_MS)).toBe(true)
+    expect(isLivePinFresh(recordedAt, at + LIVE_PIN_STALE_AFTER_MS + 1)).toBe(false)
+  })
+
+  it('drops pins with a missing recorded_at', () => {
+    expect(isLivePinFresh('', at)).toBe(false)
+  })
+
+  it('filters a list to still-fresh pins', () => {
+    expect(
+      freshLivePins(
+        [
+          { id: 'fresh', recordedAt },
+          { id: 'stale', recordedAt: '2026-08-17T09:59:00.000Z' },
+        ],
+        at,
+      ).map((pin) => pin.id),
+    ).toEqual(['fresh'])
   })
 })
 

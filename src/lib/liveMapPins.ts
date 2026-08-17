@@ -7,6 +7,7 @@ export type LiveMapPin = {
   lng: number
   label: string
   tooltip: string
+  recordedAt: string
 }
 
 type LiveRow = {
@@ -53,6 +54,7 @@ function toPin(row: LiveRow): LiveMapPin | null {
       }),
       recordedAt: row.recorded_at,
     }),
+    recordedAt: row.recorded_at,
   }
 }
 

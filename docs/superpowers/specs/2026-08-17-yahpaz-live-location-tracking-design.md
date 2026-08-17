@@ -158,7 +158,7 @@ Same `OpsMapPanel`. Extend `createLabeledPin` with variant `live` (`--status-don
 - Live pin is not a hit target that opens the event
 - Not in `כוננים קרובים`
 - **מפה** caption stays about addresses
-- Pin gone when the live row is deleted (Realtime)
+- Pin gone when the live row is deleted (Realtime), **or** when the last ping is older than **30 seconds** (three missed 10s pings — tab locked, app switched, GPS stopped). Next ping brings the pin back.
 
 Update `screens/admin.md` (מפה) and `screens/cockpit.md` (מפה drawer) in the same slice.
 
@@ -180,7 +180,7 @@ Failures: toast `שליחת מעקב המיקום נכשלה. האירוע נש�
 | No IL mobile | Skip start. Event saved. |
 | Soprano fail | Do not set `tracking_sms_sent_at`. Null the new hash if we minted and did not send. Toast. Retry next save. |
 | Volunteer denies location | Tracker page error copy. No pin. |
-| Tab backgrounded / screen locked | OS stops fixes. Last pin stays until a new ping or `stop`. |
+| Tab backgrounded / screen locked | OS stops fixes. Pin drops off the maps after **30s** without a ping. Returns on the next ping. |
 | Volunteer never opens the link | No pin. |
 | Event cancelled, `ended_at` still null | Tracking **continues** (locked stop rule) |
 
@@ -188,7 +188,7 @@ Failures: toast `שליחת מעקב המיקום נכשלה. האירוע נש�
 
 - Pure: live pin label/tooltip; start vs skip (`ended_at`, existing `tracking_sms_sent_at`, invalid phone); ping refuse when ended/expired; stop deletes live row
 - No Soprano / live GPS in unit tests
-- Manual: attach → SMS → leave page open → pin on both maps → lock phone (pin freezes) → set end time → pin gone and page shows `המעקב הסתיים`
+- Manual: attach → SMS → leave page open → pin on both maps → lock phone (pin gone within ~30s) → reopen page (pin returns) → set end time → pin gone and page shows `המעקב הסתיים`
 
 ## Complexity
 

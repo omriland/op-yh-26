@@ -2,6 +2,9 @@ import { isValidIlMobile } from './phoneE164'
 
 export const LIVE_PING_MIN_INTERVAL_MS = 10_000
 export const LIVE_PING_MIN_MOVE_M = 50
+/** Drop a live map pin after three missed 10s pings. */
+export const LIVE_PIN_STALE_AFTER_MS = 30_000
+export const LIVE_PIN_STALE_CHECK_MS = 2_000
 export const LIVE_TRACK_SMS_ALLOWLIST_DEFAULT = '336'
 export const LIVE_TRACK_SMS_ALLOWLIST_ALL = '*'
 
@@ -206,6 +209,16 @@ export type LivePinSnapshot = {
   lng: number
   label: string
   tooltip: string
+}
+
+export function isLivePinFresh(recordedAt: string, nowMs: number): boolean {
+  const at = Date.parse(recordedAt)
+  if (!Number.isFinite(at)) return false
+  return nowMs - at <= LIVE_PIN_STALE_AFTER_MS
+}
+
+export function freshLivePins<T extends { recordedAt: string }>(pins: T[], nowMs: number): T[] {
+  return pins.filter((pin) => isLivePinFresh(pin.recordedAt, nowMs))
 }
 
 export function planLivePinSync(
