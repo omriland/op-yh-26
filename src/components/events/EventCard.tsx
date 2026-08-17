@@ -74,19 +74,6 @@ export function EventCard({
           </Button>
         </div>
       ) : null}
-      {inbox && onFill ? (
-        <div className="event-card__detail">
-          <Button
-            variant="ghost"
-            onClick={(eventClick) => {
-              eventClick.stopPropagation()
-              open()
-            }}
-          >
-            פרטי האירוע
-          </Button>
-        </div>
-      ) : null}
     </li>
   )
 }

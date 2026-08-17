@@ -33,7 +33,7 @@ function event(partial: Partial<EventListItem> = {}): EventListItem {
 const stamp = { label: 'ממתין למילוי פרטים', tone: 'pending' as const }
 
 describe('EventCard inbox mode', () => {
-  it('keeps the fill CTA and a quiet path to event detail', () => {
+  it('keeps the fill CTA and no path to event detail', () => {
     const html = renderToStaticMarkup(
       createElement(EventCard, {
         event: event(),
@@ -46,8 +46,8 @@ describe('EventCard inbox mode', () => {
     )
 
     expect(html).toContain('השלמת הפרטים שלי')
-    expect(html).toContain('פרטי האירוע')
-    expect(html).toContain('btn--ghost')
+    expect(html).not.toContain('פרטי האירוע')
+    expect(html).not.toContain('btn--ghost')
   })
 
   it('drops district from the inbox meta line', () => {

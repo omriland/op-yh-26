@@ -117,7 +117,7 @@ Base: `--surface-raised`, hairline outline, radius `--radius-md`, padding `--spa
 - Row 2: road + location, `--type-body`, `--text-secondary`.
 - Row 3 (`--type-caption`, `--text-muted`): date · שלוחה · מספר אירוע (mono). Mine inbox (`ממתינים לתיעוד`) drops שלוחה — date · מספר אירוע only.
 - Entire card is one tap target; pressed state = `--surface-sunken` flash. Chevron NOT needed (the card is obviously tappable; keep it clean). Unit list → event detail. Mine inbox open card → fill.
-- Mine-list open card: primary `השלמת הפרטים שלי` / `המשך מילוי הפרטים` — full-width under the body on mobile; on desktop shrink-wrap under the stamp at inline-end. Ghost `פרטי האירוע` opens detail (inline-start of the fill row on desktop; under the primary on mobile).
+- Mine-list open card: primary `השלמת הפרטים שלי` / `המשך מילוי הפרטים` — full-width under the body on mobile; on desktop shrink-wrap under the stamp at inline-end. No ghost detail button — pending cards only fill.
 
 **Mine archive row** (`תועדו`): not a card. One stacked list (`list-rows`) with hairline dividers. Row: type + place + date/id at inline-start, stamp at inline-end. Tap → detail. No fill CTA, no opacity fade.
 
