@@ -1,8 +1,15 @@
 import { formatNumber } from './format'
 import { supabase } from './supabase'
 import {
+  israelToday,
+  mapAvailabilityHoverLabel,
+  parseAvailabilityStatus,
+  type AvailabilityStatus,
+} from './availability'
+import {
   isMapVisibleVolunteerStatus,
   parseVolunteerStatus,
+  volunteerStatusLabel,
   type VolunteerStatus,
 } from './volunteerStatus'
 
@@ -50,6 +57,8 @@ export type MapPin = {
   lat: number
   lng: number
   volunteerStatus: VolunteerStatus
+  availability: AvailabilityStatus
+  availableFrom: string | null
 }
 
 export const ADDRESS_KIND_LABELS: Record<AddressKind, string> = {
@@ -162,6 +171,8 @@ export function toMapPins(
     callsign: string
     active: boolean
     volunteer_status?: string | null
+    availability?: string | null
+    available_from?: string | null
     addresses: UserAddressRow[]
   }>,
 ): MapPin[] {
@@ -182,10 +193,29 @@ export function toMapPins(
         lat: address.lat,
         lng: address.lng,
         volunteerStatus: parseVolunteerStatus(user.volunteer_status),
+        availability: parseAvailabilityStatus(user.availability),
+        availableFrom: user.available_from ?? null,
       })
     }
   }
   return pins
+}
+
+export function mapUserPinChrome(
+  pin: MapPin,
+  today = israelToday(),
+): { unavailable: boolean; tooltip: { text: string; alert: boolean } } {
+  const hover = mapAvailabilityHoverLabel(pin.availability, pin.availableFrom, today)
+  if (hover) {
+    return { unavailable: true, tooltip: { text: hover, alert: false } }
+  }
+  return {
+    unavailable: false,
+    tooltip: {
+      text: volunteerStatusLabel(pin.volunteerStatus),
+      alert: pin.volunteerStatus === 'personal_vehicle_training',
+    },
+  }
 }
 
 export type NearbyResponder = {
@@ -282,7 +312,7 @@ function emptySlot(kind: 'home' | 'work' | 'other'): AddressDraft {
 export async function fetchActiveUserMapPins(): Promise<MapPin[]> {
   const { data: profiles, error: profileError } = await supabase
     .from('profiles')
-    .select('id, full_name, callsign, active, volunteer_status')
+    .select('id, full_name, callsign, active, volunteer_status, availability, available_from')
     .eq('active', true)
 
   if (profileError) throw profileError
@@ -304,6 +334,8 @@ export async function fetchActiveUserMapPins(): Promise<MapPin[]> {
       callsign: profile.callsign as string,
       active: profile.active !== false,
       volunteer_status: (profile.volunteer_status as string | null) ?? null,
+      availability: (profile.availability as string | null) ?? null,
+      available_from: (profile.available_from as string | null) ?? null,
       addresses: (addressRows ?? [])
         .filter((row) => row.user_id === profile.id)
         .map((row) => ({

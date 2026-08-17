@@ -16,11 +16,11 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 - Title row: `אירועים` (`--type-title`) at inline-start; if role can create → primary button `אירוע חדש` (icon-plus + label) at inline-end. On narrow widths the button may compress to icon-only 44×44 with `aria-label="אירוע חדש"`.
 - Filter row: horizontally scrollable chips (`scrollbar-hide`), height 36 px, secondary-chip chrome: `הכול` · `ממתין לתיעוד` · `תועד חלקית` · `הושלם` · `אירוע בהזנה`. Active chip = `--accent-subtle` bg + `--accent` text + `--accent` border. These are filters, NOT stamps — they use normal chip chrome, not stamp styling. Status chips (not `הכול`) show an instant Command hover tip with the status meaning.
 - List: event cards (per `06-components.md`), gap `--space-3`, grouped by date with sticky group headers (`--type-label`, `--text-muted`, e.g. `היום · 09.08.2026`).
-- Bottom tab bar: `אירועים` (active) · `האירועים שלי` (if shift-lead and/or responder — leads also go on events) · `ניהול` (admin only) · `פרופיל`.
+- Bottom tab bar: daily destinations only — `האירועים שלי` (personal list) · `אירועים` (אחמ״ש / מנהל) · then `המשמרות שלי` or `ניהול` if they still fit. Remaining destinations (`משמרות`, `אנשי קשר`, `מפה`, `דוחות`) sit behind `עוד`. Profile via app-bar menu. Full role table: `admin.md`.
 
 ### Desktop (Command)
 
-- Sidebar: `אירועים` (active), `האירועים שלי` (if shift-lead and/or responder), section `ניהול` → `משתמשים`, `הגדרות` (admin only). Desktop only: a separate icon-plus (`אירוע חדש` / `משמרת חדשה`) sits at the inline-end of the `אירועים` / `משמרות` rows — same 40 px height as the nav item, not part of the tab hit target. Hidden on the mobile tab bar.
+- Sidebar: `אירועים` (active), `האירועים שלי` (if shift-lead and/or responder), section `ניהול` → `משתמשים` (admin only). `פרופיל` and admin `הגדרות` are pinned at the sidebar block-end. Desktop only: a separate icon-plus (`אירוע חדש` / `משמרת חדשה`) sits at the inline-end of the `אירועים` / `משמרות` rows — same 40 px height as the nav item, not part of the tab hit target. Hidden on the mobile tab bar.
 - Content: title row (title + caption `מציג את 200 האירועים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר` at `--type-caption` / `--text-muted`, then `אירוע חדש` primary) → filter chips + search input (width 280, icon magnifier, placeholder `חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק`) → **table** of the last 200 events by `event_date` (then `created_at`). Search queries the full database and hydrates matching rows that are outside that window.
 
 | Column | Content | Notes |

@@ -12,12 +12,12 @@ import {
   CalendarClock,
   ClipboardList,
   Contact,
+  Ellipsis,
   Eye,
   Fuel,
   ListChecks,
   LogOut,
   MapPinned,
-  Megaphone,
   Plus,
   Radar,
   Settings,
@@ -57,6 +57,10 @@ import {
   writeSidebarWidth,
 } from '../../lib/sidebarWidth'
 import { navAttentionAriaSuffix } from '../../lib/navAttention'
+import { MOBILE_MORE_LABEL, splitMobileNav } from '../../lib/mobileNav'
+import { useIsDesktop } from '../../lib/useMediaQuery'
+import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../availability/AvailabilityControl'
+import { Dialog } from '../ui/Dialog'
 import { SnykBadge } from './SnykBadge'
 
 export type AppView =
@@ -68,7 +72,6 @@ export type AppView =
   | 'cockpit'
   | 'users'
   | 'map'
-  | 'unit_broadcast'
   | 'reports'
   | 'fuel_quarter'
   | 'lists'
@@ -83,6 +86,8 @@ type NavEntry = {
   alsoCurrentFor?: AppView[]
   /** Small red dot on the icon — open items needing completion. */
   attention?: boolean
+  /** Desktop sidebar: pin to the block-end footer (פרופיל / הגדרות). */
+  pin?: 'end'
 }
 
 type AppShellProps = {
@@ -157,7 +162,6 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   cockpit: <Radar size={24} strokeWidth={1.75} aria-hidden="true" />,
   users: <Users size={24} strokeWidth={1.75} aria-hidden="true" />,
   map: <MapPinned size={24} strokeWidth={1.75} aria-hidden="true" />,
-  unit_broadcast: <Megaphone size={24} strokeWidth={1.75} aria-hidden="true" />,
   reports: <BarChart3 size={24} strokeWidth={1.75} aria-hidden="true" />,
   fuel_quarter: <Fuel size={24} strokeWidth={1.75} aria-hidden="true" />,
   lists: <Settings size={24} strokeWidth={1.75} aria-hidden="true" />,
@@ -178,7 +182,8 @@ function TopAppBar({
   onNavigate: (view: AppView) => void
   onHome: () => void
 }) {
-  const { profile, user, roles, signOut } = useAuth()
+  const { profile, user, roles, signOut, reloadProfile } = useAuth()
+  const isDesktop = useIsDesktop()
   const { show } = useToast()
   const [open, setOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -260,7 +265,20 @@ function TopAppBar({
             </>
           )}
         </button>
-        <div className="menu-anchor" ref={anchorRef}>
+        <div className="appbar__cluster">
+          {isDesktop && profile ? (
+            <AvailabilityPopoverTrigger
+              target={{
+                id: profile.id,
+                availability: profile.availability,
+                available_from: profile.available_from,
+              }}
+              disabled={viewingAsOther}
+              disabledCaption="צפייה כמשתמש — לא ניתן לשנות זמינות."
+              onSaved={() => void reloadProfile()}
+            />
+          ) : null}
+          <div className="menu-anchor" ref={anchorRef}>
           <button
             ref={triggerRef}
             type="button"
@@ -280,6 +298,21 @@ function TopAppBar({
                   או״ק{' '}
                   <span className={monoClass(profile?.callsign)}>{profile?.callsign ?? '—'}</span>
                 </p>
+                {!isDesktop && profile ? (
+                  <AvailabilityTrigger
+                    target={{
+                      id: profile.id,
+                      availability: profile.availability,
+                      available_from: profile.available_from,
+                    }}
+                    disabled={viewingAsOther}
+                    disabledCaption="צפייה כמשתמש — לא ניתן לשנות זמינות."
+                    onSaved={() => {
+                      setOpen(false)
+                      void reloadProfile()
+                    }}
+                  />
+                ) : null}
               </div>
               <button
                 type="button"
@@ -360,6 +393,7 @@ function TopAppBar({
             </div>
           ) : null}
         </div>
+        </div>
       </header>
       {user?.id ? (
         <ImpersonationPickerDialog
@@ -388,6 +422,21 @@ function persistSidebarWidth(width: number) {
   } catch {
     // Private mode / quota — keep in-session only.
   }
+}
+
+const SIDEBAR_END_ORDER: AppView[] = ['profile', 'lists']
+
+function splitSidebarEntries(entries: NavEntry[]) {
+  const main: NavEntry[] = []
+  const end: NavEntry[] = []
+  for (const entry of entries) {
+    if (entry.pin === 'end') end.push(entry)
+    else main.push(entry)
+  }
+  end.sort(
+    (a, b) => SIDEBAR_END_ORDER.indexOf(a.view) - SIDEBAR_END_ORDER.indexOf(b.view),
+  )
+  return { main, end }
 }
 
 function Sidebar({
@@ -483,47 +532,30 @@ function Sidebar({
     }
   }
 
+  const { main, end } = splitSidebarEntries(entries)
+
   return (
     <nav className="sidebar" aria-label="ניווט ראשי" style={{ width }}>
       <div className="sidebar__nav">
-        {entries.map((entry, index) => {
-          const prev = entries[index - 1]
-          const showSection = entry.section && entry.section !== prev?.section
-          const create = sidebarCreateAction(entry.view, onCreateEvent, onCreateShift)
-          return (
-            <div key={entry.view}>
-              {showSection ? <p className="sidebar__section">{entry.section}</p> : null}
-              <div className={create ? 'sidebar__row' : undefined}>
-                <button
-                  type="button"
-                  className={
-                    entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
-                  }
-                  aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
-                  aria-label={
-                    entry.attention
-                      ? `${entry.label}${navAttentionAriaSuffix(true)}`
-                      : undefined
-                  }
-                  onClick={() => onNavigate(entry.view)}
-                >
-                  <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-                  {entry.label}
-                </button>
-                {create ? (
-                  <IconButton
-                    className="sidebar__create"
-                    label={create.label}
-                    onClick={create.onCreate}
-                  >
-                    <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
-                  </IconButton>
-                ) : null}
-              </div>
-            </div>
-          )
-        })}
+        <SidebarNavItems
+          entries={main}
+          view={view}
+          onNavigate={onNavigate}
+          onCreateEvent={onCreateEvent}
+          onCreateShift={onCreateShift}
+        />
       </div>
+      {end.length > 0 ? (
+        <div className="sidebar__footer">
+          <SidebarNavItems
+            entries={end}
+            view={view}
+            onNavigate={onNavigate}
+            onCreateEvent={onCreateEvent}
+            onCreateShift={onCreateShift}
+          />
+        </div>
+      ) : null}
       <div
         className="sidebar__resize"
         role="separator"
@@ -544,6 +576,62 @@ function Sidebar({
   )
 }
 
+function SidebarNavItems({
+  entries,
+  view,
+  onNavigate,
+  onCreateEvent,
+  onCreateShift,
+}: {
+  entries: NavEntry[]
+  view: AppView
+  onNavigate: (view: AppView) => void
+  onCreateEvent?: () => void
+  onCreateShift?: () => void
+}) {
+  return (
+    <>
+      {entries.map((entry, index) => {
+        const prev = entries[index - 1]
+        const showSection = entry.section && entry.section !== prev?.section
+        const create = sidebarCreateAction(entry.view, onCreateEvent, onCreateShift)
+        return (
+          <div key={entry.view}>
+            {showSection ? <p className="sidebar__section">{entry.section}</p> : null}
+            <div className={create ? 'sidebar__row' : undefined}>
+              <button
+                type="button"
+                className={
+                  entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
+                }
+                aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
+                aria-label={
+                  entry.attention
+                    ? `${entry.label}${navAttentionAriaSuffix(true)}`
+                    : undefined
+                }
+                onClick={() => onNavigate(entry.view)}
+              >
+                <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+                {entry.label}
+              </button>
+              {create ? (
+                <IconButton
+                  className="sidebar__create"
+                  label={create.label}
+                  onClick={create.onCreate}
+                >
+                  <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
+                </IconButton>
+              ) : null}
+            </div>
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
 function BottomTabBar({
   view,
   onNavigate,
@@ -553,26 +641,100 @@ function BottomTabBar({
   onNavigate: (view: AppView) => void
   entries: NavEntry[]
 }) {
+  const { tabs, more } = splitMobileNav(entries)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreCurrent = more.some((entry) => isNavCurrent(entry, view))
+  const moreAttention = more.some((entry) => entry.attention)
+
+  useEffect(() => {
+    setMoreOpen(false)
+  }, [view])
+
   return (
-    <nav className="tabbar" aria-label="ניווט ראשי">
-      {entries.map((entry) => (
-        <button
-          key={entry.view}
-          type="button"
-          className="tab"
-          aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
-          aria-label={
-            entry.attention
-              ? `${entry.label}${navAttentionAriaSuffix(true)}`
-              : undefined
-          }
-          onClick={() => onNavigate(entry.view)}
-        >
-          <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-          {entry.label}
-        </button>
-      ))}
-    </nav>
+    <>
+      <nav className="tabbar" aria-label="ניווט ראשי">
+        {tabs.map((entry) => (
+          <TabButton
+            key={entry.view}
+            entry={entry}
+            current={isNavCurrent(entry, view)}
+            onClick={() => onNavigate(entry.view)}
+          />
+        ))}
+        {more.length > 0 ? (
+          <button
+            type="button"
+            className="tab"
+            aria-current={moreCurrent ? 'page' : undefined}
+            aria-haspopup="dialog"
+            aria-expanded={moreOpen}
+            aria-label={
+              moreAttention
+                ? `${MOBILE_MORE_LABEL}${navAttentionAriaSuffix(true)}`
+                : undefined
+            }
+            onClick={() => setMoreOpen((open) => !open)}
+          >
+            <NavIcon
+              icon={<Ellipsis size={24} strokeWidth={1.75} aria-hidden="true" />}
+              attention={Boolean(moreAttention)}
+            />
+            {MOBILE_MORE_LABEL}
+          </button>
+        ) : null}
+      </nav>
+      <Dialog open={moreOpen} title={MOBILE_MORE_LABEL} onClose={() => setMoreOpen(false)}>
+        <div className="tabbar-more">
+          {more.map((entry) => (
+            <button
+              key={entry.view}
+              type="button"
+              className="nav-item"
+              aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
+              aria-label={
+                entry.attention
+                  ? `${entry.label}${navAttentionAriaSuffix(true)}`
+                  : undefined
+              }
+              onClick={() => {
+                setMoreOpen(false)
+                onNavigate(entry.view)
+              }}
+            >
+              <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+              {entry.label}
+            </button>
+          ))}
+        </div>
+      </Dialog>
+    </>
+  )
+}
+
+function TabButton({
+  entry,
+  current,
+  onClick,
+}: {
+  entry: NavEntry
+  current: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="tab"
+      aria-current={current ? 'page' : undefined}
+      aria-label={
+        entry.attention
+          ? `${entry.label}${navAttentionAriaSuffix(true)}`
+          : undefined
+      }
+      onClick={onClick}
+    >
+      <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+      {entry.label}
+    </button>
   )
 }
 

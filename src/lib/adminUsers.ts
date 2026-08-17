@@ -6,6 +6,7 @@ import { syncUserRolesDiff } from './syncUserRolesDiff'
 import { fetchAdminLastActive, mergeLastActive } from './userPresence'
 import type { PersistableAddress, UserAddressRow } from './userAddresses'
 import { parseVolunteerStatus, type VolunteerStatus } from './volunteerStatus'
+import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
 
 export type AdminVehicle = {
   id: string
@@ -28,6 +29,8 @@ export type AdminUserRow = {
   otp_login_enabled: boolean
   otp_users_page_enabled: boolean
   volunteer_status: VolunteerStatus
+  availability: AvailabilityStatus
+  available_from: string | null
   roles: AppRole[]
   vehicles: AdminVehicle[]
   addresses: UserAddressRow[]
@@ -101,7 +104,7 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   const { data: profiles, error } = await supabase
     .from('profiles')
     .select(
-      'id, full_name, email, callsign, phone, active, invite_pending, otp_login_enabled, otp_users_page_enabled, volunteer_status',
+      'id, full_name, email, callsign, phone, active, invite_pending, otp_login_enabled, otp_users_page_enabled, volunteer_status, availability, available_from',
     )
     .order('full_name')
 
@@ -144,6 +147,11 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     otp_login_enabled: Boolean(profile.otp_login_enabled),
     otp_users_page_enabled: Boolean(profile.otp_users_page_enabled),
     volunteer_status: parseVolunteerStatus(profile.volunteer_status),
+    availability: parseAvailabilityStatus(profile.availability),
+    available_from:
+      typeof profile.available_from === 'string' && profile.available_from
+        ? profile.available_from
+        : null,
     roles: (roleRows ?? [])
       .filter((row) => row.user_id === profile.id)
       .map((row) => row.role as AppRole),

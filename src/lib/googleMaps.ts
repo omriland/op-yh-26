@@ -99,6 +99,7 @@ export function createLabeledPin(
   variant: 'user' | 'search' | 'event' = 'user',
   onClick?: () => void,
   tooltip?: { text: string; alert?: boolean },
+  unavailable = false,
 ): MapPinOverlay {
   class LabeledPin extends maps.OverlayView {
     private el: HTMLDivElement | null = null
@@ -115,6 +116,7 @@ export function createLabeledPin(
         'user-map-pin',
         variant === 'search' ? 'user-map-pin--search' : '',
         variant === 'event' ? 'user-map-pin--event' : '',
+        unavailable ? 'user-map-pin--unavailable' : '',
         onClick ? 'user-map-pin--hit' : '',
       ]
         .filter(Boolean)
@@ -133,6 +135,9 @@ export function createLabeledPin(
       const text = document.createElement('span')
       text.className = 'user-map-pin__label'
       text.textContent = label
+      if (unavailable) {
+        text.setAttribute('data-theme', 'field')
+      }
       el.append(dot, text)
       if (tooltip) {
         const tip = document.createElement('span')

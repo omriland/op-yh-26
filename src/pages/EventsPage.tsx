@@ -25,6 +25,10 @@ import {
   type StampDescriptor,
 } from '../lib/status'
 import { shiftBornFillStamp } from '../lib/shiftBornEvents'
+import {
+  INCOMPLETE_FUEL_REFUND_NOTICE,
+  shouldShowIncompleteFuelNotice,
+} from '../lib/fuelAllocationPolicy'
 import { formatDayHeading } from '../lib/format'
 import { MINE_LOGGED_WINDOW_DAYS, partitionMineList } from '../lib/mineListSections'
 import { jerusalemToday } from '../lib/shifts'
@@ -222,33 +226,46 @@ export function EventsPage({
   return (
     <div className={asTable ? 'page--wide' : undefined}>
       {scope === 'mine' ? (
-        <section
-          className={[
-            'mine-insight',
-            events !== null && openMineCount === 0 ? 'mine-insight--clear' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          aria-label="סיכום הדיווחים שלי"
-        >
-          <div className="mine-insight__stat" aria-hidden="true">
-            <span className="mine-insight__count mono">
-              {events === null ? '—' : openMineCount}
-            </span>
+        isDesktop ? (
+          <section
+            className={[
+              'mine-insight',
+              events !== null && openMineCount === 0 ? 'mine-insight--clear' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            aria-label="סיכום הדיווחים שלי"
+          >
+            <div className="mine-insight__stat" aria-hidden="true">
+              <span className="mine-insight__count mono">
+                {events === null ? '—' : openMineCount}
+              </span>
+            </div>
+            <div className="mine-insight__body">
+              <p className="mine-insight__eyebrow t-label">
+                <ListChecks size={16} strokeWidth={1.75} aria-hidden="true" />
+                האירועים שלי
+              </p>
+              <h1 className="t-title mine-insight__hello">
+                {firstName ? `שלום, ${firstName}` : 'שלום'}
+              </h1>
+              <p className="t-body mine-insight__summary">
+                {openMineSummary(openMineCount, events !== null)}
+              </p>
+              {shouldShowIncompleteFuelNotice(openMineCount) ? (
+                <p className="t-body mine-insight__notice" role="note">
+                  {INCOMPLETE_FUEL_REFUND_NOTICE}
+                </p>
+              ) : null}
+            </div>
+          </section>
+        ) : (
+          <div className="page-head">
+            <div className="page-head__intro">
+              <h1 className="t-title">האירועים שלי</h1>
+            </div>
           </div>
-          <div className="mine-insight__body">
-            <p className="mine-insight__eyebrow t-label">
-              <ListChecks size={16} strokeWidth={1.75} aria-hidden="true" />
-              האירועים שלי
-            </p>
-            <h1 className="t-title mine-insight__hello">
-              {firstName ? `שלום, ${firstName}` : 'שלום'}
-            </h1>
-            <p className="t-body mine-insight__summary">
-              {openMineSummary(openMineCount, events !== null)}
-            </p>
-          </div>
-        </section>
+        )
       ) : (
         <div className="page-head">
           <div className="page-head__intro">

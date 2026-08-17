@@ -1,17 +1,15 @@
 # Screen — Admin (ניהול): Users, Vehicles, Roles, Closed Lists
 
-The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`, `תפוצה לכלל היחידה`. Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
+The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`. Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
 
 ## Navigation
 
-- Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`, `תפוצה לכלל היחידה`, `פרופיל`.
-- Mobile tab bar (admin): `ניהול` only among admin destinations; segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות` | `תפוצה לכלל היחידה`. Full mobile tab set: `האירועים שלי` · `המשמרות שלי` · `אירועים` · `משמרות` · `מפה` · `ניהול` (role-gated). Profile via app-bar menu. `מפה` lives under כלים לאחמ״ש (after משמרות), not ניהול — אחמ״ש and מנהל.
-
-## תפוצה לכלל היחידה
-
-Admin-only compose + send log. Command on desktop, Field on mobile. Title `תפוצה לכלל היחידה`. Caption `שליחת הודעה למנהלים, לאחמ״שים או לכלל המשתמשים הפעילים.`
-
-Compose card: channel chips `אימייל` · `SMS` · `SMS + אימייל`; audience chips `כלל המשתמשים` · `מנהלים` · `אחמ״שים`. Subject `נושא` only when the channel includes email. Body `תוכן ההודעה`. Primary `שליחה` → confirm dialog `אישור שליחה` with recipient/skip counts. Success toast reports sent / skipped / failed. Log heading `שידורים קודמים`; empty `עדיין לא נשלחה תפוצה.` Spec: `docs/superpowers/specs/2026-08-15-yahpaz-unit-broadcast-design.md`.
+- Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`. Pinned at sidebar block-end: `פרופיל`, then `הגדרות`.
+- Mobile tab bar: 3–4 items. Daily work stays in the bar; the last tab is `עוד` when anything overflows (bottom sheet). Profile via app-bar menu.
+  - כונן: `האירועים שלי` · `המשמרות שלי` · `אנשי קשר`
+  - אחמ״ש: `האירועים שלי` · `אירועים` · `המשמרות שלי` · `עוד` (`משמרות` · `אנשי קשר` · `מפה` · `דוחות`)
+  - מנהל: `האירועים שלי` · `אירועים` · `ניהול` · `עוד` (`המשמרות שלי` · `משמרות` · `אנשי קשר` · `מפה`)
+- Mobile `ניהול` tab: segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות`. `מפה` lives under כלים לאחמ״ש (after משמרות), not ניהול — אחמ״ש and מנהל.
 
 ## דוחות וסטטיסטיקות (Reports)
 
@@ -25,18 +23,18 @@ Catalog: no caption under the title; search `חיפוש לפי שם דוח או 
 
 Admin-only under ניהול (`ניהול דלק`, Fuel icon). Opening lands on a chooser: caption `אני רוצה:` and two catalog cards — allocate quarterly cards, or see/export usage. Back `כרטיסי דלק` returns to the chooser. Spec: `docs/superpowers/specs/2026-08-15-yahpaz-fuel-cards-hub-design.md`.
 
-**Allocate:** existing quarterly workbook. Helper: ניהול חלוקת כרטיסי דלק לפי רבעון. יתרות עוברות באופן אוטומטי לרבעון הבא. ניתן להעביר יתרה שלילית או חיובית. Year + quarter, opening balance, month km, liters, editable cards, remaining, card numbers, save / lock. Spec: `docs/superpowers/specs/2026-08-11-yahpaz-quarterly-fuel-request-design.md`.
+**Allocate:** existing quarterly workbook. Helper includes `נספרים רק אירועים שתועדו במלואם.` Only `events.status = done` + lead-entered `total_km`. Spec: `docs/superpowers/specs/2026-08-15-yahpaz-fuel-allocation-completed-only-design.md`.
 
-**Usage:** `שימוש בדלק` — כונן · קילומטרים · אירועים · ליטרים (km÷6). Period picker (טווח / חודש / שנה / אחרונים) via react-day-picker, Gregorian RTL. Totals, search, CSV. Same km rules as סיכום ק״מ.
+**Usage:** `שימוש בדלק` — כונן · קילומטרים · אירועים · ליטרים (km÷6). Helper includes `מוצגים כל האירועים עם ק״מ, גם אם תועדו חלקית.` Period picker, totals, search, CSV. Same km inclusion as סיכום ק״מ (status not filtered).
 
 ## משתמשים (Users)
 
 ### List
 
 - Title `משתמשים` + primary `משתמש חדש`.
-- Search input (name / callsign / email / status).
-- Desktop table: שם מלא (optional presence disc at inline-start of the name: green `--status-done` `פעיל עכשיו` ≤ 3 min, orange `--status-partial` `פעיל לאחרונה` ≤ 15 min; `--radius-full` disc, size `--space-2`; never color-only — `title` + visually-hidden label) · או״ק (mono) · דוא״ל (LTR isolate) · טלפון (LTR isolate, mono) · תפקיד · סטטוס · רכבים (count). Role column renders one small neutral chip (`--type-caption`, secondary-chip chrome — NOT stamps) for the **highest** role only: `מנהל־על` · `מנהל` · `אחמ״ש` · `כונן`. Status is a closed list (not a stamp): `מנהלה` · `חניכה בסיסית` · `חניכה טלפונית` · `חניכה ברכב פרטי` · `משמרות בלבד` · `מתנדב פעיל`.
-- Mobile: user cards — presence disc (same rules) then avatar 40 + name + callsign with ⋮ overflow menu at inline-end (same actions as the desktop row), one highest-role chip + volunteer-status chip + status chips, caption line with email. Vertical gaps `--space-3` between head / chips / email; no detail hairline under the head.
+- Search input (name / callsign / email / volunteer status / availability `זמין` · `לא זמין`).
+- Desktop table: שם מלא (optional presence disc at inline-start of the name: green `--status-done` `פעיל עכשיו` ≤ 3 min, orange `--status-partial` `פעיל לאחרונה` ≤ 15 min; `--radius-full` disc, size `--space-2`; never color-only — `title` + visually-hidden label) · או״ק (mono) · דוא״ל (LTR isolate) · טלפון (LTR isolate, mono) · תפקיד · סטטוס · **זמינות** · רכבים (count). Role column renders one small neutral chip (`--type-caption`, secondary-chip chrome — NOT stamps) for the **highest** role only: `מנהל־על` · `מנהל` · `אחמ״ש` · `כונן`. Status is a closed list (not a stamp): `מנהלה` · `חניכה בסיסית` · `חניכה טלפונית` · `חניכה ברכב פרטי` · `משמרות בלבד` · `מתנדב פעיל`. זמינות is a separate duty flag (`זמין` / `לא זמין`) with concentric discs (outer `--space-4` tint, inner `--space-2` solid; `--status-done` / `--status-alert`; no blur) plus the label; optional caption `חזרה ב־DD.MM.YYYY`. Click the cell (not the row) to edit inline (chips + optional `תאריך חזרה`). Not last-action presence and not volunteer `סטטוס`.
+- Mobile: user cards — presence disc (same rules) then avatar 40 + name + callsign with ⋮ overflow menu at inline-end (same actions as the desktop row), one highest-role chip + volunteer-status chip + availability control (same editor in a Dialog) + status chips, caption line with email. Vertical gaps `--space-3` between head / chips / email; no detail hairline under the head. Do not nest the availability control inside the details button.
 
 ### Create / Edit user (dialog on desktop, full screen on mobile)
 
@@ -60,16 +58,16 @@ Super Admin only (DB-granted `super_admin`, not in role checkboxes):
 
 ## מפה
 
-אחמ״ש + מנהל, under כלים לאחמ״ש after `משמרות` (not a ניהול tab). Title `מפה`. Caption `חפשו כתובת כדי לראות מי הכוננים הקרובים. כל סיכה היא כתובת אחת של משתמש פעיל.` Interactive Google Map. Places-only search `חיפוש כתובת` (no free text). On pick: search pin labeled with the chosen address (`--status-partial` disc), center the address and fit a 30 km box in each direction, and list `כוננים קרובים` — one row per user (their nearest address) only if that address is within 30 km, nearest-first, distance `מ׳` / `ק״מ`. Empty in-range: `אין כוננים בטווח 30 ק״מ.` Tap a row to pan/zoom to that address. User pins: `--accent` disc + raised caption (`או״ק · בית/עבודה/שם`). Hover/focus tooltip sits flush under the pin caption (`left: 50%` + `translateX(-50%)` in map pixel space): solid `--surface-raised` fill, `--text-primary`, `--accent` border + overlay shadow; `חניכה ברכב פרטי` uses `--status-alert` text/border. Active users only; hide `מנהלה` / `חניכה בסיסית` / `משמרות בלבד`. Empty: `אין כתובות להצגה` + `כשתמלאו כתובת למשתמש פעיל, היא תופיע כאן.` Missing key: `המפה אינה זמינה`. Canvas min-height 720px, `--radius-md`, hairline, `--surface-sunken`.
+אחמ״ש + מנהל, under כלים לאחמ״ש after `משמרות` (not a ניהול tab). Title `מפה`. Caption `חפשו כתובת כדי לראות מי הכוננים הקרובים. כל סיכה היא כתובת אחת של משתמש פעיל.` Interactive Google Map. Places-only search `חיפוש כתובת` (no free text). On pick: search pin labeled with the chosen address (`--status-partial` disc), center the address and fit a 30 km box in each direction, and list `כוננים קרובים` — one row per user (their nearest address) only if that address is within 30 km, nearest-first, distance `מ׳` / `ק״מ`. Empty in-range: `אין כוננים בטווח 30 ק״מ.` Tap a row to pan/zoom to that address. User pins: `--accent` disc + raised caption (`או״ק · בית/עבודה/שם`). Effective לא זמין stays on the map but uses `--status-draft` disc + inactive grey caption (`color-mix` 28% `--status-draft` on `--text-on-accent`, caption text `--status-draft`); hover/focus tooltip is `לא זמין`, or `לא זמין עד DD.MM.YYYY` when a future return date exists (tooltip border `--status-draft`). Hover/focus tooltip otherwise sits flush under the pin caption (`left: 50%` + `translateX(-50%)` in map pixel space): solid `--surface-raised` fill, `--text-primary`, `--accent` border + overlay shadow; `חניכה ברכב פרטי` uses `--status-alert` text/border. Active users only; hide `מנהלה` / `חניכה בסיסית` / `משמרות בלבד`. Empty: `אין כתובות להצגה` + `כשתמלאו כתובת למשתמש פעיל, היא תופיע כאן.` Missing key: `המפה אינה זמינה`. Canvas min-height 720px, `--radius-md`, hairline, `--surface-sunken`.
 
-## הגדרות (Closed lists)
+## הגדרות (Closed lists + broadcast)
 
-Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כבישים` · `סוגי רכב לטיפול`.
+Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כבישים` · `סוגי רכב לטיפול`. Plus a second menu card for unit-wide broadcast.
 
 ### Layout
 
-- Desktop: list-of-lists at inline-start (240 px, nav-item styling) + selected list's items in the content area.
-- Mobile: the four lists as cards → tap opens the list's items full-screen.
+- Desktop: two stacked menu cards at inline-start (240 px, nav-item styling, no group headings) — closed lists in the first card, `תפוצה לכלל היחידה` in the second — + selected pane in the content area.
+- Mobile: the same two menu cards on the הגדרות picker → tap opens that pane full-screen.
 
 ### Items view
 
@@ -79,6 +77,12 @@ Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כביש
 - Add/edit: inline row editor (input + `שמירה` / `ביטול`) — no dialog needed for a single field.
 - Remove item in use by events: block with explanation `לא ניתן להסיר פריט שמשויך לאירועים קיימים.` (info banner, not error toast).
 - Empty list: `אין פריטים ברשימה זו. הפריט הראשון ישמש בטפסים מיד לאחר הוספתו.`
+
+### תפוצה לכלל היחידה
+
+Admin-only compose + send log, inside הגדרות (not a top-level ניהול tab). Title `תפוצה לכלל היחידה`. Caption `שליחת הודעה למנהלים, לאחמ״שים או לכלל המשתמשים הפעילים.` No `הוספת פריט`.
+
+Compose card: channel chips `אימייל` · `SMS` · `SMS + אימייל`; audience chips `כלל המשתמשים` · `מנהלים` · `אחמ״שים`. Subject `נושא` only when the channel includes email. Body `תוכן ההודעה`. Primary `שליחה` → confirm dialog `אישור שליחה` with recipient/skip counts. Success toast reports sent / skipped / failed. Log heading `שידורים קודמים`; empty `עדיין לא נשלחה תפוצה.` Spec: `docs/superpowers/specs/2026-08-15-yahpaz-unit-broadcast-design.md`.
 
 ## States
 

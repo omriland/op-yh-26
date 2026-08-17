@@ -19,12 +19,12 @@ Admins need a single official way to push a free-text message to the unit by ema
 | Missing contact | Skip and report the skip count. Do not block the rest. |
 | Confirm | Dialog with recipient count, channel, and skips before send. |
 | History | Send log (who / when / channel / audience / text / counts). No per-recipient delivery rows. |
-| Nav | Admin item **תפוצה לכלל היחידה** (desktop sidebar + mobile admin hub). |
+| Nav | Inside **הגדרות**, second menu card **תפוצה לכלל היחידה** (not a top-level ניהול tab). |
 | Pipes | Resend (existing invite sender) + Soprano SMS (existing OTP account). |
 
 ## Flow
 
-1. Admin opens **תפוצה לכלל היחידה**.
+1. Admin opens **הגדרות** → **תפוצה לכלל היחידה**.
 2. Picks channel + audience, writes subject (if email) and body.
 3. UI previews how many active users will be reached and how many will be skipped.
 4. Confirm → Edge Function `unit-broadcast` re-resolves recipients from the DB (client list is not trusted) and sends.

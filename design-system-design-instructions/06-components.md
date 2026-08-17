@@ -131,11 +131,11 @@ Header row: `--surface-sunken`, `--type-label` `--text-secondary`, height 40 px.
 
 ## Navigation
 
-**Top app bar** (all contexts): height 48 px, ALWAYS Command navy (`#182A47` = Command `--surface-page`, text `#F2F6FA`) even in Field theme — the constant institutional band. Contains: wordmark at inline-start — desktop `היחידה הארצית לפינוי צירים` (IBM Plex Sans Hebrew 700, 15 px, ellipsis if needed); mobile `יחפ״צ` (18 px) — user menu at inline-end. Hairline bottom rule `rgba(242,246,250,0.15)`.
+**Top app bar** (all contexts): height 48 px, ALWAYS Command navy (`#182A47` = Command `--surface-page`, text `#F2F6FA`) even in Field theme — the constant institutional band. Contains: wordmark at inline-start — desktop `היחידה הארצית לפינוי צירים` (IBM Plex Sans Hebrew 700, 15 px, ellipsis if needed); mobile `יחפ״צ` (18 px) — **duty availability** control then user menu at inline-end. Desktop: compact `זמין` / `לא זמין` selector (concentric discs: outer `--space-4` `--status-done-tint` / `--status-alert-tint`, inner `--space-2` `--status-done` / `--status-alert`; no blur; never color-only) **inline-start of the avatar**, min height 40 px, `aria-label="זמינות"`, popover editor (chips + optional `תאריך חזרה`; save on primary). Mobile: the same row lives **inside the avatar menu** under the name/callsign header and opens a Dialog — not on the bar. Impersonation: view-only, caption `צפייה כמשתמש — לא ניתן לשנות זמינות.` Hairline bottom rule `rgba(242,246,250,0.15)`.
 
-**Bottom tab bar** (mobile): height 56 px + `env(safe-area-inset-bottom)`, `--surface-raised`, top hairline. 3–4 tabs by role (see screen blueprints). Tab: icon 24 px + `--type-caption` label; active = `--accent` icon+label + 2px top indicator bar; inactive = `--text-muted`. No badges with counts unless a blueprint says so.
+**Bottom tab bar** (mobile): height 56 px + `env(safe-area-inset-bottom)`, `--surface-raised`, top hairline. 3–4 tabs by role (see screen blueprints). When a role has more destinations, the last tab is `עוד` and opens a bottom sheet of the rest. Tab: icon 24 px + `--type-caption` label; active = `--accent` icon+label + 2px top indicator bar; inactive = `--text-muted`. No badges with counts unless a blueprint says so.
 
-**Sidebar** (desktop Command): 240 px at inline-start. Nav item: height 40 px, radius `--radius-sm`, icon 20 + label `--type-body`, gap `--space-3`, padding-inline `--space-3`. Active: `--accent-subtle` bg + `--accent` text + 2px inline-start indicator. Section labels (`--type-label`, `--text-muted`) between groups.
+**Sidebar** (desktop Command): 240 px at inline-start. Nav item: height 40 px, radius `--radius-sm`, icon 20 + label `--type-body`, gap `--space-3`, padding-inline `--space-3`. Active: `--accent-subtle` bg + `--accent` text + 2px inline-start indicator. Section labels (`--type-label`, `--text-muted`) between groups. Pinned footer at block-end: `פרופיל`, then admin `הגדרות`. Main nav scrolls independently.
 
 ---
 

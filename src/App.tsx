@@ -23,7 +23,6 @@ import { AdminUsersPage } from './pages/AdminUsersPage'
 import { UsersMapPage } from './pages/UsersMapPage'
 import { FuelQuarterPage } from './pages/FuelQuarterPage'
 import { ReportsPage } from './pages/ReportsPage'
-import { UnitBroadcastPage } from './pages/UnitBroadcastPage'
 import { CockpitPage } from './pages/CockpitPage'
 import { EventDetailPage } from './pages/EventDetailPage'
 import { EventFormPage } from './pages/EventFormPage'
@@ -317,6 +316,7 @@ function Gate() {
       section?: string
       alsoCurrentFor?: AppView[]
       attention?: boolean
+      pin?: 'end'
     }[] = []
 
     // Personal — top of nav for anyone who goes on calls.
@@ -382,31 +382,33 @@ function Gate() {
     if (isAdmin) {
       if (isDesktop) {
         for (const segment of ADMIN_SEGMENTS) {
+          const settings = segment.id === 'lists'
           list.push({
             view: segment.id,
             label: segment.label,
             icon: NAV_ICONS[segment.id],
-            section: 'ניהול',
+            section: settings ? undefined : 'ניהול',
+            pin: settings ? 'end' : undefined,
           })
         }
       } else {
-        // Mobile tab bar: משתמשים only; other admin views via segment control.
+        // Mobile: one ניהול tab; other admin views via the segment control.
         list.push({
           view: 'users',
-          label: 'משתמשים',
+          label: 'ניהול',
           icon: NAV_ICONS.users,
           alsoCurrentFor: ADMIN_MOBILE_HUB_VIEWS,
         })
       }
     }
 
-    // Profile: desktop sidebar only — mobile uses the app-bar user menu.
+    // Profile + Settings: desktop sidebar footer — mobile uses the app-bar / admin hub.
     if (isDesktop) {
       list.push({
         view: 'profile',
         label: 'פרופיל',
         icon: NAV_ICONS.profile,
-        section: isAdmin ? 'ניהול' : undefined,
+        pin: 'end',
       })
     }
 
@@ -427,7 +429,6 @@ function Gate() {
       case 'cockpit':
         return manages
       case 'users':
-      case 'unit_broadcast':
       case 'fuel_quarter':
       case 'lists':
         return isAdmin
@@ -753,8 +754,6 @@ function Gate() {
               <AdminListsPage key={sectionReset} />
             ) : activeView === 'fuel_quarter' ? (
               <FuelQuarterPage key={sectionReset} />
-            ) : activeView === 'unit_broadcast' ? (
-              <UnitBroadcastPage key={sectionReset} />
             ) : (
               <AdminUsersPage key={sectionReset} />
             )}

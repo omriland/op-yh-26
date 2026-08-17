@@ -26,6 +26,8 @@ import {
 } from '../lib/appRoles'
 import { isInvitePending } from '../lib/adminUserStatus'
 import { UserPresenceDot } from '../components/admin/UserPresenceDot'
+import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../components/availability/AvailabilityControl'
+import { availabilitySearchLabel } from '../lib/availability'
 import {
   PRESENCE_TOUCH_THROTTLE_MS,
   fetchAdminLastActive,
@@ -230,6 +232,26 @@ export function AdminUsersPage() {
   const [impersonateTargetId, setImpersonateTargetId] = useState<string | null>(null)
   const [users, setUsers] = useState<AdminUserRow[] | null>(null)
   const [failed, setFailed] = useState(false)
+
+  function patchUserAvailability(next: {
+    id: string
+    availability: AdminUserRow['availability']
+    available_from: string | null
+  }) {
+    setUsers((current) =>
+      current
+        ? current.map((row) =>
+            row.id === next.id
+              ? {
+                  ...row,
+                  availability: next.availability,
+                  available_from: next.available_from,
+                }
+              : row,
+          )
+        : current,
+    )
+  }
   const [query, setQuery] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -358,7 +380,13 @@ export function AdminUsersPage() {
     if (!q) return users
     return users.filter((user) =>
       fieldsMatchQuery(
-        [user.full_name, user.callsign, user.email, volunteerStatusLabel(user.volunteer_status)],
+        [
+          user.full_name,
+          user.callsign,
+          user.email,
+          volunteerStatusLabel(user.volunteer_status),
+          availabilitySearchLabel(user.availability, user.available_from),
+        ],
         q,
       ),
     )
@@ -850,7 +878,7 @@ export function AdminUsersPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="חיפוש לפי שם, או״ק, דוא״ל או סטטוס"
+            placeholder="חיפוש לפי שם, או״ק, דוא״ל, סטטוס או זמינות"
           />
         </label>
       </div>
@@ -910,6 +938,7 @@ export function AdminUsersPage() {
                 <th>טלפון</th>
                 <th>תפקיד</th>
                 <th>סטטוס</th>
+                <th>זמינות</th>
                 <th className="table-col--otp">OTP</th>
                 <th>רכבים</th>
                 <th>כניסה אחרונה</th>
@@ -963,6 +992,17 @@ export function AdminUsersPage() {
                     </div>
                   </td>
                   <td>{volunteerStatusLabel(user.volunteer_status)}</td>
+                  <td onClick={(event) => event.stopPropagation()}>
+                    <AvailabilityPopoverTrigger
+                      target={{
+                        id: user.id,
+                        availability: user.availability,
+                        available_from: user.available_from,
+                      }}
+                      disabled={!canMutate}
+                      onSaved={patchUserAvailability}
+                    />
+                  </td>
                   <td className="table-col--otp table-cell--nowrap">
                     {otpLabel ? (
                       <span className="t-caption text-secondary" title={otpLabel === 'שניהם' ? 'OTP כניסה ו-OTP משתמשים' : undefined}>
@@ -1054,25 +1094,47 @@ export function AdminUsersPage() {
                   ) : null}
                 </div>
                 {canMutate ? (
-                  <button type="button" className="user-card__details" onClick={openEdit}>
+                  <div className="user-card__details">
                     <div className="tags">
                       <RoleTag roles={user.roles} />
                       <span className="tag">{volunteerStatusLabel(user.volunteer_status)}</span>
+                      <AvailabilityTrigger
+                        compact
+                        target={{
+                          id: user.id,
+                          availability: user.availability,
+                          available_from: user.available_from,
+                        }}
+                        disabled={!canMutate}
+                        onSaved={patchUserAvailability}
+                      />
                       {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
                       {isInvitePending(user) ? (
                         <span className="tag tag--pending">ממתין להרשמה</span>
                       ) : null}
                       {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
                     </div>
-                    <p className="t-caption text-muted">
-                      <span className="ltr">{user.email}</span>
-                    </p>
-                  </button>
+                    <button type="button" className="user-card__email-btn" onClick={openEdit}>
+                      <span className="t-caption text-muted">
+                        <span className="ltr">{user.email}</span>
+                      </span>
+                    </button>
+                  </div>
                 ) : (
                   <div className="user-card__details user-card__details--static">
                     <div className="tags">
                       <RoleTag roles={user.roles} />
                       <span className="tag">{volunteerStatusLabel(user.volunteer_status)}</span>
+                      <AvailabilityTrigger
+                        compact
+                        target={{
+                          id: user.id,
+                          availability: user.availability,
+                          available_from: user.available_from,
+                        }}
+                        disabled
+                        onSaved={patchUserAvailability}
+                      />
                       {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
                       {isInvitePending(user) ? (
                         <span className="tag tag--pending">ממתין להרשמה</span>

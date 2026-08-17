@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, ListTree, Plus } from 'lucide-react'
 import {
-  CLOSED_LISTS,
   canMutateClosedListItem,
   closedListMeta,
   createClosedListItem,
@@ -9,8 +8,15 @@ import {
   fetchClosedListItems,
   updateClosedListItem,
   type ClosedListItem,
-  type ClosedListKey,
 } from '../lib/closedLists'
+import {
+  SETTINGS_BROADCAST,
+  SETTINGS_BROADCAST_GROUP,
+  SETTINGS_LIST_GROUP,
+  isClosedListPane,
+  type SettingsPaneKey,
+} from '../lib/settingsPanes'
+import { UnitBroadcastPage } from './UnitBroadcastPage'
 import { SYSTEM_DISTRICT_LOCKED_ERROR } from '../lib/systemDistricts'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
@@ -29,7 +35,7 @@ type Editor =
 export function AdminListsPage() {
   const isDesktop = useIsDesktop()
   const { show } = useToast()
-  const [selectedKey, setSelectedKey] = useState<ClosedListKey | null>(
+  const [selectedKey, setSelectedKey] = useState<SettingsPaneKey | null>(
     isDesktop ? 'districts' : null,
   )
   const [items, setItems] = useState<ClosedListItem[] | null>(null)
@@ -41,17 +47,24 @@ export function AdminListsPage() {
   const [banner, setBanner] = useState<string | null>(null)
   const [menuItemId, setMenuItemId] = useState<string | null>(null)
 
-  const selectedMeta = useMemo(
-    () => (selectedKey ? closedListMeta(selectedKey) : null),
+  const selectedListMeta = useMemo(
+    () => (selectedKey && isClosedListPane(selectedKey) ? closedListMeta(selectedKey) : null),
     [selectedKey],
   )
+  const selectedBroadcast = selectedKey === SETTINGS_BROADCAST.key
+  const selectedTitle = selectedBroadcast
+    ? SETTINGS_BROADCAST.label
+    : (selectedListMeta?.label ?? 'הגדרות')
+  const selectedDescription = selectedBroadcast
+    ? SETTINGS_BROADCAST.description
+    : selectedListMeta?.description
 
   useEffect(() => {
     if (isDesktop && !selectedKey) setSelectedKey('districts')
   }, [isDesktop, selectedKey])
 
   useEffect(() => {
-    if (!selectedKey) {
+    if (!selectedKey || !isClosedListPane(selectedKey)) {
       setItems(null)
       setFailed(false)
       return
@@ -81,7 +94,8 @@ export function AdminListsPage() {
   }
 
   function openEdit(item: ClosedListItem) {
-    if (selectedKey && !canMutateClosedListItem(selectedKey, item)) {
+    if (!selectedKey || !isClosedListPane(selectedKey)) return
+    if (!canMutateClosedListItem(selectedKey, item)) {
       show(SYSTEM_DISTRICT_LOCKED_ERROR, 'alert')
       return
     }
@@ -91,7 +105,7 @@ export function AdminListsPage() {
   }
 
   async function saveEditor() {
-    if (!selectedKey || !editor) return
+    if (!selectedKey || !isClosedListPane(selectedKey) || !editor) return
     setSaving(true)
     const result =
       editor.mode === 'create'
@@ -111,7 +125,7 @@ export function AdminListsPage() {
   }
 
   async function removeItem(item: ClosedListItem) {
-    if (!selectedKey) return
+    if (!selectedKey || !isClosedListPane(selectedKey)) return
     if (!canMutateClosedListItem(selectedKey, item)) {
       show(SYSTEM_DISTRICT_LOCKED_ERROR, 'alert')
       return
@@ -139,42 +153,18 @@ export function AdminListsPage() {
           <div className="row-between" style={{ marginBlockEnd: 'var(--space-2)' }}>
             <h1 className="t-title">הגדרות</h1>
           </div>
-          <div className="stack-3">
-            {CLOSED_LISTS.map((list) => (
-              <button
-                key={list.key}
-                type="button"
-                className="card list-pick-card"
-                onClick={() => setSelectedKey(list.key)}
-              >
-                <span className="t-section">{list.label}</span>
-                <span className="t-caption text-muted">
-                  {list.description ? (
-                    <ClosedListDescription text={list.description} />
-                  ) : (
-                    'ניהול פריטי הרשימה'
-                  )}
-                </span>
-              </button>
-            ))}
-          </div>
+          <SettingsMenus
+            selectedKey={selectedKey}
+            onSelect={setSelectedKey}
+          />
         </>
       ) : (
         <div className={['lists-layout', isDesktop ? 'lists-layout--desktop' : ''].join(' ')}>
           {isDesktop ? (
-            <nav className="lists-nav" aria-label="הגדרות">
-              {CLOSED_LISTS.map((list) => (
-                <button
-                  key={list.key}
-                  type="button"
-                  className="nav-item"
-                  aria-current={selectedKey === list.key ? 'page' : undefined}
-                  onClick={() => setSelectedKey(list.key)}
-                >
-                  {list.label}
-                </button>
-              ))}
-            </nav>
+            <SettingsMenus
+              selectedKey={selectedKey}
+              onSelect={setSelectedKey}
+            />
           ) : null}
 
           <section className="lists-content stack-4">
@@ -194,15 +184,15 @@ export function AdminListsPage() {
                   </IconButton>
                 ) : null}
                 <div className="page-head__intro">
-                  <h1 className="t-title">{selectedMeta?.label ?? 'הגדרות'}</h1>
-                  {selectedMeta?.description ? (
+                  <h1 className="t-title">{selectedTitle}</h1>
+                  {selectedDescription ? (
                     <p className="t-caption text-muted">
-                      <ClosedListDescription text={selectedMeta.description} />
+                      <ClosedListDescription text={selectedDescription} />
                     </p>
                   ) : null}
                 </div>
               </div>
-              {isDesktop ? (
+              {selectedBroadcast ? null : isDesktop ? (
                 <Button
                   onClick={openCreate}
                   icon={<Plus size={20} strokeWidth={1.75} />}
@@ -217,6 +207,10 @@ export function AdminListsPage() {
               )}
             </div>
 
+            {selectedBroadcast ? (
+              <UnitBroadcastPage embedded />
+            ) : (
+              <>
             {banner ? (
               <p className="alert alert--info" role="status">
                 {banner}
@@ -285,11 +279,15 @@ export function AdminListsPage() {
                     <li key={item.id} className="list-rows__item">
                       <span className="list-rows__label">
                         <span className="t-body">{item.name}</span>
-                        {selectedKey && !canMutateClosedListItem(selectedKey, item) ? (
+                        {selectedKey &&
+                        isClosedListPane(selectedKey) &&
+                        !canMutateClosedListItem(selectedKey, item) ? (
                           <span className="t-caption text-muted">מערכת</span>
                         ) : null}
                       </span>
-                      {selectedKey && canMutateClosedListItem(selectedKey, item) ? (
+                      {selectedKey &&
+                      isClosedListPane(selectedKey) &&
+                      canMutateClosedListItem(selectedKey, item) ? (
                         <OverflowMenu
                           open={menuItemId === item.id}
                           onOpenChange={(next) => setMenuItemId(next ? item.id : null)}
@@ -311,9 +309,50 @@ export function AdminListsPage() {
                 )}
               </ul>
             ) : null}
+              </>
+            )}
           </section>
         </div>
       )}
+    </div>
+  )
+}
+
+function SettingsMenus({
+  selectedKey,
+  onSelect,
+}: {
+  selectedKey: SettingsPaneKey | null
+  onSelect: (key: SettingsPaneKey) => void
+}) {
+  return (
+    <div className="lists-nav-stack">
+      <nav className="lists-nav" aria-label={SETTINGS_LIST_GROUP.label}>
+        {SETTINGS_LIST_GROUP.items.map((list) => (
+          <button
+            key={list.key}
+            type="button"
+            className="nav-item"
+            aria-current={selectedKey === list.key ? 'page' : undefined}
+            onClick={() => onSelect(list.key)}
+          >
+            {list.label}
+          </button>
+        ))}
+      </nav>
+      <nav className="lists-nav" aria-label={SETTINGS_BROADCAST_GROUP.label}>
+        {SETTINGS_BROADCAST_GROUP.items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className="nav-item"
+            aria-current={selectedKey === item.key ? 'page' : undefined}
+            onClick={() => onSelect(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
     </div>
   )
 }

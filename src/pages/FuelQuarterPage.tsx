@@ -47,6 +47,8 @@ export function FuelQuarterPage() {
               יתרות עוברות באופן אוטומטי לרבעון הבא.
               <br />
               ניתן להעביר יתרה שלילית או חיובית.
+              <br />
+              נספרים רק אירועים שתועדו במלואם.
             </span>
           </button>
         </li>
@@ -58,7 +60,11 @@ export function FuelQuarterPage() {
           >
             <BarChart3 size={24} strokeWidth={1.75} aria-hidden="true" />
             <span className="t-section">לראות / לייצא שימוש בדלק</span>
-            <span className="t-body text-secondary">ק״מ, אירועים וליטרים לפי תקופה</span>
+            <span className="t-body text-secondary">
+              ק״מ, אירועים וליטרים לפי תקופה.
+              <br />
+              מוצגים כל האירועים עם ק״מ, גם אם תועדו חלקית.
+            </span>
           </button>
         </li>
       </ul>

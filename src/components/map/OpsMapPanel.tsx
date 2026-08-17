@@ -13,13 +13,13 @@ import {
   type MapsApi,
 } from '../../lib/googleMaps'
 import { hasGoogleMapsApiKey } from '../../lib/googlePlaces'
-import { volunteerStatusLabel } from '../../lib/volunteerStatus'
 import { emptyLocationPlaceFields } from '../../lib/systemDistricts'
 import { monoClass } from '../../lib/format'
 import {
   fetchActiveUserMapPins,
   formatMapDistanceKm,
   mapBoundsForRadiusKm,
+  mapUserPinChrome,
   nearbyResponders,
   SEARCH_VIEW_RADIUS_KM,
   type MapPin,
@@ -301,6 +301,7 @@ function OpsMapCanvas({
           gestureHandling: 'greedy',
         })
         for (const pin of pins) {
+          const chrome = mapUserPinChrome(pin)
           const overlay = createLabeledPin(
             maps,
             { lat: pin.lat, lng: pin.lng },
@@ -308,10 +309,8 @@ function OpsMapCanvas({
             `${pin.fullName} · ${pin.formattedAddress}`,
             'user',
             undefined,
-            {
-              text: volunteerStatusLabel(pin.volunteerStatus),
-              alert: pin.volunteerStatus === 'personal_vehicle_training',
-            },
+            chrome.tooltip,
+            chrome.unavailable,
           )
           overlay.setMap(map)
           overlays.push(overlay)

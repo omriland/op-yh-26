@@ -6,7 +6,8 @@ The responder's world. Optimized for one job: finish your part of the record, of
 
 Same event-card list component as `event-list.md`, filtered to the viewer's assignments, with one change: **the card's stamp reflects MY participation status**, not the event status. Shown to responders and to shift-lead/admin who also have a mine list.
 
-- Insight strip at top (accent rail + subtle tint): loud mono open-count only (no caption under the digit) + eyebrow `האירועים שלי` + `שלום, {first name}` + sentence `יש לך N אירועים לתעד.` (zero → `אין אירועים שממתינים לתיעוד.`).
+- Desktop: insight strip at top (accent rail + subtle tint): loud mono open-count only (no caption under the digit) + eyebrow `האירועים שלי` + `שלום, {first name}` + sentence `יש לך N אירועים לתעד.` (zero → `אין אירועים שממתינים לתיעוד.`). When open count ≥ 3, add note `שימו לב! אירועים שלא תועדו במלואם לא נכללים בהחזר הדלק הרבעוני`.
+- Mobile: no insight strip (too tall). Compact page title `האירועים שלי` only; pending/logged group headings carry the list.
 - List is grouped by logging state, not by date: `אירועים הממתינים לתיעוד` (always shown; empty copy `מברוק! אין לך עוד אירועים לתעד כרגע`) then `אירועים שתועדו` (last 30 days; cards at 0.7 opacity so they recede vs pending; secondary `הצג 30 יום נוספים` loads another 30-day window).
 - Card gains a fill CTA when open: `השלמת הפרטים שלי` when participation is `pending`; `המשך מילוי הפרטים` after `שמירת טיוטה` (`in_progress`). Stamp becomes `טיוטה נשמרה`. Mobile: full-width footer primary. Desktop (≥1025): shrink-wrap, aligned with the stamp at inline-end, directly under it.
 - Shift-born events group under a shift header (`משמרת` · date · שם משמרת · רכב). The group starts collapsed; tap the header (chevron) to expand or collapse. Shift-born type still shows `(משמרת)` in brackets next to the event type — not a separate `ממשמרת` line.

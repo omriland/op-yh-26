@@ -34,7 +34,7 @@ import {
   type BroadcastChannel,
 } from '../lib/unitBroadcast'
 
-export function UnitBroadcastPage() {
+export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) {
   const { show } = useToast()
   const viewingAsOther = isImpersonating()
   const [channel, setChannel] = useState<BroadcastChannel>('both')
@@ -113,12 +113,16 @@ export function UnitBroadcastPage() {
 
   return (
     <div className="stack-4">
-      <div className="page-head">
-        <div>
-          <h1 className="t-title">תפוצה לכלל היחידה</h1>
-          <p className="t-caption text-muted">שליחת הודעה למנהלים, לאחמ״שים או לכלל המשתמשים הפעילים.</p>
+      {embedded ? null : (
+        <div className="page-head">
+          <div>
+            <h1 className="t-title">תפוצה לכלל היחידה</h1>
+            <p className="t-caption text-muted">
+              שליחת הודעה למנהלים, לאחמ״שים או לכלל המשתמשים הפעילים.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {viewingAsOther ? (
         <p className="alert alert--info" role="status">

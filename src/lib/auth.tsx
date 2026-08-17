@@ -23,6 +23,7 @@ import {
   clearRolePreviewStash,
   readRolePreviewStash,
 } from './rolePreviewStash'
+import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
 import { identifyPosthogUser, resetPosthogUser } from './posthog'
 import { passwordStrengthError } from './passwordRules'
 import { supabase } from './supabase'
@@ -39,6 +40,8 @@ export type Profile = {
   must_change_password: boolean
   otp_login_enabled: boolean
   otp_users_page_enabled: boolean
+  availability: AvailabilityStatus
+  available_from: string | null
   lifetime_event_count: number
   lifetime_km: number
   lifetime_stats_updated_at: string | null
@@ -54,6 +57,7 @@ type AuthState = {
   passwordSetupReason: PasswordSetupReason | null
   /** Failed branded invite/recovery token exchange (shown on login). */
   authBootstrapError: string | null
+  reloadProfile: () => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>
   updatePassword: (password: string) => Promise<{ error: string | null }>
@@ -71,7 +75,7 @@ async function loadProfileAndRoles(userId: string) {
     supabase
       .from('profiles')
       .select(
-        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled, lifetime_event_count, lifetime_km, lifetime_stats_updated_at',
+        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled, availability, available_from, lifetime_event_count, lifetime_km, lifetime_stats_updated_at',
       )
       .eq('id', userId)
       .maybeSingle(),
@@ -85,6 +89,11 @@ async function loadProfileAndRoles(userId: string) {
           ...row,
           otp_login_enabled: Boolean(row.otp_login_enabled),
           otp_users_page_enabled: Boolean(row.otp_users_page_enabled),
+          availability: parseAvailabilityStatus(row.availability),
+          available_from:
+            typeof row.available_from === 'string' && row.available_from
+              ? row.available_from
+              : null,
           lifetime_event_count: Number(row.lifetime_event_count ?? 0),
           lifetime_km: Number(row.lifetime_km ?? 0),
           lifetime_stats_updated_at:
@@ -391,6 +400,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
   }, [])
 
+  const reloadProfile = useCallback(async () => {
+    const userId = session?.user?.id
+    if (!userId) return
+    const loaded = await loadProfileAndRoles(userId)
+    setProfile(loaded.profile)
+    setRoles(loaded.roles)
+  }, [session?.user?.id])
+
   const value = useMemo<AuthState>(
     () => ({
       session,
@@ -400,6 +417,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       passwordSetupReason,
       authBootstrapError,
+      reloadProfile,
       signIn,
       requestPasswordReset,
       updatePassword,
@@ -414,6 +432,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       passwordSetupReason,
       authBootstrapError,
+      reloadProfile,
       signIn,
       requestPasswordReset,
       updatePassword,

@@ -895,6 +895,7 @@ textarea.field__input {
 .tags {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
 }
 
@@ -944,6 +945,104 @@ textarea.field__input {
 
 .user-presence--recent .user-presence__disc {
   background: var(--status-partial);
+}
+
+.availability-dot {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.availability-dot__halo,
+.availability-dot__core {
+  border-radius: var(--radius-full);
+}
+
+.availability-dot__halo {
+  position: absolute;
+  inset: 0;
+}
+
+.availability-dot__core {
+  position: relative;
+  width: var(--space-2);
+  height: var(--space-2);
+}
+
+.availability-dot--available .availability-dot__halo {
+  background: var(--status-done-tint);
+}
+
+.availability-dot--available .availability-dot__core {
+  background: var(--status-done);
+}
+
+.availability-dot--unavailable .availability-dot__halo {
+  background: var(--status-alert-tint);
+}
+
+.availability-dot--unavailable .availability-dot__core {
+  background: var(--status-alert);
+}
+
+.availability-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.availability-status__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  text-align: start;
+}
+
+.availability-trigger {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.availability-trigger--compact {
+  padding-inline: var(--space-1);
+}
+
+@media (min-width: 1025px) {
+  .availability-trigger,
+  .availability-trigger--compact {
+    min-height: 40px;
+  }
+}
+
+.availability-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .availability-trigger:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+.availability-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .user-name-with-presence {
@@ -1045,6 +1144,7 @@ textarea.field__input {
 @media (min-width: 1025px) {
   .appbar__brand {
     gap: var(--space-3);
+    max-width: calc(100% - 200px);
   }
 
   .appbar__system {
@@ -1060,6 +1160,13 @@ textarea.field__input {
     font-size: 14px;
     line-height: 20px;
   }
+}
+
+.appbar__cluster {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .appbar__user {
@@ -1091,6 +1198,16 @@ textarea.field__input {
   animation: menu-in var(--duration-base) var(--ease-standard);
 }
 
+.menu.availability-popover {
+  position: fixed;
+  inset-block-start: auto;
+  inset-inline-end: auto;
+  z-index: 40;
+  min-width: 280px;
+  max-width: min(360px, calc(100vw - (var(--space-4) * 2)));
+  padding: var(--space-4);
+}
+
 @keyframes menu-in {
   from {
     opacity: 0;
@@ -1104,9 +1221,19 @@ textarea.field__input {
 }
 
 .menu__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-block-end: 1px solid var(--stroke-hairline);
   margin-block-end: var(--space-2);
+}
+
+.menu__header .availability-trigger {
+  width: 100%;
+  min-height: 44px;
+  margin-inline: calc(var(--space-3) * -1);
+  padding-inline: var(--space-3);
 }
 
 .menu__item {
@@ -1147,10 +1274,10 @@ textarea.field__input {
   position: relative;
   display: none;
   flex: none;
+  flex-direction: column;
   width: var(--sidebar-width);
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
+  overflow: hidden;
   padding: var(--space-6) var(--space-3);
   border-inline-end: 1px solid var(--stroke-hairline);
   background: var(--surface-page);
@@ -1178,9 +1305,22 @@ textarea.field__input {
 
 .sidebar__nav {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-1);
   width: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.sidebar__footer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  margin-block-start: auto;
 }
 
 .sidebar__row {
@@ -1451,10 +1591,12 @@ textarea.field__input {
   position: relative;
   display: flex;
   flex: 1;
+  min-width: 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
+  padding-inline: var(--space-1);
   border: 0;
   background: transparent;
   color: var(--text-muted);
@@ -1483,9 +1625,19 @@ textarea.field__input {
   background: var(--accent);
 }
 
+.tabbar-more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tabbar-more .nav-item {
+  height: 44px;
+}
+
 @media (min-width: 1025px) {
   .sidebar {
-    display: block;
+    display: flex;
   }
 
   .tabbar {
@@ -1637,6 +1789,11 @@ textarea.field__input {
 
 .mine-insight__summary {
   color: var(--text-secondary);
+}
+
+.mine-insight__notice {
+  margin-block-start: var(--space-2);
+  color: var(--text-primary);
 }
 
 .mine-section-empty {
@@ -2122,6 +2279,12 @@ textarea.field__input {
   padding-block-end: var(--space-3);
   margin-block-end: var(--space-3);
   border-block-end: 1px solid var(--stroke-hairline);
+}
+
+.responder-card__head--flush {
+  padding-block-end: 0;
+  margin-block-end: 0;
+  border-block-end: none;
 }
 
 .responder-card__identity {
@@ -2981,7 +3144,24 @@ textarea.field__input {
   background: transparent;
   color: inherit;
   text-align: start;
+}
+
+.user-card__email-btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
   cursor: pointer;
+}
+
+.user-card__email-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .user-card__details p {
@@ -3091,6 +3271,13 @@ textarea.field__input {
   align-items: start;
 }
 
+.lists-nav-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 .lists-nav {
   display: flex;
   flex-direction: column;
@@ -3101,20 +3288,17 @@ textarea.field__input {
   background: var(--surface-raised);
 }
 
+.lists-nav .nav-item {
+  width: 100%;
+  min-height: 44px;
+  height: 44px;
+}
+
 .lists-title-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-}
-
-.list-pick-card {
-  width: 100%;
-  text-align: start;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
 }
 
 .report-catalog {
@@ -4686,6 +4870,19 @@ textarea.field__input {
 
 .user-map-pin--event .user-map-pin__dot {
   background: var(--status-alert);
+}
+
+.user-map-pin--unavailable .user-map-pin__dot {
+  background: var(--status-draft);
+}
+
+.user-map-pin--unavailable .user-map-pin__label {
+  background: color-mix(in srgb, var(--status-draft) 28%, var(--text-on-accent));
+  color: var(--status-draft);
+}
+
+.user-map-pin--unavailable .user-map-pin__tip {
+  border-color: var(--status-draft);
 }
 
 .user-map-pin--hit {

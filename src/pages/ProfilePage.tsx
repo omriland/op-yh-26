@@ -86,7 +86,7 @@ export function ProfilePage() {
 
       <div className="stack-4" style={{ marginBlockStart: 'var(--space-10)' }}>
         <section className="card stack-4">
-          <div className="responder-card__head">
+          <div className="responder-card__head responder-card__head--flush">
             <Avatar name={profile.full_name} size="lg" />
             <span className="responder-card__identity">
               <span className="t-section">{profile.full_name}</span>
@@ -146,9 +146,7 @@ export function ProfilePage() {
         </section>
 
         <section className="card">
-          <div className="form-section">
-            <h2 className="form-section__heading">כתובות</h2>
-          </div>
+          <h2 className="t-section">כתובות</h2>
           <div style={{ marginBlockStart: 'var(--space-4)' }}>
             {addresses === null ? (
               <Skeleton height={24} />
@@ -169,9 +167,7 @@ export function ProfilePage() {
         </section>
 
         <section className="card">
-          <div className="form-section">
-            <h2 className="form-section__heading">רכבים</h2>
-          </div>
+          <h2 className="t-section">רכבים</h2>
           <div style={{ marginBlockStart: 'var(--space-4)' }}>
             {vehicles === null ? (
               <Skeleton height={24} />

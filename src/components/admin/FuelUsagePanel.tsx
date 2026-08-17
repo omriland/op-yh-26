@@ -73,7 +73,9 @@ export function FuelUsagePanel() {
         <div>
           <h1 className="t-title">שימוש בדלק</h1>
           <p className="t-caption text-muted">
-            קילומטרים, אירועים וליטרים לפי תאריך דיווח האירוע
+            קילומטרים, אירועים וליטרים לפי תאריך דיווח האירוע.
+            <br />
+            מוצגים כל האירועים עם ק״מ, גם אם תועדו חלקית.
           </p>
         </div>
         <div className="page-head__actions">

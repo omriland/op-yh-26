@@ -8,6 +8,7 @@ import {
   haversineKm,
   mapBoundsForRadiusKm,
   mapPinLabel,
+  mapUserPinChrome,
   nearbyResponders,
   persistableAddresses,
   toMapPins,
@@ -234,6 +235,8 @@ describe('toMapPins', () => {
         lat: homePlace.location_lat,
         lng: homePlace.location_lng,
         volunteerStatus: 'active_volunteer',
+        availability: 'available',
+        availableFrom: null,
       },
       {
         userId: 'u1',
@@ -246,6 +249,8 @@ describe('toMapPins', () => {
         lat: workPlace.location_lat,
         lng: workPlace.location_lng,
         volunteerStatus: 'active_volunteer',
+        availability: 'available',
+        availableFrom: null,
       },
     ])
   })
@@ -297,6 +302,78 @@ describe('toMapPins', () => {
 
     expect(pins.map((pin) => pin.userId)).toEqual(['active'])
   })
+
+  it('carries availability onto each pin', () => {
+    const address = {
+      id: 'h1',
+      kind: 'home' as const,
+      label: null,
+      formatted_address: homePlace.location,
+      place_id: homePlace.location_place_id,
+      lat: homePlace.location_lat,
+      lng: homePlace.location_lng,
+    }
+    const pins = toMapPins([
+      {
+        id: 'u1',
+        full_name: 'דנה',
+        callsign: '4',
+        active: true,
+        availability: 'unavailable',
+        available_from: '2026-08-20',
+        addresses: [address],
+      },
+    ])
+
+    expect(pins[0]?.availability).toBe('unavailable')
+    expect(pins[0]?.availableFrom).toBe('2026-08-20')
+  })
+})
+
+describe('mapUserPinChrome', () => {
+  const today = '2026-08-17'
+  const base = {
+    userId: 'u1',
+    fullName: 'דנה',
+    callsign: '4',
+    kind: 'home' as const,
+    name: 'בית',
+    label: '4 · בית',
+    formattedAddress: homePlace.location,
+    lat: homePlace.location_lat,
+    lng: homePlace.location_lng,
+    volunteerStatus: 'active_volunteer' as const,
+    availability: 'available' as const,
+    availableFrom: null as string | null,
+  }
+
+  it('keeps available pins blue with volunteer-status hover', () => {
+    expect(mapUserPinChrome(base, today)).toEqual({
+      unavailable: false,
+      tooltip: { text: 'מתנדב פעיל', alert: false },
+    })
+  })
+
+  it('grays unavailable pins and shows לא זמין on hover', () => {
+    expect(
+      mapUserPinChrome({ ...base, availability: 'unavailable', availableFrom: null }, today),
+    ).toEqual({
+      unavailable: true,
+      tooltip: { text: 'לא זמין', alert: false },
+    })
+  })
+
+  it('includes the return date on hover when set', () => {
+    expect(
+      mapUserPinChrome(
+        { ...base, availability: 'unavailable', availableFrom: '2026-08-20' },
+        today,
+      ),
+    ).toEqual({
+      unavailable: true,
+      tooltip: { text: 'לא זמין עד 20.08.2026', alert: false },
+    })
+  })
 })
 
 describe('haversineKm', () => {
@@ -341,6 +418,8 @@ describe('nearbyResponders', () => {
         lat: 32.8,
         lng: 35.0,
         volunteerStatus: 'active_volunteer',
+        availability: 'available',
+        availableFrom: null,
       },
       {
         userId: 'near',
@@ -353,6 +432,8 @@ describe('nearbyResponders', () => {
         lat: workPlace.location_lat,
         lng: workPlace.location_lng,
         volunteerStatus: 'active_volunteer',
+        availability: 'available',
+        availableFrom: null,
       },
       {
         userId: 'near',
@@ -365,6 +446,8 @@ describe('nearbyResponders', () => {
         lat: 31.0,
         lng: 34.8,
         volunteerStatus: 'active_volunteer',
+        availability: 'available',
+        availableFrom: null,
       },
     ]
 
@@ -392,6 +475,8 @@ describe('nearbyResponders', () => {
         lat: 32.8,
         lng: 35.0,
         volunteerStatus: 'active_volunteer',
+        availability: 'available',
+        availableFrom: null,
       },
       {
         userId: 'near',
@@ -404,6 +489,8 @@ describe('nearbyResponders', () => {
         lat: workPlace.location_lat,
         lng: workPlace.location_lng,
         volunteerStatus: 'active_volunteer',
+        availability: 'available',
+        availableFrom: null,
       },
     ]
 
