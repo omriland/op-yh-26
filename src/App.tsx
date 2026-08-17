@@ -760,7 +760,7 @@ function Gate() {
         </div>
       ) : isAdminHub && isAdminSegment(activeView) ? (
           <div
-            className={['stack-4', activeView === 'users' ? 'page--wide' : '']
+            className={['stack-4', activeView === 'users' ? 'page--wide page--users' : '']
               .filter(Boolean)
               .join(' ')}
           >

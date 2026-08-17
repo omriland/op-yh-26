@@ -1543,9 +1543,14 @@ textarea.field__input {
   margin-inline: auto;
 }
 
-/* Wide registry tables (users) — ~20% past the default content max. */
+/* Wide registry tables — ~20% past the default content max. */
 .shell__main > .page--wide {
   max-width: calc(var(--content-max) * 1.2);
+}
+
+/* משתמשים table: 15% past the shared wide registry width. */
+.shell__main > .page--wide.page--users {
+  max-width: calc(var(--content-max) * 1.2 * 1.15);
 }
 
 .shell__main--narrow > * {
