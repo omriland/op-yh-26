@@ -338,6 +338,12 @@ export function EventFormPage({
       }
       setErrors({})
       setPreviousIsCancelled(current.is_cancelled)
+      if (result.trackingStopFailed) {
+        show('עצירת מעקב המיקום נכשלה. האירוע נשמר.', 'alert')
+      }
+      if (result.trackingStartFailed) {
+        show('שליחת מעקב המיקום נכשלה. האירוע נשמר.', 'alert')
+      }
 
       // Merge server ids into the *latest* draft — never replace with the pre-await
       // snapshot (stepper taps during save would otherwise get wiped).

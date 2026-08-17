@@ -4,6 +4,7 @@ export type AnalyticsPathInput = {
   passwordSetup?: boolean
   tokenFill?: 'idle' | 'checking' | 'ready' | 'blocked'
   tokenEventId?: string
+  tracking?: boolean
   otp?: 'idle' | 'checking' | 'required' | 'ok'
   legalPage?: 'privacy' | null
   view: string
@@ -15,6 +16,7 @@ export type AnalyticsPathInput = {
 
 /** Virtual path for analytics. Cockpit is also a real URL (`/cockpit`, `/cockpit/:id`). */
 export function appAnalyticsPath(input: AnalyticsPathInput): string | null {
+  if (input.tracking) return '/track'
   if (input.loading || input.tokenFill === 'checking') return null
   if (input.legalPage === 'privacy') return '/privacy'
   if (input.passwordSetup) return '/login/set-password'

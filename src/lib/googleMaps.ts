@@ -89,6 +89,8 @@ export function loadGoogleMaps(): Promise<MapsApi> {
 
 export type MapPinOverlay = {
   setMap: (map: GoogleMap | null) => void
+  setPosition: (position: { lat: number; lng: number }) => void
+  setCopy: (label: string, tooltipText?: string) => void
 }
 
 export function createLabeledPin(
@@ -96,9 +98,9 @@ export function createLabeledPin(
   position: { lat: number; lng: number },
   label: string,
   title: string,
-  variant: 'user' | 'search' | 'event' = 'user',
+  variant: 'user' | 'search' | 'event' | 'live' = 'user',
   onClick?: () => void,
-  tooltip?: { text: string; alert?: boolean },
+  tooltip?: { text: string; alert?: boolean; live?: boolean },
   unavailable = false,
 ): MapPinOverlay {
   class LabeledPin extends maps.OverlayView {
@@ -116,6 +118,7 @@ export function createLabeledPin(
         'user-map-pin',
         variant === 'search' ? 'user-map-pin--search' : '',
         variant === 'event' ? 'user-map-pin--event' : '',
+        variant === 'live' ? 'user-map-pin--live' : '',
         unavailable ? 'user-map-pin--unavailable' : '',
         onClick ? 'user-map-pin--hit' : '',
       ]
@@ -141,9 +144,13 @@ export function createLabeledPin(
       el.append(dot, text)
       if (tooltip) {
         const tip = document.createElement('span')
-        tip.className = tooltip.alert
-          ? 'user-map-pin__tip user-map-pin__tip--alert'
-          : 'user-map-pin__tip'
+        tip.className = [
+          'user-map-pin__tip',
+          tooltip.alert ? 'user-map-pin__tip--alert' : '',
+          tooltip.live ? 'user-map-pin__tip--live' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')
         tip.textContent = tooltip.text
         el.append(tip)
       }
@@ -162,6 +169,21 @@ export function createLabeledPin(
     onRemove() {
       this.el?.remove()
       this.el = null
+    }
+
+    setPosition(next: { lat: number; lng: number }) {
+      this.latLng = new maps.LatLng(next.lat, next.lng)
+      this.draw()
+    }
+
+    setCopy(nextLabel: string, tooltipText?: string) {
+      if (!this.el) return
+      const text = this.el.querySelector('.user-map-pin__label')
+      if (text) text.textContent = nextLabel
+      const tip = this.el.querySelector('.user-map-pin__tip')
+      if (tip && tooltipText) tip.textContent = tooltipText
+      if (tooltipText) this.el.setAttribute('aria-label', `${nextLabel}. ${tooltipText}`)
+      else this.el.title = title
     }
   }
 

@@ -3,6 +3,8 @@ import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 import { assignmentIdsNewlySetKm } from './fillReadyNotify'
 import { notifyFillReady } from './responderFillToken'
+import { planTrackingSync } from './liveTrack'
+import { startResponderTracking, stopResponderTracking } from './liveTrackApi'
 import {
   districtNeedsPlacesLocation,
   LOCATION_REQUIRED_ERROR,
@@ -440,7 +442,14 @@ export async function saveEventForm(input: {
   previousIsCancelled: boolean
   allowPartial?: boolean
 }): Promise<
-  | { ok: true; eventId: string; status: EventStatus; assignmentIds: Record<string, string> }
+  | {
+      ok: true
+      eventId: string
+      status: EventStatus
+      assignmentIds: Record<string, string>
+      trackingStartFailed: boolean
+      trackingStopFailed: boolean
+    }
   | { ok: false; error: string; fieldErrors?: EventFormErrors }
 > {
   const { draft, shiftLeadId, vehicleKinds, districts, isAdmin, previousIsCancelled } = input
@@ -528,7 +537,41 @@ export async function saveEventForm(input: {
     void notifyFillReady({ eventResponderIds: notifyIds }).catch(() => {})
   }
 
-  return { ok: true, eventId, status: nextStatus, assignmentIds: sync.assignmentIds }
+  const nextAssignments = draft.responders.flatMap((responder) => {
+    const assignmentId = sync.assignmentIds[responder.responder_id]
+    if (!assignmentId) return []
+    const overnight = isOvernightEnd(responder.start_time, responder.end_time)
+    return [
+      {
+        id: assignmentId,
+        endedAt: wallTimestamp(draft.event_date, responder.end_time, overnight ? 1 : 0),
+      },
+    ]
+  })
+  const trackingPlan = planTrackingSync({
+    previous: sync.previousAssignments,
+    next: nextAssignments,
+  })
+  const leftoverStopIds = trackingPlan.stopIds.filter((id) => !sync.removedIds.includes(id))
+  let trackingStopFailed = sync.trackingStopFailed
+  let trackingStartFailed = false
+  if (leftoverStopIds.length > 0) {
+    const stopped = await stopResponderTracking(leftoverStopIds)
+    if (!stopped.ok) trackingStopFailed = true
+  }
+  if (trackingPlan.startIds.length > 0) {
+    const started = await startResponderTracking(trackingPlan.startIds)
+    if (!started.ok) trackingStartFailed = true
+  }
+
+  return {
+    ok: true,
+    eventId,
+    status: nextStatus,
+    assignmentIds: sync.assignmentIds,
+    trackingStartFailed,
+    trackingStopFailed,
+  }
 }
 
 async function syncResponders(input: {
@@ -543,6 +586,9 @@ async function syncResponders(input: {
       assignmentIds: Record<string, string>
       previousKm: { id: string; total_km: number | null }[]
       nextKmRows: { assignmentId: string; totalKm: number | null }[]
+      previousAssignments: { id: string; endedAt: string | null }[]
+      removedIds: string[]
+      trackingStopFailed: boolean
     }
   | { ok: false; error: string }
 > {
@@ -550,12 +596,17 @@ async function syncResponders(input: {
 
   const { data: existing, error: existingError } = await supabase
     .from('event_responders')
-    .select('id, responder_id, total_km')
+    .select('id, responder_id, total_km, ended_at')
     .eq('event_id', eventId)
 
   if (existingError) {
     return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
   }
+
+  const previousAssignments = (existing ?? []).map((row) => ({
+    id: row.id as string,
+    endedAt: (row.ended_at as string | null) ?? null,
+  }))
 
   const existingByResponder = new Map(
     (existing ?? []).map((row) => [row.responder_id as string, row.id as string]),
@@ -566,15 +617,13 @@ async function syncResponders(input: {
   }))
   const keepIds = new Set(responders.map((row) => row.responder_id))
   const toRemove = (existing ?? []).filter((row) => !keepIds.has(row.responder_id as string))
+  const removedIds = toRemove.map((row) => row.id as string)
+  let trackingStopFailed = false
 
-  if (toRemove.length > 0) {
-    const { error } = await supabase
-      .from('event_responders')
-      .delete()
-      .in(
-        'id',
-        toRemove.map((row) => row.id as string),
-      )
+  if (removedIds.length > 0) {
+    const stopped = await stopResponderTracking(removedIds)
+    if (!stopped.ok) trackingStopFailed = true
+    const { error } = await supabase.from('event_responders').delete().in('id', removedIds)
     if (error) {
       return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
     }
@@ -669,5 +718,13 @@ async function syncResponders(input: {
     }
   }
 
-  return { ok: true, assignmentIds, previousKm, nextKmRows }
+  return {
+    ok: true,
+    assignmentIds,
+    previousKm,
+    nextKmRows,
+    previousAssignments,
+    removedIds,
+    trackingStopFailed,
+  }
 }

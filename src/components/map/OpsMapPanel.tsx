@@ -26,6 +26,8 @@ import {
   type NearbyResponder,
 } from '../../lib/userAddresses'
 import type { CockpitEventPin } from '../../lib/cockpit'
+import { fetchLiveMapPins, subscribeLiveMapPins, type LiveMapPin } from '../../lib/liveMapPins'
+import { planLivePinSync } from '../../lib/liveTrack'
 
 export type SearchOrigin = {
   location: string
@@ -54,6 +56,7 @@ export function OpsMapPanel({
 }: OpsMapPanelProps) {
   const { show } = useToast()
   const [pins, setPins] = useState<MapPin[] | null>(null)
+  const [livePins, setLivePins] = useState<LiveMapPin[]>([])
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState(emptyLocationPlaceFields())
   const [origin, setOrigin] = useState<SearchOrigin | null>(null)
@@ -70,6 +73,25 @@ export function OpsMapPanel({
       })
     return () => {
       active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    function loadLive() {
+      fetchLiveMapPins()
+        .then((next) => {
+          if (active) setLivePins(next)
+        })
+        .catch(() => {
+          if (active) setLivePins([])
+        })
+    }
+    loadLive()
+    const unsubscribe = subscribeLiveMapPins(loadLive)
+    return () => {
+      active = false
+      unsubscribe()
     }
   }, [])
 
@@ -95,7 +117,7 @@ export function OpsMapPanel({
     }
   }
 
-  const hasPins = (pins?.length ?? 0) > 0 || eventPins.length > 0
+  const hasPins = (pins?.length ?? 0) > 0 || eventPins.length > 0 || livePins.length > 0
   const showMap = !requirePins || hasPins || Boolean(origin)
 
   return (
@@ -143,6 +165,7 @@ export function OpsMapPanel({
             <OpsMapCanvas
               pins={pins}
               eventPins={eventPins}
+              livePins={livePins}
               origin={origin}
               focusUserId={focusUserId}
               onEventSelect={onEventSelect}
@@ -261,6 +284,7 @@ function applyMapView(
 function OpsMapCanvas({
   pins,
   eventPins,
+  livePins,
   origin,
   focusUserId,
   onEventSelect,
@@ -268,6 +292,7 @@ function OpsMapCanvas({
 }: {
   pins: MapPin[]
   eventPins: CockpitEventPin[]
+  livePins: LiveMapPin[]
   origin: SearchOrigin | null
   focusUserId: string | null
   onEventSelect?: (eventId: string) => void
@@ -275,19 +300,17 @@ function OpsMapCanvas({
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const sessionRef = useRef<MapSession | null>(null)
-  const originRef = useRef(origin)
-  const focusRef = useRef(focusUserId)
+  const staticOverlaysRef = useRef<MapPinOverlay[]>([])
+  const liveOverlaysRef = useRef(new Map<string, MapPinOverlay>())
   const onEventSelectRef = useRef(onEventSelect)
-  originRef.current = origin
-  focusRef.current = focusUserId
   onEventSelectRef.current = onEventSelect
   const [mapError, setMapError] = useState<string | null>(null)
+  const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
     let cancelled = false
-    const overlays: MapPinOverlay[] = []
 
     void loadGoogleMaps()
       .then((maps) => {
@@ -300,38 +323,8 @@ function OpsMapCanvas({
           fullscreenControl: true,
           gestureHandling: 'greedy',
         })
-        for (const pin of pins) {
-          const chrome = mapUserPinChrome(pin)
-          const overlay = createLabeledPin(
-            maps,
-            { lat: pin.lat, lng: pin.lng },
-            pin.label,
-            `${pin.fullName} · ${pin.formattedAddress}`,
-            'user',
-            undefined,
-            chrome.tooltip,
-            chrome.unavailable,
-          )
-          overlay.setMap(map)
-          overlays.push(overlay)
-        }
-        for (const pin of eventPins) {
-          const overlay = createLabeledPin(
-            maps,
-            { lat: pin.lat, lng: pin.lng },
-            pin.label,
-            pin.title,
-            'event',
-            onEventSelectRef.current
-              ? () => onEventSelectRef.current?.(pin.eventId)
-              : undefined,
-          )
-          overlay.setMap(map)
-          overlays.push(overlay)
-        }
-        const session: MapSession = { maps, map, searchOverlay: null }
-        sessionRef.current = session
-        applyMapView(session, pins, eventPins, originRef.current, focusRef.current)
+        sessionRef.current = { maps, map, searchOverlay: null }
+        setMapReady(true)
       })
       .catch(() => {
         if (!cancelled) setMapError('טעינת המפה מגוגל נכשלה.')
@@ -339,17 +332,87 @@ function OpsMapCanvas({
 
     return () => {
       cancelled = true
-      for (const overlay of overlays) overlay.setMap(null)
+      for (const overlay of staticOverlaysRef.current) overlay.setMap(null)
+      staticOverlaysRef.current = []
+      for (const overlay of liveOverlaysRef.current.values()) overlay.setMap(null)
+      liveOverlaysRef.current.clear()
       sessionRef.current?.searchOverlay?.setMap(null)
       sessionRef.current = null
+      setMapReady(false)
     }
-  }, [pins, eventPins])
+  }, [])
 
   useEffect(() => {
     const session = sessionRef.current
-    if (!session) return
+    if (!session || !mapReady) return
+    for (const overlay of staticOverlaysRef.current) overlay.setMap(null)
+    staticOverlaysRef.current = []
+    const overlays: MapPinOverlay[] = []
+    for (const pin of pins) {
+      const chrome = mapUserPinChrome(pin)
+      const overlay = createLabeledPin(
+        session.maps,
+        { lat: pin.lat, lng: pin.lng },
+        pin.label,
+        `${pin.fullName} · ${pin.formattedAddress}`,
+        'user',
+        undefined,
+        chrome.tooltip,
+        chrome.unavailable,
+      )
+      overlay.setMap(session.map)
+      overlays.push(overlay)
+    }
+    for (const pin of eventPins) {
+      const overlay = createLabeledPin(
+        session.maps,
+        { lat: pin.lat, lng: pin.lng },
+        pin.label,
+        pin.title,
+        'event',
+        onEventSelectRef.current
+          ? () => onEventSelectRef.current?.(pin.eventId)
+          : undefined,
+      )
+      overlay.setMap(session.map)
+      overlays.push(overlay)
+    }
+    staticOverlaysRef.current = overlays
+  }, [mapReady, pins, eventPins])
+
+  useEffect(() => {
+    const session = sessionRef.current
+    if (!session || !mapReady) return
     applyMapView(session, pins, eventPins, origin, focusUserId)
-  }, [origin, focusUserId, pins, eventPins])
+  }, [mapReady, origin, focusUserId, pins, eventPins])
+
+  useEffect(() => {
+    const session = sessionRef.current
+    if (!session || !mapReady) return
+    const plan = planLivePinSync(liveOverlaysRef.current.keys(), livePins)
+    for (const id of plan.remove) {
+      liveOverlaysRef.current.get(id)?.setMap(null)
+      liveOverlaysRef.current.delete(id)
+    }
+    for (const pin of plan.update) {
+      const overlay = liveOverlaysRef.current.get(pin.assignmentId)
+      overlay?.setPosition({ lat: pin.lat, lng: pin.lng })
+      overlay?.setCopy(pin.label, pin.tooltip)
+    }
+    for (const pin of plan.add) {
+      const overlay = createLabeledPin(
+        session.maps,
+        { lat: pin.lat, lng: pin.lng },
+        pin.label,
+        pin.tooltip,
+        'live',
+        undefined,
+        { text: pin.tooltip, live: true },
+      )
+      overlay.setMap(session.map)
+      liveOverlaysRef.current.set(pin.assignmentId, overlay)
+    }
+  }, [mapReady, livePins])
 
   if (mapError) {
     return (

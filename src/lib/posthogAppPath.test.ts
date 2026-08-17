@@ -11,6 +11,13 @@ describe('appAnalyticsPath', () => {
 
   it('maps signed-out and gate screens', () => {
     expect(appAnalyticsPath({ signedIn: false, view: 'mine' })).toBe('/login')
+    expect(
+      appAnalyticsPath({
+        signedIn: false,
+        tracking: true,
+        view: 'mine',
+      }),
+    ).toBe('/track')
     expect(appAnalyticsPath({ signedIn: false, passwordSetup: true, view: 'mine' })).toBe(
       '/login/set-password',
     )

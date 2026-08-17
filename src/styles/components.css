@@ -575,7 +575,8 @@ textarea.field__input {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     'body stamp'
-    'fill fill';
+    'fill fill'
+    'detail detail';
   column-gap: var(--space-3);
   row-gap: var(--space-2);
 }
@@ -619,11 +620,20 @@ textarea.field__input {
   width: 100%;
 }
 
+.event-card__detail {
+  grid-area: detail;
+}
+
+.event-card__detail .btn {
+  min-height: 44px;
+  padding-inline: 0;
+}
+
 @media (min-width: 1025px) {
   .event-card-shell:has(.event-card__fill) {
     grid-template-areas:
       'body stamp'
-      'body fill';
+      'detail fill';
   }
 
   .event-card__fill {
@@ -632,6 +642,10 @@ textarea.field__input {
 
   .event-card__fill .btn {
     width: auto;
+  }
+
+  .event-card__detail {
+    align-self: end;
   }
 }
 
@@ -1045,6 +1059,66 @@ textarea.field__input {
   gap: var(--space-2);
 }
 
+.availability-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.availability-choice__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: 400 16px/24px var(--font-ui);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.availability-choice__option[aria-checked='true'] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.availability-choice__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.availability-choice__check {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.availability-choice__option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.availability-choice__option:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.availability-choice__option:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .availability-choice__option:hover {
+    background: var(--accent-subtle);
+  }
+}
+
 .user-name-with-presence {
   display: inline-flex;
   align-items: center;
@@ -1203,9 +1277,9 @@ textarea.field__input {
   inset-block-start: auto;
   inset-inline-end: auto;
   z-index: 40;
-  min-width: 280px;
-  max-width: min(360px, calc(100vw - (var(--space-4) * 2)));
-  padding: var(--space-4);
+  min-width: 260px;
+  max-width: min(320px, calc(100vw - (var(--space-4) * 2)));
+  padding: var(--space-3);
 }
 
 @keyframes menu-in {
@@ -1661,6 +1735,15 @@ textarea.field__input {
   padding-block-end: 0;
 }
 
+.shell__main:has(> .live-track) {
+  padding-block: 0;
+}
+
+.shell__main > .live-track {
+  max-width: var(--form-max);
+  flex: 1;
+}
+
 /* Same inset on the start edge: padding-block-start would leave group headers
    floating mid-list instead of flush with the app bar. */
 .shell__main:has(.event-groups) {
@@ -1799,6 +1882,112 @@ textarea.field__input {
 .mine-section-empty {
   margin: 0;
   padding-block: var(--space-3);
+}
+
+.mine-inbox-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.mine-inbox-head .t-title,
+.mine-inbox-head .t-body {
+  margin: 0;
+}
+
+.mine-inbox-head__notice {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.mine-logged-caption {
+  margin: 0;
+  margin-block-end: var(--space-3);
+}
+
+.mine-shift-group {
+  list-style: none;
+}
+
+.mine-shift-group__head {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 9;
+  background: var(--surface-page);
+}
+
+.mine-shift-group__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding-block: var(--space-2);
+  border: 0;
+  background: transparent;
+  text-align: start;
+  color: inherit;
+  border-radius: var(--radius-sm);
+}
+
+@media (hover: hover) {
+  .mine-shift-group__toggle:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+.mine-shift-group__identity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.mine-shift-group__chevron {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.mine-shift-group__chevron.is-rotated {
+  transform: rotate(180deg);
+}
+
+.mine-logged-row {
+  padding: 0;
+}
+
+.mine-logged-row__hit {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding-inline: var(--space-4);
+  padding-block: var(--space-3);
+  border: 0;
+  background: transparent;
+  text-align: start;
+  color: inherit;
+}
+
+@media (hover: hover) {
+  .mine-logged-row__hit:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+.mine-logged-row__hit:active {
+  background: var(--surface-sunken);
+}
+
+.mine-logged-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 /* Each .event-group is the sticky containing block. Sibling headers under
@@ -2422,10 +2611,15 @@ textarea.field__input {
 
 .login__unit {
   margin: 0;
-  max-width: 11ch;
+  display: flex;
+  flex-direction: column;
   text-align: start;
   font: 400 14px/20px var(--font-ui);
   color: var(--text-secondary);
+}
+
+.login__unit-line {
+  white-space: nowrap;
 }
 
 .login__card {
@@ -2564,8 +2758,8 @@ textarea.field__input {
   }
 
   .login__unit {
-    max-width: 22ch;
     text-align: center;
+    align-items: center;
   }
 }
 
@@ -2589,7 +2783,6 @@ textarea.field__input {
   }
 
   .login__unit {
-    max-width: 12ch;
     font-size: 16px;
     line-height: 24px;
   }
@@ -3262,6 +3455,10 @@ textarea.field__input {
 
 .admin-segments {
   margin-block-end: var(--space-2);
+}
+
+.chips.admin-segments.mine-inbox-tabs {
+  margin-block-end: var(--space-4);
 }
 
 .lists-layout--desktop {
@@ -4872,6 +5069,18 @@ textarea.field__input {
   background: var(--status-alert);
 }
 
+.user-map-pin--live {
+  z-index: 3;
+}
+
+.user-map-pin--live .user-map-pin__dot {
+  background: var(--status-done);
+}
+
+.user-map-pin__tip--live {
+  border-color: var(--status-done);
+}
+
 .user-map-pin--unavailable .user-map-pin__dot {
   background: var(--status-draft);
 }
@@ -5081,4 +5290,42 @@ textarea.field__input {
 
 .user-map-nearby__meta {
   flex-shrink: 0;
+}
+
+/* ============================================================
+   Live track — unauthenticated Field beacon
+   ============================================================ */
+
+.live-track {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--space-6) var(--space-4);
+  padding-block-start: calc(var(--space-6) + env(safe-area-inset-top, 0px));
+  padding-block-end: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+}
+
+.live-track__card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+  width: min(100%, var(--form-max));
+  padding: var(--space-6);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.live-track__card > .t-title {
+  margin: 0;
+}
+
+.live-track__lead {
+  margin: 0;
+  color: var(--text-secondary);
 }

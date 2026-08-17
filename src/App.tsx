@@ -30,6 +30,8 @@ import { EventsPage } from './pages/EventsPage'
 import { LoginPage } from './pages/LoginPage'
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { LiveTrackPage } from './pages/LiveTrackPage'
+import { parseTrackTokenFromSearch } from './lib/liveTrack'
 import { ResponderFillPage } from './pages/ResponderFillPage'
 import { ShiftDetailPage } from './pages/ShiftDetailPage'
 import { ShiftFormPage } from './pages/ShiftFormPage'
@@ -69,6 +71,9 @@ function Gate() {
   const { session, loading, roles, passwordSetupReason, user, profile } = useAuth()
   const isDesktop = useIsDesktop()
   const cockpitBoot = useRef(readCockpitBoot()).current
+  const trackToken = useRef(
+    typeof window === 'undefined' ? null : parseTrackTokenFromSearch(window.location.search),
+  ).current
   const [view, setView] = useState<AppView>(cockpitBoot ? 'cockpit' : 'mine')
   const [legalPage, setLegalPage] = useState<'privacy' | null>(null)
   const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
@@ -238,6 +243,7 @@ function Gate() {
         passwordSetup: Boolean(passwordSetupReason),
         tokenFill: tokenFill.status === 'idle' ? 'idle' : tokenFill.status,
         tokenEventId: tokenFill.status === 'ready' ? tokenFill.eventId : undefined,
+        tracking: Boolean(trackToken),
         otp: loginOtp.state,
         legalPage,
         view,
@@ -255,6 +261,7 @@ function Gate() {
       loading,
       fillBootDone,
       tokenFill,
+      trackToken,
       session,
       passwordSetupReason,
       loginOtp.state,
@@ -444,6 +451,16 @@ function Gate() {
       : isAdmin
         ? 'users'
         : 'profile'
+
+  if (trackToken) {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <LiveTrackPage trackToken={trackToken} />
+        </main>
+      </div>
+    )
+  }
 
   if (loading || !fillBootDone || tokenFill.status === 'checking') {
     return (
