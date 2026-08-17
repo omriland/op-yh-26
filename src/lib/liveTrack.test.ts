@@ -11,7 +11,10 @@ import {
   parseLiveTrackSmsAllowlist,
   parseTrackTokenFromSearch,
   pingRefusal,
+  isIosNonSafariBrowser,
+  isLiveTrackPermissionDenied,
   liveTrackPositionOptions,
+  shouldRetryLiveTrackFirstFix,
   planLivePinSync,
   planTrackingSync,
   shouldEmitPing,
@@ -28,6 +31,44 @@ describe('liveTrackPositionOptions', () => {
       enableHighAccuracy: true,
       maximumAge: 0,
     })
+  })
+
+  it('can request a low-accuracy first fix for iOS Chrome', () => {
+    expect(liveTrackPositionOptions('first', 'low')).toEqual({
+      enableHighAccuracy: false,
+      maximumAge: 0,
+    })
+  })
+})
+
+describe('isIosNonSafariBrowser', () => {
+  it('detects Chrome on iPhone', () => {
+    expect(
+      isIosNonSafariBrowser(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/139.0.7258.76 Mobile/15E148 Safari/604.1',
+      ),
+    ).toBe(true)
+  })
+
+  it('does not treat Safari as Chrome', () => {
+    expect(
+      isIosNonSafariBrowser(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('live track geo error codes', () => {
+  it('only treats code 1 as permission denied', () => {
+    expect(isLiveTrackPermissionDenied(1)).toBe(true)
+    expect(isLiveTrackPermissionDenied(2)).toBe(false)
+  })
+
+  it('retries first fix on unavailable or timeout', () => {
+    expect(shouldRetryLiveTrackFirstFix(2)).toBe(true)
+    expect(shouldRetryLiveTrackFirstFix(3)).toBe(true)
+    expect(shouldRetryLiveTrackFirstFix(1)).toBe(false)
   })
 })
 

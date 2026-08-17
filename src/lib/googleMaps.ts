@@ -93,6 +93,36 @@ export type MapPinOverlay = {
   setCopy: (label: string, tooltipText?: string) => void
 }
 
+const LIVE_CAR_PATH =
+  'M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2'
+
+function appendLiveCarIcon(dot: HTMLElement) {
+  const ns = 'http://www.w3.org/2000/svg'
+  const svg = document.createElementNS(ns, 'svg')
+  svg.setAttribute('class', 'user-map-pin__icon')
+  svg.setAttribute('viewBox', '0 0 24 24')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.setAttribute('fill', 'none')
+  svg.setAttribute('stroke', 'currentColor')
+  svg.setAttribute('stroke-width', '1.75')
+  svg.setAttribute('stroke-linecap', 'round')
+  svg.setAttribute('stroke-linejoin', 'round')
+  const body = document.createElementNS(ns, 'path')
+  body.setAttribute('d', LIVE_CAR_PATH)
+  const wheelStart = document.createElementNS(ns, 'circle')
+  wheelStart.setAttribute('cx', '7')
+  wheelStart.setAttribute('cy', '17')
+  wheelStart.setAttribute('r', '2')
+  const axle = document.createElementNS(ns, 'path')
+  axle.setAttribute('d', 'M9 17h6')
+  const wheelEnd = document.createElementNS(ns, 'circle')
+  wheelEnd.setAttribute('cx', '17')
+  wheelEnd.setAttribute('cy', '17')
+  wheelEnd.setAttribute('r', '2')
+  svg.append(body, wheelStart, axle, wheelEnd)
+  dot.append(svg)
+}
+
 export function createLabeledPin(
   maps: MapsApi,
   position: { lat: number; lng: number },
@@ -135,6 +165,7 @@ export function createLabeledPin(
       }
       const dot = document.createElement('span')
       dot.className = 'user-map-pin__dot'
+      if (variant === 'live') appendLiveCarIcon(dot)
       const text = document.createElement('span')
       text.className = 'user-map-pin__label'
       text.textContent = label

@@ -88,7 +88,7 @@ Unauthenticated, immersive, **Field** theme, Hebrew RTL, רשומה. New screen 
 
 **Behavior**
 
-- From the primary tap: `getCurrentPosition` first (high accuracy, **no `timeout`** — iOS WebKit otherwise skips the Allow dialog), then `watchPosition`. Screen Wake Lock only **after** the first fix (calling it first can eat the iOS user-gesture).
+- From the primary tap: `getCurrentPosition` first (high accuracy, **no `timeout`** — iOS WebKit otherwise skips the Allow dialog), then `watchPosition`. Screen Wake Lock only **after** the first fix (calling it first can eat the iOS user-gesture). iOS Chrome / Firefox / Edge: low-accuracy first fix from a **target-phase** button `onclick` (capture-phase / high-accuracy-first often never prompts); GPS errors other than permission-denied return to the button instead of the denied empty state.
 - POST at most every **10 seconds**, or sooner if the fix moved **≥ 50 m** (whichever comes first)
 - `Ping` body: `{ track_token, lat, lng, accuracy_m?, recorded_at }`
 - Rejected ping (`ended` / bad token) → stop watching, show the matching Hebrew state
@@ -145,13 +145,13 @@ Do not upsert in those cases. If a live row still exists, `stop`/refuse path del
 
 ## Maps (רשומה)
 
-Same `OpsMapPanel`. Extend `createLabeledPin` with variant `live` (disc `--status-done`). Do not invent colors.
+Same `OpsMapPanel`. Extend `createLabeledPin` with variant `live` (`--status-done` disc `--space-6` + Lucide car `--text-on-accent`). Do not invent colors.
 
 | Kind | Disc | Caption |
 |---|---|---|
 | Address | `--accent` | unchanged |
 | Open event (cockpit) | `--status-alert` | unchanged |
-| Live responder | `--status-done` | `{callsign \|\| full_name} · בדרך` |
+| Live responder | `--status-done` disc + car icon | `{callsign \|\| full_name} · בדרך` |
 
 - Same person may have address pin(s) **and** a live pin
 - Tooltip (same chrome as user pins, border `--status-done`): `{סוג · כביש מיקום} · HH:MM` last ping, `Asia/Jerusalem`. Empty one-liner → `HH:MM` only

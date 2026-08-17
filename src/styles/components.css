@@ -5074,7 +5074,18 @@ textarea.field__input {
 }
 
 .user-map-pin--live .user-map-pin__dot {
+  width: var(--space-6);
+  height: var(--space-6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--status-done);
+  color: var(--text-on-accent);
+}
+
+.user-map-pin--live .user-map-pin__icon {
+  width: var(--space-4);
+  height: var(--space-4);
 }
 
 .user-map-pin__tip--live {

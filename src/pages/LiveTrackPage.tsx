@@ -4,7 +4,7 @@ import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { StampChip } from '../components/ui/StampChip'
 import { loadTrackByToken, pingTrackLocation } from '../lib/liveTrackApi'
-import { liveTrackPositionOptions, shouldEmitPing, type LatLngAt } from '../lib/liveTrack'
+import { liveTrackPositionOptions, shouldEmitPing, isIosNonSafariBrowser, isLiveTrackPermissionDenied, shouldRetryLiveTrackFirstFix, type LatLngAt } from '../lib/liveTrack'
 
 type PageState =
   | { kind: 'loading' }
@@ -68,8 +68,11 @@ export function LiveTrackPage({ trackToken }: LiveTrackPageProps) {
     const onClick = () => {
       startSharingRef.current()
     }
-    button.addEventListener('click', onClick, true)
-    return () => button.removeEventListener('click', onClick, true)
+    // Target-phase onclick (not capture): Chrome iOS only treats that as a user gesture for GPS.
+    button.onclick = onClick
+    return () => {
+      button.onclick = null
+    }
   }, [state.kind])
 
   function stopWatching() {
@@ -120,6 +123,41 @@ export function LiveTrackPage({ trackToken }: LiveTrackPageProps) {
     setState({ kind: 'denied' })
   }
 
+  function onFirstFixSuccess(pos: GeolocationPosition) {
+    setState({ kind: 'sharing' })
+    void onFix(pos.coords)
+    requestWakeLock()
+    if (watchId.current != null) return
+    watchId.current = navigator.geolocation.watchPosition(
+      (next) => {
+        void onFix(next.coords)
+      },
+      (err) => {
+        if (isLiveTrackPermissionDenied(err.code)) onGeoDenied()
+      },
+      liveTrackPositionOptions('watch'),
+    )
+  }
+
+  function requestFirstFix(accuracy: 'high' | 'low') {
+    navigator.geolocation.getCurrentPosition(
+      onFirstFixSuccess,
+      (err) => {
+        if (isLiveTrackPermissionDenied(err.code)) {
+          onGeoDenied()
+          return
+        }
+        if (accuracy === 'high' && shouldRetryLiveTrackFirstFix(err.code)) {
+          requestFirstFix('low')
+          return
+        }
+        starting.current = false
+        setState({ kind: 'need_permission' })
+      },
+      liveTrackPositionOptions('first', accuracy),
+    )
+  }
+
   function startSharing() {
     if (starting.current) return
     if (!navigator.geolocation) {
@@ -127,28 +165,8 @@ export function LiveTrackPage({ trackToken }: LiveTrackPageProps) {
       return
     }
     starting.current = true
-    // GPS first, still on the tap stack. Wake Lock / setState after this can eat iOS user-activation.
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setState({ kind: 'sharing' })
-        void onFix(pos.coords)
-        requestWakeLock()
-        if (watchId.current != null) return
-        watchId.current = navigator.geolocation.watchPosition(
-          (next) => {
-            void onFix(next.coords)
-          },
-          (err) => {
-            if (err.code === err.PERMISSION_DENIED) onGeoDenied()
-          },
-          liveTrackPositionOptions('watch'),
-        )
-      },
-      () => {
-        onGeoDenied()
-      },
-      liveTrackPositionOptions('first'),
-    )
+    const accuracy = isIosNonSafariBrowser(navigator.userAgent) ? 'low' : 'high'
+    requestFirstFix(accuracy)
     setState({ kind: 'asking' })
   }
 

@@ -16,16 +16,37 @@ export type TrackingAssignment = {
   endedAt: string | null
 }
 
+export const GEO_PERMISSION_DENIED = 1
+export const GEO_POSITION_UNAVAILABLE = 2
+export const GEO_TIMEOUT = 3
+
 /**
  * iOS WebKit treats `timeout` as including the permission dialog.
  * A short timeout can fail silently and never show “Allow”.
  * Call `getCurrentPosition` with `first` from the tap, then `watch` — no timeout.
+ * Chrome on iOS often needs a low-accuracy first fix to show its prompt.
  */
-export function liveTrackPositionOptions(kind: 'first' | 'watch'): PositionOptions {
-  if (kind === 'first') {
-    return { enableHighAccuracy: true, maximumAge: 0 }
+export function liveTrackPositionOptions(
+  kind: 'first' | 'watch',
+  accuracy: 'high' | 'low' = 'high',
+): PositionOptions {
+  if (kind === 'watch') {
+    return { enableHighAccuracy: true, maximumAge: 5_000 }
   }
-  return { enableHighAccuracy: true, maximumAge: 5_000 }
+  return { enableHighAccuracy: accuracy !== 'low', maximumAge: 0 }
+}
+
+/** Chrome / Firefox / Edge on iOS — WKWebView plus a separate app location permission. */
+export function isIosNonSafariBrowser(userAgent: string): boolean {
+  return /CriOS|FxiOS|EdgiOS/.test(userAgent)
+}
+
+export function isLiveTrackPermissionDenied(code: number): boolean {
+  return code === GEO_PERMISSION_DENIED
+}
+
+export function shouldRetryLiveTrackFirstFix(code: number): boolean {
+  return code === GEO_POSITION_UNAVAILABLE || code === GEO_TIMEOUT
 }
 
 export function parseTrackTokenFromSearch(search: string): string | null {
