@@ -4,12 +4,13 @@ import {
   availabilityLabel,
   availabilityReturnCaption,
   effectiveAvailability,
+  isSameAvailabilityWrite,
   israelToday,
   parseAvailabilityStatus,
+  shouldCloseAvailabilityEditor,
   type AvailabilityStatus,
 } from '../../lib/availability'
 import { saveAvailability } from '../../lib/availabilityApi'
-import { Button } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
 import { useToast } from '../ui/Toast'
 import { AvailabilityEditor } from './AvailabilityEditor'
@@ -55,6 +56,10 @@ export function AvailabilityTrigger({
     availability: AvailabilityStatus
     available_from: string | null
   }) {
+    if (isSameAvailabilityWrite(target, write)) {
+      if (shouldCloseAvailabilityEditor(write.availability)) setOpen(false)
+      return
+    }
     setSaving(true)
     const result = await saveAvailability(target.id, {
       status: write.availability,
@@ -66,7 +71,7 @@ export function AvailabilityTrigger({
       return
     }
     show('הזמינות עודכנה.', 'done')
-    setOpen(false)
+    if (shouldCloseAvailabilityEditor(write.availability)) setOpen(false)
     onSaved({
       id: target.id,
       availability: write.availability,
@@ -162,10 +167,11 @@ export function AvailabilityPopoverTrigger({
     const onPointerDown = (event: MouseEvent) => {
       const node = event.target as Node
       if (triggerRef.current?.contains(node) || panelRef.current?.contains(node)) return
+      if (saving) return
       setOpen(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape' && !saving) setOpen(false)
     }
     document.addEventListener('mousedown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
@@ -173,12 +179,16 @@ export function AvailabilityPopoverTrigger({
       document.removeEventListener('mousedown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open])
+  }, [open, saving])
 
   async function persist(write: {
     availability: AvailabilityStatus
     available_from: string | null
   }) {
+    if (isSameAvailabilityWrite(target, write)) {
+      if (shouldCloseAvailabilityEditor(write.availability)) setOpen(false)
+      return
+    }
     setSaving(true)
     const result = await saveAvailability(target.id, {
       status: write.availability,
@@ -190,7 +200,7 @@ export function AvailabilityPopoverTrigger({
       return
     }
     show('הזמינות עודכנה.', 'done')
-    setOpen(false)
+    if (shouldCloseAvailabilityEditor(write.availability)) setOpen(false)
     onSaved({
       id: target.id,
       availability: write.availability,
@@ -231,7 +241,6 @@ export function AvailabilityPopoverTrigger({
                 disabledCaption={disabledCaption}
                 saving={saving}
                 onSave={(write) => void persist(write)}
-                onCancel={() => setOpen(false)}
               />
             </div>,
             document.body,
@@ -257,33 +266,13 @@ function AvailabilityDialog({
   onClose: () => void
 }) {
   return (
-    <Dialog
-      open
-      title="זמינות"
-      onClose={onClose}
-      footer={
-        <>
-          <Button
-            type="submit"
-            form="availability-form"
-            loading={saving}
-            disabled={disabled || saving}
-          >
-            שמירה
-          </Button>
-          <Button variant="ghost" disabled={saving} onClick={onClose}>
-            ביטול
-          </Button>
-        </>
-      }
-    >
+    <Dialog open title="זמינות" onClose={onClose}>
       <AvailabilityEditor
         initialStatus={parseAvailabilityStatus(target.availability)}
         initialAvailableFrom={target.available_from}
         disabled={disabled}
         disabledCaption={disabledCaption}
         saving={saving}
-        showActions={false}
         onSave={onSave}
       />
     </Dialog>

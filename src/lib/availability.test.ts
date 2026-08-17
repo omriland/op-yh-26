@@ -3,12 +3,14 @@ import {
   AVAILABILITY_DATE_ERROR,
   applyDueAvailabilityRow,
   effectiveAvailability,
+  isSameAvailabilityWrite,
   isValidReturnDate,
   availabilityLabel,
   availabilityReturnCaption,
   availabilitySearchLabel,
   buildAvailabilityWrite,
   mapAvailabilityHoverLabel,
+  shouldCloseAvailabilityEditor,
 } from './availability'
 
 describe('effectiveAvailability', () => {
@@ -113,6 +115,30 @@ describe('buildAvailabilityWrite', () => {
       availability: 'unavailable',
       available_from: '2026-08-18',
     })
+  })
+})
+
+describe('shouldCloseAvailabilityEditor', () => {
+  it('closes after זמין and stays open after לא זמין so a return date can be set', () => {
+    expect(shouldCloseAvailabilityEditor('available')).toBe(true)
+    expect(shouldCloseAvailabilityEditor('unavailable')).toBe(false)
+  })
+})
+
+describe('isSameAvailabilityWrite', () => {
+  it('treats matching status and return date as unchanged', () => {
+    expect(
+      isSameAvailabilityWrite(
+        { availability: 'unavailable', available_from: '2026-08-20' },
+        { availability: 'unavailable', available_from: '2026-08-20' },
+      ),
+    ).toBe(true)
+    expect(
+      isSameAvailabilityWrite(
+        { availability: 'available', available_from: null },
+        { availability: 'unavailable', available_from: null },
+      ),
+    ).toBe(false)
   })
 })
 

@@ -119,3 +119,14 @@ export function tomorrowJerusalem(today = israelToday()): string {
   const next = new Date(Date.UTC(year, month - 1, day + 1))
   return next.toISOString().slice(0, 10)
 }
+
+export function shouldCloseAvailabilityEditor(status: AvailabilityStatus): boolean {
+  return status === 'available'
+}
+
+export function isSameAvailabilityWrite(
+  current: { availability: AvailabilityStatus; available_from: string | null },
+  write: { availability: AvailabilityStatus; available_from: string | null },
+): boolean {
+  return current.availability === write.availability && current.available_from === write.available_from
+}

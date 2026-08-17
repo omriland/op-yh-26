@@ -130,11 +130,11 @@ Never color-only: visible **זמין** / **לא זמין** next to the disc; `ti
 
 Shared by app bar, avatar menu, and משתמשים:
 
-1. Choice chips / radios: `זמין` · `לא זמין`
-2. If לא זמין: date field `תאריך חזרה` (`type="date"`, `min` = tomorrow Israel) + helper `ללא תאריך — השאירו ריק.`
-3. Choosing זמין clears the date immediately in the draft
+1. Choice chips / radios: `זמין` · `לא זמין` — write immediately on click; success toast `הזמינות עודכנה.`
+2. If לא זמין: date field `תאריך חזרה` (`type="date"`, `min` = tomorrow Israel) + helper `ללא תאריך — השאירו ריק.` — write on change; editor stays open so a date can still be set
+3. Choosing זמין clears the date and closes the editor
 
-Primary `שמירה` / secondary `ביטול` in Dialog (mobile menu + mobile users card). Desktop app-bar and desktop table: popover (elevation 2, hairline) with the same fields; save on primary (not on every radio click — so a date can be set before write).
+No `שמירה` / `ביטול`. Dialog (mobile menu + mobile users card) and desktop popover share the same editor. Choice rows: padding-inline `--space-4`, padding-block `--space-2`.
 
 Disabled while impersonating. Caption: `צפייה כמשתמש — לא ניתן לשנות זמינות.`
 
@@ -150,7 +150,7 @@ Row under the name/callsign header: disc + **זמין** / **לא זמין** (+ c
 
 Column **זמינות** immediately after **סטטוס**.
 
-Cell: disc + label; if effective לא זמין and future `available_from`, caption `חזרה ב־DD.MM.YYYY` (`--type-caption`, `--text-muted`). Click the cell (not the whole row) opens the editor popover; save writes immediately; row updates without full reload if possible.
+Cell: disc + label; if effective לא זמין and future `available_from`, caption `חזרה ב־DD.MM.YYYY` (`--type-caption`, `--text-muted`). Click the cell (not the whole row) opens the editor popover; choice/date writes immediately; row updates without full reload if possible.
 
 Mobile card: same chip in the chip row (with role + volunteer-status). Tap opens Dialog.
 

@@ -10,7 +10,6 @@ import {
   type AvailabilityStatus,
   type AvailabilityWrite,
 } from '../../lib/availability'
-import { Button } from '../ui/Button'
 import { TextField } from '../ui/TextField'
 import { AvailabilityDot } from './AvailabilityDot'
 
@@ -21,9 +20,7 @@ export function AvailabilityEditor({
   disabled = false,
   disabledCaption,
   saving = false,
-  showActions = true,
   onSave,
-  onCancel,
 }: {
   formId?: string
   initialStatus: AvailabilityStatus
@@ -31,9 +28,7 @@ export function AvailabilityEditor({
   disabled?: boolean
   disabledCaption?: string
   saving?: boolean
-  showActions?: boolean
   onSave: (write: Extract<AvailabilityWrite, { ok: true }>) => void
-  onCancel?: () => void
 }) {
   const today = israelToday()
   const [status, setStatus] = useState<AvailabilityStatus>(() =>
@@ -49,25 +44,28 @@ export function AvailabilityEditor({
   )
   const [error, setError] = useState<string | undefined>()
 
-  function submit() {
-    if (disabled) return
+  function commit(next: { status: AvailabilityStatus; availableFrom: string }) {
+    if (disabled || saving) return
     const write = buildAvailabilityWrite({
-      status,
-      availableFrom: status === 'unavailable' ? availableFrom : null,
+      status: next.status,
+      availableFrom: next.status === 'unavailable' ? next.availableFrom : null,
       today,
     })
     if (!write.ok) {
       setError(write.error)
       return
     }
+    setError(undefined)
     onSave(write)
   }
 
   function selectStatus(next: AvailabilityStatus) {
-    if (disabled) return
+    if (disabled || saving) return
+    const from = next === 'available' ? '' : availableFrom
     setStatus(next)
-    setError(undefined)
     if (next === 'available') setAvailableFrom('')
+    setError(undefined)
+    commit({ status: next, availableFrom: from })
   }
 
   function onChoiceKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -83,14 +81,7 @@ export function AvailabilityEditor({
   }
 
   return (
-    <form
-      id={formId}
-      className="availability-editor stack-4"
-      onSubmit={(event) => {
-        event.preventDefault()
-        submit()
-      }}
-    >
+    <div id={formId} className="availability-editor stack-4">
       {disabled && disabledCaption ? (
         <p className="alert alert--info" role="status">
           {disabledCaption}
@@ -107,7 +98,7 @@ export function AvailabilityEditor({
               aria-checked={selected}
               tabIndex={selected ? 0 : -1}
               className="availability-choice__option"
-              disabled={disabled}
+              disabled={disabled || saving}
               onClick={() => selectStatus(option.value)}
               onKeyDown={onChoiceKeyDown}
             >
@@ -136,28 +127,17 @@ export function AvailabilityEditor({
           value={availableFrom}
           hint="ללא תאריך — השאירו ריק."
           error={error}
-          disabled={disabled}
+          disabled={disabled || saving}
           onChange={(event) => {
-            setAvailableFrom(event.target.value)
-            setError(undefined)
+            const next = event.target.value
+            setAvailableFrom(next)
+            commit({ status: 'unavailable', availableFrom: next })
           }}
         />
       ) : null}
       {status === 'unavailable' && availableFrom && availableFrom > today ? (
         <p className="t-caption text-muted">{availabilityReturnCaption(availableFrom)}</p>
       ) : null}
-      {showActions ? (
-        <div className="availability-editor__actions">
-          <Button type="submit" loading={saving} disabled={disabled || saving}>
-            שמירה
-          </Button>
-          {onCancel ? (
-            <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>
-              ביטול
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </form>
+    </div>
   )
 }
