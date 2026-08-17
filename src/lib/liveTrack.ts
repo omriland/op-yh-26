@@ -16,6 +16,18 @@ export type TrackingAssignment = {
   endedAt: string | null
 }
 
+/**
+ * iOS WebKit treats `timeout` as including the permission dialog.
+ * A short timeout can fail silently and never show “Allow”.
+ * Call `getCurrentPosition` with `first` from the tap, then `watch` — no timeout.
+ */
+export function liveTrackPositionOptions(kind: 'first' | 'watch'): PositionOptions {
+  if (kind === 'first') {
+    return { enableHighAccuracy: true, maximumAge: 0 }
+  }
+  return { enableHighAccuracy: true, maximumAge: 5_000 }
+}
+
 export function parseTrackTokenFromSearch(search: string): string | null {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
   const token = params.get('track_token')?.trim()

@@ -11,10 +11,25 @@ import {
   parseLiveTrackSmsAllowlist,
   parseTrackTokenFromSearch,
   pingRefusal,
+  liveTrackPositionOptions,
   planLivePinSync,
   planTrackingSync,
   shouldEmitPing,
 } from './liveTrack'
+
+describe('liveTrackPositionOptions', () => {
+  it('omits timeout so iOS can show the permission dialog', () => {
+    expect('timeout' in liveTrackPositionOptions('first')).toBe(false)
+    expect('timeout' in liveTrackPositionOptions('watch')).toBe(false)
+  })
+
+  it('asks for a fresh high-accuracy first fix', () => {
+    expect(liveTrackPositionOptions('first')).toEqual({
+      enableHighAccuracy: true,
+      maximumAge: 0,
+    })
+  })
+})
 
 describe('parseTrackTokenFromSearch', () => {
   it('reads track_token from search', () => {

@@ -38,4 +38,4 @@ Empty states use the standard EmptyState (icon 40, stroke 1.75). Loading: muted 
 
 ## Behavior notes (not visual)
 
-`watchPosition` high-accuracy while the tab is visible. Screen Wake Lock is best-effort. No map on this page — leads see pins on **מפה** and the cockpit map.
+Request GPS from the tap: `getCurrentPosition` first (no `timeout`), then `watchPosition`. Do not call Screen Wake Lock before GPS — on iOS it can consume the user gesture so Safari never shows Allow. Wake Lock is best-effort after the first fix. No map on this page — leads see pins on **מפה** and the cockpit map.

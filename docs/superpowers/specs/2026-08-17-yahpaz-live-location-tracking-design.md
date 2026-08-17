@@ -88,7 +88,7 @@ Unauthenticated, immersive, **Field** theme, Hebrew RTL, רשומה. New screen 
 
 **Behavior**
 
-- `navigator.geolocation.watchPosition` with high accuracy
+- From the primary tap: `getCurrentPosition` first (high accuracy, **no `timeout`** — iOS WebKit otherwise skips the Allow dialog), then `watchPosition`. Screen Wake Lock only **after** the first fix (calling it first can eat the iOS user-gesture).
 - POST at most every **10 seconds**, or sooner if the fix moved **≥ 50 m** (whichever comes first)
 - `Ping` body: `{ track_token, lat, lng, accuracy_m?, recorded_at }`
 - Rejected ping (`ended` / bad token) → stop watching, show the matching Hebrew state
