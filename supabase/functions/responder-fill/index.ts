@@ -8,6 +8,12 @@ import {
 import { ctaButtonHtml, sendTransactionalEmail } from "../_shared/email.ts";
 
 type LoadBody = { action: "load_by_token"; fill_token: string };
+type TreatedPlateDraft = {
+  plate_number: string;
+  model: string | null;
+  color: string | null;
+};
+
 type SaveBody = {
   action: "save_by_token";
   fill_token: string;
@@ -19,6 +25,8 @@ type SaveBody = {
     route: string;
     treatment_detail: string;
     treatment_notes: string;
+    treated_plates?: TreatedPlateDraft[];
+    treated_plate_pending?: string;
   };
 };
 type NotifyBody = {
@@ -91,6 +99,35 @@ function parseOptionalNumber(raw: string): number | null | "invalid" {
 
 type FieldErrors = Record<string, string>;
 
+const TREATED_PLATE_LEFTOVER_ERROR = "השלימו או מחקו את המספר בתחתית.";
+
+function leftoverTreatedPlateError(
+  pending: string | undefined,
+  mode: "draft" | "complete",
+): string | undefined {
+  if (mode !== "complete") return undefined;
+  if (!plateDigits(pending ?? "")) return undefined;
+  return TREATED_PLATE_LEFTOVER_ERROR;
+}
+
+function normalizeTreatedPlates(
+  raw: SaveBody["draft"]["treated_plates"],
+): TreatedPlateDraft[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const plate_number = trim(row.plate_number);
+    if (!plate_number) return [];
+    return [
+      {
+        plate_number,
+        model: typeof row.model === "string" ? row.model : null,
+        color: typeof row.color === "string" ? row.color : null,
+      },
+    ];
+  });
+}
+
 function validateDraft(
   draft: SaveBody["draft"],
   mode: "draft" | "complete",
@@ -121,6 +158,8 @@ function validateDraft(
     }
     if (!draft.route.trim()) errors.route = "יש למלא נתיב נסיעה.";
     if (!draft.treatment_detail.trim()) errors.treatment_detail = "יש למלא פירוט הטיפול.";
+    const leftover = leftoverTreatedPlateError(draft.treated_plate_pending, mode);
+    if (leftover) errors.treated_plates = leftover;
   }
 
   if (
@@ -251,7 +290,7 @@ async function handleLoadByToken(adminClient: SupabaseClient, body: LoadBody) {
 }
 
 async function buildFillContext(adminClient: SupabaseClient, assignment: AssignmentRow) {
-  const [{ data: event }, { data: vehicles }] = await Promise.all([
+  const [{ data: event }, { data: vehicles }, { data: treatedPlateRows }] = await Promise.all([
     adminClient
       .from("events")
       .select(
@@ -268,6 +307,11 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
       .from("vehicles")
       .select("plate_number, model, archived")
       .eq("user_id", assignment.responder_id),
+    adminClient
+      .from("event_treated_plates")
+      .select("plate_number, model, color, sort_order")
+      .eq("event_responder_id", assignment.id)
+      .order("sort_order", { ascending: true }),
   ]);
 
   if (!event) return null;
@@ -310,6 +354,17 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
         : "";
 
   const shiftLead = row.shift_lead;
+  const treated_plates = (treatedPlateRows ?? []).flatMap((plateRow) => {
+    const plate_number = String(plateRow.plate_number ?? "").trim();
+    if (!plate_number) return [];
+    return [
+      {
+        plate_number,
+        model: plateRow.model == null ? null : String(plateRow.model),
+        color: plateRow.color == null ? null : String(plateRow.color),
+      },
+    ];
+  });
 
   return {
     eventId: row.id,
@@ -334,6 +389,8 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
       route: assignment.route ?? "",
       treatment_detail: assignment.treatment_detail ?? "",
       treatment_notes: assignment.treatment_notes ?? "",
+      treated_plates,
+      treated_plate_pending: "",
     },
   };
 }
@@ -401,6 +458,11 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
       typeof body.draft.treatment_detail === "string" ? body.draft.treatment_detail : "",
     treatment_notes:
       typeof body.draft.treatment_notes === "string" ? body.draft.treatment_notes : "",
+    treated_plates: normalizeTreatedPlates(body.draft.treated_plates),
+    treated_plate_pending:
+      typeof body.draft.treated_plate_pending === "string"
+        ? body.draft.treated_plate_pending
+        : "",
   };
 
   const fieldErrors = validateDraft(draft, mode, allowedPlates, totalKm);
@@ -440,6 +502,28 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
 
   if (error || !updated) {
     return json(400, { error: "שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב." });
+  }
+
+  const { error: deletePlatesError } = await adminClient
+    .from("event_treated_plates")
+    .delete()
+    .eq("event_responder_id", assignment.id);
+  if (deletePlatesError) {
+    return json(400, { error: "שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב." });
+  }
+  if (draft.treated_plates.length > 0) {
+    const { error: plateError } = await adminClient.from("event_treated_plates").insert(
+      draft.treated_plates.map((row, index) => ({
+        event_responder_id: assignment.id,
+        plate_number: row.plate_number,
+        model: row.model,
+        color: row.color,
+        sort_order: index,
+      })),
+    );
+    if (plateError) {
+      return json(400, { error: "שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב." });
+    }
   }
 
   const { data: eventStatus } = await adminClient.rpc("apply_event_status_from_participations", {
