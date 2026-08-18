@@ -1,6 +1,9 @@
+import { Hourglass } from 'lucide-react'
 import { StampChip } from '../ui/StampChip'
 import { Button } from '../ui/Button'
+import { HoverTip } from '../ui/HoverTip'
 import { formatDate, monoClass } from '../../lib/format'
+import { OVERDUE_FILL_CARD_TIP } from '../../lib/overdueFill'
 import type { StampDescriptor } from '../../lib/status'
 import type { EventListItem } from '../../lib/events'
 import { policeEventLabel } from '../../lib/shiftBornEvents'
@@ -46,7 +49,21 @@ export function EventCard({
         .join(' ')}
     >
       <button type="button" className="event-card" onClick={open}>
+        {overdue ? <span className="visually-hidden">{OVERDUE_FILL_CARD_TIP}</span> : null}
         <span className="event-card__type">
+          {overdue ? (
+            <HoverTip
+              text={OVERDUE_FILL_CARD_TIP}
+              mode="always"
+              className="event-card__overdue-mark"
+              tipClassName="hover-tip--overdue"
+              theme="field"
+            >
+              <span className="event-card__overdue-mark-hit">
+                <Hourglass size={20} strokeWidth={1.75} aria-hidden="true" />
+              </span>
+            </HoverTip>
+          ) : null}
           <EventTypeLabel event={event} as="section" fallback="אירוע" />
         </span>
         <span className="event-card__place t-body text-secondary">{place || '—'}</span>

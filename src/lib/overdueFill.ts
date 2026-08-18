@@ -10,6 +10,8 @@ export const OVERDUE_FILL_CTA_LABEL = 'להשלמת התיעוד'
 export const OVERDUE_FILL_FUEL_NOTE =
   'שימו לב! אירוע שלא יתועד במלואו לא יחושב להחזר הדלק הרבעוני'
 
+export const OVERDUE_FILL_CARD_TIP = 'אירוע ממתין לתיעוד מעל ל־48 שעות'
+
 export function isMineFillOverdue(input: {
   isCancelled: boolean
   participationStatus: ParticipationStatus | null

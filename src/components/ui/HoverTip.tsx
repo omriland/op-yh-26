@@ -8,6 +8,13 @@ type HoverTipProps = {
   content?: ReactNode
   children: ReactNode
   className?: string
+  /** Extra class on the portaled tip (not the trigger). */
+  tipClassName?: string
+  /**
+   * `command` (default): overlay chrome.
+   * `field`: paper tokens — use when the tip must match Field surfaces.
+   */
+  theme?: 'command' | 'field'
   /**
    * `truncate` (default): only when the trigger overflows.
    * `always`: whenever tip text/content is present.
@@ -18,13 +25,15 @@ type HoverTipProps = {
 const VIEWPORT_PAD = 8
 
 /**
- * Instant hover tip (no delay). Command overlay chrome — same family as menus/toasts.
+ * Instant hover tip (no delay). Command overlay chrome by default — same family as menus/toasts.
  */
 export function HoverTip({
   text = '',
   content,
   children,
   className,
+  tipClassName,
+  theme = 'command',
   mode = 'truncate',
 }: HoverTipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null)
@@ -102,8 +111,8 @@ export function HoverTip({
               ref={tipRef}
               id={tipId}
               role="tooltip"
-              data-theme="command"
-              className="hover-tip"
+              data-theme={theme}
+              className={['hover-tip', tipClassName].filter(Boolean).join(' ')}
               style={
                 coords
                   ? { top: coords.top, left: coords.left, visibility: 'visible' }

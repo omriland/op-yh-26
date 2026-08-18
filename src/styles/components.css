@@ -612,6 +612,25 @@ textarea.field__input {
   gap: var(--space-3);
 }
 
+.event-card__type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.event-card__overdue-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.event-card__overdue-mark-hit {
+  display: inline-flex;
+  align-items: center;
+  color: var(--status-alert);
+}
+
 .event-card__stamp {
   grid-area: stamp;
   align-self: start;
@@ -2262,6 +2281,12 @@ textarea.field__input {
   text-align: start;
   pointer-events: none;
   animation: menu-in var(--duration-base) var(--ease-standard);
+}
+
+.hover-tip--overdue {
+  background: var(--status-alert-tint);
+  color: var(--status-alert-on-tint);
+  border-color: var(--status-alert);
 }
 
 .hover-tip__sections {

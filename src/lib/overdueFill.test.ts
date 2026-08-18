@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   OVERDUE_48H_MS,
   OVERDUE_7D_MS,
+  OVERDUE_FILL_CARD_TIP,
   OVERDUE_FILL_CTA_LABEL,
   OVERDUE_FILL_EMAIL_SUBJECT,
   OVERDUE_FILL_FUEL_NOTE,
@@ -116,5 +117,6 @@ describe('overdue fill email copy', () => {
     expect(OVERDUE_FILL_FUEL_NOTE).toBe(
       'שימו לב! אירוע שלא יתועד במלואו לא יחושב להחזר הדלק הרבעוני',
     )
+    expect(OVERDUE_FILL_CARD_TIP).toBe('אירוע ממתין לתיעוד מעל ל־48 שעות')
   })
 })

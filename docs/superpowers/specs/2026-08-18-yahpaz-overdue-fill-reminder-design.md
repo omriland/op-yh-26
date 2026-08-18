@@ -32,7 +32,7 @@ After אחמ״ש enters קילומטרים, a responder can complete their repor
 |---|---|
 | Clock start | First time `event_responders.total_km` becomes non-null |
 | Surfaces | Web mine inbox pending cards only |
-| Overdue look | 3px `--status-alert` rail + `--status-alert-tint` wash; replaces blue origin rail |
+| Overdue look | 3px `--status-alert` rail + `--status-alert-tint` wash; replaces blue origin rail; Hourglass inline-start of the event type; hover tip on the same tint, copy `אירוע ממתין לתיעוד מעל ל־48 שעות` |
 | Stamp | Unchanged |
 | Mail 1 | ≥ 48 elapsed hours, once |
 | Mail 2 | ≥ 7 elapsed days, once, only if still open |

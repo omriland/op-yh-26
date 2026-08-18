@@ -99,6 +99,12 @@ describe('EventCard inbox mode', () => {
 
     expect(html).toContain('event-card-shell--overdue')
     expect(html).not.toContain('event-card-shell--manual')
+    expect(html).toContain('event-card__overdue-mark')
+    expect(html).toContain('אירוע ממתין לתיעוד מעל ל־48 שעות')
+    const markAt = html.indexOf('event-card__overdue-mark')
+    const titleAt = html.indexOf('פינוי רכב')
+    expect(markAt).toBeGreaterThan(-1)
+    expect(titleAt).toBeGreaterThan(markAt)
   })
 
   it('paints overdue shift-born inbox cards red', () => {
@@ -116,6 +122,23 @@ describe('EventCard inbox mode', () => {
 
     expect(html).toContain('event-card-shell--overdue')
     expect(html).not.toContain('event-card-shell--manual')
+    expect(html).toContain('event-card__overdue-mark')
+  })
+
+  it('hides the sand watch when the card is not overdue', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event(),
+        stamp,
+        onOpen: () => undefined,
+        onFill: () => undefined,
+        fillLabel: 'השלמת הפרטים שלי',
+        mode: 'inbox',
+      }),
+    )
+
+    expect(html).not.toContain('event-card__overdue-mark')
+    expect(html).not.toContain('אירוע ממתין לתיעוד מעל ל־48 שעות')
   })
 
   it('drops district from the inbox meta line', () => {
