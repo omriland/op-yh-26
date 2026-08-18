@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { canEditShiftByDate } from '../lib/shifts'
@@ -9,7 +9,10 @@ import {
   type ShiftBornFillDraft,
 } from '../lib/shiftBornFill'
 import { lastSavedByLabel, SHIFT_BORN_CHIP } from '../lib/shiftBornEvents'
-import { formatDate } from '../lib/format'
+import { formatDate, plateDigits } from '../lib/format'
+import { lookupPlate } from '../lib/plateLookup'
+import { commitTreatedPlate, removeTreatedPlate } from '../lib/treatedPlates'
+import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { Button } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -39,10 +42,15 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied'>('loading')
   const [saving, setSaving] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [platePending, setPlatePending] = useState('')
+  const [plateError, setPlateError] = useState<string | undefined>()
+  const plateLookupTail = useRef(Promise.resolve())
 
   useEffect(() => {
     let active = true
     setLoadState('loading')
+    setPlatePending('')
+    setPlateError(undefined)
     fetchShiftBornFillContext(eventId)
       .then((next) => {
         if (!active) return
@@ -83,6 +91,45 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     const others = draft.treated.filter((row) => row.vehicle_kind_id !== kindId)
     patchDraft({
       treated: quantity > 0 ? [...others, { vehicle_kind_id: kindId, quantity }] : others,
+    })
+  }
+
+  function enqueuePlateLookup(plateNumber: string) {
+    plateLookupTail.current = plateLookupTail.current.then(async () => {
+      const hit = await lookupPlate(plateNumber)
+      if (!hit) return
+      const key = plateDigits(plateNumber)
+      setDraft((current) => {
+        if (!current) return current
+        return {
+          ...current,
+          treated_plates: current.treated_plates.map((row) =>
+            plateDigits(row.plate_number) === key
+              ? { ...row, model: hit.model, color: hit.color }
+              : row,
+          ),
+        }
+      })
+    })
+  }
+
+  function onCommitTreatedPlate() {
+    if (!draft || readOnly) return
+    const result = commitTreatedPlate(platePending, draft.treated_plates)
+    if (!result.ok) {
+      setPlateError(result.error)
+      return
+    }
+    patchDraft({ treated_plates: result.plates })
+    setPlatePending('')
+    setPlateError(undefined)
+    enqueuePlateLookup(result.plate.plate_number)
+  }
+
+  function onRemoveTreatedPlate(plateDigitsKey: string) {
+    if (!draft || readOnly) return
+    patchDraft({
+      treated_plates: removeTreatedPlate(draft.treated_plates, plateDigitsKey),
     })
   }
 
@@ -207,6 +254,18 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               disabled={readOnly}
               style={{ minHeight: 120 }}
               onChange={(event) => patchDraft({ treatment_detail: event.target.value })}
+            />
+            <TreatedPlatesField
+              plates={draft.treated_plates}
+              pending={platePending}
+              error={plateError}
+              disabled={readOnly}
+              onPendingChange={(value) => {
+                setPlatePending(value)
+                setPlateError(undefined)
+              }}
+              onCommit={onCommitTreatedPlate}
+              onRemove={onRemoveTreatedPlate}
             />
             <div className="assignment-card__treated">
               <p className="t-label text-secondary">רכבים שטופלו</p>

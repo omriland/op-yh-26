@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
@@ -18,7 +18,15 @@ import {
   formatDateTime,
   formatNumber,
   formatPlate,
+  plateDigits,
 } from '../lib/format'
+import { lookupPlate } from '../lib/plateLookup'
+import {
+  commitTreatedPlate,
+  removeTreatedPlate,
+} from '../lib/treatedPlates'
+import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
+import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
@@ -54,6 +62,7 @@ export function ResponderFillPage({
   const [errors, setErrors] = useState<ResponderFillErrors>({})
   const [savingDraft, setSavingDraft] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const plateLookupTail = useRef(Promise.resolve())
 
   useEffect(() => {
     let active = true
@@ -132,6 +141,47 @@ export function ResponderFillPage({
       ...current,
       odometer_end: rangeError,
     }))
+  }
+
+  function enqueuePlateLookup(plateNumber: string) {
+    plateLookupTail.current = plateLookupTail.current.then(async () => {
+      const hit = await lookupPlate(plateNumber)
+      if (!hit) return
+      const key = plateDigits(plateNumber)
+      setDraft((current) => {
+        if (!current) return current
+        return {
+          ...current,
+          treated_plates: current.treated_plates.map((row) =>
+            plateDigits(row.plate_number) === key
+              ? { ...row, model: hit.model, color: hit.color }
+              : row,
+          ),
+        }
+      })
+    })
+  }
+
+  function onCommitTreatedPlate() {
+    if (!draft || readOnly) return
+    const result = commitTreatedPlate(draft.treated_plate_pending, draft.treated_plates)
+    if (!result.ok) {
+      setErrors((current) => ({ ...current, treated_plates: result.error }))
+      return
+    }
+    patchDraft({
+      treated_plates: result.plates,
+      treated_plate_pending: '',
+    })
+    setErrors((current) => ({ ...current, treated_plates: undefined }))
+    enqueuePlateLookup(result.plate.plate_number)
+  }
+
+  function onRemoveTreatedPlate(plateDigitsKey: string) {
+    if (!draft || readOnly) return
+    patchDraft({
+      treated_plates: removeTreatedPlate(draft.treated_plates, plateDigitsKey),
+    })
   }
 
   async function onSaveDraft() {
@@ -307,6 +357,14 @@ export function ResponderFillPage({
                     value={draft.treatment_detail || undefined}
                   />
                   <LedgerRow
+                    label="מספרי כלי רכב"
+                    value={
+                      draft.treated_plates.length > 0 ? (
+                        <TreatedPlateStack plates={draft.treated_plates} />
+                      ) : undefined
+                    }
+                  />
+                  <LedgerRow
                     label="הערות לטיפול"
                     value={draft.treatment_notes || undefined}
                   />
@@ -380,6 +438,17 @@ export function ResponderFillPage({
                     patchDraft({ treatment_detail: event.target.value })
                     setErrors((current) => ({ ...current, treatment_detail: undefined }))
                   }}
+                />
+                <TreatedPlatesField
+                  plates={draft.treated_plates}
+                  pending={draft.treated_plate_pending}
+                  error={errors.treated_plates}
+                  onPendingChange={(value) => {
+                    patchDraft({ treated_plate_pending: value })
+                    setErrors((current) => ({ ...current, treated_plates: undefined }))
+                  }}
+                  onCommit={onCommitTreatedPlate}
+                  onRemove={onRemoveTreatedPlate}
                 />
                 <TextAreaField
                   label="הערות לטיפול"

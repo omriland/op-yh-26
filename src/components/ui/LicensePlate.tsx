@@ -23,7 +23,7 @@ type LicensePlateProps = {
   plate: string
 }
 
-/** Read-only Israeli civil plate mark. Profile vehicles list only. */
+/** Read-only Israeli civil plate mark. Profile vehicles and treated-plate lists. */
 export function LicensePlate({ plate }: LicensePlateProps) {
   const serial = formatPlate(plate)
   if (!serial) return null
