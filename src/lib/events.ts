@@ -369,6 +369,7 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
             plate_number: string | null
             model: string | null
             color: string | null
+            left_where: string | null
             sort_order: number | null
           }[], error: null }),
     ])
@@ -381,6 +382,7 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
     plate_number: string | null
     model: string | null
     color: string | null
+    left_where: string | null
     sort_order: number | null
   }
   const byResponder = new Map<string, ResponderPlateRow[]>()
