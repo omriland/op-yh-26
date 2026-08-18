@@ -17,6 +17,7 @@ import {
   formatTime,
   monoClass,
 } from '../lib/format'
+import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -251,6 +252,16 @@ export function EventDetailPage({
             {event.is_cancelled ? <LedgerRow label="בוטל" value="כן" /> : null}
             <LedgerRow label="כביש" value={event.road?.name} />
             <LedgerRow label="מיקום" value={event.location ?? undefined} />
+            {event.origin === 'shift' ? (
+              <LedgerRow
+                label="מספרי כלי רכב"
+                value={
+                  event.treated_plates.length > 0 ? (
+                    <TreatedPlateStack plates={event.treated_plates} />
+                  ) : undefined
+                }
+              />
+            ) : null}
           </Ledger>
           {event.notes ? (
             <div className="detail__notes">
@@ -298,6 +309,7 @@ export function EventDetailPage({
                     : undefined
                 }
                 showLeadKm={canSeeLeadKm}
+                showTreatedPlates={event.origin !== 'shift'}
               />
             ))
           )}
@@ -342,6 +354,7 @@ function ResponderCard({
   fillLabel,
   onEditLeadFields,
   showLeadKm,
+  showTreatedPlates,
 }: {
   responder: EventResponderDetail
   eventDate: string
@@ -350,6 +363,7 @@ function ResponderCard({
   fillLabel?: string
   onEditLeadFields?: () => void
   showLeadKm: boolean
+  showTreatedPlates: boolean
 }) {
   const name = responder.profile?.full_name ?? 'כונן'
   const treated = responder.treated
@@ -393,6 +407,16 @@ function ResponderCard({
         ) : null}
         <LedgerRow label="אמצעים" value={responder.emergency_means ? 'כן' : 'לא'} />
         <LedgerRow label="רכבים שטופלו" value={treated || undefined} />
+        {showTreatedPlates ? (
+          <LedgerRow
+            label="מספרי כלי רכב"
+            value={
+              responder.treated_plates.length > 0 ? (
+                <TreatedPlateStack plates={responder.treated_plates} />
+              ) : undefined
+            }
+          />
+        ) : null}
         <LedgerRow
           label="לוחית רישוי"
           value={responder.vehicle_plate ? formatPlate(responder.vehicle_plate) : undefined}

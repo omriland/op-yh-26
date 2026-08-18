@@ -24,6 +24,8 @@ Card with form-section heading `פרטי האירוע` sitting on its rule. Cont
 
 `אחמ״ש` · `תאריך` · `מספר אירוע` (mono) · `שלוחה` · `או״ק ניידת` (mono) · `סוג אירוע` · `כביש` · `מיקום` · `הערות` (notes render full-width below the ledger as a paragraph, `--type-body`, with label above).
 
+**Shift-born only:** ledger row `מספרי כלי רכב` on this event block (shared crew list) — vertical stack of Israeli plate marks + optional model · color captions; empty → `—`. Not repeated on כונן cards.
+
 Missing values → `—` muted (per ledger spec). Draft events show the dotted fill-in line on missing required rows for the lead viewing their own draft.
 
 ### Responder cards (כוננים)
@@ -33,7 +35,7 @@ Section heading `כוננים (3)` with the done-fraction at inline-end in mono 
 One **responder card** per `event_responders` row (per `06-components.md`):
 
 - Header: avatar + full name + callsign (mono caption) + stamp (viewer-relative: own open row → `ממתין לתיעוד שלך`; other's open row → `ממתין לכונן`; done → `הושלם`).
-- Body ledger rows: `לוחית רישוי` (mono, LTR isolate) · `מד אוץ התחלה` · `מד אוץ סיום` · `קילומטרים` · `נתיב נסיעה` · `אמצעים` (`כן`/`לא`) · `רכבים שטופלו` (comma list `גרר × 2, פרטי × 1`) · `פירוט הטיפול` + `הערות לטיפול` as paragraphs.
+- Body ledger rows: `לוחית רישוי` (mono, LTR isolate) · `מד אוץ התחלה` · `מד אוץ סיום` · `קילומטרים` · `נתיב נסיעה` · `אמצעים` (`כן`/`לא`) · `רכבים שטופלו` (comma list `גרר × 2, פרטי × 1`) · **standalone only:** `מספרי כלי רכב` immediately after `רכבים שטופלו` (plate-mark stack; empty → `—`) · `פירוט הטיפול` + `הערות לטיפול` as paragraphs.
 - Footer: 
   - Viewer's own open card → full-width primary `השלמת הפרטים שלי` → responder fill flow.
   - Shift-lead on any card → ghost `עריכת שדות אחמ״ש`.

@@ -91,11 +91,11 @@ The default way to show any label/value pair on detail screens.
 - Leader: flexible middle element, `border-block-end: 1px dotted var(--stroke-hairline)`, margin-inline `--space-2`, aligned to text baseline.
 - Value: `--type-body` `--text-primary` at inline-end; numeric values use `--type-numeric`.
 - Missing value: `—` in `--text-muted` (never blank).
-- **Profile vehicles only:** the value is an Israeli civil plate mark (see below), not plain mono text. Row `align-items: center` when it contains a plate.
+- **Plate marks:** on profile vehicles and treated-plate lists (`מספרי כלי רכב` on fill + event detail), the value is an Israeli civil plate mark (see below), not plain mono text. Row `align-items: center` when it contains a plate or plate stack.
 
-## License plate mark (profile vehicles)
+## License plate mark (profile + treated plates)
 
-Read-only depiction of an Israeli civil plate. Profile vehicles ledger only — not used in forms, tables, or event/shift detail.
+Read-only depiction of an Israeli civil plate. Allowed on **profile vehicles** and **treated-plate lists** (fill committed rows, fill read-only, event detail). Not used in other forms, tables, or as the volunteer’s own `לוחית רישוי` select/text.
 
 - LTR isolate; serial via `formatPlate` in `--type-numeric` 500 / `--plate-ink` on `--plate-field`.
 - Inline-start euroband (`--plate-band`, width `--space-6`): Israeli flag mark + `IL` in `--plate-band-text` at `--type-caption` size, `--font-mono`.

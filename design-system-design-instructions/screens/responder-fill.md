@@ -32,6 +32,7 @@ Entry: from the card button or from the responder's own card on event detail.
 | מד אוץ סיום | numeric, mono | must be ≥ מד אוץ התחלה — error: `מד אוץ סיום חייב להיות גדול ממד אוץ התחלה` |
 | נתיב נסיעה | text | placeholder `דרך צומת X וכביש Y וכו'` |
 | פירוט הטיפול | textarea | the main narrative field — min-height 120 |
+| מספרי כלי רכב | repeating | Optional. After פירוט הטיפול, before הערות. Compose `מספר רישוי` (7/8 digits) + `הוספה`; committed rows = Israeli plate mark + optional model · color caption; remove per row. Leftover pending digits on `סיום דיווח` → `השלימו או מחקו את המספר בתחתית.` Read-only done: ledger value = `TreatedPlateStack` (empty → `—`). |
 | הערות לטיפול | textarea | optional |
 
 Empty required fields show the dotted fill-in line — the blank on the form.
