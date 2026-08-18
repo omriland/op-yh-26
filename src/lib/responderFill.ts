@@ -109,7 +109,12 @@ export function validateResponderFillDraft(
       errors.vehicle_plate = 'לא מקושר רכב למשתמש. פנו למנהל המערכת.'
     }
     if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא מד אוץ התחלה.'
-    if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא מד אוץ סיום.'
+    if (totalKm == null) {
+      errors.odometer_end =
+        'האחמ״ש טרם הזין קילומטרים לאירוע. לא ניתן לסיים את הדיווח.'
+    } else if (end == null || end === 'invalid') {
+      errors.odometer_end = 'יש למלא מד אוץ סיום.'
+    }
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
     const leftover = leftoverTreatedPlateError(draft.treated_plate_pending, mode)
@@ -117,6 +122,7 @@ export function validateResponderFillDraft(
   }
 
   // Live + submit: start must be strictly lower than end once both are numbers.
+  // Missing-totalKm complete error takes precedence over the range message.
   if (
     !errors.odometer_end &&
     typeof start === 'number' &&
