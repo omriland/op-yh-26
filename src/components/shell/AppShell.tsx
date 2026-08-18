@@ -91,7 +91,6 @@ type NavEntry = {
 }
 
 type AppShellProps = {
-  theme: 'field' | 'command'
   withSidebar: boolean
   narrow: boolean
   /** List/admin/profile only — hide on immersive form/fill/detail. */
@@ -109,7 +108,6 @@ type AppShellProps = {
 }
 
 export function AppShell({
-  theme,
   withSidebar,
   narrow,
   showSecurityBadge = false,
@@ -123,7 +121,7 @@ export function AppShell({
   children,
 }: AppShellProps) {
   return (
-    <div className="shell" data-theme={theme}>
+    <div className="shell" data-theme="field">
       <a className="skip-link" href="#main">
         דילוג לתוכן
       </a>
@@ -141,7 +139,11 @@ export function AppShell({
             onCreateShift={onCreateShift}
           />
         ) : null}
-        <main id="main" className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}>
+        <main
+          id="main"
+          className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}
+          data-theme="field"
+        >
           {children}
           {showSecurityBadge && onOpenPrivacy ? (
             <SnykBadge onOpenPrivacy={onOpenPrivacy} />
@@ -535,7 +537,7 @@ function Sidebar({
   const { main, end } = splitSidebarEntries(entries)
 
   return (
-    <nav className="sidebar" aria-label="ניווט ראשי" style={{ width }}>
+    <nav className="sidebar" aria-label="ניווט ראשי" data-theme="command" style={{ width }}>
       <div className="sidebar__nav">
         <SidebarNavItems
           entries={main}

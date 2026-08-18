@@ -223,6 +223,10 @@ export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) 
                   <span className="t-caption text-muted">
                     {broadcastChannelLabel(row.channel)} · {broadcastAudienceLabel(row.audience)} ·
                     נשלח ל־{formatNumber(row.recipientCount)}
+                    {row.pushCount > 0 ? ` · ${formatNumber(row.pushCount)} התראות` : ''}
+                    {row.pushFailedCount > 0
+                      ? ` · ${formatNumber(row.pushFailedCount)} התראות נכשלו`
+                      : ''}
                   </span>
                   {row.subject ? <span className="t-body">{row.subject}</span> : null}
                   <span className="t-caption">{row.body}</span>
@@ -258,8 +262,15 @@ export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) 
   )
 }
 
-function skipCaption(preview: { skippedNoPhone: number; skippedNoEmail: number }): string {
+function skipCaption(preview: {
+  skippedNoPhone: number
+  skippedNoEmail: number
+  pushCount: number
+}): string {
   const parts: string[] = []
+  if (preview.pushCount > 0) {
+    parts.push(`${formatNumber(preview.pushCount)} עם האפליקציה`)
+  }
   if (preview.skippedNoPhone > 0) {
     parts.push(`${formatNumber(preview.skippedNoPhone)} בלי טלפון ידולגו`)
   }

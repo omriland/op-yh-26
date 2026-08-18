@@ -1,6 +1,6 @@
 # Screen — מדיניות פרטיות
 
-Legal reading surface. Logged-in only. Field or Command follows the host shell (same as the list the user left). Not a nav item.
+Legal reading surface. Logged-in only. Field content; Command chrome follows the host shell (same as the list the user left). Not a nav item.
 
 ## Entry
 

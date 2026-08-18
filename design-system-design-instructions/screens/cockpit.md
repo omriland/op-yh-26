@@ -4,7 +4,7 @@ Live-ops inbox for אחמ״ש. Not a second event model — the existing event f
 
 ## Theme context
 
-- Desktop: **Command** shell (no app sidebar). יומן sits on `--surface-page`. The form keeps its **Field paper panel** (`data-theme="field"` on `.event-form__panel`). App bar wordmark is `אבן דרך - הקוקפיט` in `--font-brand`. Nav label is `הקוקפיט`. Every row shows a bin as part of the row (active `--accent-subtle` covers the event, bin, and delete hint). Delete is blocked only while responders are allocated (`יש כוננים משובצים. הסירו אותם תחילה.`). After they are removed, two-click delete works (`לחצו שוב למחיקה.`).
+- Desktop: **Command** app bar (no app sidebar). Content is **Field** — יומן sits on `--surface-page` paper. The form keeps its **Field paper panel** (`data-theme="field"` on `.event-form__panel`). App bar wordmark is `אבן דרך - הקוקפיט` in `--font-brand`. Nav label is `הקוקפיט`. Every row shows a bin as part of the row (active `--accent-subtle` covers the event, bin, and delete hint). Delete is blocked only while responders are allocated (`יש כוננים משובצים. הסירו אותם תחילה.`). After they are removed, two-click delete works (`לחצו שוב למחיקה.`).
 - Mobile: same components stacked (יומן above stage). Nav item is desktop-sidebar only.
 
 ## Layout
@@ -28,7 +28,7 @@ Tab `מפה` on the visual left edge (`inset-inline-end`, Command). Opens a shee
 
 - Selected: event form without Back or sticky Save footer. Caption = autosave pulse. Stage has `50vh` end slack so חלק ב׳ / הקצאת כוננים can scroll up; opening the assigner scrolls that block to the start of the stage.
 - None selected, reel has rows: `אין אירוע נבחר` / `לחצו על אירוע חדש או בחרו שורה בגלגלת.`
-- No events: centered quiet empty — resting koala with no plate (animated WebP, still PNG if `prefers-reduced-motion`; colors lifted for Command navy) + `אני רואה שהמשמרת שקטה ;)` + `אירוע חדש` (plus icon 30% smaller).
+- No events: centered quiet empty — resting koala with no plate (animated WebP, still PNG if `prefers-reduced-motion`) + `אני רואה שהמשמרת שקטה ;)` + `אירוע חדש` (plus icon 30% smaller).
 
 ### היכרות (פעם ראשונה)
 

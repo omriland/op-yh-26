@@ -4,6 +4,8 @@ export type TreatedPlate = {
   plate_number: string
   model: string | null
   color: string | null
+  /** Where the vehicle was left — optional short note. */
+  left_where: string | null
 }
 
 export const TREATED_PLATE_LENGTH_ERROR = 'יש להזין 7 או 8 ספרות.'
@@ -22,6 +24,19 @@ export function treatedPlateCaption(
   return null
 }
 
+/** Model · color · where-left for read-only stacks (skips empty parts). */
+export function treatedPlateMeta(plate: {
+  model: string | null
+  color: string | null
+  left_where: string | null
+}): string | null {
+  const parts = [
+    treatedPlateCaption(plate.model, plate.color),
+    plate.left_where?.trim() || null,
+  ].filter((part): part is string => Boolean(part))
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 export function commitTreatedPlate(
   pending: string,
   plates: readonly TreatedPlate[],
@@ -37,6 +52,7 @@ export function commitTreatedPlate(
     plate_number: formatPlate(digits),
     model: null,
     color: null,
+    left_where: null,
   }
   return { ok: true, plate, plates: [...plates, plate] }
 }
@@ -58,12 +74,26 @@ export function removeTreatedPlate(
   return plates.filter((row) => plateDigits(row.plate_number) !== key)
 }
 
+export function setTreatedPlateLeftWhere(
+  plates: readonly TreatedPlate[],
+  plateDigitsKey: string,
+  leftWhere: string,
+): TreatedPlate[] {
+  const key = plateDigits(plateDigitsKey)
+  return plates.map((row) =>
+    plateDigits(row.plate_number) === key
+      ? { ...row, left_where: leftWhere.length > 0 ? leftWhere : null }
+      : row,
+  )
+}
+
 /** Map DB rows (optional sort_order) into TreatedPlate[], ordered. */
 export function mapTreatedPlateRows(
   rows: ReadonlyArray<{
     plate_number?: string | null
     model?: string | null
     color?: string | null
+    left_where?: string | null
     sort_order?: number | null
   }> | null | undefined,
 ): TreatedPlate[] {
@@ -72,11 +102,13 @@ export function mapTreatedPlateRows(
     .flatMap((row) => {
       const plate_number = row.plate_number?.trim()
       if (!plate_number) return []
+      const left = row.left_where?.trim() || null
       return [
         {
           plate_number,
           model: row.model ?? null,
           color: row.color ?? null,
+          left_where: left,
         },
       ]
     })

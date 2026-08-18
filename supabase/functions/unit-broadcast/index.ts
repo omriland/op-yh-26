@@ -5,6 +5,13 @@ import {
   jsonResponse as json,
   runWithCors,
 } from "../_shared/cors.ts";
+import {
+  apnsSecretsPresent,
+  broadcastPushTitle,
+  sendApnsAlert,
+  summarizePushAttempts,
+  type ApnsTokenRow,
+} from "../_shared/apns.ts";
 
 type BroadcastChannel = "email" | "sms" | "both";
 type BroadcastAudience = "all" | "admins" | "shift_leads";
@@ -158,6 +165,20 @@ Deno.serve(async (req: Request) => {
   for (const row of emailTargets) reached.add(row.id);
   for (const row of smsTargets) reached.add(row.id);
 
+  const canPush = apnsSecretsPresent();
+  let tokenRows: ApnsTokenRow[] = [];
+  if (canPush && recipients.length > 0) {
+    try {
+      tokenRows = await loadDeviceTokens(
+        adminClient,
+        recipients.map((row) => row.id),
+      );
+    } catch {
+      return json(500, { error: "טעינת הנמענים נכשלה. נסו שוב." });
+    }
+    for (const row of tokenRows) reached.add(row.user_id);
+  }
+
   if (reached.size === 0) {
     return json(400, { error: "אין נמענים לשליחה בקהל ובערוץ שנבחרו." });
   }
@@ -183,6 +204,38 @@ Deno.serve(async (req: Request) => {
   const skippedNoPhone = wantsSms ? recipients.length - smsTargets.length : 0;
   const skippedNoEmail = wantsEmail ? recipients.length - emailTargets.length : 0;
 
+  let pushCount = 0;
+  let pushFailedCount = 0;
+  if (tokenRows.length > 0) {
+    const title = broadcastPushTitle(body.channel, subject);
+    const attempts = await mapPool(tokenRows, 8, async (row) => {
+      const result = await sendApnsAlert({
+        token: row.token,
+        environment: row.environment,
+        title,
+        body: message,
+      });
+      return {
+        userId: row.user_id,
+        token: row.token,
+        ok: result.ok,
+        invalidate: result.invalidate,
+      };
+    });
+    const summary = summarizePushAttempts(attempts);
+    pushCount = summary.pushCount;
+    pushFailedCount = summary.pushFailedCount;
+    if (summary.tokensToDelete.length > 0) {
+      const { error: deleteError } = await adminClient
+        .from("device_tokens")
+        .delete()
+        .in("token", summary.tokensToDelete);
+      if (deleteError) {
+        console.error("unit-broadcast: token delete failed", deleteError);
+      }
+    }
+  }
+
   const { error: insertError } = await adminClient.from("unit_broadcasts").insert({
     sent_by: user.id,
     channel: body.channel,
@@ -193,6 +246,8 @@ Deno.serve(async (req: Request) => {
     skipped_no_phone: skippedNoPhone,
     skipped_no_email: skippedNoEmail,
     failed_count: failedCount,
+    push_count: pushCount,
+    push_failed_count: pushFailedCount,
   });
 
   if (insertError) {
@@ -208,6 +263,8 @@ Deno.serve(async (req: Request) => {
     skipped_no_phone: skippedNoPhone,
     skipped_no_email: skippedNoEmail,
     failed_count: failedCount,
+    push_count: pushCount,
+    push_failed_count: pushFailedCount,
   });
   });
 });
@@ -260,6 +317,24 @@ async function loadRecipients(
 
   const allowed = new Set((roleRows ?? []).map((row) => row.user_id as string));
   return rows.filter((row) => allowed.has(row.id));
+}
+
+async function loadDeviceTokens(
+  adminClient: SupabaseClient,
+  userIds: string[],
+): Promise<ApnsTokenRow[]> {
+  if (userIds.length === 0) return [];
+  const { data, error } = await adminClient
+    .from("device_tokens")
+    .select("user_id, token, environment")
+    .in("user_id", userIds);
+  if (error) {
+    console.error("unit-broadcast: device_tokens", error);
+    throw error;
+  }
+  return ((data ?? []) as ApnsTokenRow[]).filter(
+    (row) => row.environment === "sandbox" || row.environment === "production",
+  );
 }
 
 async function mapPool<T, R>(

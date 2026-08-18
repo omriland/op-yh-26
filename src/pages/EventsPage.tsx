@@ -11,6 +11,7 @@ import {
   groupMineEventCards,
   mergeEventLists,
   missingSearchEventIds,
+  ownFillCompletableAt,
   ownParticipation,
   searchUnitEventIds,
   unitEventsListHint,
@@ -43,6 +44,7 @@ import {
   shiftGroupShouldStartOpen,
   type MineInboxTab,
 } from '../lib/mineInbox'
+import { isMineFillOverdue } from '../lib/overdueFill'
 import { jerusalemToday } from '../lib/shifts'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
@@ -583,6 +585,14 @@ function EventCards({
                 onFill={fillLabel && onFill ? onFill : undefined}
                 fillLabel={fillLabel ?? undefined}
                 mode={mode}
+                overdue={
+                  mode === 'inbox' &&
+                  isMineFillOverdue({
+                    isCancelled: event.is_cancelled,
+                    participationStatus: mineStatus,
+                    fillCompletableAt: ownFillCompletableAt(event, userId),
+                  })
+                }
               />
             )
           })
@@ -622,6 +632,14 @@ function EventCards({
             onFill={fillLabel && onFill ? onFill : undefined}
             fillLabel={fillLabel ?? undefined}
             mode={mode}
+            overdue={
+              mode === 'inbox' &&
+              isMineFillOverdue({
+                isCancelled: event.is_cancelled,
+                participationStatus: mineStatus,
+                fillCompletableAt: ownFillCompletableAt(event, userId),
+              })
+            }
           />
         )
       })}

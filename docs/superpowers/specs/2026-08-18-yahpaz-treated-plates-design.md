@@ -88,7 +88,7 @@ Place after פירוט הטיפול, before הערות לטיפול. Label `מס
 
 | State | Control |
 |---|---|
-| Open field | Numeric, digits only, `inputMode=numeric`, mono, LTR isolate. Placeholder `מספר רישוי`. |
+| Open field | Numeric, digits only, `inputMode=numeric`, mono, LTR isolate. Placeholder `xx-xxx-xx`. |
 | Commit | Enter on desktop; also button `הוספה` (mobile number pads often have no Enter). Plain Enter here must **not** submit the form (`⌘/Ctrl+Enter` still submits). |
 | Committed row | `LicensePlate` mark + caption + remove. Caption `{model} · {color}` when both known; if only one field returned, show that one; if neither, no caption. |
 | Lookup in flight | Plate mark visible immediately; caption empty until the response. Do not block typing the next plate. No extra spinner required. |

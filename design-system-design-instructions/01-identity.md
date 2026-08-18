@@ -16,8 +16,8 @@ Calm. Authoritative. Precise. Institutional but crafted — like a well-run agen
 
 The system has two theme contexts (fully specified in `02-color.md`):
 
-- **שטח (Field)** — cool paper-white surfaces. The document being filled in daylight. Default on mobile and on all responder-facing flows.
-- **מפקדה (Command)** — rich archival navy surfaces (never near-black; the records room with the lights on). Default for shift-lead and admin views on desktop.
+- **שטח (Field)** — cool paper-white surfaces. The document being filled in daylight. Default on mobile, all responder-facing flows, and the content column of shift-lead/admin desktop views.
+- **מפקדה (Command)** — rich archival navy surfaces (never near-black; the records room with the lights on). Chrome only on logged-in screens: top app bar (every width) + desktop sidebar. Also the login hero. Page content does not invert.
 
 Both contexts speak the same document language: hairline rules, ledger rows, stamps. Only the ink/paper relationship inverts.
 

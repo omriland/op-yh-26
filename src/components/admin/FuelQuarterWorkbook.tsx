@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Fuel, ShieldAlert } from 'lucide-react'
+import { Fuel, Search, ShieldAlert } from 'lucide-react'
 import { useAuth } from '../../lib/auth'
 import {
   defaultFuelQuarter,
@@ -9,13 +9,14 @@ import {
   type FuelQuarterRow,
   type FuelQuarterWorkbook as FuelQuarterWorkbookData,
 } from '../../lib/fuelQuarterReport'
-import { remainingKm } from '../../lib/fuelQuarterMath'
+import { remainingKm, unitFuelQuarterKpis } from '../../lib/fuelQuarterMath'
 import {
   cardNumbersMatchCount,
   parseCardNumbers,
   serializeCardNumbers,
 } from '../../lib/fuelQuarterCards'
 import { formatNumber, monoClass } from '../../lib/format'
+import { queryMatchesText } from '../../lib/reports/librarySearch'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 import { useToast } from '../ui/Toast'
 import { Button } from '../ui/Button'
@@ -42,6 +43,16 @@ function rowsCardNumbersValid(list: FuelQuarterRow[]): boolean {
   )
 }
 
+function kmNumClass(value: number): string {
+  return value < 0 ? 'num mono text-danger' : 'num mono'
+}
+
+function filterFuelQuarterRows(rows: FuelQuarterRow[], query: string): FuelQuarterRow[] {
+  const needle = query.trim()
+  if (!needle) return rows
+  return rows.filter((row) => queryMatchesText(`${row.full_name} ${row.callsign}`, needle))
+}
+
 export function FuelQuarterWorkbook() {
   const isDesktop = useIsDesktop()
   const { profile } = useAuth()
@@ -55,6 +66,7 @@ export function FuelQuarterWorkbook() {
   const [reloadKey, setReloadKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [confirmLock, setConfirmLock] = useState(false)
+  const [query, setQuery] = useState('')
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
   const autosaveGen = useRef(0)
 
@@ -98,6 +110,9 @@ export function FuelQuarterWorkbook() {
       return orig.cards !== row.cards || orig.card_numbers !== row.card_numbers
     })
   }, [workbook, rows])
+
+  const filteredRows = useMemo(() => filterFuelQuarterRows(rows, query), [rows, query])
+  const unitKpis = useMemo(() => unitFuelQuarterKpis(rows), [rows])
 
   const locked = workbook?.status === 'locked'
 
@@ -295,7 +310,37 @@ export function FuelQuarterWorkbook() {
             ))}
           </div>
         </div>
+        <label className="search-field fuel-quarter__search">
+          <Search size={20} strokeWidth={1.75} aria-hidden="true" />
+          <span className="visually-hidden">חיפוש כוננים</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="חיפוש לפי שם או או״ק"
+          />
+        </label>
       </div>
+
+      {workbook ? (
+        <section className="card fuel-quarter-kpis" aria-label="סיכום היחידה לרבעון">
+          <div className="fuel-quarter-kpis__cell">
+            <p className="t-label text-secondary">סה״כ ק״מ</p>
+            <span className="fuel-quarter-kpis__value t-num-lg">{formatNumber(unitKpis.totalKm)}</span>
+          </div>
+          <div className="fuel-quarter-kpis__cell">
+            <p className="t-label text-secondary">כרטיסים ליחידה</p>
+            <span className="fuel-quarter-kpis__value">
+              <span className="t-num-lg">{formatNumber(unitKpis.suggestedCards)}</span>
+              {locked ? (
+                <span className="t-caption text-muted">
+                  ({formatNumber(unitKpis.issuedCards)} חולקו בפועל)
+                </span>
+              ) : null}
+            </span>
+          </div>
+        </section>
+      ) : null}
 
       {!yearValid ? (
         <p className="t-caption text-danger">שנה לא תקינה</p>
@@ -324,7 +369,19 @@ export function FuelQuarterWorkbook() {
         />
       ) : null}
 
-      {workbook && rows.length > 0 && isDesktop ? (
+      {workbook && rows.length > 0 && filteredRows.length === 0 && query.trim() ? (
+        <EmptyState
+          icon={<Search size={40} strokeWidth={1.75} />}
+          title="לא נמצאו כוננים תואמים"
+          action={
+            <Button variant="ghost" onClick={() => setQuery('')}>
+              ניקוי חיפוש
+            </Button>
+          }
+        />
+      ) : null}
+
+      {workbook && filteredRows.length > 0 && isDesktop ? (
         <div className="table-wrap table-wrap--fuel-quarter">
           <table className="table table--fuel-quarter">
             <thead>
@@ -338,13 +395,13 @@ export function FuelQuarterWorkbook() {
                 <th scope="col">{workbook.monthLabels[2]}</th>
                 <th scope="col">סה״כ ק״מ</th>
                 <th scope="col">ליטרים</th>
-                <th scope="col">כרטיסים</th>
                 <th scope="col">יתרה (ק״מ)</th>
+                <th scope="col">כרטיסים</th>
                 <th scope="col">מספרי כרטיסים</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <tr key={row.responder_id}>
                   <td className="table--fuel-quarter__sticky">
                     <div className="table--fuel-quarter__name">{row.full_name}</div>
@@ -352,12 +409,15 @@ export function FuelQuarterWorkbook() {
                       {row.callsign}
                     </div>
                   </td>
-                  <td className="num mono">{formatNumber(row.opening_balance_km)}</td>
-                  <td className="num mono">{formatNumber(row.km_month_1)}</td>
-                  <td className="num mono">{formatNumber(row.km_month_2)}</td>
-                  <td className="num mono">{formatNumber(row.km_month_3)}</td>
-                  <td className="num mono">{formatNumber(row.quarter_km)}</td>
+                  <td className={kmNumClass(row.opening_balance_km)}>
+                    {formatNumber(row.opening_balance_km)}
+                  </td>
+                  <td className={kmNumClass(row.km_month_1)}>{formatNumber(row.km_month_1)}</td>
+                  <td className={kmNumClass(row.km_month_2)}>{formatNumber(row.km_month_2)}</td>
+                  <td className={kmNumClass(row.km_month_3)}>{formatNumber(row.km_month_3)}</td>
+                  <td className={kmNumClass(row.quarter_km)}>{formatNumber(row.quarter_km)}</td>
                   <td className="num mono">{formatNumber(Number(row.liters.toFixed(1)))}</td>
+                  <td className={kmNumClass(row.remaining_km)}>{formatNumber(row.remaining_km)}</td>
                   <td className="table-cell--edit">
                     {locked ? (
                       <span className="num mono">{formatNumber(row.cards)}</span>
@@ -386,7 +446,6 @@ export function FuelQuarterWorkbook() {
                       </div>
                     )}
                   </td>
-                  <td className="num mono">{formatNumber(row.remaining_km)}</td>
                   <td className="table-cell--edit table--fuel-quarter__cards">
                     {locked ? (
                       parseCardNumbers(row.card_numbers).join(' · ') || '—'
@@ -408,9 +467,9 @@ export function FuelQuarterWorkbook() {
         </div>
       ) : null}
 
-      {workbook && rows.length > 0 && !isDesktop ? (
+      {workbook && filteredRows.length > 0 && !isDesktop ? (
         <div className="stack-4">
-          {rows.map((row) => (
+          {filteredRows.map((row) => (
             <article key={row.responder_id} className="card stack-3">
               <div className="row-between">
                 <div>
@@ -419,12 +478,18 @@ export function FuelQuarterWorkbook() {
                     {row.callsign}
                   </div>
                 </div>
-                <div className="num mono t-body">{formatNumber(row.remaining_km)} יתרה</div>
+                <div className={`t-body ${kmNumClass(row.remaining_km)}`}>
+                  {formatNumber(row.remaining_km)} יתרה
+                </div>
               </div>
               <p className="t-caption text-muted">
-                יתרה מרבעון קודם {formatNumber(row.opening_balance_km)} · סה״כ{' '}
-                {formatNumber(row.quarter_km)} ק״מ · {formatNumber(Number(row.liters.toFixed(1)))}{' '}
-                ל׳
+                יתרה מרבעון קודם{' '}
+                <span className={kmNumClass(row.opening_balance_km)}>
+                  {formatNumber(row.opening_balance_km)}
+                </span>
+                · סה״כ{' '}
+                <span className={kmNumClass(row.quarter_km)}>{formatNumber(row.quarter_km)}</span>{' '}
+                ק״מ · {formatNumber(Number(row.liters.toFixed(1)))} ל׳
               </p>
               {!locked ? (
                 <>

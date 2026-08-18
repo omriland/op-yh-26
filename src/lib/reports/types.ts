@@ -15,6 +15,7 @@ export type ReportColumn = {
   id: string
   header: string
   numeric?: boolean
+  csvOnly?: boolean
 }
 
 export type ReportTableRow = {

@@ -33,7 +33,28 @@ function event(partial: Partial<EventListItem> = {}): EventListItem {
 const stamp = { label: 'ממתין למילוי פרטים', tone: 'pending' as const }
 
 describe('EventCard inbox mode', () => {
-  it('keeps the fill CTA and no path to event detail', () => {
+  it('keeps the fill CTA and opens detail from the card body', () => {
+    const opened: string[] = []
+    const filled: string[] = []
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event(),
+        stamp,
+        onOpen: (id) => opened.push(id),
+        onFill: (id) => filled.push(id),
+        fillLabel: 'השלמת הפרטים שלי',
+        mode: 'inbox',
+      }),
+    )
+
+    expect(html).toContain('השלמת הפרטים שלי')
+    expect(html).toContain('event-card')
+    expect(html).not.toContain('פרטי האירוע')
+    expect(opened).toEqual([])
+    expect(filled).toEqual([])
+  })
+
+  it('marks regular inbox cards with a record-blue rail', () => {
     const html = renderToStaticMarkup(
       createElement(EventCard, {
         event: event(),
@@ -45,9 +66,56 @@ describe('EventCard inbox mode', () => {
       }),
     )
 
-    expect(html).toContain('השלמת הפרטים שלי')
-    expect(html).not.toContain('פרטי האירוע')
-    expect(html).not.toContain('btn--ghost')
+    expect(html).toContain('event-card-shell--manual')
+  })
+
+  it('does not mark shift-born inbox cards', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({ origin: 'shift', shift_id: 's1' }),
+        stamp,
+        onOpen: () => undefined,
+        onFill: () => undefined,
+        fillLabel: 'השלמת הפרטים שלי',
+        mode: 'inbox',
+      }),
+    )
+
+    expect(html).not.toContain('event-card-shell--manual')
+  })
+
+  it('paints overdue inbox cards red instead of the origin rail', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event(),
+        stamp,
+        onOpen: () => undefined,
+        onFill: () => undefined,
+        fillLabel: 'השלמת הפרטים שלי',
+        mode: 'inbox',
+        overdue: true,
+      }),
+    )
+
+    expect(html).toContain('event-card-shell--overdue')
+    expect(html).not.toContain('event-card-shell--manual')
+  })
+
+  it('paints overdue shift-born inbox cards red', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({ origin: 'shift', shift_id: 's1' }),
+        stamp,
+        onOpen: () => undefined,
+        onFill: () => undefined,
+        fillLabel: 'השלמת הפרטים שלי',
+        mode: 'inbox',
+        overdue: true,
+      }),
+    )
+
+    expect(html).toContain('event-card-shell--overdue')
+    expect(html).not.toContain('event-card-shell--manual')
   })
 
   it('drops district from the inbox meta line', () => {
@@ -80,5 +148,6 @@ describe('EventCard default (unit list)', () => {
 
     expect(html).toContain('שלוחה צפון')
     expect(html).not.toContain('פרטי האירוע')
+    expect(html).not.toContain('event-card-shell--manual')
   })
 })

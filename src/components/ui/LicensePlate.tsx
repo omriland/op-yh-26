@@ -21,15 +21,17 @@ function IsraelFlagMark() {
 
 type LicensePlateProps = {
   plate: string
+  /** Default full mark (36px). `sm` is ~20% smaller for dense ledger stacks. */
+  size?: 'md' | 'sm'
 }
 
 /** Read-only Israeli civil plate mark. Profile vehicles and treated-plate lists. */
-export function LicensePlate({ plate }: LicensePlateProps) {
+export function LicensePlate({ plate, size = 'md' }: LicensePlateProps) {
   const serial = formatPlate(plate)
   if (!serial) return null
 
   return (
-    <span className="license-plate" dir="ltr">
+    <span className={size === 'sm' ? 'license-plate license-plate--sm' : 'license-plate'} dir="ltr">
       <span className="license-plate__band" aria-hidden="true">
         <IsraelFlagMark />
         <span className="license-plate__il">IL</span>

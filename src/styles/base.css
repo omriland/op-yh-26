@@ -174,6 +174,10 @@ h1.t-title {
   color: var(--text-muted);
 }
 
+.text-danger {
+  color: var(--status-alert);
+}
+
 /* ---- A11y primitives ---- */
 
 .visually-hidden {

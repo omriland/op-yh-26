@@ -8,6 +8,7 @@ import {
   haversineKm,
   mapBoundsForRadiusKm,
   mapPinLabel,
+  mapPinsFromUnitRows,
   mapUserPinChrome,
   nearbyResponders,
   persistableAddresses,
@@ -327,6 +328,42 @@ describe('toMapPins', () => {
 
     expect(pins[0]?.availability).toBe('unavailable')
     expect(pins[0]?.availableFrom).toBe('2026-08-20')
+  })
+})
+
+describe('mapPinsFromUnitRows', () => {
+  it('groups two addresses of the same user into pins', () => {
+    const pins = mapPinsFromUnitRows([
+      {
+        user_id: 'u1',
+        full_name: 'דנה כהן',
+        callsign: '12',
+        kind: 'home',
+        label: null,
+        formatted_address: homePlace.location,
+        lat: homePlace.location_lat,
+        lng: homePlace.location_lng,
+        volunteer_status: 'active_volunteer',
+        availability: 'available',
+        available_from: null,
+      },
+      {
+        user_id: 'u1',
+        full_name: 'דנה כהן',
+        callsign: '12',
+        kind: 'work',
+        label: null,
+        formatted_address: workPlace.location,
+        lat: workPlace.location_lat,
+        lng: workPlace.location_lng,
+        volunteer_status: 'active_volunteer',
+        availability: 'available',
+        available_from: null,
+      },
+    ])
+
+    expect(pins.map((pin) => pin.kind)).toEqual(['home', 'work'])
+    expect(pins.every((pin) => pin.userId === 'u1')).toBe(true)
   })
 })
 

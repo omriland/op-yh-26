@@ -1,11 +1,11 @@
 # Screen — אנשי קשר (unit contacts)
 
-Directory of other unit members. Personal nav item **אנשי קשר**, directly under **המשמרות שלי** on the desktop sidebar. Available to every signed-in user. Field on mobile; Command on desktop when the shell is Command.
+Directory of other unit members. Personal nav item **אנשי קשר**, directly under **המשמרות שלי** on the desktop sidebar; **מפה** follows it. Available to every signed-in user. Field on mobile; Command chrome + Field content on desktop when the sidebar is showing.
 
 ## Navigation
 
-- Desktop sidebar: `אנשי קשר` after `המשמרות שלי` in the personal group.
-- Mobile: in the tab bar for כונן (fits in three); otherwise behind `עוד`.
+- Desktop sidebar: `אנשי קשר` after `המשמרות שלי` in the personal group; `מפה` immediately after `אנשי קשר`.
+- Mobile: in the tab bar for כונן (fits in four: האירועים שלי · המשמרות שלי · אנשי קשר · מפה); otherwise behind `עוד`.
 - Title `אנשי קשר`.
 
 ## List

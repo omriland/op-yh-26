@@ -6,8 +6,8 @@ Every pairing declared in this file is machine-verified: run `node scripts/contr
 
 The system ships **one token vocabulary with two value sets** ("theme contexts"):
 
-- **שטח / Field** (`data-theme="field"`) — paper surfaces, ink text. Default for: all mobile widths, all responder-facing flows, login form panel.
-- **מפקדה / Command** (`data-theme="command"`) — deep navy surfaces, paper text. Default for: shift-lead and admin views on desktop (≥1025 px), login hero panel, the top app bar in all contexts. The Command world is a **rich archival navy, not near-black** — it must feel like a records room with the lights on.
+- **שטח / Field** (`data-theme="field"`) — paper surfaces, ink text. Default for: all mobile widths, all responder-facing flows, login form panel, **and the content area** of shift-lead/admin desktop views.
+- **מפקדה / Command** (`data-theme="command"`) — deep navy surfaces, paper text. Default for: the top app bar in all contexts, the desktop sidebar, login hero panel. Logged-in page content stays Field — Command is chrome, not a full-page invert. The Command world is a **rich archival navy, not near-black** — it must feel like a records room with the lights on.
 
 Components consume **semantic tokens only**. Theme switching = swapping the semantic layer; component code never branches on theme.
 
@@ -30,7 +30,7 @@ Components consume **semantic tokens only**. Theme switching = swapping the sema
 | Token | Hex | Role |
 |---|---|---|
 | `--navy-sunken` | `#122036` | Wells, table headers on Command |
-| `--navy-page` | `#182A47` | Command page background, top app bar, login hero |
+| `--navy-page` | `#182A47` | Command chrome (app bar, sidebar), login hero |
 | `--navy-raised` | `#213656` | Command cards/panels |
 | `--navy-overlay` | `#2A4168` | Command dialogs, menus, popovers |
 
@@ -94,7 +94,7 @@ Paper is always **cool** (blue-tinted). Never introduce warm/cream whites.
 
 | Semantic token | Value | Use |
 |---|---|---|
-| `--surface-page` | `#182A47` | Page background, top app bar, login hero |
+| `--surface-page` | `#182A47` | App bar, desktop sidebar, login hero |
 | `--surface-raised` | `#213656` | Cards, panels |
 | `--surface-sunken` | `#122036` | Wells, table headers |
 | `--surface-overlay` | `#2A4168` | Dialogs, menus, popovers, toasts |

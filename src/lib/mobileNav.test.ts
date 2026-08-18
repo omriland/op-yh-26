@@ -17,6 +17,18 @@ describe('splitMobileNav', () => {
     expect(more).toEqual([])
   })
 
+  it('keeps מפה in the responder tab bar after אנשי קשר', () => {
+    const { tabs, more } = splitMobileNav([
+      { view: 'map' },
+      { view: 'mine' },
+      { view: 'contacts' },
+      { view: 'my_shifts' },
+    ])
+
+    expect(views(tabs)).toEqual(['mine', 'my_shifts', 'contacts', 'map'])
+    expect(more).toEqual([])
+  })
+
   it('fits exactly four destinations in the bar', () => {
     const { tabs, more } = splitMobileNav([
       { view: 'mine' },

@@ -347,6 +347,11 @@ function Gate() {
       label: 'אנשי קשר',
       icon: NAV_ICONS.contacts,
     })
+    list.push({
+      view: 'map',
+      label: 'מפה',
+      icon: NAV_ICONS.map,
+    })
 
     // Shift-lead tools (admins also get these via manages).
     if (manages) {
@@ -368,12 +373,6 @@ function Gate() {
         view: 'shifts',
         label: 'משמרות',
         icon: NAV_ICONS.shifts,
-        section: 'כלים לאחמ״ש',
-      })
-      list.push({
-        view: 'map',
-        label: 'מפה',
-        icon: NAV_ICONS.map,
         section: 'כלים לאחמ״ש',
       })
       if (reportsNavPlacement(roles) === 'shift_lead') {
@@ -428,10 +427,10 @@ function Gate() {
       case 'my_shifts':
         return hasMineList
       case 'contacts':
+      case 'map':
         return true
       case 'events':
       case 'shifts':
-      case 'map':
       case 'reports':
       case 'cockpit':
         return manages
@@ -583,10 +582,9 @@ function Gate() {
 
   // Desktop always keeps sidebar nav on list/admin/profile (fixes my-shifts with no navbar).
   const shellWithSidebar = isDesktop && !immersiveSurface
-  const shellTheme: 'command' | 'field' =
-    onCockpit || (shellWithSidebar && (manages || isAdminHub)) ? 'command' : 'field'
   const shellNarrow = isDesktop && immersiveSurface && !onCockpit
-  const commandShell = shellWithSidebar && shellTheme === 'command'
+  // Manager desktop layout (tables / wide pages). Chrome is Command; content is Field.
+  const commandShell = shellWithSidebar && (manages || isAdminHub)
 
   function navigate(next: AppView) {
     const nextState = applyNavClick(
@@ -608,7 +606,6 @@ function Gate() {
 
   return (
     <AppShell
-      theme={shellTheme}
       withSidebar={shellWithSidebar}
       narrow={shellNarrow}
       showSecurityBadge={shouldShowSecurityBadge(immersiveSurface) && legalPage === null}

@@ -18,6 +18,17 @@ export function remainingKm(payableKm: number, cards: number): number {
   return payableKm - cards * KM_PER_CARD
 }
 
+/** Unit KPIs for a quarter: driven km + suggested cards from that same total. */
+export function unitFuelQuarterKpis(rows: { quarter_km: number; cards: number }[]): {
+  totalKm: number
+  suggestedCards: number
+  issuedCards: number
+} {
+  const totalKm = rows.reduce((sum, row) => sum + row.quarter_km, 0)
+  const issuedCards = rows.reduce((sum, row) => sum + row.cards, 0)
+  return { totalKm, suggestedCards: suggestedCards(totalKm), issuedCards }
+}
+
 /** 1-based calendar months in the quarter. */
 export function quarterMonthIndexes(quarter: 1 | 2 | 3 | 4): [number, number, number] {
   const start = (quarter - 1) * 3 + 1

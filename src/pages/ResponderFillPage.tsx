@@ -24,6 +24,7 @@ import { lookupPlate } from '../lib/plateLookup'
 import {
   commitTreatedPlate,
   removeTreatedPlate,
+  setTreatedPlateLeftWhere,
 } from '../lib/treatedPlates'
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
@@ -181,6 +182,13 @@ export function ResponderFillPage({
     if (!draft || readOnly) return
     patchDraft({
       treated_plates: removeTreatedPlate(draft.treated_plates, plateDigitsKey),
+    })
+  }
+
+  function onLeftWhereChange(plateDigitsKey: string, value: string) {
+    if (!draft || readOnly) return
+    patchDraft({
+      treated_plates: setTreatedPlateLeftWhere(draft.treated_plates, plateDigitsKey, value),
     })
   }
 
@@ -449,6 +457,7 @@ export function ResponderFillPage({
                   }}
                   onCommit={onCommitTreatedPlate}
                   onRemove={onRemoveTreatedPlate}
+                  onLeftWhereChange={onLeftWhereChange}
                 />
                 <TextAreaField
                   label="הערות לטיפול"

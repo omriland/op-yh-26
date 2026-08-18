@@ -12,6 +12,8 @@ export type UnitBroadcastLogRow = {
   recipientCount: number
   skippedNoPhone: number
   skippedNoEmail: number
+  pushCount: number
+  pushFailedCount: number
   senderName: string
   senderCallsign: string
 }
@@ -21,6 +23,8 @@ export type UnitBroadcastSendResult = {
   skippedNoPhone: number
   skippedNoEmail: number
   failedCount: number
+  pushCount: number
+  pushFailedCount: number
 }
 
 type CallResult<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -49,21 +53,39 @@ export async function fetchBroadcastCandidates(): Promise<BroadcastCandidate[]> 
     rolesByUser.set(row.user_id, list)
   }
 
-  return (profiles ?? []).map((profile) => ({
-    id: profile.id,
-    email: profile.email,
-    phone: profile.phone,
+  const candidates = (profiles ?? []).map((profile) => ({
+    id: profile.id as string,
+    email: profile.email as string | null,
+    phone: profile.phone as string | null,
     roles: rolesByUser.get(profile.id) ?? [],
     active: profile.active !== false,
     invite_pending: Boolean(profile.invite_pending),
+    hasApp: false,
   }))
+
+  const { data: appIds, error: appError } = await supabase.rpc('user_ids_with_device_tokens')
+  if (appError) throw appError
+  const appSet = new Set(asUserIds(appIds))
+  return candidates.map((row) => ({ ...row, hasApp: appSet.has(row.id) }))
+}
+
+function asUserIds(data: unknown): string[] {
+  if (!Array.isArray(data)) return []
+  return data.flatMap((row) => {
+    if (typeof row === 'string') return [row]
+    if (row && typeof row === 'object' && 'user_ids_with_device_tokens' in row) {
+      const id = (row as { user_ids_with_device_tokens: unknown }).user_ids_with_device_tokens
+      return typeof id === 'string' ? [id] : []
+    }
+    return []
+  })
 }
 
 export async function fetchBroadcastLog(): Promise<UnitBroadcastLogRow[]> {
   const { data, error } = await supabase
     .from('unit_broadcasts')
     .select(
-      'id, created_at, channel, audience, subject, body, recipient_count, skipped_no_phone, skipped_no_email, sender:profiles!sent_by(full_name, callsign)',
+      'id, created_at, channel, audience, subject, body, recipient_count, skipped_no_phone, skipped_no_email, push_count, push_failed_count, sender:profiles!sent_by(full_name, callsign)',
     )
     .order('created_at', { ascending: false })
     .limit(50)
@@ -82,6 +104,8 @@ export async function fetchBroadcastLog(): Promise<UnitBroadcastLogRow[]> {
       recipientCount: row.recipient_count,
       skippedNoPhone: row.skipped_no_phone,
       skippedNoEmail: row.skipped_no_email,
+      pushCount: row.push_count ?? 0,
+      pushFailedCount: row.push_failed_count ?? 0,
       senderName: sender?.full_name ?? '—',
       senderCallsign: sender?.callsign ?? '—',
     }
@@ -127,6 +151,8 @@ export async function sendUnitBroadcast(input: {
     skipped_no_phone?: number
     skipped_no_email?: number
     failed_count?: number
+    push_count?: number
+    push_failed_count?: number
   }
   if (payload?.error) return { ok: false, error: payload.error }
 
@@ -137,6 +163,8 @@ export async function sendUnitBroadcast(input: {
       skippedNoPhone: payload.skipped_no_phone ?? 0,
       skippedNoEmail: payload.skipped_no_email ?? 0,
       failedCount: payload.failed_count ?? 0,
+      pushCount: payload.push_count ?? 0,
+      pushFailedCount: payload.push_failed_count ?? 0,
     },
   }
 }

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   broadcastAudienceLabel,
   broadcastChannelLabel,
+  broadcastPushTitle,
   needsBroadcastSubject,
   previewUnitBroadcast,
+  summarizePushAttempts,
   unitBroadcastConfirmCopy,
   unitBroadcastResultCopy,
   validateUnitBroadcastDraft,
@@ -17,6 +19,7 @@ function user(partial: Partial<BroadcastCandidate> & Pick<BroadcastCandidate, 'i
     roles: ['responder'],
     active: true,
     invite_pending: false,
+    hasApp: false,
     ...partial,
   }
 }
@@ -67,6 +70,24 @@ describe('previewUnitBroadcast', () => {
     expect(preview.recipientCount).toBe(0)
     expect(preview.canSend).toBe(false)
   })
+
+  it('counts app users and still sends SMS-only to someone with the app and no phone', () => {
+    const preview = previewUnitBroadcast(
+      [
+        user({ id: 'app', phone: '0411111111', hasApp: true }),
+        user({ id: 'sms', phone: '0501234567' }),
+      ],
+      { channel: 'sms', audience: 'all' },
+    )
+    expect(preview.pushCount).toBe(1)
+    expect(preview.smsCount).toBe(1)
+    expect(preview.recipientCount).toBe(2)
+    expect(preview.canSend).toBe(true)
+  })
+
+  it('omits pushCount when nobody has the app', () => {
+    expect(previewUnitBroadcast(roster, { channel: 'email', audience: 'all' }).pushCount).toBe(0)
+  })
 })
 
 describe('unitBroadcastConfirmCopy', () => {
@@ -88,6 +109,16 @@ describe('unitBroadcastConfirmCopy', () => {
     const preview = previewUnitBroadcast([], { channel: 'sms', audience: 'shift_leads' })
     expect(unitBroadcastConfirmCopy(preview, { channel: 'sms', audience: 'shift_leads' })).toBe(
       'אין נמענים לשליחה בקהל ובערוץ שנבחרו.',
+    )
+  })
+
+  it('mentions app recipients without treating them as a skip', () => {
+    const preview = previewUnitBroadcast(
+      [user({ id: 'a1', roles: ['admin'], hasApp: true })],
+      { channel: 'email', audience: 'admins' },
+    )
+    expect(unitBroadcastConfirmCopy(preview, { channel: 'email', audience: 'admins' })).toBe(
+      'יישלח ל־1 מנהלים פעילים (אימייל). 1 עם האפליקציה. לשלוח?',
     )
   })
 })
@@ -139,6 +170,38 @@ describe('unitBroadcastResultCopy', () => {
         failedCount: 2,
       }),
     ).toBe('נשלח ל־2. 2 נכשלו.')
+    expect(
+      unitBroadcastResultCopy({
+        recipientCount: 5,
+        skippedNoPhone: 0,
+        skippedNoEmail: 0,
+        failedCount: 0,
+        pushCount: 3,
+        pushFailedCount: 1,
+      }),
+    ).toBe('נשלח ל־5. 2 התראות נשלחו. 1 התראות נכשלו.')
+  })
+})
+
+describe('broadcastPushTitle', () => {
+  it('uses the email subject when the channel includes email', () => {
+    expect(broadcastPushTitle('both', 'תרגיל')).toBe('תרגיל')
+    expect(broadcastPushTitle('email', '  ')).toBe('אבן דרך')
+    expect(broadcastPushTitle('sms', 'תרגיל')).toBe('אבן דרך')
+  })
+})
+
+describe('summarizePushAttempts', () => {
+  it('counts users, not devices, and fails a user only when every device failed', () => {
+    const summary = summarizePushAttempts([
+      { userId: 'a', ok: true, invalidate: false },
+      { userId: 'a', ok: false, invalidate: true, token: 'old' },
+      { userId: 'b', ok: false, invalidate: true, token: 'dead' },
+      { userId: 'b', ok: false, invalidate: false },
+    ])
+    expect(summary.pushCount).toBe(2)
+    expect(summary.pushFailedCount).toBe(1)
+    expect(summary.tokensToDelete).toEqual(['old', 'dead'])
   })
 })
 

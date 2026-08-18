@@ -309,46 +309,68 @@ function emptySlot(kind: 'home' | 'work' | 'other'): AddressDraft {
   }
 }
 
+export type UnitMapPinRow = {
+  user_id: string
+  full_name: string
+  callsign: string
+  kind: AddressKind
+  label: string | null
+  formatted_address: string
+  lat: number
+  lng: number
+  volunteer_status: string | null
+  availability: string | null
+  available_from: string | null
+}
+
+export function mapPinsFromUnitRows(rows: readonly UnitMapPinRow[]): MapPin[] {
+  const users = new Map<
+    string,
+    {
+      id: string
+      full_name: string
+      callsign: string
+      active: boolean
+      volunteer_status: string | null
+      availability: string | null
+      available_from: string | null
+      addresses: UserAddressRow[]
+    }
+  >()
+
+  for (const row of rows) {
+    let user = users.get(row.user_id)
+    if (!user) {
+      user = {
+        id: row.user_id,
+        full_name: row.full_name,
+        callsign: row.callsign,
+        active: true,
+        volunteer_status: row.volunteer_status,
+        availability: row.availability,
+        available_from: row.available_from,
+        addresses: [],
+      }
+      users.set(row.user_id, user)
+    }
+    user.addresses.push({
+      id: `${row.user_id}:${row.kind}:${row.formatted_address}`,
+      kind: row.kind,
+      label: row.label,
+      formatted_address: row.formatted_address,
+      place_id: '',
+      lat: Number(row.lat),
+      lng: Number(row.lng),
+    })
+  }
+
+  return toMapPins([...users.values()])
+}
+
 export async function fetchActiveUserMapPins(): Promise<MapPin[]> {
-  const { data: profiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, full_name, callsign, active, volunteer_status, availability, available_from')
-    .eq('active', true)
-
-  if (profileError) throw profileError
-  const users = profiles ?? []
-  const ids = users.map((row) => row.id as string)
-  if (ids.length === 0) return []
-
-  const { data: addressRows, error: addressError } = await supabase
-    .from('user_addresses')
-    .select('id, user_id, kind, label, formatted_address, place_id, lat, lng')
-    .in('user_id', ids)
-
-  if (addressError) throw addressError
-
-  return toMapPins(
-    users.map((profile) => ({
-      id: profile.id as string,
-      full_name: profile.full_name as string,
-      callsign: profile.callsign as string,
-      active: profile.active !== false,
-      volunteer_status: (profile.volunteer_status as string | null) ?? null,
-      availability: (profile.availability as string | null) ?? null,
-      available_from: (profile.available_from as string | null) ?? null,
-      addresses: (addressRows ?? [])
-        .filter((row) => row.user_id === profile.id)
-        .map((row) => ({
-          id: row.id as string,
-          kind: row.kind as AddressKind,
-          label: (row.label as string | null) ?? null,
-          formatted_address: row.formatted_address as string,
-          place_id: row.place_id as string,
-          lat: Number(row.lat),
-          lng: Number(row.lng),
-        })),
-    })),
-  )
+  const { data, error } = await supabase.rpc('list_unit_map_pins')
+  if (error) throw error
+  return mapPinsFromUnitRows((data ?? []) as UnitMapPinRow[])
 }
 
 export async function fetchOwnAddresses(userId: string): Promise<UserAddressRow[]> {

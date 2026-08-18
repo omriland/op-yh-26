@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { Button, IconButton } from '../ui/Button'
 import { LicensePlate } from '../ui/LicensePlate'
 import { TextField } from '../ui/TextField'
+import { TreatedPlateStack } from './TreatedPlateStack'
 import { digitsOnly, plateDigits } from '../../lib/format'
 import { treatedPlateCaption, type TreatedPlate } from '../../lib/treatedPlates'
 
@@ -14,6 +15,7 @@ type TreatedPlatesFieldProps = {
   onPendingChange: (value: string) => void
   onCommit: () => void
   onRemove: (plateDigitsKey: string) => void
+  onLeftWhereChange: (plateDigitsKey: string, value: string) => void
 }
 
 export function TreatedPlatesField({
@@ -24,6 +26,7 @@ export function TreatedPlatesField({
   onPendingChange,
   onCommit,
   onRemove,
+  onLeftWhereChange,
 }: TreatedPlatesFieldProps) {
   const fieldId = useId()
 
@@ -38,18 +41,7 @@ export function TreatedPlatesField({
     return (
       <div className="treated-plates-field">
         <p className="field__label">מספרי כלי רכב</p>
-        <ul className="treated-plates">
-          {plates.map((row) => (
-            <li key={plateDigits(row.plate_number)} className="treated-plates__item">
-              <LicensePlate plate={row.plate_number} />
-              {treatedPlateCaption(row.model, row.color) ? (
-                <span className="treated-plates__caption t-caption text-secondary">
-                  {treatedPlateCaption(row.model, row.color)}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <TreatedPlateStack plates={plates} />
       </div>
     )
   }
@@ -65,17 +57,27 @@ export function TreatedPlatesField({
               <li key={key} className="treated-plates__item">
                 <LicensePlate plate={row.plate_number} />
                 {caption ? (
-                  <span className="treated-plates__caption t-caption text-secondary">
+                  <span className="treated-plates__caption t-body text-secondary">
                     {caption}
                   </span>
                 ) : null}
-                <IconButton
-                  className="treated-plates__remove"
-                  label={`הסרת מספר ${row.plate_number}`}
-                  onClick={() => onRemove(key)}
-                >
-                  <X size={20} strokeWidth={1.75} aria-hidden="true" />
-                </IconButton>
+                <div className="treated-plates__actions">
+                  <input
+                    className="field__input treated-plates__left-where"
+                    type="text"
+                    aria-label="איפה הרכב הושאר"
+                    placeholder="איפה הרכב הושאר"
+                    value={row.left_where ?? ''}
+                    onChange={(event) => onLeftWhereChange(key, event.target.value)}
+                  />
+                  <IconButton
+                    className="treated-plates__remove"
+                    label={`הסרת מספר ${row.plate_number}`}
+                    onClick={() => onRemove(key)}
+                  >
+                    <X size={20} strokeWidth={1.75} aria-hidden="true" />
+                  </IconButton>
+                </div>
               </li>
             )
           })}
@@ -86,7 +88,7 @@ export function TreatedPlatesField({
         <TextField
           id={fieldId}
           label="מספרי כלי רכב"
-          placeholder="מספר רישוי"
+          placeholder="xx-xxx-xx"
           numeric
           isolate
           inputMode="numeric"

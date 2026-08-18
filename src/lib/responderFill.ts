@@ -164,7 +164,7 @@ export async function fetchResponderFillContext(
           responders:event_responders(
             id, responder_id, vehicle_plate, odometer_start, odometer_end,
             total_km, route, treatment_detail, treatment_notes, status, updated_at,
-            treated_plates:event_treated_plates(plate_number, model, color, sort_order)
+            treated_plates:event_treated_plates(plate_number, model, color, left_where, sort_order)
           )
         `,
         )
@@ -212,6 +212,7 @@ export async function fetchResponderFillContext(
         plate_number: string | null
         model: string | null
         color: string | null
+        left_where: string | null
         sort_order: number | null
       }[]
     }[]
@@ -285,7 +286,7 @@ async function fetchResponderFillContextWithPlateQuery(
 
   const { data: plates, error: platesError } = await supabase
     .from('event_treated_plates')
-    .select('plate_number, model, color, sort_order')
+    .select('plate_number, model, color, left_where, sort_order')
     .eq('event_responder_id', mine.id)
     .order('sort_order')
 
@@ -479,6 +480,7 @@ async function saveParticipation(input: {
         plate_number: row.plate_number,
         model: row.model,
         color: row.color,
+        left_where: row.left_where?.trim() || null,
         sort_order: index,
       })),
     )

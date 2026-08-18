@@ -31,7 +31,11 @@ export function EventsTable({ events, onOpen }: EventsTableProps) {
             const locationLabel =
               [event.road?.name, event.location].filter(Boolean).join(' · ') || '—'
             return (
-              <tr key={event.id} onClick={() => onOpen(event.id)}>
+              <tr
+                key={event.id}
+                className={event.status === 'done' ? 'table-row--done' : undefined}
+                onClick={() => onOpen(event.id)}
+              >
                 <td className="num mono">{formatDate(event.event_date)}</td>
                 <td className={`num ${monoClass(event.police_event_id)}`}>
                   {event.police_event_id ?? '—'}

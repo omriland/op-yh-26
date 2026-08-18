@@ -11,7 +11,7 @@ import {
 import { lastSavedByLabel, SHIFT_BORN_CHIP } from '../lib/shiftBornEvents'
 import { formatDate, plateDigits } from '../lib/format'
 import { lookupPlate } from '../lib/plateLookup'
-import { commitTreatedPlate, removeTreatedPlate } from '../lib/treatedPlates'
+import { commitTreatedPlate, removeTreatedPlate, setTreatedPlateLeftWhere } from '../lib/treatedPlates'
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { Button } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
@@ -130,6 +130,13 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     if (!draft || readOnly) return
     patchDraft({
       treated_plates: removeTreatedPlate(draft.treated_plates, plateDigitsKey),
+    })
+  }
+
+  function onLeftWhereChange(plateDigitsKey: string, value: string) {
+    if (!draft || readOnly) return
+    patchDraft({
+      treated_plates: setTreatedPlateLeftWhere(draft.treated_plates, plateDigitsKey, value),
     })
   }
 
@@ -266,6 +273,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               }}
               onCommit={onCommitTreatedPlate}
               onRemove={onRemoveTreatedPlate}
+              onLeftWhereChange={onLeftWhereChange}
             />
             <div className="assignment-card__treated">
               <p className="t-label text-secondary">רכבים שטופלו</p>

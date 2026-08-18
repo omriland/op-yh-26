@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronRight, FileWarning } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   deleteEvent,
@@ -7,6 +7,7 @@ import {
   type EventDetail,
   type EventResponderDetail,
 } from '../lib/events'
+import { responderCardShowsOdometers, responderCardStartsOpen } from '../lib/responderCard'
 import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
 import { mineFillCtaLabel, cancelledStamp, participationStamp, viewerStamp } from '../lib/status'
 import {
@@ -88,7 +89,7 @@ export function EventDetailPage({
     </div>
   )
 
-  if (state === 'ready' && event?.origin === 'shift') {
+  if (state === 'ready' && event?.origin === 'shift' && canEdit) {
     return <ShiftBornFillPage eventId={eventId} onBack={onBack} onCompleted={onBack} />
   }
 
@@ -285,33 +286,40 @@ export function EventDetailPage({
           {event.responders.length === 0 ? (
             <p className="card t-body text-secondary">לא שובצו כוננים לאירוע זה.</p>
           ) : (
-            event.responders.map((responder) => (
-              <ResponderCard
-                key={responder.id}
-                responder={responder}
-                eventDate={event.event_date}
-                isViewer={responder.responder_id === user?.id}
-                onFillOwn={
-                  responder.responder_id === user?.id &&
-                  responder.status !== 'done' &&
-                  onFillOwn
-                    ? onFillOwn
-                    : undefined
-                }
-                fillLabel={
-                  responder.responder_id === user?.id
-                    ? (mineFillCtaLabel(responder.status) ?? undefined)
-                    : undefined
-                }
-                onEditLeadFields={
-                  onEditLeadFields
-                    ? () => onEditLeadFields(responder.responder_id)
-                    : undefined
-                }
-                showLeadKm={canSeeLeadKm}
-                showTreatedPlates={event.origin !== 'shift'}
-              />
-            ))
+            event.responders.map((responder) => {
+              const isViewer = responder.responder_id === user?.id
+              return (
+                <ResponderCard
+                  key={responder.id}
+                  responder={responder}
+                  eventDate={event.event_date}
+                  isViewer={isViewer}
+                  defaultOpen={responderCardStartsOpen({
+                    isViewer,
+                    manages: canSeeLeadKm,
+                  })}
+                  onFillOwn={
+                    isViewer && responder.status !== 'done' && onFillOwn
+                      ? onFillOwn
+                      : undefined
+                  }
+                  fillLabel={
+                    isViewer ? (mineFillCtaLabel(responder.status) ?? undefined) : undefined
+                  }
+                  onEditLeadFields={
+                    onEditLeadFields
+                      ? () => onEditLeadFields(responder.responder_id)
+                      : undefined
+                  }
+                  showLeadKm={canSeeLeadKm}
+                  showOdometers={responderCardShowsOdometers({
+                    isViewer,
+                    manages: canSeeLeadKm,
+                  })}
+                  showTreatedPlates={event.origin !== 'shift'}
+                />
+              )
+            })
           )}
         </section>
       </div>
@@ -350,115 +358,144 @@ function ResponderCard({
   responder,
   eventDate,
   isViewer,
+  defaultOpen,
   onFillOwn,
   fillLabel,
   onEditLeadFields,
   showLeadKm,
+  showOdometers,
   showTreatedPlates,
 }: {
   responder: EventResponderDetail
   eventDate: string
   isViewer: boolean
+  defaultOpen: boolean
   onFillOwn?: () => void
   fillLabel?: string
   onEditLeadFields?: () => void
   showLeadKm: boolean
+  showOdometers: boolean
   showTreatedPlates: boolean
 }) {
+  const [open, setOpen] = useState(defaultOpen)
   const name = responder.profile?.full_name ?? 'כונן'
   const treated = responder.treated
     .map((row) => `${row.kind?.name ?? 'רכב'} × ${row.quantity}`)
     .join(', ')
+  const bodyId = `responder-card-${responder.id}`
 
   return (
-    <article className="card stack-3">
-      <header className="responder-card__head">
-        <Avatar name={name} size="sm" />
-        <span className="responder-card__identity">
-          <span className="t-body-strong">{name}</span>
-          <span className="t-caption text-muted" style={{ display: 'block' }}>
-            או״ק{' '}
-            <span className={monoClass(responder.profile?.callsign)}>
-              {responder.profile?.callsign ?? '—'}
+    <article className={['card', open ? 'stack-3' : ''].join(' ')}>
+      <header className={open ? 'responder-card__head' : 'responder-card__head responder-card__head--flush'}>
+        <button
+          type="button"
+          className="responder-card__toggle"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          aria-label={open ? `צמצום הדיווח של ${name}` : `הרחבת הדיווח של ${name}`}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <Avatar name={name} size="sm" />
+          <span className="responder-card__identity">
+            <span className="t-body-strong">{name}</span>
+            <span className="t-caption text-muted" style={{ display: 'block' }}>
+              או״ק{' '}
+              <span className={monoClass(responder.profile?.callsign)}>
+                {responder.profile?.callsign ?? '—'}
+              </span>
             </span>
           </span>
-        </span>
-        <StampChip {...participationStamp(responder.status, isViewer)} />
+          <StampChip {...participationStamp(responder.status, isViewer)} />
+          <ChevronDown
+            size={20}
+            strokeWidth={1.75}
+            className={['responder-card__chevron', open ? 'is-rotated' : ''].join(' ')}
+            aria-hidden="true"
+          />
+        </button>
       </header>
 
-      <Ledger>
-        <LedgerRow label="זמן התחלה" value={formatTime(responder.started_at)} numeric />
-        <LedgerRow
-          label="זמן סיום"
-          value={formatEndTime(responder.ended_at, eventDate)}
-          numeric
-        />
-        {showLeadKm ? (
-          <LedgerRow
-            label="קילומטרים"
-            value={
-              responder.total_km != null ? (
-                <>
-                  <span className="mono">{formatNumber(responder.total_km)}</span> ק״מ
-                </>
-              ) : undefined
-            }
-          />
-        ) : null}
-        <LedgerRow label="אמצעים" value={responder.emergency_means ? 'כן' : 'לא'} />
-        <LedgerRow label="רכבים שטופלו" value={treated || undefined} />
-        {showTreatedPlates ? (
-          <LedgerRow
-            label="מספרי כלי רכב"
-            value={
-              responder.treated_plates.length > 0 ? (
-                <TreatedPlateStack plates={responder.treated_plates} />
-              ) : undefined
-            }
-          />
-        ) : null}
-        <LedgerRow
-          label="לוחית רישוי"
-          value={responder.vehicle_plate ? formatPlate(responder.vehicle_plate) : undefined}
-          numeric
-          isolate
-        />
-        <LedgerRow
-          label='מד אוץ התחלה'
-          value={responder.odometer_start != null ? formatNumber(responder.odometer_start) : undefined}
-          numeric
-        />
-        <LedgerRow
-          label='מד אוץ סיום'
-          value={responder.odometer_end != null ? formatNumber(responder.odometer_end) : undefined}
-          numeric
-        />
-        <LedgerRow label="נתיב נסיעה" value={responder.route ?? undefined} />
-      </Ledger>
+      {open ? (
+        <div id={bodyId} className="responder-card__body stack-3">
+          <Ledger>
+            <LedgerRow label="זמן התחלה" value={formatTime(responder.started_at)} numeric />
+            <LedgerRow
+              label="זמן סיום"
+              value={formatEndTime(responder.ended_at, eventDate)}
+              numeric
+            />
+            {showLeadKm ? (
+              <LedgerRow
+                label="קילומטרים"
+                value={
+                  responder.total_km != null ? (
+                    <>
+                      <span className="mono">{formatNumber(responder.total_km)}</span> ק״מ
+                    </>
+                  ) : undefined
+                }
+              />
+            ) : null}
+            <LedgerRow label="אמצעים" value={responder.emergency_means ? 'כן' : 'לא'} />
+            <LedgerRow label="רכבים שטופלו" value={treated || undefined} />
+            {showTreatedPlates ? (
+              <LedgerRow
+                label="מספרי כלי רכב"
+                value={
+                  responder.treated_plates.length > 0 ? (
+                    <TreatedPlateStack plates={responder.treated_plates} />
+                  ) : undefined
+                }
+              />
+            ) : null}
+            <LedgerRow
+              label="לוחית רישוי"
+              value={responder.vehicle_plate ? formatPlate(responder.vehicle_plate) : undefined}
+              numeric
+              isolate
+            />
+            {showOdometers ? (
+              <>
+                <LedgerRow
+                  label='מד אוץ התחלה'
+                  value={responder.odometer_start != null ? formatNumber(responder.odometer_start) : undefined}
+                  numeric
+                />
+                <LedgerRow
+                  label='מד אוץ סיום'
+                  value={responder.odometer_end != null ? formatNumber(responder.odometer_end) : undefined}
+                  numeric
+                />
+              </>
+            ) : null}
+            <LedgerRow label="נתיב נסיעה" value={responder.route ?? undefined} />
+          </Ledger>
 
-      {responder.treatment_detail ? (
-        <div className="detail__notes">
-          <p className="t-label text-secondary">פירוט הטיפול</p>
-          <p className="t-body">{responder.treatment_detail}</p>
+          {responder.treatment_detail ? (
+            <div className="detail__notes">
+              <p className="t-label text-secondary">פירוט הטיפול</p>
+              <p className="t-body">{responder.treatment_detail}</p>
+            </div>
+          ) : null}
+
+          {responder.treatment_notes ? (
+            <div className="detail__notes">
+              <p className="t-label text-secondary">הערות לטיפול</p>
+              <p className="t-body">{responder.treatment_notes}</p>
+            </div>
+          ) : null}
+
+          {onFillOwn && fillLabel ? (
+            <Button block onClick={onFillOwn}>
+              {fillLabel}
+            </Button>
+          ) : null}
+          {onEditLeadFields ? (
+            <Button variant="ghost" onClick={onEditLeadFields}>
+              עריכת שדות אחמ״ש
+            </Button>
+          ) : null}
         </div>
-      ) : null}
-
-      {responder.treatment_notes ? (
-        <div className="detail__notes">
-          <p className="t-label text-secondary">הערות לטיפול</p>
-          <p className="t-body">{responder.treatment_notes}</p>
-        </div>
-      ) : null}
-
-      {onFillOwn && fillLabel ? (
-        <Button block onClick={onFillOwn}>
-          {fillLabel}
-        </Button>
-      ) : null}
-      {onEditLeadFields ? (
-        <Button variant="ghost" onClick={onEditLeadFields}>
-          עריכת שדות אחמ״ש
-        </Button>
       ) : null}
     </article>
   )

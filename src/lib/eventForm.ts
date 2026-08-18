@@ -16,6 +16,23 @@ export type AssignableUser = {
   id: string
   full_name: string
   callsign: string
+  hasVehicle: boolean
+}
+
+export const NO_VEHICLE_KM_PLACEHOLDER = 'מתנדב ללא רכב'
+
+export function hasActiveVehicle(
+  vehicles: { archived?: boolean | null }[] | null | undefined,
+): boolean {
+  return (vehicles ?? []).some((row) => !row.archived)
+}
+
+/** Lead `total_km` is never stored for a responder with no active vehicle. */
+export function leadKmForSave(hasVehicle: boolean, totalKm: string): number | null {
+  if (!hasVehicle) return null
+  const trimmed = totalKm.trim()
+  if (trimmed === '') return null
+  return Number(trimmed)
 }
 
 export type TreatedDraft = { vehicle_kind_id: string; quantity: number }
@@ -36,6 +53,8 @@ export type ResponderDraft = {
   status: ParticipationStatus
   hasOwnedData: boolean
   expanded: boolean
+  /** Active (non-archived) vehicle on the responder profile. */
+  hasVehicle: boolean
 }
 
 /** `timestamp` / `time` / ISO → `HH:MM` for time inputs. */
@@ -221,11 +240,21 @@ export async function fetchEventLookups(): Promise<EventLookups> {
 export async function fetchAssignableUsers(): Promise<AssignableUser[]> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, callsign')
+    .select('id, full_name, callsign, vehicles(id, archived)')
     .eq('active', true)
     .order('full_name', { ascending: true })
   if (error) throw new Error(error.message)
-  return (data ?? []) as AssignableUser[]
+  return ((data ?? []) as {
+    id: string
+    full_name: string
+    callsign: string
+    vehicles: { id: string; archived: boolean | null }[] | null
+  }[]).map((row) => ({
+    id: row.id,
+    full_name: row.full_name,
+    callsign: row.callsign,
+    hasVehicle: hasActiveVehicle(row.vehicles),
+  }))
 }
 
 type LoadedResponder = {
@@ -242,7 +271,11 @@ type LoadedResponder = {
   route: string | null
   treatment_detail: string | null
   treatment_notes: string | null
-  profile: { full_name: string; callsign: string } | null
+  profile: {
+    full_name: string
+    callsign: string
+    vehicles: { id: string; archived: boolean | null }[] | null
+  } | null
   treated: { vehicle_kind_id: string; quantity: number }[]
 }
 
@@ -259,7 +292,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
         id, responder_id, started_at, ended_at, total_km, emergency_means, status,
         vehicle_plate, odometer_start, odometer_end, route,
         treatment_detail, treatment_notes,
-        profile:profiles(full_name, callsign),
+        profile:profiles(full_name, callsign, vehicles(id, archived)),
         treated:event_treated_vehicles(vehicle_kind_id, quantity)
       )
     `,
@@ -305,31 +338,35 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     notes: row.notes ?? '',
     is_cancelled: row.is_cancelled ?? false,
     shift_lead: row.shift_lead ?? { full_name: '—', callsign: '—' },
-    responders: (row.responders ?? []).map((responder) => ({
-      key: responder.id,
-      assignmentId: responder.id,
-      responder_id: responder.responder_id,
-      full_name: responder.profile?.full_name ?? 'כונן',
-      callsign: responder.profile?.callsign ?? '—',
-      start_time: toTimeInput(responder.started_at),
-      end_time: toTimeInput(responder.ended_at),
-      total_km: responder.total_km != null ? String(responder.total_km) : '',
-      emergency_means: responder.emergency_means,
-      treated: (responder.treated ?? []).map((item) => ({
-        vehicle_kind_id: item.vehicle_kind_id,
-        quantity: item.quantity,
-      })),
-      status: responder.status,
-      hasOwnedData: Boolean(
-        responder.vehicle_plate ||
-          responder.odometer_start != null ||
-          responder.odometer_end != null ||
-          responder.route ||
-          responder.treatment_detail ||
-          responder.treatment_notes,
-      ),
-      expanded: false,
-    })),
+    responders: (row.responders ?? []).map((responder) => {
+      const hasVehicle = hasActiveVehicle(responder.profile?.vehicles)
+      return {
+        key: responder.id,
+        assignmentId: responder.id,
+        responder_id: responder.responder_id,
+        full_name: responder.profile?.full_name ?? 'כונן',
+        callsign: responder.profile?.callsign ?? '—',
+        start_time: toTimeInput(responder.started_at),
+        end_time: toTimeInput(responder.ended_at),
+        total_km: hasVehicle && responder.total_km != null ? String(responder.total_km) : '',
+        emergency_means: responder.emergency_means,
+        treated: (responder.treated ?? []).map((item) => ({
+          vehicle_kind_id: item.vehicle_kind_id,
+          quantity: item.quantity,
+        })),
+        status: responder.status,
+        hasOwnedData: Boolean(
+          responder.vehicle_plate ||
+            responder.odometer_start != null ||
+            responder.odometer_end != null ||
+            responder.route ||
+            responder.treatment_detail ||
+            responder.treatment_notes,
+        ),
+        expanded: false,
+        hasVehicle,
+      }
+    }),
   }
 }
 
@@ -633,7 +670,7 @@ async function syncResponders(input: {
   const nextKmRows: { assignmentId: string; totalKm: number | null }[] = []
 
   for (const responder of responders) {
-    const km = responder.total_km.trim() === '' ? null : Number(responder.total_km)
+    const km = leadKmForSave(responder.hasVehicle, responder.total_km)
     if (km != null && Number.isNaN(km)) {
       return { ok: false, error: 'קילומטרים חייבים להיות מספר.' }
     }

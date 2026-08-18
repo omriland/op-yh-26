@@ -1,4 +1,5 @@
 import { fetchDuplicateClusters } from '../duplicateEventsReport'
+import { loadEventsByResponderReport } from '../eventsByResponderReport'
 import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
@@ -18,6 +19,14 @@ import type { ReportKind, ReportTableRow } from './types'
 
 function person(name: string | null | undefined, callsign: string | null | undefined): string {
   return [name, callsign].filter(Boolean).join(' · ') || '—'
+}
+
+function lead(callsign: string | null | undefined, name: string | null | undefined): string {
+  return [callsign, name].filter(Boolean).join(' · ') || '—'
+}
+
+function km(value: number | null): string {
+  return value == null ? '—' : formatNumber(value)
 }
 
 function place(road: string | null | undefined, location: string | null | undefined): string {
@@ -72,6 +81,54 @@ const openDocumentation: ReportKind = {
           person(row.shift_lead_name, row.shift_lead_callsign),
           placeText,
           documentationFillLabel(row.fill_status),
+        ],
+      }
+    })
+  },
+}
+
+const eventsByResponder: ReportKind = {
+  id: 'events_by_responder',
+  title: 'אירועים לפי מתנדב',
+  includes: 'כל האירועים של כל מתנדב בטווח התאריכים שנבחר',
+  audience: 'admin_and_shift_lead',
+  hasDateRange: true,
+  hasPeriodPicker: true,
+  searchPlaceholder: 'חיפוש לפי מתנדב, מספר אירוע או מיקום',
+  csvFilename: 'אירועים-לפי-מתנדב.csv',
+  columns: [
+    { id: 'responder', header: 'מתנדב' },
+    { id: 'date', header: 'תאריך', numeric: true },
+    { id: 'police', header: 'מספר אירוע', numeric: true },
+    { id: 'type', header: 'סוג אירוע' },
+    { id: 'district', header: 'שלוחה' },
+    { id: 'place', header: 'כביש ומיקום' },
+    { id: 'lead', header: 'אחמ״ש' },
+    { id: 'km', header: 'ק״מ', numeric: true },
+  ],
+  async load(inputs) {
+    const range = requireRange(inputs)
+    if (!range) return []
+    const rows = await loadEventsByResponderReport(range.from, range.to)
+    return rows.map((row): ReportTableRow => {
+      const responder = person(row.responder_name, row.responder_callsign)
+      const placeText = place(row.road_name, row.location)
+      const leadText = lead(row.shift_lead_callsign, row.shift_lead_name)
+      return {
+        id: row.id,
+        eventId: row.event_id,
+        groupKey: row.responder_id,
+        groupLabel: responder,
+        searchText: [responder, row.police_event_id ?? '', placeText, row.district_name ?? ''].join(' '),
+        values: [
+          responder,
+          formatDate(row.event_date),
+          policeEventLabel(row.police_event_id, row.is_cancelled),
+          eventType(row.event_type_name),
+          row.district_name ?? '—',
+          placeText,
+          leadText,
+          km(row.total_km),
         ],
       }
     })
@@ -215,7 +272,13 @@ const duplicateEvents: ReportKind = {
   },
 }
 
-export const REPORT_KINDS: ReportKind[] = [openDocumentation, kmDiscrepancy, kmExceptions, duplicateEvents]
+export const REPORT_KINDS: ReportKind[] = [
+  openDocumentation,
+  eventsByResponder,
+  kmDiscrepancy,
+  kmExceptions,
+  duplicateEvents,
+]
 
 export function reportKindById(id: string): ReportKind | undefined {
   return REPORT_KINDS.find((kind) => kind.id === id)

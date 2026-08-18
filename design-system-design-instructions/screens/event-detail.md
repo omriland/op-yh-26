@@ -5,7 +5,7 @@ The record itself. This screen is where the document metaphor is strongest: an e
 ## Theme context
 
 - Mobile: **Field**.
-- Desktop shift-lead/admin: **Command**.
+- Desktop shift-lead/admin: **Command chrome** (app bar + sidebar) + **Field** content.
 - Desktop responder: **Field**, max-width 720 centered.
 
 ## Layout
@@ -34,13 +34,14 @@ Section heading `כוננים (3)` with the done-fraction at inline-end in mono 
 
 One **responder card** per `event_responders` row (per `06-components.md`):
 
-- Header: avatar + full name + callsign (mono caption) + stamp (viewer-relative: own open row → `ממתין לתיעוד שלך`; other's open row → `ממתין לכונן`; done → `הושלם`).
-- Body ledger rows: `לוחית רישוי` (mono, LTR isolate) · `מד אוץ התחלה` · `מד אוץ סיום` · `קילומטרים` · `נתיב נסיעה` · `אמצעים` (`כן`/`לא`) · `רכבים שטופלו` (comma list `גרר × 2, פרטי × 1`) · **standalone only:** `מספרי כלי רכב` immediately after `רכבים שטופלו` (plate-mark stack; empty → `—`) · `פירוט הטיפול` + `הערות לטיפול` as paragraphs.
-- Footer: 
+- Collapsed header (default for every card that is not the viewer’s own כונן row): avatar + full name + callsign (mono caption) + stamp (viewer-relative: own open row → `ממתין לתיעוד שלך`; other's open row → `ממתין לכונן`; done → `הושלם`) + chevron. Whole header is the toggle (`aria-expanded`).
+- Default open: viewer’s own assignment only. אחמ״ש / מנהל, and events the viewer is not assigned to: all cards start collapsed.
+- Expanded body: ledger rows `לוחית רישוי` (mono, LTR isolate) · `מד אוץ התחלה` · `מד אוץ סיום` (כונן sees these two only on their own card; hidden on other כוננים. אחמ״ש / מנהל see them on every card) · `קילומטרים` (hidden for כונן-only viewers — lead-entered `total_km` is אחמ״ש / מנהל only) · `נתיב נסיעה` · `אמצעים` (`כן`/`לא`) · `רכבים שטופלו` (comma list `גרר × 2, פרטי × 1`) · **standalone only:** `מספרי כלי רכב` immediately after `רכבים שטופלו` (plate-mark stack; empty → `—`) · `פירוט הטיפול` + `הערות לטיפול` as paragraphs.
+- Footer (expanded only):
   - Viewer's own open card → full-width primary `השלמת הפרטים שלי` → responder fill flow.
   - Shift-lead on any card → ghost `עריכת שדות אחמ״ש`.
 
-Desktop (Command): event block and responder column side by side — event block 5/12 at inline-start (sticky), responder cards stacked in the remaining 7/12. Mobile: single column, event block first.
+Desktop: event block and responder column side by side — event block 5/12 at inline-start (sticky), responder cards stacked in the remaining 7/12. Mobile: single column, event block first.
 
 ## Live status behavior
 

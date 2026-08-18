@@ -8,6 +8,7 @@ import {
   suggestedCards,
   quarterMonthIndexes,
   monthKmBuckets,
+  unitFuelQuarterKpis,
 } from './fuelQuarterMath'
 
 describe('constants', () => {
@@ -25,6 +26,43 @@ describe('suggestedCards', () => {
     expect(suggestedCards(90)).toBe(1)
     expect(suggestedCards(180)).toBe(2)
     expect(suggestedCards(-50)).toBe(0)
+  })
+})
+
+describe('unitFuelQuarterKpis', () => {
+  it('sums driven km and suggests cards with the same floor(liters/15) metric', () => {
+    expect(unitFuelQuarterKpis([])).toEqual({
+      totalKm: 0,
+      suggestedCards: 0,
+      issuedCards: 0,
+    })
+    expect(
+      unitFuelQuarterKpis([
+        { quarter_km: 90, cards: 1 },
+        { quarter_km: 90, cards: 1 },
+      ]),
+    ).toEqual({ totalKm: 180, suggestedCards: 2, issuedCards: 2 })
+  })
+
+  it('pools leftover km that would not make a card per responder', () => {
+    expect(
+      unitFuelQuarterKpis([{ quarter_km: 89, cards: 0 }, { quarter_km: 89, cards: 0 }]),
+    ).toEqual({ totalKm: 178, suggestedCards: 1, issuedCards: 0 })
+  })
+
+  it('sums cards actually issued even when they differ from the unit suggestion', () => {
+    expect(
+      unitFuelQuarterKpis([
+        { quarter_km: 90, cards: 2 },
+        { quarter_km: 90, cards: 0 },
+      ]),
+    ).toEqual({ totalKm: 180, suggestedCards: 2, issuedCards: 2 })
+    expect(
+      unitFuelQuarterKpis([
+        { quarter_km: 180, cards: 1 },
+        { quarter_km: 0, cards: 3 },
+      ]),
+    ).toEqual({ totalKm: 180, suggestedCards: 2, issuedCards: 4 })
   })
 })
 

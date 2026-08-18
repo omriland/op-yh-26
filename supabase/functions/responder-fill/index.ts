@@ -12,6 +12,7 @@ type TreatedPlateDraft = {
   plate_number: string;
   model: string | null;
   color: string | null;
+  left_where: string | null;
 };
 
 type SaveBody = {
@@ -34,8 +35,9 @@ type NotifyBody = {
   event_id?: string;
   event_responder_ids?: string[];
 };
+type NotifyOverdueBody = { action: "notify_overdue_fills" };
 
-type RequestBody = LoadBody | SaveBody | NotifyBody;
+type RequestBody = LoadBody | SaveBody | NotifyBody | NotifyOverdueBody;
 
 const FILL_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -123,6 +125,10 @@ function normalizeTreatedPlates(
         plate_number,
         model: typeof row.model === "string" ? row.model : null,
         color: typeof row.color === "string" ? row.color : null,
+        left_where:
+          typeof row.left_where === "string" && row.left_where.trim()
+            ? row.left_where.trim()
+            : null,
       },
     ];
   });
@@ -151,11 +157,7 @@ function validateDraft(
       errors.vehicle_plate = "לא מקושר רכב למשתמש. פנו למנהל המערכת.";
     }
     if (start == null || start === "invalid") errors.odometer_start = "יש למלא מד אוץ התחלה.";
-    if (totalKm == null) {
-      errors.odometer_end = "האחמ״ש טרם הזין קילומטרים לאירוע. לא ניתן לסיים את הדיווח.";
-    } else if (end == null || end === "invalid") {
-      errors.odometer_end = "יש למלא מד אוץ סיום.";
-    }
+    if (end == null || end === "invalid") errors.odometer_end = "יש למלא מד אוץ סיום.";
     if (!draft.route.trim()) errors.route = "יש למלא נתיב נסיעה.";
     if (!draft.treatment_detail.trim()) errors.treatment_detail = "יש למלא פירוט הטיפול.";
     const leftover = leftoverTreatedPlateError(draft.treated_plate_pending, mode);
@@ -212,6 +214,10 @@ Deno.serve(async (req: Request) => {
 
   if (body.action === "notify_fill_ready") {
     return handleNotifyFillReady(adminClient, supabaseUrl, anonKey, serviceKey, req, body);
+  }
+
+  if (body.action === "notify_overdue_fills") {
+    return handleNotifyOverdueFills(adminClient, serviceKey, req);
   }
 
   return json(400, { error: "פעולה לא מוכרת." });
@@ -309,7 +315,7 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
       .eq("user_id", assignment.responder_id),
     adminClient
       .from("event_treated_plates")
-      .select("plate_number, model, color, sort_order")
+      .select("plate_number, model, color, left_where, sort_order")
       .eq("event_responder_id", assignment.id)
       .order("sort_order", { ascending: true }),
   ]);
@@ -362,6 +368,10 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
         plate_number,
         model: plateRow.model == null ? null : String(plateRow.model),
         color: plateRow.color == null ? null : String(plateRow.color),
+        left_where:
+          plateRow.left_where == null || !String(plateRow.left_where).trim()
+            ? null
+            : String(plateRow.left_where).trim(),
       },
     ];
   });
@@ -518,6 +528,7 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
         plate_number: row.plate_number,
         model: row.model,
         color: row.color,
+        left_where: row.left_where,
         sort_order: index,
       })),
     );
@@ -750,6 +761,217 @@ async function handleNotifyFillReady(
 
     if (markError) {
       // Email already sent — still report sent; marker may retry later via idempotency.
+      sent.push(assignment.id);
+      continue;
+    }
+
+    sent.push(assignment.id);
+  }
+
+  return json(200, { sent, skipped });
+}
+
+const OVERDUE_48H_MS = 48 * 60 * 60 * 1000;
+const OVERDUE_7D_MS = 7 * 24 * 60 * 60 * 1000;
+const OVERDUE_FILL_SUBJECT = "חריגת זמנים בתיעוד אירוע - אבן דרך";
+const OVERDUE_FILL_CTA = "להשלמת התיעוד";
+const OVERDUE_FILL_FUEL =
+  "שימו לב! אירוע שלא יתועד במלואו לא יחושב להחזר הדלק הרבעוני";
+
+type OverdueMailKind = "48h" | "7d";
+
+function nextOverdueMailKind(input: {
+  fillCompletableAt: string;
+  overdue48hEmailedAt: string | null;
+  overdue7dEmailedAt: string | null;
+  now?: Date;
+}): OverdueMailKind | null {
+  const start = Date.parse(input.fillCompletableAt);
+  if (Number.isNaN(start)) return null;
+  const now = (input.now ?? new Date()).getTime();
+  const age = now - start;
+  if (age >= OVERDUE_7D_MS && !input.overdue7dEmailedAt) {
+    if (!input.overdue48hEmailedAt) return "48h";
+    return "7d";
+  }
+  if (age >= OVERDUE_48H_MS && !input.overdue48hEmailedAt) return "48h";
+  return null;
+}
+
+function overdueDurationLabel(kind: OverdueMailKind): string {
+  return kind === "48h" ? "48 שעות" : "7 ימים";
+}
+
+async function mintFillToken(
+  adminClient: SupabaseClient,
+  assignmentId: string,
+): Promise<string | null> {
+  const rawToken = randomFillToken();
+  const hash = await sha256Hex(rawToken);
+  const expiresAt = new Date(Date.now() + FILL_TOKEN_TTL_MS).toISOString();
+  const { error } = await adminClient
+    .from("event_responders")
+    .update({
+      fill_token_hash: hash,
+      fill_token_expires_at: expiresAt,
+    })
+    .eq("id", assignmentId);
+  if (error) return null;
+  return rawToken;
+}
+
+async function handleNotifyOverdueFills(
+  adminClient: SupabaseClient,
+  serviceKey: string,
+  req: Request,
+) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return json(401, { error: "יש להתחבר מחדש." });
+  }
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (token !== serviceKey) {
+    return json(403, { error: "אין לך הרשאה לפעולה זו." });
+  }
+
+  const cutoff = new Date(Date.now() - OVERDUE_48H_MS).toISOString();
+  const { data: rows, error } = await adminClient
+    .from("event_responders")
+    .select(
+      `id, responder_id, status, fill_completable_at, overdue_48h_emailed_at, overdue_7d_emailed_at,
+       fill_token_hash, fill_token_expires_at,
+       event:events!inner(id, is_cancelled, event_date,
+         event_type:event_types(name),
+         road:roads(name)
+       ),
+       profile:profiles!responder_id(id, full_name, active)`,
+    )
+    .not("fill_completable_at", "is", null)
+    .lte("fill_completable_at", cutoff)
+    .neq("status", "done");
+
+  if (error) {
+    return json(500, { error: "טעינת השיבוצים נכשלה.", detail: error.message });
+  }
+
+  const sent: string[] = [];
+  const skipped: { id: string; reason: string }[] = [];
+
+  for (const row of rows ?? []) {
+    const assignment = row as {
+      id: string;
+      responder_id: string;
+      status: string;
+      fill_completable_at: string | null;
+      overdue_48h_emailed_at: string | null;
+      overdue_7d_emailed_at: string | null;
+      fill_token_hash: string | null;
+      fill_token_expires_at: string | null;
+      event: {
+        is_cancelled: boolean;
+        event_date: string;
+        event_type: { name: string } | null;
+        road: { name: string } | null;
+      };
+      profile: { id: string; full_name: string; active: boolean } | null;
+    };
+
+    if (!assignment.fill_completable_at) {
+      skipped.push({ id: assignment.id, reason: "no_clock" });
+      continue;
+    }
+    if (assignment.event?.is_cancelled) {
+      skipped.push({ id: assignment.id, reason: "cancelled" });
+      continue;
+    }
+    if (!assignment.profile || assignment.profile.active !== true) {
+      skipped.push({ id: assignment.id, reason: "inactive" });
+      continue;
+    }
+
+    const kind = nextOverdueMailKind({
+      fillCompletableAt: assignment.fill_completable_at,
+      overdue48hEmailedAt: assignment.overdue_48h_emailed_at,
+      overdue7dEmailedAt: assignment.overdue_7d_emailed_at,
+    });
+    if (!kind) {
+      skipped.push({ id: assignment.id, reason: "not_due" });
+      continue;
+    }
+
+    const { data: authData } = await adminClient.auth.admin.getUserById(
+      assignment.responder_id,
+    );
+    const email = authData.user?.email?.trim().toLowerCase() ?? "";
+    if (!email) {
+      skipped.push({ id: assignment.id, reason: "no_email" });
+      continue;
+    }
+
+    const rawToken = await mintFillToken(adminClient, assignment.id);
+    if (!rawToken) {
+      skipped.push({ id: assignment.id, reason: "mint_failed" });
+      continue;
+    }
+
+    const link = buildFillLink(rawToken);
+    const fullName = assignment.profile.full_name || "";
+    const eventDate = assignment.event.event_date ?? "";
+    const typeName = assignment.event.event_type?.name ?? "";
+    const roadName = assignment.event.road?.name ?? "";
+    const contextBits = [eventDate, typeName, roadName].filter(Boolean).join(" · ");
+    const waiting = `יש לך אירוע שממתין לתיעוד מעל ל־${overdueDurationLabel(kind)}`;
+    const clickHtml =
+      `אפשר ללחוץ <a href="${escapeHtml(link)}">כאן</a> כדי להשלים את התיעוד`;
+
+    const htmlInner = [
+      `<p style="margin:0 0 16px;">היי, ${escapeHtml(fullName)}</p>`,
+      `<p style="margin:0 0 16px;">${escapeHtml(waiting)}</p>`,
+      contextBits
+        ? `<p style="margin:0 0 16px;font-size:14px;color:#5B6F86;">${escapeHtml(contextBits)}</p>`
+        : "",
+      `<p style="margin:0 0 16px;">${clickHtml}</p>`,
+      ctaButtonHtml(link, OVERDUE_FILL_CTA),
+      `<p style="margin:0;font-size:14px;color:#5B6F86;">${escapeHtml(OVERDUE_FILL_FUEL)}</p>`,
+    ].join("");
+
+    const text = [
+      "אבן דרך",
+      "יחפ״צ · היחידה הארצית לפינוי צירים",
+      "",
+      `היי, ${fullName}`,
+      waiting,
+      contextBits,
+      "אפשר ללחוץ כאן כדי להשלים את התיעוד",
+      link,
+      OVERDUE_FILL_FUEL,
+    ]
+      .filter((line) => line !== "")
+      .join("\n");
+
+    const mail = await sendTransactionalEmail({
+      to: email,
+      subject: OVERDUE_FILL_SUBJECT,
+      htmlInner,
+      textInner: text,
+      idempotencyKey: `overdue-${kind}/${assignment.id}`,
+    });
+
+    if (!mail.ok) {
+      skipped.push({ id: assignment.id, reason: "send_failed" });
+      continue;
+    }
+
+    const marker =
+      kind === "48h"
+        ? { overdue_48h_emailed_at: new Date().toISOString() }
+        : { overdue_7d_emailed_at: new Date().toISOString() };
+    const { error: markError } = await adminClient
+      .from("event_responders")
+      .update(marker)
+      .eq("id", assignment.id);
+
+    if (markError) {
       sent.push(assignment.id);
       continue;
     }

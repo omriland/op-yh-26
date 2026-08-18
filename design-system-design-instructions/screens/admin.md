@@ -1,15 +1,15 @@
 # Screen — Admin (ניהול): Users, Vehicles, Roles, Closed Lists
 
-The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`. Managerial surfaces — **Command** theme on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
+The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`, `הגדרות`. Managerial surfaces — **Command chrome** (app bar + sidebar) + **Field** content on desktop, **Field** on mobile (admin can work from a phone, same components as cards).
 
 ## Navigation
 
 - Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`. Pinned at sidebar block-end: `פרופיל`, then `הגדרות`.
 - Mobile tab bar: 3–4 items. Daily work stays in the bar; the last tab is `עוד` when anything overflows (bottom sheet). Profile via app-bar menu.
-  - כונן: `האירועים שלי` · `המשמרות שלי` · `אנשי קשר`
+  - כונן: `האירועים שלי` · `המשמרות שלי` · `אנשי קשר` · `מפה`
   - אחמ״ש: `האירועים שלי` · `אירועים` · `המשמרות שלי` · `עוד` (`משמרות` · `אנשי קשר` · `מפה` · `דוחות`)
   - מנהל: `האירועים שלי` · `אירועים` · `ניהול` · `עוד` (`המשמרות שלי` · `משמרות` · `אנשי קשר` · `מפה`)
-- Mobile `ניהול` tab: segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות`. `מפה` lives under כלים לאחמ״ש (after משמרות), not ניהול — אחמ״ש and מנהל.
+- Mobile `ניהול` tab: segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות`. `מפה` is personal nav after `אנשי קשר` (not ניהול / not כלים לאחמ״ש) — every signed-in user.
 
 ## דוחות וסטטיסטיקות (Reports)
 
@@ -23,7 +23,7 @@ Catalog: no caption under the title; search `חיפוש לפי שם דוח או 
 
 Admin-only under ניהול (`ניהול דלק`, Fuel icon). Opening lands on a chooser: caption `אני רוצה:` and two catalog cards — allocate quarterly cards, or see/export usage. Back `כרטיסי דלק` returns to the chooser. Spec: `docs/superpowers/specs/2026-08-15-yahpaz-fuel-cards-hub-design.md`.
 
-**Allocate:** existing quarterly workbook. Helper includes `נספרים רק אירועים שתועדו במלואם.` Only `events.status = done` + lead-entered `total_km`. Spec: `docs/superpowers/specs/2026-08-15-yahpaz-fuel-allocation-completed-only-design.md`.
+**Allocate:** existing quarterly workbook. Helper includes `נספרים רק אירועים שתועדו במלואם.` Only `events.status = done` + lead-entered `total_km`. Spec: `docs/superpowers/specs/2026-08-15-yahpaz-fuel-allocation-completed-only-design.md`. After the quarter picker: two-column KPIs (same chrome as סיכום פעילות) — `סה״כ ק״מ` (sum of quarter km for the whole unit) · `כרטיסים ליחידה` (`suggestedCards` on that same total, not the sum of per-row מומלץ). On a locked quarter, caption `({n} חולקו בפועל)` sits next to that KPI (sum of issued `cards`). Search does not change the KPIs.
 
 **Usage:** `שימוש בדלק` — כונן · קילומטרים · אירועים · ליטרים (km÷6). Helper includes `מוצגים כל האירועים עם ק״מ, גם אם תועדו חלקית.` Period picker, totals, search, CSV. Same km inclusion as סיכום ק״מ (status not filtered).
 
@@ -58,7 +58,7 @@ Super Admin only (DB-granted `super_admin`, not in role checkboxes):
 
 ## מפה
 
-אחמ״ש + מנהל, under כלים לאחמ״ש after `משמרות` (not a ניהול tab). Title `מפה`. Caption `חפשו כתובת כדי לראות מי הכוננים הקרובים. כל סיכה היא כתובת אחת של משתמש פעיל.` Interactive Google Map. Places-only search `חיפוש כתובת` (no free text). On pick: search pin labeled with the chosen address (`--status-partial` disc), center the address and fit a 30 km box in each direction, and list `כוננים קרובים` — one row per user (their nearest address) only if that address is within 30 km, nearest-first, distance `מ׳` / `ק״מ`. Empty in-range: `אין כוננים בטווח 30 ק״מ.` Tap a row to pan/zoom to that address. User pins: `--accent` disc + raised caption (`או״ק · בית/עבודה/שם`). Effective לא זמין stays on the map but uses `--status-draft` disc + inactive grey caption (`color-mix` 28% `--status-draft` on `--text-on-accent`, caption text `--status-draft`); hover/focus tooltip is `לא זמין`, or `לא זמין עד DD.MM.YYYY` when a future return date exists (tooltip border `--status-draft`). Hover/focus tooltip otherwise sits flush under the pin caption (`left: 50%` + `translateX(-50%)` in map pixel space): solid `--surface-raised` fill, `--text-primary`, `--accent` border + overlay shadow; `חניכה ברכב פרטי` uses `--status-alert` text/border. Active users only; hide `מנהלה` / `חניכה בסיסית` / `משמרות בלבד`. **Live responder pins** (latest GPS while their track page is open): `--status-done` disc `--space-6` with Lucide car icon (`--text-on-accent`, `--space-4`), caption `{או״ק || שם} · בדרך`, tooltip `{סוג · כביש מיקום} · HH:MM` (Asia/Jerusalem; tooltip border `--status-done`). Same person may also have address pin(s). Live pins are not hit targets and are not in `כוננים קרובים`. Pin gone when tracking stops (`ended_at` or un-assign) or when the last ping is older than 30s; it returns on the next ping. Empty: `אין כתובות להצגה` + `כשתמלאו כתובת למשתמש פעיל, היא תופיע כאן.` Missing key: `המפה אינה זמינה`. Canvas min-height 720px, `--radius-md`, hairline, `--surface-sunken`.
+Every signed-in user, personal nav after `אנשי קשר` (not ניהול / not כלים לאחמ״ש). Live GPS pins stay אחמ״ש + מנהל. Title `מפה`. Caption `חפשו כתובת כדי לראות מי הכוננים הקרובים. כל סיכה היא כתובת אחת של משתמש פעיל.` Interactive Google Map. Places-only search `חיפוש כתובת` (no free text). On pick: search pin labeled with the chosen address (`--status-partial` disc), center the address and fit a 30 km box in each direction, and list `כוננים קרובים` — one row per user (their nearest address) only if that address is within 30 km, nearest-first, distance `מ׳` / `ק״מ`. Empty in-range: `אין כוננים בטווח 30 ק״מ.` Tap a row to pan/zoom to that address. User pins: `--accent` disc + raised caption (`או״ק · בית/עבודה/שם`). Effective לא זמין stays on the map but uses `--status-draft` disc + inactive grey caption (`color-mix` 28% `--status-draft` on `--text-on-accent`, caption text `--status-draft`); hover/focus tooltip is `לא זמין`, or `לא זמין עד DD.MM.YYYY` when a future return date exists (tooltip border `--status-draft`). Hover/focus tooltip otherwise sits flush under the pin caption (`left: 50%` + `translateX(-50%)` in map pixel space): solid `--surface-raised` fill, `--text-primary`, `--accent` border + overlay shadow; `חניכה ברכב פרטי` uses `--status-alert` text/border. Active users only; hide `מנהלה` / `חניכה בסיסית` / `משמרות בלבד`. **Live responder pins** (latest GPS while their track page is open): `--status-done` disc `--space-6` with Lucide car icon (`--text-on-accent`, `--space-4`), caption `{או״ק || שם} · בדרך`, tooltip `{סוג · כביש מיקום} · HH:MM` (Asia/Jerusalem; tooltip border `--status-done`). Same person may also have address pin(s). Live pins are not hit targets and are not in `כוננים קרובים`. Pin gone when tracking stops (`ended_at` or un-assign) or when the last ping is older than 30s; it returns on the next ping. Empty: `אין כתובות להצגה` + `כשתמלאו כתובת למשתמש פעיל, היא תופיע כאן.` Missing key: `המפה אינה זמינה`. Canvas min-height 720px, `--radius-md`, hairline, `--surface-sunken`.
 
 ## הגדרות (Closed lists + broadcast)
 
@@ -82,7 +82,7 @@ Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כביש
 
 Admin-only compose + send log, inside הגדרות (not a top-level ניהול tab). Title `תפוצה לכלל היחידה`. Caption `שליחת הודעה למנהלים, לאחמ״שים או לכלל המשתמשים הפעילים.` No `הוספת פריט`.
 
-Compose card: channel chips `אימייל` · `SMS` · `SMS + אימייל`; audience chips `כלל המשתמשים` · `מנהלים` · `אחמ״שים`. Subject `נושא` only when the channel includes email. Body `תוכן ההודעה`. Primary `שליחה` → confirm dialog `אישור שליחה` with recipient/skip counts. Success toast reports sent / skipped / failed. Log heading `שידורים קודמים`; empty `עדיין לא נשלחה תפוצה.` Spec: `docs/superpowers/specs/2026-08-15-yahpaz-unit-broadcast-design.md`.
+Compose card: channel chips `אימייל` · `SMS` · `SMS + אימייל`; audience chips `כלל המשתמשים` · `מנהלים` · `אחמ״שים`. Subject `נושא` only when the channel includes email. Body `תוכן ההודעה`. Preview/confirm add `N עם האפליקציה` when someone in the audience has אבן דרך (push is extra, not a channel chip). Primary `שליחה` → confirm dialog `אישור שליחה` with recipient/skip/app counts. Success toast reports sent / skipped / failed / התראות. Log heading `שידורים קודמים`; empty `עדיין לא נשלחה תפוצה.` Specs: `docs/superpowers/specs/2026-08-15-yahpaz-unit-broadcast-design.md`, `docs/superpowers/specs/2026-08-17-yahpaz-unit-broadcast-push-design.md`.
 
 ## States
 

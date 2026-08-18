@@ -5,7 +5,7 @@ The form where the paper-form metaphor is most explicit: numbered sections (disp
 ## Theme context
 
 - Mobile: **Field**.
-- Desktop: **Command** shell, but the form itself sits on a **Field paper panel** (`--surface-raised` card, max-width 720, centered in the content area) — the lead fills a paper form even in the dark records room. All inputs inside use Field-theme tokens (scope `data-theme="field"` on the panel).
+- Desktop: **Command chrome** when the sidebar is showing; content (and immersive form screens without a sidebar) is **Field**. The form itself sits on a **Field paper panel** (`--surface-raised` card, max-width 720, centered in the content area). All inputs inside use Field-theme tokens (scope `data-theme="field"` on the panel).
 
 ## Layout
 
@@ -33,7 +33,7 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 - `הקצאת כוננים` — multi-select combobox over unit users (search by name/callsign). Selected responders render as a stacked list of **assignment rows**: avatar + name + callsign + remove icon-button (44×44, `aria-label="הסרת כונן"`).
 - Per assigned responder, the lead-owned fields, collapsed into an expandable row (chevron, mirrored):
   - `זמן התחלה` / `זמן סיום` — native time inputs + label action `עכשיו`. UI shows time only; stored as wall datetimes: start on `event_date`, end on same day unless end clock &lt; start (then next day — confirm: `האם האירוע מסתיים ביום למחרת?`).
-  - `קילומטרים` — numeric (manual in v1)
+  - `קילומטרים` — numeric (manual in v1). If the assigned responder has no active (non-archived) vehicles on their profile, the field is disabled, grayed (`--surface-sunken`), and shows placeholder `מתנדב ללא רכב`. No `total_km` is stored.
   - `רכבים שטופלו` — counter steppers, one per vehicle kind from the closed list
   - `אמצעים` — toggle
 - Responder-owned fields do NOT appear here (plate, odometers, route, treatment detail) — the lead never fills them.

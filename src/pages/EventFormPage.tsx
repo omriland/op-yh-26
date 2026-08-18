@@ -13,6 +13,7 @@ import {
   hasEventMinimum,
   isOvernightEnd,
   mergeAssignmentIds,
+  NO_VEHICLE_KM_PLACEHOLDER,
   saveEventForm,
   totalTreatedQuantity,
   type AssignableUser,
@@ -523,6 +524,7 @@ export function EventFormPage({
           status: 'pending',
           hasOwnedData: false,
           expanded: true,
+          hasVehicle: person.hasVehicle,
         },
       ],
     }
@@ -1028,9 +1030,11 @@ export function EventFormPage({
                                       ? `${responder.start_time || '—'}–${responder.end_time || '—'}`
                                       : 'ללא זמנים'}
                                     {' · '}
-                                    {responder.total_km
-                                      ? `${responder.total_km} ק״מ`
-                                      : 'ללא ק״מ'}
+                                    {responder.hasVehicle
+                                      ? responder.total_km
+                                        ? `${responder.total_km} ק״מ`
+                                        : 'ללא ק״מ'
+                                      : NO_VEHICLE_KM_PLACEHOLDER}
                                     {' · '}
                                     {treatedTotal > 0
                                       ? `${treatedTotal} רכבים`
@@ -1074,9 +1078,15 @@ export function EventFormPage({
                             />
                             <TextField
                               label="קילומטרים"
-                              numeric
-                              inputMode="decimal"
-                              value={responder.total_km}
+                              numeric={responder.hasVehicle}
+                              inputMode={responder.hasVehicle ? 'decimal' : undefined}
+                              value={
+                                responder.hasVehicle
+                                  ? responder.total_km
+                                  : NO_VEHICLE_KM_PLACEHOLDER
+                              }
+                              disabled={!responder.hasVehicle}
+                              readOnly={!responder.hasVehicle}
                               onChange={(event) =>
                                 updateResponder(responder.key, { total_km: event.target.value })
                               }

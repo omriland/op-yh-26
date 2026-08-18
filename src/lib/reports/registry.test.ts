@@ -6,6 +6,7 @@ describe('REPORT_KINDS', () => {
   it('registers the library reports with spec audiences', () => {
     expect(REPORT_KINDS.map((kind) => [kind.id, kind.audience])).toEqual([
       ['open_documentation', 'admin_and_shift_lead'],
+      ['events_by_responder', 'admin_and_shift_lead'],
       ['km_discrepancy', 'admin'],
       ['km_exceptions', 'admin_and_shift_lead'],
       ['duplicate_events', 'admin_and_shift_lead'],
@@ -15,12 +16,14 @@ describe('REPORT_KINDS', () => {
   it('filters the catalog by role', () => {
     expect(visibleReportKinds(REPORT_KINDS, ['admin']).map((kind) => kind.id)).toEqual([
       'open_documentation',
+      'events_by_responder',
       'km_discrepancy',
       'km_exceptions',
       'duplicate_events',
     ])
     expect(visibleReportKinds(REPORT_KINDS, ['shift_lead']).map((kind) => kind.id)).toEqual([
       'open_documentation',
+      'events_by_responder',
       'km_exceptions',
       'duplicate_events',
     ])
@@ -74,6 +77,26 @@ describe('REPORT_KINDS', () => {
       'ק״מ אחמ״ש',
       'ק״מ מתנדב',
       'הפרש',
+    ])
+  })
+
+  it('registers events by volunteer with PeriodPicker and grouped event columns', () => {
+    const kind = REPORT_KINDS.find((item) => item.id === 'events_by_responder')
+    expect(kind?.title).toBe('אירועים לפי מתנדב')
+    expect(kind?.includes).toBe('כל האירועים של כל מתנדב בטווח התאריכים שנבחר')
+    expect(kind?.audience).toBe('admin_and_shift_lead')
+    expect(kind?.hasDateRange).toBe(true)
+    expect(kind?.hasPeriodPicker).toBe(true)
+    expect(kind?.csvFilename).toBe('אירועים-לפי-מתנדב.csv')
+    expect(kind?.columns.map((column) => column.header)).toEqual([
+      'מתנדב',
+      'תאריך',
+      'מספר אירוע',
+      'סוג אירוע',
+      'שלוחה',
+      'כביש ומיקום',
+      'אחמ״ש',
+      'ק״מ',
     ])
   })
 })

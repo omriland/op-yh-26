@@ -11,6 +11,7 @@ export type BroadcastCandidate = {
   roles: string[]
   active: boolean
   invite_pending: boolean
+  hasApp: boolean
 }
 
 export type BroadcastDraft = {
@@ -25,6 +26,7 @@ export type BroadcastPreview = {
   recipientCount: number
   emailCount: number
   smsCount: number
+  pushCount: number
   skippedNoPhone: number
   skippedNoEmail: number
   canSend: boolean
@@ -85,6 +87,7 @@ export function previewUnitBroadcast(
 
   let emailCount = 0
   let smsCount = 0
+  let pushCount = 0
   let skippedNoEmail = 0
   let skippedNoPhone = 0
   let recipientCount = 0
@@ -92,11 +95,13 @@ export function previewUnitBroadcast(
   for (const user of audienceUsers) {
     const emailOk = wantsEmail && hasEmail(user)
     const smsOk = wantsSms && hasSms(user)
+    const pushOk = user.hasApp
     if (wantsEmail && !hasEmail(user)) skippedNoEmail += 1
     if (wantsSms && !hasSms(user)) skippedNoPhone += 1
     if (emailOk) emailCount += 1
     if (smsOk) smsCount += 1
-    if (emailOk || smsOk) recipientCount += 1
+    if (pushOk) pushCount += 1
+    if (emailOk || smsOk || pushOk) recipientCount += 1
   }
 
   return {
@@ -104,6 +109,7 @@ export function previewUnitBroadcast(
     recipientCount,
     emailCount,
     smsCount,
+    pushCount,
     skippedNoPhone,
     skippedNoEmail,
     canSend: recipientCount > 0,
@@ -122,17 +128,20 @@ export function unitBroadcastConfirmCopy(
 ): string {
   if (!preview.canSend) return 'אין נמענים לשליחה בקהל ובערוץ שנבחרו.'
 
-  const skips: string[] = []
+  const extras: string[] = []
+  if (preview.pushCount > 0) {
+    extras.push(`${formatNumber(preview.pushCount)} עם האפליקציה`)
+  }
   if (preview.skippedNoPhone > 0) {
-    skips.push(`${formatNumber(preview.skippedNoPhone)} בלי טלפון ידולגו`)
+    extras.push(`${formatNumber(preview.skippedNoPhone)} בלי טלפון ידולגו`)
   }
   if (preview.skippedNoEmail > 0) {
-    skips.push(`${formatNumber(preview.skippedNoEmail)} בלי דוא״ל ידולגו`)
+    extras.push(`${formatNumber(preview.skippedNoEmail)} בלי דוא״ל ידולגו`)
   }
 
   const head = `יישלח ל־${formatNumber(preview.recipientCount)} ${audienceNoun(input.audience)} (${broadcastChannelLabel(input.channel)}).`
-  if (skips.length === 0) return `${head} לשלוח?`
-  return `${head} ${skips.join('. ')}. לשלוח?`
+  if (extras.length === 0) return `${head} לשלוח?`
+  return `${head} ${extras.join('. ')}. לשלוח?`
 }
 
 export function unitBroadcastResultCopy(result: {
@@ -140,6 +149,8 @@ export function unitBroadcastResultCopy(result: {
   skippedNoPhone: number
   skippedNoEmail: number
   failedCount: number
+  pushCount?: number
+  pushFailedCount?: number
 }): string {
   const parts = [`נשלח ל־${formatNumber(result.recipientCount)}.`]
   if (result.skippedNoPhone > 0) {
@@ -150,6 +161,13 @@ export function unitBroadcastResultCopy(result: {
   }
   if (result.failedCount > 0) {
     parts.push(`${formatNumber(result.failedCount)} נכשלו.`)
+  }
+  const pushOk = (result.pushCount ?? 0) - (result.pushFailedCount ?? 0)
+  if (pushOk > 0) {
+    parts.push(`${formatNumber(pushOk)} התראות נשלחו.`)
+  }
+  if ((result.pushFailedCount ?? 0) > 0) {
+    parts.push(`${formatNumber(result.pushFailedCount ?? 0)} התראות נכשלו.`)
   }
   return parts.join(' ')
 }
@@ -170,4 +188,41 @@ export function validateUnitBroadcastDraft(
   else if (body.length > BROADCAST_BODY_MAX) errors.body = 'ההודעה ארוכה מדי.'
 
   return errors
+}
+
+export function broadcastPushTitle(channel: BroadcastChannel, subject: string): string {
+  if (channel === 'sms') return 'אבן דרך'
+  const trimmed = subject.trim()
+  return trimmed || 'אבן דרך'
+}
+
+export type PushAttempt = {
+  userId: string
+  ok: boolean
+  invalidate?: boolean
+  token?: string
+}
+
+export function summarizePushAttempts(attempts: PushAttempt[]): {
+  pushCount: number
+  pushFailedCount: number
+  tokensToDelete: string[]
+} {
+  const oksByUser = new Map<string, boolean[]>()
+  const tokensToDelete: string[] = []
+  for (const attempt of attempts) {
+    const list = oksByUser.get(attempt.userId) ?? []
+    list.push(attempt.ok)
+    oksByUser.set(attempt.userId, list)
+    if (attempt.invalidate && attempt.token) tokensToDelete.push(attempt.token)
+  }
+  let pushFailedCount = 0
+  for (const oks of oksByUser.values()) {
+    if (oks.every((ok) => !ok)) pushFailedCount += 1
+  }
+  return {
+    pushCount: oksByUser.size,
+    pushFailedCount,
+    tokensToDelete,
+  }
 }

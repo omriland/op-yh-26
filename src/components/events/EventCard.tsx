@@ -13,8 +13,10 @@ type EventCardProps = {
   /** Mine list: open participation → footer CTA */
   onFill?: (eventId: string) => void
   fillLabel?: string
-  /** Inbox cards fill on tap; unit list cards open detail. */
+  /** Inbox cards hide שלוחה on the meta line; tap still opens detail. */
   mode?: 'default' | 'inbox'
+  /** Mine inbox: 48h+ since completable. Replaces the origin rail. */
+  overdue?: boolean
 }
 
 export function EventCard({
@@ -24,16 +26,26 @@ export function EventCard({
   onFill,
   fillLabel,
   mode = 'default',
+  overdue = false,
 }: EventCardProps) {
   const place = [event.road?.name, event.location].filter(Boolean).join(' · ')
   const inbox = mode === 'inbox'
-  const fillOnTap = inbox && onFill
+  const manualInbox = inbox && !overdue && event.origin === 'manual'
   const open = () => onOpen(event.id)
   const fill = () => onFill?.(event.id)
 
   return (
-    <li className="card event-card-shell">
-      <button type="button" className="event-card" onClick={fillOnTap ? fill : open}>
+    <li
+      className={[
+        'card',
+        'event-card-shell',
+        overdue ? 'event-card-shell--overdue' : '',
+        manualInbox ? 'event-card-shell--manual' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <button type="button" className="event-card" onClick={open}>
         <span className="event-card__type">
           <EventTypeLabel event={event} as="section" fallback="אירוע" />
         </span>
@@ -53,15 +65,9 @@ export function EventCard({
           ) : null}
         </span>
       </button>
-      {fillOnTap ? (
-        <span className="event-card__stamp">
-          <StampChip {...stamp} />
-        </span>
-      ) : (
-        <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>
-          <StampChip {...stamp} />
-        </button>
-      )}
+      <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>
+        <StampChip {...stamp} />
+      </button>
       {onFill && fillLabel ? (
         <div className="event-card__fill">
           <Button
