@@ -1,0 +1,10 @@
+---
+description: Yahpaz iOS native app is on hold — never edit yahpaz-ios
+alwaysApply: true
+---
+
+# Yahpaz iOS on hold
+
+Native iOS (`yahpaz-ios`) is **paused**. Do not edit, test, commit, or plan work in `/Users/omrilandman/CursorProjects/today-i/yahpaz-ios` unless the user explicitly lifts the hold.
+
+Active clients: **web (`op-yh-26`) + Android (`yahpaz-android`)**. Default unspecified responder features to Android (not iOS). Full routing: `working-yahpaz-multi-repo` skill.
