@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, Download } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import {
-  ANDROID_APK_PATH,
   ANDROID_FOOTER_LINK,
+  fetchAndroidApkHref,
   isAndroidMobile,
 } from '../lib/androidDownload'
 
@@ -16,6 +16,17 @@ export function AndroidDownloadPage({ onBack }: AndroidDownloadPageProps) {
     () => (typeof navigator === 'undefined' ? false : isAndroidMobile(navigator.userAgent)),
     [],
   )
+  const [apkHref, setApkHref] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchAndroidApkHref().then((href) => {
+      if (!cancelled) setApkHref(href)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <article className="android-download" data-theme="field">
@@ -46,16 +57,22 @@ export function AndroidDownloadPage({ onBack }: AndroidDownloadPageProps) {
               אם הדפדפן מבקש אישור להתקין אפליקציות ממקור זה — אשרו (למשל «אפשר»
               או «הגדרות» ואז הפעלת ההתקנה מהדפדפן).
             </li>
-            <li>פתחו את הקובץ שהורד (yahpaz.apk) כדי להתחיל בהתקנה.</li>
+            <li>פתחו את קובץ ה־APK שהורד כדי להתחיל בהתקנה.</li>
             <li>
               אם הטלפון חוסם את ההתקנה או מציג אזהרה — בחרו «התקן בכל זאת»
               (לעיתים מאחורי «פרטים נוספים» או תפריט דומה). זה תקין להתקנה מחוץ לחנות.
             </li>
           </ol>
-          <a className="btn btn--primary btn--block" href={ANDROID_APK_PATH} download>
-            <Download size={20} strokeWidth={1.75} aria-hidden="true" />
-            הורדת האפליקציה
-          </a>
+          {apkHref ? (
+            <a className="btn btn--primary btn--block" href={apkHref} download>
+              <Download size={20} strokeWidth={1.75} aria-hidden="true" />
+              הורדת האפליקציה
+            </a>
+          ) : (
+            <Button type="button" block disabled>
+              טוען קישור הורדה…
+            </Button>
+          )}
         </div>
       ) : (
         <div className="banner banner--info t-body" role="status">

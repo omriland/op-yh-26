@@ -840,53 +840,113 @@ textarea.field__input {
   font: 500 13px/18px var(--font-mono);
 }
 
-/* Treated plates — fill forms + ledger stacks */
+/* Treated plates — fill forms + ledger stacks (mobile-first card layout) */
 .treated-plates-field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .treated-plates {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .treated-plates__item {
+  min-width: 0;
+}
+
+.treated-plates__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.treated-plates__card--read {
+  gap: var(--space-2);
+}
+
+.treated-plates__head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+}
+
+.treated-plates__identity {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: var(--space-2);
-  min-height: 44px;
+  min-width: 0;
 }
 
 .car-logo {
   flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
   display: block;
 }
 
-.treated-plates__caption {
+.treated-plates__specs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.treated-plates__spec {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.treated-plates__spec-label {
+  flex: 0 0 auto;
+  min-width: 2.25rem;
+  margin: 0;
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+}
+
+.treated-plates__spec-value {
   flex: 1 1 auto;
   min-width: 0;
+  margin: 0;
+  color: var(--text-primary);
+  font: 400 15px/22px var(--font-ui);
 }
 
 .treated-plates__details {
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
-  flex: 1 1 auto;
   min-width: 0;
 }
 
 .treated-plates__details--pending {
+  flex-direction: row;
+  align-items: center;
+}
+
+.treated-plates__details--failed {
+  flex-direction: row;
+  align-items: center;
   gap: var(--space-2);
 }
 
@@ -894,48 +954,35 @@ textarea.field__input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
   color: var(--status-alert);
   cursor: default;
 }
 
-.treated-plates__actions {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-2);
-  flex: 0 0 auto;
-  margin-inline-start: auto;
+.treated-plates__miss-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.treated-plates__left-field {
+  margin: 0;
 }
 
 .treated-plates__left-where {
-  flex: 0 0 auto;
-  width: 10rem;
-  height: 36px;
-  padding-inline: var(--space-2);
+  width: 100%;
+  min-height: 44px;
+}
+
+.treated-plates__where {
+  margin: 0;
   font: 400 14px/20px var(--font-ui);
 }
 
-.treated-plates__left-where--read {
-  width: auto;
-  max-width: 10rem;
-  height: auto;
-  padding: 0;
-  border: none;
-  background: transparent;
-}
-
-/* Event-detail / read-only stack: model·color and left_where share one meta size. */
-.treated-plates--stack .treated-plates__meta {
-  flex: 1 1 auto;
-  min-width: 0;
-  font: 400 14px/20px var(--font-ui);
-}
-
-.treated-plates--stack .treated-plates__actions .treated-plates__meta {
-  flex: 0 1 auto;
-  max-width: 12rem;
+.treated-plates__where-label {
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .treated-plates__remove {
@@ -944,8 +991,8 @@ textarea.field__input {
 
 .treated-plates__compose {
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--space-2);
 }
 
@@ -956,15 +1003,69 @@ textarea.field__input {
 
 .treated-plates__add {
   flex: 0 0 auto;
-  /* Keep button level with the input (label 18px + space-1), not the error line. */
-  margin-block-start: calc(18px + var(--space-1));
-  align-self: flex-start;
+  align-self: stretch;
   box-sizing: border-box;
-  width: auto;
-  min-width: 96px;
-  height: 44px;
+  width: 100%;
   min-height: 44px;
   padding-block: 0;
+}
+
+.treated-plates__card > * {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 641px) {
+  .treated-plates__specs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    column-gap: var(--space-4);
+    row-gap: var(--space-1);
+  }
+
+  .treated-plates__compose {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .treated-plates__add {
+    width: auto;
+    min-width: 96px;
+    align-self: flex-start;
+    margin-block-start: calc(18px + var(--space-1));
+  }
+}
+
+@media (min-width: 1025px) {
+  .treated-plates--stack .treated-plates__card {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-2);
+    width: auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  .treated-plates--stack .treated-plates__head {
+    width: auto;
+    min-height: 0;
+  }
+
+  .treated-plates--stack .treated-plates__specs {
+    flex: 1 1 auto;
+    width: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    column-gap: var(--space-3);
+  }
+
+  .treated-plates--stack .treated-plates__where {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
 }
 
 /* ============================================================

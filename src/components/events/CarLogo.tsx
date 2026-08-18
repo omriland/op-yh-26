@@ -16,8 +16,8 @@ export function CarLogo({ slug, className }: CarLogoProps) {
       className={['car-logo', className].filter(Boolean).join(' ')}
       src={`/car-logos/${encodeURIComponent(trimmed)}.png`}
       alt=""
-      width={28}
-      height={28}
+      width={32}
+      height={32}
       decoding="async"
       onError={() => setFailed(true)}
     />

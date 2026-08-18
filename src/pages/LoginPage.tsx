@@ -10,8 +10,8 @@ import { StampChip } from '../components/ui/StampChip'
 import { PasswordField, TextField } from '../components/ui/TextField'
 import { captureEvent } from '../lib/posthog'
 import {
-  ANDROID_APK_PATH,
   ANDROID_FOOTER_LINK,
+  fetchAndroidApkHref,
   isAndroidMobile,
 } from '../lib/androidDownload'
 import { PRIVACY_FOOTER_LINK } from '../lib/privacyPolicy'
@@ -54,12 +54,24 @@ export function LoginPage({
   const [busy, setBusy] = useState(false)
   const showAndroidCta =
     typeof navigator !== 'undefined' && isAndroidMobile(navigator.userAgent)
+  const [apkHref, setApkHref] = useState<string | null>(null)
 
   // App may remount props without remounting state (same <LoginPage /> type).
   useEffect(() => {
     if (!forceSetPassword && !passwordSetupReason) return
     setMode((current) => (current === 'password-set' ? current : 'set-password'))
   }, [forceSetPassword, passwordSetupReason])
+
+  useEffect(() => {
+    if (!showAndroidCta) return
+    let cancelled = false
+    void fetchAndroidApkHref().then((href) => {
+      if (!cancelled) setApkHref(href)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [showAndroidCta])
 
   const isSetupFlow = mode === 'set-password' || mode === 'password-set'
   const displayName = profile?.full_name?.trim() || null
@@ -183,11 +195,15 @@ export function LoginPage({
                   >
                     הורדת האפליקציה
                   </Button>
-                ) : (
-                  <a className="btn btn--primary btn--block" href={ANDROID_APK_PATH} download>
+                ) : apkHref ? (
+                  <a className="btn btn--primary btn--block" href={apkHref} download>
                     <Download size={20} strokeWidth={1.75} aria-hidden="true" />
                     הורדת האפליקציה
                   </a>
+                ) : (
+                  <Button type="button" block disabled>
+                    טוען קישור הורדה…
+                  </Button>
                 )}
               </div>
             </div>

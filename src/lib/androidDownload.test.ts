@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   ANDROID_DOWNLOAD_PATH,
   ANDROID_FOOTER_LINK,
+  apkHrefFromManifest,
+  fetchAndroidApkHref,
   isAndroidDownloadPath,
   isAndroidMobile,
 } from './androidDownload'
@@ -52,5 +54,35 @@ describe('android download paths', () => {
   it('exposes footer copy', () => {
     expect(ANDROID_FOOTER_LINK.href).toBe(ANDROID_DOWNLOAD_PATH)
     expect(ANDROID_FOOTER_LINK.label).toBe('הורדת אפליקציית אנדרואיד')
+  })
+})
+
+describe('apkHrefFromManifest', () => {
+  it('returns a same-origin path for yahpz.com versioned APKs', () => {
+    expect(
+      apkHrefFromManifest({
+        apkUrl: 'https://yahpz.com/android/yahpaz-0.1.2.apk',
+      }),
+    ).toBe('/android/yahpaz-0.1.2.apk')
+  })
+
+  it('rejects empty or non-apk urls', () => {
+    expect(apkHrefFromManifest({ apkUrl: '' })).toBeNull()
+    expect(apkHrefFromManifest({ apkUrl: 'https://yahpz.com/android/version.json' })).toBeNull()
+  })
+})
+
+describe('fetchAndroidApkHref', () => {
+  it('reads apkUrl from version.json', async () => {
+    const fetchImpl = vi.fn(async () =>
+      Response.json({
+        minVersionCode: 3,
+        apkUrl: 'https://yahpz.com/android/yahpaz-0.1.2.apk',
+      }),
+    )
+    await expect(fetchAndroidApkHref(fetchImpl as unknown as typeof fetch)).resolves.toBe(
+      '/android/yahpaz-0.1.2.apk',
+    )
+    expect(fetchImpl).toHaveBeenCalledOnce()
   })
 })
