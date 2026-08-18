@@ -96,6 +96,7 @@ type AppShellProps = {
   /** List/admin/profile only — hide on immersive form/fill/detail. */
   showSecurityBadge?: boolean
   onOpenPrivacy?: () => void
+  onOpenAndroid?: () => void
   view: AppView
   onNavigate: (view: AppView) => void
   /** Wordmark → role home (unit events / mine / profile). */
@@ -112,6 +113,7 @@ export function AppShell({
   narrow,
   showSecurityBadge = false,
   onOpenPrivacy,
+  onOpenAndroid,
   view,
   onNavigate,
   onHome,
@@ -146,7 +148,7 @@ export function AppShell({
         >
           {children}
           {showSecurityBadge && onOpenPrivacy ? (
-            <SnykBadge onOpenPrivacy={onOpenPrivacy} />
+            <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} />
           ) : null}
         </main>
       </div>

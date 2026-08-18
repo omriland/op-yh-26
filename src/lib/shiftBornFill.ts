@@ -60,6 +60,8 @@ export function shiftBornEventFillRowsFrom(
       model?: string | null
       color?: string | null
       left_where?: string | null
+      manufacturer?: string | null
+      logo_slug?: string | null
       sort_order?: number | null
     }>
   }>,
@@ -99,7 +101,7 @@ export async function fetchShiftBornFillContext(
     supabase.from('event_treated_vehicles').select('vehicle_kind_id, quantity').eq('event_id', eventId),
     supabase
       .from('event_treated_plates')
-      .select('plate_number, model, color, left_where, sort_order')
+      .select('plate_number, model, color, left_where, manufacturer, logo_slug, sort_order')
       .eq('event_id', eventId)
       .order('sort_order'),
   ])

@@ -6,7 +6,7 @@ export type AnalyticsPathInput = {
   tokenEventId?: string
   tracking?: boolean
   otp?: 'idle' | 'checking' | 'required' | 'ok'
-  legalPage?: 'privacy' | null
+  legalPage?: 'privacy' | 'android' | null
   view: string
   eventKind?: 'list' | 'detail' | 'form' | 'fill'
   eventId?: string
@@ -19,6 +19,7 @@ export function appAnalyticsPath(input: AnalyticsPathInput): string | null {
   if (input.tracking) return '/track'
   if (input.loading || input.tokenFill === 'checking') return null
   if (input.legalPage === 'privacy') return '/privacy'
+  if (input.legalPage === 'android') return '/android'
   if (input.passwordSetup) return '/login/set-password'
   if (!input.signedIn && input.tokenFill === 'ready') {
     return input.tokenEventId ? `/fill/${input.tokenEventId}` : '/fill'

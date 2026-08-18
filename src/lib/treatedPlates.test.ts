@@ -3,7 +3,10 @@ import {
   TREATED_PLATE_DUPLICATE_ERROR,
   TREATED_PLATE_LEFTOVER_ERROR,
   TREATED_PLATE_LENGTH_ERROR,
+  applyTreatedPlateLookup,
   commitTreatedPlate,
+  emptyTreatedPlateFields,
+  failTreatedPlateLookup,
   leftoverTreatedPlateError,
   mapTreatedPlateRows,
   removeTreatedPlate,
@@ -12,13 +15,15 @@ import {
   treatedPlateMeta,
 } from './treatedPlates'
 
+const blank = emptyTreatedPlateFields()
+
 describe('commitTreatedPlate', () => {
   it('formats 7 digits with hyphens and appends', () => {
     const result = commitTreatedPlate('1234567', [])
     expect(result).toEqual({
       ok: true,
-      plate: { plate_number: '12-345-67', model: null, color: null, left_where: null },
-      plates: [{ plate_number: '12-345-67', model: null, color: null, left_where: null }],
+      plate: { plate_number: '12-345-67', ...blank },
+      plates: [{ plate_number: '12-345-67', ...blank }],
     })
   })
 
@@ -36,7 +41,7 @@ describe('commitTreatedPlate', () => {
   })
 
   it('rejects duplicate by digits', () => {
-    const existing = [{ plate_number: '12-345-67', model: null, color: null, left_where: null }]
+    const existing = [{ plate_number: '12-345-67', ...blank }]
     expect(commitTreatedPlate('1234567', existing)).toEqual({
       ok: false,
       error: TREATED_PLATE_DUPLICATE_ERROR,
@@ -91,8 +96,16 @@ describe('treatedPlateMeta', () => {
 describe('removeTreatedPlate', () => {
   it('drops by digit match', () => {
     const plates = [
-      { plate_number: '12-345-67', model: null, color: null, left_where: null },
-      { plate_number: '713-86-301', model: 'REXTON', color: 'שחור', left_where: 'שוליים' },
+      { plate_number: '12-345-67', ...blank },
+      {
+        plate_number: '713-86-301',
+        model: 'REXTON',
+        color: 'שחור',
+        left_where: 'שוליים',
+        manufacturer: null,
+        logo_slug: null,
+        details_status: 'pending' as const,
+      },
     ]
     expect(removeTreatedPlate(plates, '1234567')).toEqual([plates[1]])
   })
@@ -101,8 +114,16 @@ describe('removeTreatedPlate', () => {
 describe('setTreatedPlateLeftWhere', () => {
   it('updates matching plate and stores empty as null', () => {
     const plates = [
-      { plate_number: '12-345-67', model: null, color: null, left_where: null },
-      { plate_number: '713-86-301', model: 'REXTON', color: 'שחור', left_where: null },
+      { plate_number: '12-345-67', ...blank },
+      {
+        plate_number: '713-86-301',
+        model: 'REXTON',
+        color: 'שחור',
+        left_where: null,
+        manufacturer: null,
+        logo_slug: null,
+        details_status: 'pending' as const,
+      },
     ]
     expect(setTreatedPlateLeftWhere(plates, '71386301', 'שוליים')).toEqual([
       plates[0],
@@ -115,16 +136,72 @@ describe('setTreatedPlateLeftWhere', () => {
   })
 })
 
+describe('failTreatedPlateLookup', () => {
+  it('marks matching plate as failed', () => {
+    const plates = [{ plate_number: '713-86-301', ...blank }]
+    expect(failTreatedPlateLookup(plates, '71386301')).toEqual([
+      { ...plates[0], details_status: 'failed' },
+    ])
+  })
+})
+
+describe('applyTreatedPlateLookup', () => {
+  it('sets manufacturer and resolves logo slug', () => {
+    const plates = [{ plate_number: '713-86-301', ...blank }]
+    expect(
+      applyTreatedPlateLookup(plates, '71386301', {
+        model: 'REXTON',
+        color: 'שחור',
+        manufacturer: 'סאנגיונג ד.קור',
+      }),
+    ).toEqual([
+      {
+        plate_number: '713-86-301',
+        model: 'REXTON',
+        color: 'שחור',
+        left_where: null,
+        manufacturer: 'סאנגיונג ד.קור',
+        logo_slug: 'ssangyong',
+        details_status: 'ready',
+      },
+    ])
+  })
+})
+
 describe('mapTreatedPlateRows', () => {
-  it('maps left_where and order', () => {
+  it('maps left_where, manufacturer, logo and order', () => {
     expect(
       mapTreatedPlateRows([
-        { plate_number: '713-86-301', model: 'REXTON', color: 'שחור', left_where: 'חניה', sort_order: 1 },
+        {
+          plate_number: '713-86-301',
+          model: 'REXTON',
+          color: 'שחור',
+          left_where: 'חניה',
+          manufacturer: 'סאנגיונג ד.קור',
+          logo_slug: 'ssangyong',
+          sort_order: 1,
+        },
         { plate_number: '12-345-67', model: null, color: null, left_where: null, sort_order: 0 },
       ]),
     ).toEqual([
-      { plate_number: '12-345-67', model: null, color: null, left_where: null },
-      { plate_number: '713-86-301', model: 'REXTON', color: 'שחור', left_where: 'חניה' },
+      {
+        plate_number: '12-345-67',
+        model: null,
+        color: null,
+        left_where: null,
+        manufacturer: null,
+        logo_slug: null,
+        details_status: 'ready',
+      },
+      {
+        plate_number: '713-86-301',
+        model: 'REXTON',
+        color: 'שחור',
+        left_where: 'חניה',
+        manufacturer: 'סאנגיונג ד.קור',
+        logo_slug: 'ssangyong',
+        details_status: 'ready',
+      },
     ])
   })
 })

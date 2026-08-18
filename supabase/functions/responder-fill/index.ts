@@ -13,6 +13,8 @@ type TreatedPlateDraft = {
   model: string | null;
   color: string | null;
   left_where: string | null;
+  manufacturer: string | null;
+  logo_slug: string | null;
 };
 
 type SaveBody = {
@@ -128,6 +130,14 @@ function normalizeTreatedPlates(
         left_where:
           typeof row.left_where === "string" && row.left_where.trim()
             ? row.left_where.trim()
+            : null,
+        manufacturer:
+          typeof row.manufacturer === "string" && row.manufacturer.trim()
+            ? row.manufacturer.trim()
+            : null,
+        logo_slug:
+          typeof row.logo_slug === "string" && row.logo_slug.trim()
+            ? row.logo_slug.trim()
             : null,
       },
     ];
@@ -315,7 +325,7 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
       .eq("user_id", assignment.responder_id),
     adminClient
       .from("event_treated_plates")
-      .select("plate_number, model, color, left_where, sort_order")
+      .select("plate_number, model, color, left_where, manufacturer, logo_slug, sort_order")
       .eq("event_responder_id", assignment.id)
       .order("sort_order", { ascending: true }),
   ]);
@@ -372,6 +382,14 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
           plateRow.left_where == null || !String(plateRow.left_where).trim()
             ? null
             : String(plateRow.left_where).trim(),
+        manufacturer:
+          plateRow.manufacturer == null || !String(plateRow.manufacturer).trim()
+            ? null
+            : String(plateRow.manufacturer).trim(),
+        logo_slug:
+          plateRow.logo_slug == null || !String(plateRow.logo_slug).trim()
+            ? null
+            : String(plateRow.logo_slug).trim(),
       },
     ];
   });
@@ -529,6 +547,8 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
         model: row.model,
         color: row.color,
         left_where: row.left_where,
+        manufacturer: row.manufacturer,
+        logo_slug: row.logo_slug,
         sort_order: index,
       })),
     );

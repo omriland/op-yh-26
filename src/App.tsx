@@ -29,6 +29,7 @@ import { EventFormPage } from './pages/EventFormPage'
 import { EventsPage } from './pages/EventsPage'
 import { LoginPage } from './pages/LoginPage'
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
+import { AndroidDownloadPage } from './pages/AndroidDownloadPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LiveTrackPage } from './pages/LiveTrackPage'
 import { parseTrackTokenFromSearch } from './lib/liveTrack'
@@ -50,6 +51,7 @@ import { loadFillByToken } from './lib/responderFillToken'
 import { captureAppPageview } from './lib/posthog'
 import { appAnalyticsPath } from './lib/posthogAppPath'
 import { applyCockpitUrl, parseCockpitPath } from './lib/cockpitPath'
+import { isAndroidDownloadPath } from './lib/androidDownload'
 
 type EventSurface =
   | { kind: 'list' }
@@ -75,7 +77,11 @@ function Gate() {
     typeof window === 'undefined' ? null : parseTrackTokenFromSearch(window.location.search),
   ).current
   const [view, setView] = useState<AppView>(cockpitBoot ? 'cockpit' : 'mine')
-  const [legalPage, setLegalPage] = useState<'privacy' | null>(null)
+  const [legalPage, setLegalPage] = useState<'privacy' | 'android' | null>(() =>
+    typeof window !== 'undefined' && isAndroidDownloadPath(window.location.pathname)
+      ? 'android'
+      : null,
+  )
   const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
   const [shiftSurface, setShiftSurface] = useState<ShiftSurface>({ kind: 'list' })
   const [sectionReset, setSectionReset] = useState(0)
@@ -197,6 +203,11 @@ function Gate() {
 
   useEffect(() => {
     function onPop() {
+      if (isAndroidDownloadPath(window.location.pathname)) {
+        setLegalPage('android')
+        return
+      }
+      setLegalPage((current) => (current === 'android' ? null : current))
       const parsed = parseCockpitPath(window.location.pathname)
       if (parsed) {
         setLegalPage(null)
@@ -210,6 +221,21 @@ function Gate() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+
+  function openAndroidDownload() {
+    setLegalPage('android')
+    if (!isAndroidDownloadPath(window.location.pathname)) {
+      window.history.pushState(window.history.state, '', '/android')
+    }
+  }
+
+  function closeLegalPage() {
+    const wasAndroid = legalPage === 'android'
+    setLegalPage(null)
+    if (wasAndroid && isAndroidDownloadPath(window.location.pathname)) {
+      window.history.pushState(window.history.state, '', '/')
+    }
+  }
 
   // Refresh attention when returning to list surfaces after fill/save.
   const attentionRefreshKey = `${eventSurface.kind}:${shiftSurface.kind}:${view}`
@@ -471,10 +497,27 @@ function Gate() {
     )
   }
 
+  if (legalPage === 'android') {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <AndroidDownloadPage onBack={closeLegalPage} />
+        </main>
+      </div>
+    )
+  }
+
   // Invite/recovery gate is driven by intent, not by an existing session.
   // verifyOtp may still be binding the session; never fall through to sign-in.
   if (passwordSetupReason) {
-    return <LoginPage key={`setup-${passwordSetupReason}`} forceSetPassword />
+    return (
+      <LoginPage
+        key={`setup-${passwordSetupReason}`}
+        forceSetPassword
+        onOpenAndroid={openAndroidDownload}
+        onOpenPrivacy={() => setLegalPage('privacy')}
+      />
+    )
   }
 
   // Scoped fill link — no Auth session required while the token is valid.
@@ -512,6 +555,15 @@ function Gate() {
   }
 
   if (!session) {
+    if (legalPage === 'privacy') {
+      return (
+        <div className="shell" data-theme="field">
+          <main className="shell__main">
+            <PrivacyPolicyPage onBack={() => setLegalPage(null)} />
+          </main>
+        </div>
+      )
+    }
     return (
       <>
         {tokenFill.status === 'blocked' ? (
@@ -534,7 +586,11 @@ function Gate() {
             </main>
           </div>
         ) : (
-          <LoginPage key="signin" />
+          <LoginPage
+            key="signin"
+            onOpenAndroid={openAndroidDownload}
+            onOpenPrivacy={() => setLegalPage('privacy')}
+          />
         )}
       </>
     )
@@ -610,6 +666,7 @@ function Gate() {
       narrow={shellNarrow}
       showSecurityBadge={shouldShowSecurityBadge(immersiveSurface) && legalPage === null}
       onOpenPrivacy={() => setLegalPage('privacy')}
+      onOpenAndroid={openAndroidDownload}
       view={activeView}
       onNavigate={navigate}
       onHome={goHome}
@@ -636,7 +693,7 @@ function Gate() {
       }
     >
       {legalPage === 'privacy' ? (
-        <PrivacyPolicyPage onBack={() => setLegalPage(null)} />
+        <PrivacyPolicyPage onBack={closeLegalPage} />
       ) : onCockpit ? (
         <CockpitPage
           key={sectionReset}

@@ -17,9 +17,15 @@
     Feature-Policy = "geolocation 'self'"
 
 [[headers]]
-  for = "/version.json"
+  for = "/android/version.json"
   [headers.values]
     Cache-Control = "no-store"
+
+[[headers]]
+  for = "/android/yahpaz.apk"
+  [headers.values]
+    Content-Type = "application/vnd.android.package-archive"
+    Cache-Control = "public, max-age=300"
 
 [[redirects]]
   from = "/*"

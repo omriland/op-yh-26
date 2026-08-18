@@ -19,7 +19,30 @@ describe('parsePlateLookupBody', () => {
           },
         }),
       ),
-    ).toEqual({ model: 'REXTON', color: 'שחור' })
+    ).toEqual({ model: 'REXTON', color: 'שחור', manufacturer: null })
+  })
+
+  it('reads manufacturer from tozeret_nm', () => {
+    expect(
+      parsePlateLookupBody(
+        JSON.stringify({
+          success: true,
+          result: {
+            records: [
+              {
+                tzeva_rechev: 'שחור',
+                kinuy_mishari: 'REXTON',
+                tozeret_nm: 'סאנגיונג ד.קור',
+              },
+            ],
+          },
+        }),
+      ),
+    ).toEqual({
+      model: 'REXTON',
+      color: 'שחור',
+      manufacturer: 'סאנגיונג ד.קור',
+    })
   })
 
   it('returns null on empty records', () => {
@@ -38,5 +61,6 @@ describe('plateLookupUrl', () => {
     const url = plateLookupUrl('713-86-301')
     expect(url).toContain('resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3')
     expect(url).toContain(encodeURIComponent('{"mispar_rechev":71386301}'))
+    expect(url).toContain('tozeret_nm')
   })
 })

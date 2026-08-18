@@ -239,14 +239,14 @@ const EVENT_DETAIL_SELECT = `
     personal_vehicle:vehicles!shifts_personal_vehicle_id_fkey(plate_number)
   ),
   shared_treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id),
-  shared_plates:event_treated_plates!event_treated_plates_event_id_fkey(plate_number, model, color, left_where, sort_order),
+  shared_plates:event_treated_plates!event_treated_plates_event_id_fkey(plate_number, model, color, left_where, manufacturer, logo_slug, sort_order),
   responders:event_responders(
     id, responder_id, started_at, ended_at, vehicle_plate, total_km,
     odometer_start, odometer_end, route, treatment_detail, emergency_means,
     treatment_notes, status,
     profile:profiles(full_name, callsign),
     treated:event_treated_vehicles(quantity, kind:vehicle_kinds(name)),
-    treated_plates:event_treated_plates!event_treated_plates_event_responder_id_fkey(plate_number, model, color, left_where, sort_order)
+    treated_plates:event_treated_plates!event_treated_plates_event_responder_id_fkey(plate_number, model, color, left_where, manufacturer, logo_slug, sort_order)
   )
 `
 
@@ -295,6 +295,8 @@ type EventDetailRaw = Omit<EventDetail, 'treated_plates' | 'responders' | 'share
     model: string | null
     color: string | null
     left_where: string | null
+    manufacturer: string | null
+    logo_slug: string | null
     sort_order: number | null
   }[]
   responders: (Omit<EventResponderDetail, 'treated_plates'> & {
@@ -303,6 +305,8 @@ type EventDetailRaw = Omit<EventDetail, 'treated_plates' | 'responders' | 'share
       model: string | null
       color: string | null
       left_where: string | null
+      manufacturer: string | null
+      logo_slug: string | null
       sort_order: number | null
     }[]
   })[]
@@ -355,13 +359,13 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
     await Promise.all([
       supabase
         .from('event_treated_plates')
-        .select('plate_number, model, color, left_where, sort_order')
+        .select('plate_number, model, color, left_where, manufacturer, logo_slug, sort_order')
         .eq('event_id', eventId)
         .order('sort_order'),
       responderIds.length > 0
         ? supabase
             .from('event_treated_plates')
-            .select('event_responder_id, plate_number, model, color, left_where, sort_order')
+            .select('event_responder_id, plate_number, model, color, left_where, manufacturer, logo_slug, sort_order')
             .in('event_responder_id', responderIds)
             .order('sort_order')
         : Promise.resolve({ data: [] as {
@@ -370,6 +374,8 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
             model: string | null
             color: string | null
             left_where: string | null
+            manufacturer: string | null
+            logo_slug: string | null
             sort_order: number | null
           }[], error: null }),
     ])
@@ -383,6 +389,8 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
     model: string | null
     color: string | null
     left_where: string | null
+    manufacturer: string | null
+    logo_slug: string | null
     sort_order: number | null
   }
   const byResponder = new Map<string, ResponderPlateRow[]>()

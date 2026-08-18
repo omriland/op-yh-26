@@ -1,11 +1,18 @@
 import { useId, type KeyboardEvent } from 'react'
-import { X } from 'lucide-react'
+import { TriangleAlert, X } from 'lucide-react'
 import { Button, IconButton } from '../ui/Button'
+import { HoverTip } from '../ui/HoverTip'
 import { LicensePlate } from '../ui/LicensePlate'
+import { Skeleton } from '../ui/Skeleton'
 import { TextField } from '../ui/TextField'
+import { CarLogo } from './CarLogo'
 import { TreatedPlateStack } from './TreatedPlateStack'
 import { digitsOnly, plateDigits } from '../../lib/format'
-import { treatedPlateCaption, type TreatedPlate } from '../../lib/treatedPlates'
+import {
+  TREATED_PLATE_DETAILS_MISS_TIP,
+  treatedPlateCaption,
+  type TreatedPlate,
+} from '../../lib/treatedPlates'
 
 type TreatedPlatesFieldProps = {
   plates: TreatedPlate[]
@@ -16,6 +23,46 @@ type TreatedPlatesFieldProps = {
   onCommit: () => void
   onRemove: (plateDigitsKey: string) => void
   onLeftWhereChange: (plateDigitsKey: string, value: string) => void
+}
+
+function TreatedPlateDetails({ row }: { row: TreatedPlate }) {
+  if (row.details_status === 'pending') {
+    return (
+      <span className="treated-plates__details treated-plates__details--pending" aria-busy="true">
+        <span className="visually-hidden">טוען פרטי רכב</span>
+        <Skeleton height={28} width="28px" />
+        <Skeleton height={16} width="8rem" />
+      </span>
+    )
+  }
+
+  if (row.details_status === 'failed') {
+    return (
+      <span className="treated-plates__details treated-plates__details--failed">
+        <HoverTip text={TREATED_PLATE_DETAILS_MISS_TIP} mode="always" theme="field">
+          <span
+            className="treated-plates__miss"
+            role="img"
+            aria-label={TREATED_PLATE_DETAILS_MISS_TIP}
+          >
+            <TriangleAlert size={18} strokeWidth={1.75} aria-hidden="true" />
+          </span>
+        </HoverTip>
+      </span>
+    )
+  }
+
+  const caption = treatedPlateCaption(row.model, row.color)
+  if (!row.logo_slug && !caption) return null
+
+  return (
+    <span className="treated-plates__details">
+      <CarLogo slug={row.logo_slug} />
+      {caption ? (
+        <span className="treated-plates__caption t-body text-secondary">{caption}</span>
+      ) : null}
+    </span>
+  )
 }
 
 export function TreatedPlatesField({
@@ -52,15 +99,10 @@ export function TreatedPlatesField({
         <ul className="treated-plates" aria-label="מספרי כלי רכב שנוספו">
           {plates.map((row) => {
             const key = plateDigits(row.plate_number)
-            const caption = treatedPlateCaption(row.model, row.color)
             return (
               <li key={key} className="treated-plates__item">
                 <LicensePlate plate={row.plate_number} />
-                {caption ? (
-                  <span className="treated-plates__caption t-body text-secondary">
-                    {caption}
-                  </span>
-                ) : null}
+                <TreatedPlateDetails row={row} />
                 <div className="treated-plates__actions">
                   <input
                     className="field__input treated-plates__left-where"

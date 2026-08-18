@@ -864,9 +864,40 @@ textarea.field__input {
   min-height: 44px;
 }
 
+.car-logo {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  display: block;
+}
+
 .treated-plates__caption {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.treated-plates__details {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.treated-plates__details--pending {
+  gap: var(--space-2);
+}
+
+.treated-plates__miss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--status-alert);
+  cursor: default;
 }
 
 .treated-plates__actions {
@@ -914,7 +945,7 @@ textarea.field__input {
 .treated-plates__compose {
   display: flex;
   flex-direction: row;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--space-2);
 }
 
@@ -925,7 +956,9 @@ textarea.field__input {
 
 .treated-plates__add {
   flex: 0 0 auto;
-  align-self: flex-end;
+  /* Keep button level with the input (label 18px + space-1), not the error line. */
+  margin-block-start: calc(18px + var(--space-1));
+  align-self: flex-start;
   box-sizing: border-box;
   width: auto;
   min-width: 96px;
@@ -1749,6 +1782,89 @@ textarea.field__input {
 
 .security-badge__link:active {
   color: var(--text-primary);
+}
+
+.android-download {
+  max-width: 36rem;
+  margin-inline: auto;
+  padding-block: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.android-download__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.android-download__panel {
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md, 8px);
+}
+
+.android-download__steps {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.android-download a.btn,
+.login__android-actions a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  text-decoration: none;
+}
+
+.login__android {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-block-end: var(--space-3);
+  background: var(--surface-sunken, var(--surface-raised));
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md, 8px);
+}
+
+.login__android-actions {
+  margin-block-start: var(--space-1);
+}
+
+.login__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding-block: var(--space-4) var(--space-2);
+}
+
+.login__footer-sep {
+  width: 1px;
+  height: 14px;
+  background: color-mix(in srgb, var(--text-on-command, #c3cedc) 35%, transparent);
+}
+
+.login__footer-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary, #c3cedc);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  min-height: 44px;
+  padding-inline: var(--space-2);
 }
 
 .privacy {

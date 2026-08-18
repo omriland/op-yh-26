@@ -19,7 +19,14 @@ describe('shiftBornEventFillRowsFrom', () => {
           { vehicle_kind_id: 'kind-2', quantity: 0 },
         ],
         treated_plates: [
-          { plate_number: '12-345-67', model: 'REXTON', color: 'שחור', left_where: 'שוליים' },
+          {
+            plate_number: '12-345-67',
+            model: 'REXTON',
+            color: 'שחור',
+            left_where: 'שוליים',
+            manufacturer: 'סאנגיונג ד.קור',
+            logo_slug: 'ssangyong',
+          },
         ],
       },
       {
@@ -50,7 +57,15 @@ describe('shiftBornEventFillRowsFrom', () => {
           location: 'צומת',
           treated: [{ vehicle_kind_id: 'kind-1', quantity: 2 }],
           treated_plates: [
-            { plate_number: '12-345-67', model: 'REXTON', color: 'שחור', left_where: 'שוליים' },
+            {
+              plate_number: '12-345-67',
+              model: 'REXTON',
+              color: 'שחור',
+              left_where: 'שוליים',
+              manufacturer: 'סאנגיונג ד.קור',
+              logo_slug: 'ssangyong',
+              details_status: 'ready',
+            },
           ],
         },
       },

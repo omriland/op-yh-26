@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { AlertCircle, KeyRound } from 'lucide-react'
+import { AlertCircle, Download, KeyRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { monoClass } from '../lib/format'
 import { passwordStrengthError } from '../lib/passwordRules'
@@ -9,19 +9,31 @@ import { Button } from '../components/ui/Button'
 import { StampChip } from '../components/ui/StampChip'
 import { PasswordField, TextField } from '../components/ui/TextField'
 import { captureEvent } from '../lib/posthog'
+import {
+  ANDROID_APK_PATH,
+  ANDROID_FOOTER_LINK,
+  isAndroidMobile,
+} from '../lib/androidDownload'
+import { PRIVACY_FOOTER_LINK } from '../lib/privacyPolicy'
 
 type Mode = 'signin' | 'reset' | 'reset-sent' | 'set-password' | 'password-set'
 
 type LoginPageProps = {
   /** Force set-password UI (invite / recovery redirect). */
   forceSetPassword?: boolean
+  onOpenAndroid?: () => void
+  onOpenPrivacy?: () => void
 }
 
 const PLATFORM_NAME = 'אבן דרך'
 const UNIT_LINE_1 = 'היחידה הארצית'
 const UNIT_LINE_2 = 'לפינוי צירים'
 
-export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
+export function LoginPage({
+  forceSetPassword = false,
+  onOpenAndroid,
+  onOpenPrivacy,
+}: LoginPageProps) {
   const {
     signIn,
     requestPasswordReset,
@@ -40,6 +52,8 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const showAndroidCta =
+    typeof navigator !== 'undefined' && isAndroidMobile(navigator.userAgent)
 
   // App may remount props without remounting state (same <LoginPage /> type).
   useEffect(() => {
@@ -153,6 +167,32 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
           className={['login__card', isSetupFlow ? 'login__card--setup' : ''].join(' ')}
           data-theme="field"
         >
+          {showAndroidCta && mode === 'signin' ? (
+            <div className="login__android" role="region" aria-label="הורדת אפליקציה">
+              <p className="t-body-strong">יש אפליקציה לאנדרואיד</p>
+              <p className="t-caption text-secondary">
+                מומלץ להתקין את אבן דרך ולהשתמש באפליקציה במקום בדפדפן.
+              </p>
+              <div className="login__android-actions">
+                {onOpenAndroid ? (
+                  <Button
+                    type="button"
+                    block
+                    icon={<Download size={20} strokeWidth={1.75} aria-hidden="true" />}
+                    onClick={onOpenAndroid}
+                  >
+                    הורדת האפליקציה
+                  </Button>
+                ) : (
+                  <a className="btn btn--primary btn--block" href={ANDROID_APK_PATH} download>
+                    <Download size={20} strokeWidth={1.75} aria-hidden="true" />
+                    הורדת האפליקציה
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           {mode === 'signin' ? (
             <form
               className="login__form"
@@ -385,6 +425,26 @@ export function LoginPage({ forceSetPassword = false }: LoginPageProps) {
             </div>
           ) : null}
         </div>
+
+        <footer className="login__footer">
+          {onOpenAndroid ? (
+            <button type="button" className="login__footer-link" onClick={onOpenAndroid}>
+              {ANDROID_FOOTER_LINK.label}
+            </button>
+          ) : (
+            <a className="login__footer-link" href={ANDROID_FOOTER_LINK.href}>
+              {ANDROID_FOOTER_LINK.label}
+            </a>
+          )}
+          {onOpenPrivacy ? (
+            <>
+              <span className="login__footer-sep" aria-hidden="true" />
+              <button type="button" className="login__footer-link" onClick={onOpenPrivacy}>
+                {PRIVACY_FOOTER_LINK.label}
+              </button>
+            </>
+          ) : null}
+        </footer>
       </div>
     </div>
   )

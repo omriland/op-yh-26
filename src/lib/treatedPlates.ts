@@ -1,4 +1,7 @@
 import { formatPlate, plateDigits } from './format'
+import { resolveCarLogoSlug } from './carLogoMap'
+
+export type TreatedPlateDetailsStatus = 'pending' | 'ready' | 'failed'
 
 export type TreatedPlate = {
   plate_number: string
@@ -6,11 +9,18 @@ export type TreatedPlate = {
   color: string | null
   /** Where the vehicle was left — optional short note. */
   left_where: string | null
+  /** Raw registry manufacturer (`tozeret_nm`). */
+  manufacturer: string | null
+  /** Car-logos-dataset slug when mapped. */
+  logo_slug: string | null
+  /** Client-only: registry lookup progress after commit. Not persisted. */
+  details_status: TreatedPlateDetailsStatus
 }
 
 export const TREATED_PLATE_LENGTH_ERROR = 'יש להזין 7 או 8 ספרות.'
 export const TREATED_PLATE_DUPLICATE_ERROR = 'מספר זה כבר נוסף.'
 export const TREATED_PLATE_LEFTOVER_ERROR = 'השלימו או מחקו את המספר בתחתית.'
+export const TREATED_PLATE_DETAILS_MISS_TIP = 'לא הצלחנו לייבא את פרטי הרכב'
 
 export function treatedPlateCaption(
   model: string | null,
@@ -37,6 +47,20 @@ export function treatedPlateMeta(plate: {
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
+export function emptyTreatedPlateFields(): Pick<
+  TreatedPlate,
+  'model' | 'color' | 'left_where' | 'manufacturer' | 'logo_slug' | 'details_status'
+> {
+  return {
+    model: null,
+    color: null,
+    left_where: null,
+    manufacturer: null,
+    logo_slug: null,
+    details_status: 'pending',
+  }
+}
+
 export function commitTreatedPlate(
   pending: string,
   plates: readonly TreatedPlate[],
@@ -50,9 +74,7 @@ export function commitTreatedPlate(
   }
   const plate: TreatedPlate = {
     plate_number: formatPlate(digits),
-    model: null,
-    color: null,
-    left_where: null,
+    ...emptyTreatedPlateFields(),
   }
   return { ok: true, plate, plates: [...plates, plate] }
 }
@@ -87,6 +109,41 @@ export function setTreatedPlateLeftWhere(
   )
 }
 
+export function applyTreatedPlateLookup(
+  plates: readonly TreatedPlate[],
+  plateDigitsKey: string,
+  hit: {
+    model: string | null
+    color: string | null
+    manufacturer: string | null
+  },
+): TreatedPlate[] {
+  const key = plateDigits(plateDigitsKey)
+  const manufacturer = hit.manufacturer?.trim() || null
+  return plates.map((row) =>
+    plateDigits(row.plate_number) === key
+      ? {
+          ...row,
+          model: hit.model,
+          color: hit.color,
+          manufacturer,
+          logo_slug: resolveCarLogoSlug(manufacturer),
+          details_status: 'ready',
+        }
+      : row,
+  )
+}
+
+export function failTreatedPlateLookup(
+  plates: readonly TreatedPlate[],
+  plateDigitsKey: string,
+): TreatedPlate[] {
+  const key = plateDigits(plateDigitsKey)
+  return plates.map((row) =>
+    plateDigits(row.plate_number) === key ? { ...row, details_status: 'failed' } : row,
+  )
+}
+
 /** Map DB rows (optional sort_order) into TreatedPlate[], ordered. */
 export function mapTreatedPlateRows(
   rows: ReadonlyArray<{
@@ -94,6 +151,8 @@ export function mapTreatedPlateRows(
     model?: string | null
     color?: string | null
     left_where?: string | null
+    manufacturer?: string | null
+    logo_slug?: string | null
     sort_order?: number | null
   }> | null | undefined,
 ): TreatedPlate[] {
@@ -103,12 +162,17 @@ export function mapTreatedPlateRows(
       const plate_number = row.plate_number?.trim()
       if (!plate_number) return []
       const left = row.left_where?.trim() || null
+      const manufacturer = row.manufacturer?.trim() || null
+      const storedSlug = row.logo_slug?.trim() || null
       return [
         {
           plate_number,
           model: row.model ?? null,
           color: row.color ?? null,
           left_where: left,
+          manufacturer,
+          logo_slug: storedSlug || resolveCarLogoSlug(manufacturer),
+          details_status: 'ready' as const,
         },
       ]
     })

@@ -22,7 +22,9 @@ import {
 } from '../lib/format'
 import { lookupPlate } from '../lib/plateLookup'
 import {
+  applyTreatedPlateLookup,
   commitTreatedPlate,
+  failTreatedPlateLookup,
   removeTreatedPlate,
   setTreatedPlateLeftWhere,
 } from '../lib/treatedPlates'
@@ -147,17 +149,14 @@ export function ResponderFillPage({
   function enqueuePlateLookup(plateNumber: string) {
     plateLookupTail.current = plateLookupTail.current.then(async () => {
       const hit = await lookupPlate(plateNumber)
-      if (!hit) return
       const key = plateDigits(plateNumber)
       setDraft((current) => {
         if (!current) return current
         return {
           ...current,
-          treated_plates: current.treated_plates.map((row) =>
-            plateDigits(row.plate_number) === key
-              ? { ...row, model: hit.model, color: hit.color }
-              : row,
-          ),
+          treated_plates: hit
+            ? applyTreatedPlateLookup(current.treated_plates, key, hit)
+            : failTreatedPlateLookup(current.treated_plates, key),
         }
       })
     })

@@ -1,4 +1,5 @@
 import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
+import { ANDROID_FOOTER_LINK } from '../../lib/androidDownload'
 import { SNYK_SECURITY_BADGE } from '../../lib/securityBadge'
 
 /** Snyk dog mark (Simple Icons path) — fill via currentColor for both themes. */
@@ -20,7 +21,13 @@ function SnykLogo() {
   )
 }
 
-export function SnykBadge({ onOpenPrivacy }: { onOpenPrivacy: () => void }) {
+export function SnykBadge({
+  onOpenPrivacy,
+  onOpenAndroid,
+}: {
+  onOpenPrivacy: () => void
+  onOpenAndroid?: () => void
+}) {
   return (
     <footer className="security-badge">
       <a
@@ -37,6 +44,14 @@ export function SnykBadge({ onOpenPrivacy }: { onOpenPrivacy: () => void }) {
       <button type="button" className="security-badge__link" onClick={onOpenPrivacy}>
         {PRIVACY_FOOTER_LINK.label}
       </button>
+      {onOpenAndroid ? (
+        <>
+          <span className="security-badge__sep" aria-hidden="true" />
+          <button type="button" className="security-badge__link" onClick={onOpenAndroid}>
+            {ANDROID_FOOTER_LINK.label}
+          </button>
+        </>
+      ) : null}
     </footer>
   )
 }
