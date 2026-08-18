@@ -119,4 +119,37 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
     )
     expect(errors.odometer_end).toBe('מד אוץ סיום חייב להיות גדול ממד אוץ התחלה')
   })
+
+  it('complete mode errors when the open plate field has leftover digits', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+        treated_plate_pending: '12',
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(errors.treated_plates).toBe('השלימו או מחקו את המספר בתחתית.')
+  })
+
+  it('complete mode allows zero treated plates', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(errors.treated_plates).toBeUndefined()
+  })
 })

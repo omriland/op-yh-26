@@ -1,6 +1,7 @@
 import { plateDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
+import { leftoverTreatedPlateError, type TreatedPlate } from './treatedPlates'
 
 export { plateDigits }
 
@@ -11,6 +12,8 @@ export type ResponderFillDraft = {
   route: string
   treatment_detail: string
   treatment_notes: string
+  treated_plates: TreatedPlate[]
+  treated_plate_pending: string
 }
 
 export type ResponderFillErrors = Partial<
@@ -20,6 +23,7 @@ export type ResponderFillErrors = Partial<
     | 'odometer_end'
     | 'route'
     | 'treatment_detail'
+    | 'treated_plates'
     | 'form',
     string
   >
@@ -69,6 +73,8 @@ export function emptyResponderFillDraft(): ResponderFillDraft {
     route: '',
     treatment_detail: '',
     treatment_notes: '',
+    treated_plates: [],
+    treated_plate_pending: '',
   }
 }
 
@@ -111,6 +117,8 @@ export function validateResponderFillDraft(
     }
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
+    const leftover = leftoverTreatedPlateError(draft.treated_plate_pending, mode)
+    if (leftover) errors.treated_plates = leftover
   }
 
   // Live + submit: start must be strictly lower than end once both are numbers.
@@ -249,6 +257,8 @@ export async function fetchResponderFillContext(
       route: mine.route ?? '',
       treatment_detail: mine.treatment_detail ?? '',
       treatment_notes: mine.treatment_notes ?? '',
+      treated_plates: [],
+      treated_plate_pending: '',
     },
   }
 }
