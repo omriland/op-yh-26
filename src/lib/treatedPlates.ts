@@ -57,3 +57,27 @@ export function removeTreatedPlate(
   const key = plateDigits(plateDigitsKey)
   return plates.filter((row) => plateDigits(row.plate_number) !== key)
 }
+
+/** Map DB rows (optional sort_order) into TreatedPlate[], ordered. */
+export function mapTreatedPlateRows(
+  rows: ReadonlyArray<{
+    plate_number?: string | null
+    model?: string | null
+    color?: string | null
+    sort_order?: number | null
+  }> | null | undefined,
+): TreatedPlate[] {
+  return [...(rows ?? [])]
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .flatMap((row) => {
+      const plate_number = row.plate_number?.trim()
+      if (!plate_number) return []
+      return [
+        {
+          plate_number,
+          model: row.model ?? null,
+          color: row.color ?? null,
+        },
+      ]
+    })
+}

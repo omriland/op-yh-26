@@ -9,11 +9,13 @@ import {
   type ShiftVehicleType,
 } from './shifts'
 import { formatDate, formatPlate } from './format'
+import { mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
 
 export type EventResponderSummary = {
   id: string
   responder_id: string
   status: ParticipationStatus
+  fill_completable_at?: string | null
   profile: { full_name: string; callsign: string } | null
 }
 
@@ -74,6 +76,7 @@ export const EVENT_LIST_SELECT = `
     id,
     responder_id,
     status,
+    fill_completable_at,
     profile:profiles(full_name, callsign)
   )
 `
@@ -191,6 +194,7 @@ export type EventResponderDetail = {
   status: ParticipationStatus
   profile: { full_name: string; callsign: string } | null
   treated: { quantity: number; kind: { name: string } | null }[]
+  treated_plates: TreatedPlate[]
 }
 
 export type EventDetail = Omit<EventListItem, 'responders'> & {
@@ -200,9 +204,53 @@ export type EventDetail = Omit<EventListItem, 'responders'> & {
   location_lng: number | null
   updated_at: string
   responders: EventResponderDetail[]
+  /** Event-keyed plates (shift-born). Alias from PostgREST `shared_plates`. */
+  treated_plates: TreatedPlate[]
+  shared_plates?: TreatedPlate[]
 }
 
 const EVENT_DETAIL_SELECT = `
+  id,
+  event_date,
+  police_event_id,
+  patrol_callsign,
+  location,
+  road_id,
+  location_lat,
+  location_lng,
+  notes,
+  status,
+  is_cancelled,
+  origin,
+  shift_id,
+  treatment_detail,
+  treatment_notes,
+  emergency_means,
+  updated_at,
+  district:districts(name),
+  event_type:event_types(name),
+  road:roads(name),
+  shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+  last_saved:profiles!events_last_saved_by_fkey(full_name),
+  shift:shifts!events_shift_id_fkey(
+    shift_date,
+    shift_kind,
+    vehicle_type,
+    personal_vehicle:vehicles!shifts_personal_vehicle_id_fkey(plate_number)
+  ),
+  shared_treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id),
+  shared_plates:event_treated_plates!event_treated_plates_event_id_fkey(plate_number, model, color, sort_order),
+  responders:event_responders(
+    id, responder_id, started_at, ended_at, vehicle_plate, total_km,
+    odometer_start, odometer_end, route, treatment_detail, emergency_means,
+    treatment_notes, status,
+    profile:profiles(full_name, callsign),
+    treated:event_treated_vehicles(quantity, kind:vehicle_kinds(name)),
+    treated_plates:event_treated_plates!event_treated_plates_event_responder_id_fkey(plate_number, model, color, sort_order)
+  )
+`
+
+const EVENT_DETAIL_SELECT_NO_PLATES = `
   id,
   event_date,
   police_event_id,
@@ -241,6 +289,36 @@ const EVENT_DETAIL_SELECT = `
   )
 `
 
+type EventDetailRaw = Omit<EventDetail, 'treated_plates' | 'responders' | 'shared_plates'> & {
+  shared_plates?: {
+    plate_number: string | null
+    model: string | null
+    color: string | null
+    sort_order: number | null
+  }[]
+  responders: (Omit<EventResponderDetail, 'treated_plates'> & {
+    treated_plates?: {
+      plate_number: string | null
+      model: string | null
+      color: string | null
+      sort_order: number | null
+    }[]
+  })[]
+}
+
+function normalizeEventDetail(raw: EventDetailRaw): EventDetail {
+  const treated_plates = mapTreatedPlateRows(raw.shared_plates)
+  return {
+    ...raw,
+    treated_plates,
+    shared_plates: treated_plates,
+    responders: (raw.responders ?? []).map((responder) => ({
+      ...responder,
+      treated_plates: mapTreatedPlateRows(responder.treated_plates),
+    })),
+  }
+}
+
 export async function fetchEventDetail(eventId: string): Promise<EventDetail | null> {
   const { data, error } = await supabase
     .from('events')
@@ -248,8 +326,77 @@ export async function fetchEventDetail(eventId: string): Promise<EventDetail | n
     .eq('id', eventId)
     .maybeSingle()
 
+  if (error) {
+    if (/event_treated_plates|could not find|relationship/i.test(error.message)) {
+      return fetchEventDetailWithPlateQueries(eventId)
+    }
+    throw new Error(error.message)
+  }
+  if (!data) return null
+  return normalizeEventDetail(data as unknown as EventDetailRaw)
+}
+
+async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventDetail | null> {
+  const { data, error } = await supabase
+    .from('events')
+    .select(EVENT_DETAIL_SELECT_NO_PLATES)
+    .eq('id', eventId)
+    .maybeSingle()
+
   if (error) throw new Error(error.message)
-  return (data as unknown as EventDetail) ?? null
+  if (!data) return null
+
+  const base = data as unknown as EventDetailRaw
+  const responderIds = (base.responders ?? []).map((row) => row.id)
+
+  const [{ data: sharedRows, error: sharedError }, { data: responderRows, error: responderError }] =
+    await Promise.all([
+      supabase
+        .from('event_treated_plates')
+        .select('plate_number, model, color, sort_order')
+        .eq('event_id', eventId)
+        .order('sort_order'),
+      responderIds.length > 0
+        ? supabase
+            .from('event_treated_plates')
+            .select('event_responder_id, plate_number, model, color, sort_order')
+            .in('event_responder_id', responderIds)
+            .order('sort_order')
+        : Promise.resolve({ data: [] as {
+            event_responder_id: string
+            plate_number: string | null
+            model: string | null
+            color: string | null
+            sort_order: number | null
+          }[], error: null }),
+    ])
+
+  if (sharedError) throw new Error(sharedError.message)
+  if (responderError) throw new Error(responderError.message)
+
+  type ResponderPlateRow = {
+    event_responder_id: string
+    plate_number: string | null
+    model: string | null
+    color: string | null
+    sort_order: number | null
+  }
+  const byResponder = new Map<string, ResponderPlateRow[]>()
+  for (const row of (responderRows ?? []) as ResponderPlateRow[]) {
+    const key = row.event_responder_id
+    const list = byResponder.get(key) ?? []
+    list.push(row)
+    byResponder.set(key, list)
+  }
+
+  return normalizeEventDetail({
+    ...base,
+    shared_plates: sharedRows ?? [],
+    responders: (base.responders ?? []).map((responder) => ({
+      ...responder,
+      treated_plates: byResponder.get(responder.id) ?? [],
+    })),
+  })
 }
 
 /** Hard-delete. RLS: admin, or shift-lead on a recent event with no responders. Cascades children. */
@@ -274,6 +421,14 @@ export function ownParticipation(
 ): ParticipationStatus | null {
   if (!userId) return null
   return event.responders.find((row) => row.responder_id === userId)?.status ?? null
+}
+
+export function ownFillCompletableAt(
+  event: EventListItem,
+  userId: string | undefined,
+): string | null {
+  if (!userId) return null
+  return event.responders.find((row) => row.responder_id === userId)?.fill_completable_at ?? null
 }
 
 export function doneFraction(event: EventListItem): string {

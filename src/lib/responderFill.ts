@@ -1,7 +1,7 @@
 import { plateDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
-import { leftoverTreatedPlateError, type TreatedPlate } from './treatedPlates'
+import { leftoverTreatedPlateError, mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
 
 export { plateDigits }
 
@@ -45,7 +45,7 @@ export type ResponderFillContext = {
   road_name: string | null
   location: string | null
   shift_lead_name: string | null
-  /** Lead km for complete-gate only; never shown on fill UI. */
+  /** Lead km (hidden on fill UI); kept for context parity with native apps. */
   totalKm: number | null
   participationStatus: ParticipationStatus
   updated_at: string | null
@@ -109,12 +109,7 @@ export function validateResponderFillDraft(
       errors.vehicle_plate = 'לא מקושר רכב למשתמש. פנו למנהל המערכת.'
     }
     if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא מד אוץ התחלה.'
-    if (totalKm == null) {
-      errors.odometer_end =
-        'האחמ״ש טרם הזין קילומטרים לאירוע. לא ניתן לסיים את הדיווח.'
-    } else if (end == null || end === 'invalid') {
-      errors.odometer_end = 'יש למלא מד אוץ סיום.'
-    }
+    if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא מד אוץ סיום.'
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
     const leftover = leftoverTreatedPlateError(draft.treated_plate_pending, mode)
@@ -122,7 +117,6 @@ export function validateResponderFillDraft(
   }
 
   // Live + submit: start must be strictly lower than end once both are numbers.
-  // Missing-totalKm complete error takes precedence over the range message.
   if (
     !errors.odometer_end &&
     typeof start === 'number' &&
@@ -148,6 +142,82 @@ export function odometerRangeError(
 }
 
 export async function fetchResponderFillContext(
+  eventId: string,
+  userId: string,
+): Promise<ResponderFillContext | null> {
+  const [{ data: event, error: eventError }, { data: vehicles, error: vehiclesError }] =
+    await Promise.all([
+      supabase
+        .from('events')
+        .select(
+          `
+          id, status, event_date, police_event_id, location, is_cancelled,
+          event_type:event_types(name),
+          road:roads(name),
+          shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+          responders:event_responders(
+            id, responder_id, vehicle_plate, odometer_start, odometer_end,
+            total_km, route, treatment_detail, treatment_notes, status, updated_at,
+            treated_plates:event_treated_plates(plate_number, model, color, sort_order)
+          )
+        `,
+        )
+        .eq('id', eventId)
+        .maybeSingle(),
+      supabase
+        .from('vehicles')
+        .select('plate_number, model, archived')
+        .eq('user_id', userId),
+    ])
+
+  if (eventError) {
+    // Nested embed can fail if PostgREST cannot resolve the FK — fall back once.
+    if (/event_treated_plates|could not find|relationship/i.test(eventError.message)) {
+      return fetchResponderFillContextWithPlateQuery(eventId, userId)
+    }
+    throw new Error(eventError.message)
+  }
+  if (vehiclesError) throw new Error(vehiclesError.message)
+  if (!event) return null
+
+  const row = event as unknown as {
+    id: string
+    status: EventStatus
+    event_date: string
+    police_event_id: string | null
+    location: string | null
+    is_cancelled: boolean
+    event_type: { name: string } | null
+    road: { name: string } | null
+    shift_lead: { full_name: string; callsign: string } | null
+    responders: {
+      id: string
+      responder_id: string
+      vehicle_plate: string | null
+      odometer_start: number | null
+      odometer_end: number | null
+      total_km: number | null
+      route: string | null
+      treatment_detail: string | null
+      treatment_notes: string | null
+      status: ParticipationStatus
+      updated_at: string | null
+      treated_plates?: {
+        plate_number: string | null
+        model: string | null
+        color: string | null
+        sort_order: number | null
+      }[]
+    }[]
+  }
+
+  const mine = (row.responders ?? []).find((responder) => responder.responder_id === userId)
+  if (!mine) return null
+
+  return buildResponderFillContext(row, mine, vehicles ?? [], mapTreatedPlateRows(mine.treated_plates))
+}
+
+async function fetchResponderFillContextWithPlateQuery(
   eventId: string,
   userId: string,
 ): Promise<ResponderFillContext | null> {
@@ -207,6 +277,44 @@ export async function fetchResponderFillContext(
   const mine = (row.responders ?? []).find((responder) => responder.responder_id === userId)
   if (!mine) return null
 
+  const { data: plates, error: platesError } = await supabase
+    .from('event_treated_plates')
+    .select('plate_number, model, color, sort_order')
+    .eq('event_responder_id', mine.id)
+    .order('sort_order')
+
+  if (platesError) throw new Error(platesError.message)
+
+  return buildResponderFillContext(row, mine, vehicles ?? [], mapTreatedPlateRows(plates))
+}
+
+function buildResponderFillContext(
+  row: {
+    id: string
+    status: EventStatus
+    event_date: string
+    police_event_id: string | null
+    location: string | null
+    is_cancelled: boolean
+    event_type: { name: string } | null
+    road: { name: string } | null
+    shift_lead: { full_name: string; callsign: string } | null
+  },
+  mine: {
+    id: string
+    vehicle_plate: string | null
+    odometer_start: number | null
+    odometer_end: number | null
+    total_km: number | null
+    route: string | null
+    treatment_detail: string | null
+    treatment_notes: string | null
+    status: ParticipationStatus
+    updated_at: string | null
+  },
+  vehicles: { plate_number?: string | null; model?: string | null; archived?: boolean | null }[],
+  treatedPlates: TreatedPlate[],
+): ResponderFillContext {
   const existingPlate = mine.vehicle_plate ? plateDigits(mine.vehicle_plate) : ''
   const totalKm = mine.total_km
   const odometerStart =
@@ -215,7 +323,7 @@ export async function fetchResponderFillContext(
     mine.odometer_end != null ? String(mine.odometer_end) : ''
 
   // Active vehicles only for new assignment; keep a currently saved plate even if archived.
-  const vehicleOptions: ResponderVehicleOption[] = (vehicles ?? [])
+  const vehicleOptions: ResponderVehicleOption[] = vehicles
     .map((vehicle) => ({
       plate: plateDigits(String(vehicle.plate_number ?? '')),
       model: String(vehicle.model ?? '').trim(),
@@ -257,7 +365,7 @@ export async function fetchResponderFillContext(
       route: mine.route ?? '',
       treatment_detail: mine.treatment_detail ?? '',
       treatment_notes: mine.treatment_notes ?? '',
-      treated_plates: [],
+      treated_plates: treatedPlates,
       treated_plate_pending: '',
     },
   }
@@ -349,6 +457,26 @@ async function saveParticipation(input: {
       ok: false,
       error: 'לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.',
     }
+  }
+
+  const { error: deletePlatesError } = await supabase
+    .from('event_treated_plates')
+    .delete()
+    .eq('event_responder_id', input.assignmentId)
+  if (deletePlatesError) {
+    return { ok: false, error: 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.' }
+  }
+  if (input.draft.treated_plates.length > 0) {
+    const { error: plateError } = await supabase.from('event_treated_plates').insert(
+      input.draft.treated_plates.map((row, index) => ({
+        event_responder_id: input.assignmentId,
+        plate_number: row.plate_number,
+        model: row.model,
+        color: row.color,
+        sort_order: index,
+      })),
+    )
+    if (plateError) return { ok: false, error: 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.' }
   }
 
   const eventStatus = await refreshEventStatus(input.eventId)

@@ -3,6 +3,7 @@ import { fetchEventDetail, type EventDetail } from './events'
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import type { EventStatus } from './status'
 import { supabase } from './supabase'
+import { mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
 
 export type ShiftBornFillDraft = {
   police_event_id: string
@@ -11,6 +12,7 @@ export type ShiftBornFillDraft = {
   road_id: string
   location: string
   treated: { vehicle_kind_id: string; quantity: number }[]
+  treated_plates: TreatedPlate[]
 }
 
 export type ShiftBornFillContext = {
@@ -29,6 +31,7 @@ export function emptyShiftBornFillDraft(): ShiftBornFillDraft {
     road_id: '',
     location: '',
     treated: [],
+    treated_plates: [],
   }
 }
 
@@ -52,6 +55,12 @@ export function shiftBornEventFillRowsFrom(
     updated_at?: string | null
     event_type: { name: string } | null
     treated: ReadonlyArray<{ vehicle_kind_id?: string | null; quantity?: number | null }>
+    treated_plates?: ReadonlyArray<{
+      plate_number?: string | null
+      model?: string | null
+      color?: string | null
+      sort_order?: number | null
+    }>
   }>,
 ): ShiftBornEventFillRow[] {
   return events.flatMap((event) => {
@@ -72,6 +81,7 @@ export function shiftBornEventFillRowsFrom(
             if (!row.vehicle_kind_id || !row.quantity || row.quantity <= 0) return []
             return [{ vehicle_kind_id: row.vehicle_kind_id, quantity: row.quantity }]
           }),
+          treated_plates: mapTreatedPlateRows(event.treated_plates),
         },
       },
     ]
@@ -84,12 +94,17 @@ export async function fetchShiftBornFillContext(
   const [event, lookups] = await Promise.all([fetchEventDetail(eventId), fetchEventLookups()])
   if (!event || event.origin !== 'shift') return null
 
-  const { data: treated, error } = await supabase
-    .from('event_treated_vehicles')
-    .select('vehicle_kind_id, quantity')
-    .eq('event_id', eventId)
+  const [{ data: treated, error }, { data: plates, error: platesError }] = await Promise.all([
+    supabase.from('event_treated_vehicles').select('vehicle_kind_id, quantity').eq('event_id', eventId),
+    supabase
+      .from('event_treated_plates')
+      .select('plate_number, model, color, sort_order')
+      .eq('event_id', eventId)
+      .order('sort_order'),
+  ])
 
   if (error) throw new Error(error.message)
+  if (platesError) throw new Error(platesError.message)
 
   return {
     event,
@@ -106,6 +121,7 @@ export async function fetchShiftBornFillContext(
         vehicle_kind_id: row.vehicle_kind_id as string,
         quantity: row.quantity as number,
       })),
+      treated_plates: mapTreatedPlateRows(plates),
     },
   }
 }
@@ -134,6 +150,7 @@ export async function saveShiftBornEventFill(input: {
     p_treatment_notes: input.draft.treatment_notes,
     p_treated: input.draft.treated,
     p_complete: input.complete,
+    p_plates: input.draft.treated_plates,
   })
 
   if (error) {
