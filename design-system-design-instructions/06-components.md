@@ -148,6 +148,10 @@ Header row: `--surface-sunken`, `--type-label` `--text-secondary`, height 40 px.
 
 Desktop: dialog, max-width 480 px (forms 640 px), radius `--radius-md`, elevation 2, backdrop `rgba(10, 18, 30, 0.55)`. Mobile: bottom sheet, full-width, top radius `--radius-md`, drag handle (32×4, `--stroke-strong`, radius-full) centered at top. Title `--type-section`. Footer: actions at inline-end (desktop) / stacked full-width primary-on-top (mobile). Destructive confirmations state the object: `למחוק את האירוע 12345?` with `מחיקה` (destructive) / `ביטול` (secondary).
 
+## Media annex (תיעוד מצולם)
+
+Photographic evidence on an event — not a social gallery. Two bands (`לפני הטיפול` then `במהלך/לאחר הטיפול`). Square thumbs, 3-up, hairline, `--radius-sm`, `object-fit: cover`. Add control `הוספת תמונות` (`image/*`, multiple, no `capture`). Draft card: required `מתי צולמה` select (dotted until chosen) · optional `רכב` · optional `תיאור`. Lightbox = existing Dialog / sheet. Own photo: `עריכה` / `מחיקה`. Delete title `למחוק את התמונה?` body `לא ניתן לשחזר.` Cap 20. Tokens only; Field on fill and detail content.
+
 ## Toast
 
 Position: **top-center mobile** (under the app bar, page gutters `--space-4`, stack centered with flex — never `translateX` centering, which breaks RTL), **bottom-inline-start desktop**. Elevation 2, radius `--radius-md`, padding `--space-3` `--space-4`, max-width 360 px (on phones this reads as a near-full-width banner). Always Command navy chrome (`#2A4168` = Command `--surface-overlay`, text `#F2F6FA`) in both themes + 3px inline-start bar in the Command-theme status color + icon. Motion: enter `translateY(−8px)→0` + opacity (`--duration-base`); exit opacity only. Auto-dismiss 4s (errors 6s, with close button — mobile hit target 44×44). Copy: past-tense confirmation (`האירוע נשמר`).

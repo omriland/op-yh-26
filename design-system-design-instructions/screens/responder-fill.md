@@ -33,6 +33,7 @@ Entry: from the card fill button or from the responder's own card on event detai
 | נתיב נסיעה | text | placeholder `דרך צומת X וכביש Y וכו'` |
 | פירוט הטיפול | textarea | the main narrative field — min-height 120 |
 | מספרי כלי רכב | repeating | Optional. After פירוט הטיפול, before הערות. Compose placeholder `xx-xxx-xx` (7/8 digits) + `הוספה` (same 44px height as input, stays aligned with the input when the field shows an error under it); committed rows = Israeli plate mark + details slot (pending: skeleton; ready: logo + model · color; failed: small alert icon + hover tip `לא הצלחנו לייבא את פרטי הרכב`) + optional short `איפה הרכב הושאר` (`left_where`) before remove; leftover pending digits on `סיום דיווח` → `השלימו או מחקו את המספר בתחתית.` Read-only done: ledger value = `TreatedPlateStack` (empty → `—`). |
+| תיעוד מצולם | media annex | After plates, before הערות. Not required. Images only; required select `מתי צולמה` (`לפני הטיפול` · `במהלך/לאחר הטיפול`); optional plate + caption. Writable for assigned responders after `סיום דיווח`. Absent on the email fill-link. Leftover drafts missing when-taken on complete → `בחרו מתי צולמה כל תמונה.` Cap 20. See `06-components.md` Media annex. |
 | הערות לטיפול | textarea | optional |
 
 Empty required fields show the dotted fill-in line — the blank on the form.
@@ -44,6 +45,6 @@ Empty required fields show the dotted fill-in line — the blank on the form.
 
 ### States
 
-- **Already done:** the flow opens read-only (ledger rows, no inputs) with stamp `הושלם` and caption `הדיווח הושלם ב־09.08.2026, 14:30. רק אחמ״ש יכול לערוך לאחר סיום.` Editing after completion is not available to responders (RLS + UI). Shift-lead/admin correct via `עריכת אירוע` (lead-owned fields).
+- **Already done:** the flow opens read-only (ledger rows, no inputs) with stamp `הושלם` and caption `הדיווח הושלם ב־09.08.2026, 14:30. רק אחמ״ש יכול לערוך לאחר סיום.` Other fill fields stay locked. **תיעוד מצולם** stays writable for the assigned responder (event not cancelled). Shift-lead/admin correct lead-owned fields via `עריכת אירוע`.
 - **Connection failure on save:** error toast + data retained in the form; `סיום דיווח` re-enabled. No silent loss, ever.
 - **The event closed meanwhile** (edge): show info banner `האירוע נסגר. לא ניתן לערוך את הדיווח.` and render read-only.

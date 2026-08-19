@@ -24,6 +24,8 @@ Card with form-section heading `פרטי האירוע` sitting on its rule. Cont
 
 `אחמ״ש` · `תאריך` · `מספר אירוע` (mono) · `שלוחה` · `או״ק ניידת` (mono) · `סוג אירוע` · `כביש` · `מיקום` · `הערות` (notes render full-width below the ledger as a paragraph, `--type-body`, with label above).
 
+**תיעוד מצולם** sits on this event block after notes (crew-wide, including shift-born): two contact-sheet bands `לפני הטיפול` / `במהלך/לאחר הטיפול`, 3-up square thumbs. Empty → `אין תמונות לאירוע זה.` Assigned responders may add after their fill is done; admin / shift-lead view without being assigned. Cancelled events are view-only. Lightbox uses the existing Dialog / sheet.
+
 **Shift-born only:** ledger row `מספרי כלי רכב` on this event block (shared crew list) — vertical stack of Israeli plate marks + optional model · color captions; empty → `—`. Not repeated on כונן cards.
 
 Missing values → `—` muted (per ledger spec). Draft events show the dotted fill-in line on missing required rows for the lead viewing their own draft.

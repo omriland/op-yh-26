@@ -30,6 +30,7 @@ import {
 } from '../lib/treatedPlates'
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
+import { EventMediaGallery } from '../components/events/EventMediaGallery'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
@@ -65,6 +66,7 @@ export function ResponderFillPage({
   const [errors, setErrors] = useState<ResponderFillErrors>({})
   const [savingDraft, setSavingDraft] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
   const plateLookupTail = useRef(Promise.resolve())
 
   useEffect(() => {
@@ -236,6 +238,7 @@ export function ResponderFillPage({
           draft,
           allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
           totalKm: ctx.totalKm,
+          unfinishedMediaDraftCount: unfinishedMediaDrafts,
         })
     setCompleting(false)
     if (!result.ok) {
@@ -376,6 +379,16 @@ export function ResponderFillPage({
                     value={draft.treatment_notes || undefined}
                   />
                 </Ledger>
+                {fillToken ? null : (
+                  <EventMediaGallery
+                    eventId={ctx.eventId}
+                    canWrite={Boolean(user) && !ctx.is_cancelled}
+                    showEmptyCopy={false}
+                    viewerId={user?.id ?? null}
+                    error={errors.event_media}
+                    onUnfinishedChange={setUnfinishedMediaDrafts}
+                  />
+                )}
               </>
             ) : (
               <>
@@ -458,6 +471,16 @@ export function ResponderFillPage({
                   onRemove={onRemoveTreatedPlate}
                   onLeftWhereChange={onLeftWhereChange}
                 />
+                {fillToken ? null : (
+                  <EventMediaGallery
+                    eventId={ctx.eventId}
+                    canWrite={Boolean(user) && !ctx.is_cancelled}
+                    showEmptyCopy={false}
+                    viewerId={user?.id ?? null}
+                    error={errors.event_media}
+                    onUnfinishedChange={setUnfinishedMediaDrafts}
+                  />
+                )}
                 <TextAreaField
                   label="הערות לטיפול"
                   value={draft.treatment_notes}

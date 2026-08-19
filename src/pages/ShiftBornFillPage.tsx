@@ -19,6 +19,8 @@ import {
   setTreatedPlateLeftWhere,
 } from '../lib/treatedPlates'
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
+import { EventMediaGallery } from '../components/events/EventMediaGallery'
+import { leftoverEventMediaError } from '../lib/eventMedia'
 import { Button } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -39,7 +41,7 @@ type ShiftBornFillPageProps = {
 }
 
 export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFillPageProps) {
-  const { roles } = useAuth()
+  const { user, roles } = useAuth()
   const { show } = useToast()
   const canManage = roles.includes('admin') || roles.includes('shift_lead')
   const [ctx, setCtx] = useState<ShiftBornFillContext | null>(null)
@@ -50,6 +52,8 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [completing, setCompleting] = useState(false)
   const [platePending, setPlatePending] = useState('')
   const [plateError, setPlateError] = useState<string | undefined>()
+  const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
+  const [mediaError, setMediaError] = useState<string | undefined>()
   const plateLookupTail = useRef(Promise.resolve())
 
   useEffect(() => {
@@ -81,6 +85,10 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const dateOk = shiftDate ? canEditShiftByDate(shiftDate) : false
   const eventDone = ctx?.event.status === 'done'
   const readOnly = eventDone ? !canManage : !(canManage || dateOk)
+  const assigned = Boolean(
+    user && ctx?.event.responders.some((row) => row.responder_id === user.id),
+  )
+  const canWriteMedia = assigned && !ctx?.event.is_cancelled
 
   function patchDraft(patch: Partial<ShiftBornFillDraft>) {
     setDraft((current) => (current ? { ...current, ...patch } : current))
@@ -175,6 +183,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   }
 
   async function onComplete() {
+    const leftover = leftoverEventMediaError(unfinishedMediaDrafts, 'complete')
+    if (leftover) {
+      setMediaError(leftover)
+      show(leftover, 'alert')
+      return
+    }
     setCompleting(true)
     const ok = await persist(true)
     setCompleting(false)
@@ -277,6 +291,17 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               onCommit={onCommitTreatedPlate}
               onRemove={onRemoveTreatedPlate}
               onLeftWhereChange={onLeftWhereChange}
+            />
+            <EventMediaGallery
+              eventId={eventId}
+              canWrite={Boolean(canWriteMedia)}
+              showEmptyCopy={false}
+              viewerId={user?.id ?? null}
+              error={mediaError}
+              onUnfinishedChange={(count) => {
+                setUnfinishedMediaDrafts(count)
+                if (count === 0) setMediaError(undefined)
+              }}
             />
             <div className="assignment-card__treated">
               <p className="t-label text-secondary">רכבים שטופלו</p>

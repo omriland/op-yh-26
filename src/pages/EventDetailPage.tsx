@@ -19,6 +19,7 @@ import {
   monoClass,
 } from '../lib/format'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
+import { EventMediaGallery } from '../components/events/EventMediaGallery'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -270,6 +271,16 @@ export function EventDetailPage({
               <p className="t-body">{event.notes}</p>
             </div>
           ) : null}
+          <EventMediaGallery
+            eventId={event.id}
+            canWrite={
+              Boolean(user?.id) &&
+              !event.is_cancelled &&
+              event.responders.some((row) => row.responder_id === user?.id)
+            }
+            showEmptyCopy
+            viewerId={user?.id ?? null}
+          />
         </section>
 
         <section className="stack-4">
