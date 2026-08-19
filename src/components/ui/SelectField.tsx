@@ -6,19 +6,23 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search } from 'lucide-react'
 import { isSelectSearchNavKey, nextActiveIndex } from '../../lib/selectFieldNav'
 import { filterSelectOptions } from '../../lib/searchQuery'
 
-type Option = { value: string; label: string }
+type Option = { value: string; label: string; content?: ReactNode }
 
 type SelectFieldProps = {
   label: string
   options: Option[]
   value?: string | number | readonly string[]
   onChange?: (event: { target: { value: string } }) => void
+  multiple?: boolean
+  values?: readonly string[]
+  onValuesChange?: (values: string[]) => void
   hint?: string
   error?: string
   placeholder?: string
@@ -41,6 +45,9 @@ export function SelectField({
   required,
   value,
   onChange,
+  multiple = false,
+  values,
+  onValuesChange,
   disabled,
   name,
   searchable = false,
@@ -52,8 +59,11 @@ export function SelectField({
   const searchId = `${fieldId}-search`
   const describedBy = error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined
   const selectedValue = typeof value === 'string' ? value : value != null ? String(value) : ''
-  const isBlank = Boolean(required) && !selectedValue
+  const selectedValues = multiple ? [...(values ?? [])] : selectedValue ? [selectedValue] : []
+  const hasSelection = selectedValues.length > 0
+  const isBlank = Boolean(required) && !hasSelection
   const selected = options.find((option) => option.value === selectedValue)
+  const selectedOptions = options.filter((option) => selectedValues.includes(option.value))
 
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -157,6 +167,13 @@ export function SelectField({
   }
 
   function commit(next: string) {
+    if (multiple) {
+      const nextValues = selectedValues.includes(next)
+        ? selectedValues.filter((row) => row !== next)
+        : [...selectedValues, next]
+      onValuesChange?.(nextValues)
+      return
+    }
     onChange?.({ target: { value: next } })
     closeMenu()
   }
@@ -219,7 +236,7 @@ export function SelectField({
         {required ? <span className="visually-hidden"> שדה חובה</span> : null}
       </label>
       <div className="field__control">
-        {name ? <input type="hidden" name={name} value={selectedValue} /> : null}
+        {name && !multiple ? <input type="hidden" name={name} value={selectedValue} /> : null}
         <button
           ref={triggerRef}
           type="button"
@@ -228,7 +245,7 @@ export function SelectField({
             'field__input',
             'field__select',
             'select-field__trigger',
-            !selectedValue ? 'select-field__trigger--placeholder' : '',
+            !hasSelection ? 'select-field__trigger--placeholder' : '',
           ]
             .filter(Boolean)
             .join(' ')}
@@ -244,7 +261,17 @@ export function SelectField({
           }}
           onKeyDown={onTriggerKeyDown}
         >
-          <span className="select-field__value">{selected?.label ?? placeholder}</span>
+          {multiple && hasSelection ? (
+            <span className="select-field__value select-field__value--stack">
+              {selectedOptions.map((option) => (
+                <span key={option.value}>{option.content ?? option.label}</span>
+              ))}
+            </span>
+          ) : (
+            <span className="select-field__value">
+              {selected?.content ?? selected?.label ?? placeholder}
+            </span>
+          )}
         </button>
         <span
           className={['field__affix', open ? 'select-field__chevron is-open' : 'select-field__chevron']
@@ -306,6 +333,7 @@ export function SelectField({
                 role="listbox"
                 tabIndex={-1}
                 aria-labelledby={fieldId}
+                aria-multiselectable={multiple || undefined}
                 onKeyDown={onListKeyDown}
               >
                 {visibleOptions.length === 0 ? (
@@ -314,7 +342,7 @@ export function SelectField({
                   </li>
                 ) : (
                   visibleOptions.map((option, index) => {
-                    const isSelected = option.value === selectedValue
+                    const isSelected = selectedValues.includes(option.value)
                     const isActive = index === activeIndex
                     return (
                       <li key={option.value} role="presentation">
@@ -333,9 +361,16 @@ export function SelectField({
                           onMouseEnter={() => setActiveIndex(index)}
                           onClick={() => commit(option.value)}
                         >
-                          <span className="select-field__option-label">{option.label}</span>
+                          <span className="select-field__option-label">
+                            {option.content ?? option.label}
+                          </span>
                           {isSelected ? (
-                            <Check size={18} strokeWidth={2} aria-hidden="true" />
+                            <Check
+                              className="select-field__check"
+                              size={18}
+                              strokeWidth={2}
+                              aria-hidden="true"
+                            />
                           ) : null}
                         </button>
                       </li>

@@ -44,7 +44,7 @@ Numeric fields (odometer, ק״מ, plate): value in `--type-numeric`; `inputmode=
 
 ## Select / Combobox
 
-Same field chrome as text input. Chevron (mirrored — points down always, but positioned at inline-end). Options menu: elevation-2 overlay, item height 44 px, selected item gets `--accent-subtle` bg + `--accent` text + check icon at inline-end. Closed lists (שלוחה, סוג אירוע, כביש, סוג רכב) are always selects fed by admin data — never free text. **כביש** menus include a sticky search field (`חיפוש כביש`) that filters options as you type (Hebrew + English-keyboard variants). Other closed lists stay a plain select.
+Same field chrome as text input. Chevron (mirrored — points down always, but positioned at inline-end). Options menu: elevation-2 overlay, item height 44 px, selected item gets `--accent-subtle` bg + `--accent` text + check icon at inline-end. Closed lists (שלוחה, סוג אירוע, כביש, סוג רכב) are always selects fed by admin data — never free text. **כביש** menus include a sticky search field (`חיפוש כביש`) that filters options as you type (Hebrew + English-keyboard variants). Other closed lists stay a plain select. **רכבים בתמונה** on the media annex is a multi-select with the same chrome: options stay checked, the menu stays open until dismissed.
 
 ## Date input
 
@@ -146,11 +146,11 @@ Header row: `--surface-sunken`, `--type-label` `--text-secondary`, height 40 px.
 
 ## Dialog / Bottom sheet
 
-Desktop: dialog, max-width 480 px (forms 640 px), radius `--radius-md`, elevation 2, backdrop `rgba(10, 18, 30, 0.55)`. Mobile: bottom sheet, full-width, top radius `--radius-md`, drag handle (32×4, `--stroke-strong`, radius-full) centered at top. Title `--type-section`. Footer: actions at inline-end (desktop) / stacked full-width primary-on-top (mobile). Destructive confirmations state the object: `למחוק את האירוע 12345?` with `מחיקה` (destructive) / `ביטול` (secondary).
+Desktop: dialog, max-width 480 px (forms 640 px; **media viewer** `--content-max`), radius `--radius-md`, elevation 2, backdrop `rgba(10, 18, 30, 0.55)`. Mobile: bottom sheet, full-width, top radius `--radius-md`, drag handle (32×4, `--stroke-strong`, radius-full) centered at top. Title `--type-section`. Footer: actions at inline-end (desktop) / stacked full-width primary-on-top (mobile). Destructive confirmations state the object: `למחוק את האירוע 12345?` with `מחיקה` (destructive) / `ביטול` (secondary).
 
-## Media annex (תיעוד מצולם)
+## Media annex (מדיה)
 
-Photographic evidence on an event — not a social gallery. Two bands (`לפני הטיפול` then `במהלך/לאחר הטיפול`). Square thumbs, 3-up, hairline, `--radius-sm`, `object-fit: cover`. Add control `הוספת תמונות` (`image/*`, multiple, no `capture`). Draft card: required `מתי צולמה` select (dotted until chosen) · optional `רכב` · optional `תיאור`. Lightbox = existing Dialog / sheet. Own photo: `עריכה` / `מחיקה`. Delete title `למחוק את התמונה?` body `לא ניתן לשחזר.` Cap 20. Tokens only; Field on fill and detail content.
+Photographic evidence on an event — not a social gallery. Heading `מדיה`. Two bands (`לפני הטיפול` then `במהלך/לאחר הטיפול`). Square thumbs, 3-up, hairline, `--radius-sm`, `object-fit: cover`. Add control `הוספת תמונות` (`image/*`, multiple, no `capture`). Draft card: required `מתי צולמה` select (dotted until chosen) · optional `רכבים בתמונה` multi-select · optional `תיאור`. The `רכבים בתמונה` select shows manufacturer logo + plate + model/color in the closed trigger and in each option (same identity as treated plates); several plates may be checked. Lightbox = existing Dialog / sheet; **desktop** uses `--content-max` and a two-column grid (photo at inline-start / physical right, `תיאור` + `רכבים בתמונה` at inline-end / physical left). Always shows labeled `תיאור` and `רכבים בתמונה` (empty → `—`). Own photo: `עריכה` / `מחיקה`. Delete title `למחוק את התמונה?` body `לא ניתן לשחזר.` Cap 20. Tokens only; Field on fill and detail content.
 
 ## Toast
 

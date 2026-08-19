@@ -13,7 +13,7 @@ Responders photograph the scene and the civilian vehicles they treat. The offici
 
 - Logged-in responders upload **images only** while filling an event, and **after** their report is done
 - Compress in the browser to the smallest size that still shows treatment detail
-- Optional link to a treated plate already on the event (`מספרי כלי רכב`)
+- Optional link to one or more treated plates already on the event (`מספרי כלי רכב`)
 - Optional short caption
 - Required `מתי צולמה`: `לפני הטיפול` · `במהלך/לאחר הטיפול`
 - Private Supabase Storage bucket
@@ -37,7 +37,7 @@ Responders photograph the scene and the civilian vehicles they treat. The offici
 | Topic | Choice |
 |---|---|
 | Architecture | `event_media` table + private bucket `event-media` + client compress + direct upload |
-| Vehicle link | Optional FK to `event_treated_plates` on the **same event** (Approach A) |
+| Vehicle link | Optional many-to-many `event_media_plates` to treated plates on the **same event** |
 | After complete | Assigned responders may still **add**; uploader may **edit metadata / delete own** (Approach A) |
 | Fill-link | No photos (logged-in web only) |
 | Required to complete | No — zero photos is valid for draft and `סיום דיווח` |
@@ -45,7 +45,7 @@ Responders photograph the scene and the civilian vehicles they treat. The offici
 | When-taken | Required select; no default |
 | Caption | Optional, max 200 characters |
 | Cancelled event | View existing; no add / edit / delete |
-| Plate deleted | Photo stays; `treated_plate_id` set null |
+| Plate deleted | Photo stays; junction row is removed (`on delete cascade`) |
 | Unassigned later | View if still allowed by event SELECT; cannot edit/delete unless still assigned **and** `uploaded_by = auth.uid()` |
 | Clients | Web fill, web shift-born fill, web event detail |
 

@@ -10,9 +10,19 @@ type DialogProps = {
   footer?: ReactNode
   /** Wider form dialog (640 on desktop). */
   form?: boolean
+  /** Event-media viewer: `--content-max` on desktop. */
+  wide?: boolean
 }
 
-export function Dialog({ open, title, onClose, children, footer, form = false }: DialogProps) {
+export function Dialog({
+  open,
+  title,
+  onClose,
+  children,
+  footer,
+  form = false,
+  wide = false,
+}: DialogProps) {
   const isDesktop = useIsDesktop()
 
   if (!open) return null
@@ -24,6 +34,7 @@ export function Dialog({ open, title, onClose, children, footer, form = false }:
         className={[
           'dialog',
           form ? 'dialog--form' : '',
+          wide ? 'dialog--wide' : '',
           isDesktop ? 'dialog--desktop' : 'dialog--sheet',
         ].join(' ')}
         role="dialog"

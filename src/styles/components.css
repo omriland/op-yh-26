@@ -204,6 +204,34 @@ textarea.field__input {
   white-space: nowrap;
 }
 
+.select-field__trigger:has(.media-plate-choice) {
+  height: auto;
+  min-height: 44px;
+  padding-block: var(--space-1);
+}
+
+.select-field__value:has(.media-plate-choice) {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+}
+
+.select-field__value--stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+}
+
+.select-field__trigger:has(.select-field__value--stack) {
+  height: auto;
+  min-height: 44px;
+  padding-block: var(--space-1);
+}
+
 .select-field__chevron {
   pointer-events: none;
   transition: transform var(--duration-fast) var(--ease-standard);
@@ -272,7 +300,17 @@ textarea.field__input {
   white-space: nowrap;
 }
 
-.select-field__option svg {
+.select-field__option:has(.media-plate-choice) {
+  min-height: 52px;
+}
+
+.select-field__option-label:has(.media-plate-choice) {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+}
+
+.select-field__check {
   flex: none;
   color: var(--accent);
 }
@@ -754,23 +792,46 @@ textarea.field__input {
   color: var(--text-muted);
 }
 
-.ledger__row:has(.license-plate),
-.ledger__row:has(.treated-plates) {
+.ledger__row:has(.license-plate) {
   align-items: center;
 }
 
-.ledger__row:has(.license-plate) .ledger__leader,
-.ledger__row:has(.treated-plates) .ledger__leader {
+.ledger__row:has(.license-plate) .ledger__leader {
   transform: none;
 }
 
-.ledger__value:has(.license-plate),
-.ledger__value:has(.treated-plates) {
+.ledger__value:has(.license-plate) {
   max-width: none;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-2);
+}
+
+/* Treated-plate stack: label on its own compact row, full width for the cars */
+.ledger__row:has(.treated-plates) {
+  flex-wrap: wrap;
+  align-items: baseline;
+  row-gap: var(--space-2);
+}
+
+.ledger__row:has(.treated-plates) .ledger__label {
+  max-width: none;
+}
+
+.ledger__row:has(.treated-plates) .ledger__leader {
+  transform: translateY(-4px);
+}
+
+.ledger__value:has(.treated-plates) {
+  flex: 1 1 100%;
+  max-width: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  text-align: start;
 }
 
 /* Israeli civil plate mark — profile vehicles + treated-plate lists. Physical object; LTR. */
@@ -840,7 +901,7 @@ textarea.field__input {
   font: 500 13px/18px var(--font-mono);
 }
 
-/* Treated plates — fill forms + ledger stacks (mobile-first card layout) */
+/* Treated plates — mobile card; desktop one-line (≥1025px via markup) */
 .treated-plates-field {
   display: flex;
   flex-direction: column;
@@ -858,6 +919,34 @@ textarea.field__input {
 
 .treated-plates__item {
   min-width: 0;
+}
+
+/* Desktop stack/edit rows */
+.treated-plates__item--row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.treated-plates__item--edit {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.treated-plates__main {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.treated-plates--stack .treated-plates__main {
+  min-height: 0;
 }
 
 .treated-plates__card {
@@ -900,6 +989,11 @@ textarea.field__input {
   display: block;
 }
 
+.treated-plates__item--row .car-logo {
+  width: 28px;
+  height: 28px;
+}
+
 .treated-plates__specs {
   display: flex;
   flex-direction: column;
@@ -939,6 +1033,12 @@ textarea.field__input {
   min-width: 0;
 }
 
+.treated-plates__item--edit .treated-plates__details {
+  flex-direction: row;
+  align-items: center;
+  flex: 1 1 auto;
+}
+
 .treated-plates__details--pending {
   flex-direction: row;
   align-items: center;
@@ -948,6 +1048,11 @@ textarea.field__input {
   flex-direction: row;
   align-items: center;
   gap: var(--space-2);
+}
+
+.treated-plates__caption {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .treated-plates__miss {
@@ -961,9 +1066,23 @@ textarea.field__input {
   cursor: default;
 }
 
+.treated-plates__item--edit .treated-plates__miss {
+  width: 28px;
+  height: 28px;
+}
+
 .treated-plates__miss-label {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.treated-plates__actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+  margin-inline-start: auto;
 }
 
 .treated-plates__left-field {
@@ -975,6 +1094,15 @@ textarea.field__input {
   min-height: 44px;
 }
 
+.treated-plates__item--edit .treated-plates__left-where {
+  flex: 0 0 auto;
+  width: 10rem;
+  height: 36px;
+  min-height: 36px;
+  padding-inline: var(--space-2);
+  font: 400 14px/20px var(--font-ui);
+}
+
 .treated-plates__where {
   margin: 0;
   font: 400 14px/20px var(--font-ui);
@@ -983,6 +1111,12 @@ textarea.field__input {
 .treated-plates__where-label {
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+/* Event detail: left-where always under its car, indented under plate+logo */
+.treated-plates__where-wrap {
+  min-width: 0;
+  padding-inline-start: calc(28px + var(--space-2));
 }
 
 .treated-plates__remove {
@@ -1037,34 +1171,16 @@ textarea.field__input {
 }
 
 @media (min-width: 1025px) {
-  .treated-plates--stack .treated-plates__card {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
+  .treated-plates-field {
     gap: var(--space-2);
-    width: auto;
-    padding: 0;
-    border: none;
-    background: transparent;
   }
 
-  .treated-plates--stack .treated-plates__head {
-    width: auto;
-    min-height: 0;
+  .treated-plates {
+    gap: var(--space-2);
   }
 
-  .treated-plates--stack .treated-plates__specs {
-    flex: 1 1 auto;
-    width: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    column-gap: var(--space-3);
-  }
-
-  .treated-plates--stack .treated-plates__where {
-    flex: 1 1 auto;
-    width: auto;
-    min-width: 0;
+  .treated-plates--stack {
+    gap: var(--space-1);
   }
 }
 
@@ -3464,6 +3580,12 @@ textarea.field__input {
   width: min(640px, 100%);
 }
 
+@media (min-width: 1025px) {
+  .dialog--wide {
+    width: min(var(--content-max), calc(100vw - var(--space-8)));
+  }
+}
+
 .dialog--desktop {
   border-radius: var(--radius-md);
 }
@@ -5780,7 +5902,7 @@ textarea.field__input {
 }
 
 /* ============================================================
-   Event media annex (תיעוד מצולם)
+   Event media annex (מדיה)
    ============================================================ */
 
 .event-media {
@@ -5834,8 +5956,7 @@ textarea.field__input {
 }
 
 .event-media__thumb img,
-.event-media__draft-thumb,
-.event-media__full {
+.event-media__draft-thumb {
   display: block;
   width: 100%;
   height: 100%;
@@ -5898,19 +6019,78 @@ textarea.field__input {
 .event-media__lightbox {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .event-media__full {
+  display: block;
+  width: 100%;
   max-height: min(70vh, 640px);
   height: auto;
+  object-fit: contain;
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
 }
 
-.event-media__lightbox-plate {
+.event-media__side {
   display: flex;
-  justify-content: flex-start;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.event-media__meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.event-media__meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.event-media__meta-row dd {
+  margin: 0;
+}
+
+.event-media__plate-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.media-plate-choice {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.media-plate-choice__caption {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 1025px) {
+  .event-media__lightbox {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
+    align-items: start;
+    gap: var(--space-6);
+  }
+
+  .event-media__full {
+    max-height: 70vh;
+  }
 }
 
 @media (max-width: 1024px) {

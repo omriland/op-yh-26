@@ -11,6 +11,7 @@ export const EVENT_MEDIA_COMPRESS_FAIL = 'לא הצלחנו לדחוס את הת
 export const EVENT_MEDIA_HEIC_FAIL =
   'לא הצלחנו לקרוא את התמונה. שמרו כ-JPEG או PNG ונסו שוב.'
 export const EVENT_MEDIA_NETWORK = 'ההעלאה נכשלה. נסו שוב.'
+export const EVENT_MEDIA_TITLE = 'מדיה'
 export const EVENT_MEDIA_EMPTY_DETAIL = 'אין תמונות לאירוע זה.'
 export const EVENT_MEDIA_ADDED = 'התמונה נוספה'
 export const EVENT_MEDIA_UPDATED = 'התמונה עודכנה'
@@ -28,7 +29,7 @@ export type EventMedia = {
   event_id: string
   uploaded_by: string
   uploader_name: string | null
-  treated_plate_id: string | null
+  treated_plate_ids: string[]
   caption: string | null
   taken_when: EventMediaTakenWhen
   storage_path: string
@@ -77,7 +78,13 @@ export function eventMediaStoragePath(eventId: string, mediaId: string): string 
   return `${eventId}/${mediaId}.jpg`
 }
 
-export type EventMediaPlateOption = { id: string; plate_number: string }
+export type EventMediaPlateOption = {
+  id: string
+  plate_number: string
+  model: string | null
+  color: string | null
+  logo_slug: string | null
+}
 
 export function mergeMediaPlates(
   responderKeyed: readonly EventMediaPlateOption[],
@@ -93,6 +100,23 @@ export function mergeMediaPlates(
   return out
 }
 
+export function uniquePlateIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const id of ids) {
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}
+
+export function togglePlateId(ids: readonly string[], id: string): string[] {
+  if (!id) return uniquePlateIds(ids)
+  if (ids.includes(id)) return ids.filter((row) => row !== id)
+  return uniquePlateIds([...ids, id])
+}
+
 export function mapEventMediaError(message: string | undefined): string {
   if (message?.includes('event_media_cap')) return EVENT_MEDIA_CAP_ERROR
   return EVENT_MEDIA_NETWORK
@@ -102,7 +126,6 @@ type EventMediaRow = {
   id: string
   event_id: string
   uploaded_by: string
-  treated_plate_id: string | null
   caption: string | null
   taken_when: EventMediaTakenWhen
   storage_path: string
@@ -112,10 +135,18 @@ type EventMediaRow = {
   height: number | null
   created_at: string
   uploader?: { full_name: string | null } | { full_name: string | null }[] | null
+  plates?: { treated_plate_id: string } | { treated_plate_id: string }[] | null
 }
 
 const EVENT_MEDIA_SELECT =
-  'id, event_id, uploaded_by, treated_plate_id, caption, taken_when, storage_path, mime_type, byte_size, width, height, created_at, uploader:profiles!event_media_uploaded_by_fkey(full_name)'
+  'id, event_id, uploaded_by, caption, taken_when, storage_path, mime_type, byte_size, width, height, created_at, uploader:profiles!event_media_uploaded_by_fkey(full_name), plates:event_media_plates(treated_plate_id)'
+
+function plateIdsFromRow(row: EventMediaRow): string[] {
+  const plates = row.plates
+  if (!plates) return []
+  const rows = Array.isArray(plates) ? plates : [plates]
+  return uniquePlateIds(rows.map((plate) => plate.treated_plate_id))
+}
 
 function uploaderName(row: EventMediaRow): string | null {
   const uploader = row.uploader
@@ -133,7 +164,7 @@ async function withSignedUrl(row: EventMediaRow): Promise<EventMedia> {
     event_id: row.event_id,
     uploaded_by: row.uploaded_by,
     uploader_name: uploaderName(row),
-    treated_plate_id: row.treated_plate_id,
+    treated_plate_ids: plateIdsFromRow(row),
     caption: row.caption,
     taken_when: row.taken_when,
     storage_path: row.storage_path,
@@ -144,6 +175,24 @@ async function withSignedUrl(row: EventMediaRow): Promise<EventMedia> {
     created_at: row.created_at,
     signed_url: data?.signedUrl ?? null,
   }
+}
+
+async function replaceMediaPlates(
+  mediaId: string,
+  plateIds: readonly string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const unique = uniquePlateIds(plateIds)
+  const { error: deleteError } = await supabase
+    .from('event_media_plates')
+    .delete()
+    .eq('media_id', mediaId)
+  if (deleteError) return { ok: false, error: mapEventMediaError(deleteError.message) }
+  if (unique.length === 0) return { ok: true }
+  const { error } = await supabase.from('event_media_plates').insert(
+    unique.map((treated_plate_id) => ({ media_id: mediaId, treated_plate_id })),
+  )
+  if (error) return { ok: false, error: mapEventMediaError(error.message) }
+  return { ok: true }
 }
 
 export async function listEventMedia(eventId: string): Promise<EventMedia[]> {
@@ -157,20 +206,43 @@ export async function listEventMedia(eventId: string): Promise<EventMedia[]> {
 }
 
 export async function listEventMediaPlates(eventId: string): Promise<EventMediaPlateOption[]> {
+  const plateSelect = 'id, plate_number, model, color, logo_slug'
   const [eventKeyed, responderKeyed] = await Promise.all([
+    supabase.from('event_treated_plates').select(plateSelect).eq('event_id', eventId),
     supabase
       .from('event_treated_plates')
-      .select('id, plate_number')
-      .eq('event_id', eventId),
-    supabase
-      .from('event_treated_plates')
-      .select('id, plate_number, event_responders!event_treated_plates_event_responder_id_fkey!inner(event_id)')
+      .select(
+        `${plateSelect}, event_responders!event_treated_plates_event_responder_id_fkey!inner(event_id)`,
+      )
       .eq('event_responders.event_id', eventId),
   ])
   return mergeMediaPlates(
-    (responderKeyed.data ?? []) as EventMediaPlateOption[],
-    (eventKeyed.data ?? []) as EventMediaPlateOption[],
+    mapPlateOptions(responderKeyed.data),
+    mapPlateOptions(eventKeyed.data),
   )
+}
+
+function mapPlateOptions(
+  rows: Array<{
+    id?: string
+    plate_number?: string | null
+    model?: string | null
+    color?: string | null
+    logo_slug?: string | null
+  }> | null,
+): EventMediaPlateOption[] {
+  return (rows ?? []).flatMap((row) => {
+    if (!row.id || !row.plate_number) return []
+    return [
+      {
+        id: row.id,
+        plate_number: row.plate_number,
+        model: row.model ?? null,
+        color: row.color ?? null,
+        logo_slug: row.logo_slug ?? null,
+      },
+    ]
+  })
 }
 
 export async function uploadEventMedia(input: {
@@ -179,7 +251,7 @@ export async function uploadEventMedia(input: {
   width: number
   height: number
   takenWhen: EventMediaTakenWhen
-  treatedPlateId: string | null
+  treatedPlateIds: readonly string[]
   caption: string | null
 }): Promise<{ ok: true; media: EventMedia } | { ok: false; error: string }> {
   const {
@@ -205,7 +277,6 @@ export async function uploadEventMedia(input: {
       id,
       event_id: input.eventId,
       uploaded_by: user.id,
-      treated_plate_id: input.treatedPlateId,
       caption,
       taken_when: input.takenWhen,
       storage_path,
@@ -222,13 +293,21 @@ export async function uploadEventMedia(input: {
     return { ok: false, error: mapEventMediaError(error?.message) }
   }
 
-  return { ok: true, media: await withSignedUrl(data as EventMediaRow) }
+  const plates = await replaceMediaPlates(id, input.treatedPlateIds)
+  if (!plates.ok) {
+    await supabase.from('event_media').delete().eq('id', id)
+    await supabase.storage.from('event-media').remove([storage_path])
+    return plates
+  }
+
+  const media = await withSignedUrl(data as EventMediaRow)
+  return { ok: true, media: { ...media, treated_plate_ids: uniquePlateIds(input.treatedPlateIds) } }
 }
 
 export async function updateEventMedia(input: {
   id: string
   takenWhen: EventMediaTakenWhen
-  treatedPlateId: string | null
+  treatedPlateIds: readonly string[]
   caption: string | null
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const caption = input.caption?.trim() || null
@@ -239,12 +318,11 @@ export async function updateEventMedia(input: {
     .from('event_media')
     .update({
       taken_when: input.takenWhen,
-      treated_plate_id: input.treatedPlateId,
       caption,
     })
     .eq('id', input.id)
   if (error) return { ok: false, error: mapEventMediaError(error.message) }
-  return { ok: true }
+  return replaceMediaPlates(input.id, input.treatedPlateIds)
 }
 
 export async function deleteEventMedia(input: {

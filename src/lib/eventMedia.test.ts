@@ -13,6 +13,8 @@ import {
   mapEventMediaError,
   mergeMediaPlates,
   slotsRemaining,
+  togglePlateId,
+  uniquePlateIds,
   type EventMedia,
 } from './eventMedia'
 
@@ -22,7 +24,7 @@ function media(patch: Partial<EventMedia> = {}): EventMedia {
     event_id: 'e1',
     uploaded_by: 'u1',
     uploader_name: 'דנה',
-    treated_plate_id: null,
+    treated_plate_ids: [],
     caption: null,
     taken_when: 'before_treatment',
     storage_path: 'e1/m1.jpg',
@@ -109,19 +111,32 @@ describe('mapEventMediaError', () => {
   })
 })
 
+describe('togglePlateId', () => {
+  it('adds a missing id and removes an existing one', () => {
+    expect(togglePlateId(['a'], 'b')).toEqual(['a', 'b'])
+    expect(togglePlateId(['a', 'b'], 'a')).toEqual(['b'])
+  })
+})
+
+describe('uniquePlateIds', () => {
+  it('drops blanks and duplicates, keeps first-seen order', () => {
+    expect(uniquePlateIds(['b', '', 'a', 'b'])).toEqual(['b', 'a'])
+  })
+})
+
 describe('mergeMediaPlates', () => {
   it('unions responder-keyed and event-keyed plates by id', () => {
     expect(
       mergeMediaPlates(
-        [{ id: 'a', plate_number: '12-345-67' }],
+        [{ id: 'a', plate_number: '12-345-67', model: 'REXTON', color: 'שחור', logo_slug: 'ssangyong' }],
         [
-          { id: 'a', plate_number: '12-345-67' },
-          { id: 'b', plate_number: '123-45-678' },
+          { id: 'a', plate_number: '12-345-67', model: 'REXTON', color: 'שחור', logo_slug: 'ssangyong' },
+          { id: 'b', plate_number: '123-45-678', model: null, color: null, logo_slug: null },
         ],
       ),
     ).toEqual([
-      { id: 'a', plate_number: '12-345-67' },
-      { id: 'b', plate_number: '123-45-678' },
+      { id: 'a', plate_number: '12-345-67', model: 'REXTON', color: 'שחור', logo_slug: 'ssangyong' },
+      { id: 'b', plate_number: '123-45-678', model: null, color: null, logo_slug: null },
     ])
   })
 })

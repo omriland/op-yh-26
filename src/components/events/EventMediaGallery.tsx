@@ -9,6 +9,7 @@ import {
   EVENT_MEDIA_EMPTY_DETAIL,
   EVENT_MEDIA_NETWORK,
   EVENT_MEDIA_TAKEN_WHEN_LABEL,
+  EVENT_MEDIA_TITLE,
   EVENT_MEDIA_UPDATED,
   canAddMoreMedia,
   captionError,
@@ -24,12 +25,14 @@ import {
   type EventMediaTakenWhen,
 } from '../../lib/eventMedia'
 import { formatDateTime, formatPlate } from '../../lib/format'
+import { treatedPlateCaption } from '../../lib/treatedPlates'
 import { Button } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
 import { LicensePlate } from '../ui/LicensePlate'
 import { SelectField } from '../ui/SelectField'
 import { TextField } from '../ui/TextField'
 import { useToast } from '../ui/Toast'
+import { CarLogo } from './CarLogo'
 
 export type EventMediaGalleryProps = {
   eventId: string
@@ -45,7 +48,7 @@ type MediaDraft = {
   file: File
   previewUrl: string
   takenWhen: '' | EventMediaTakenWhen
-  treatedPlateId: string
+  treatedPlateIds: string[]
   caption: string
   uploading: boolean
   error?: string
@@ -55,14 +58,52 @@ const TAKEN_WHEN_OPTIONS = (
   Object.entries(EVENT_MEDIA_TAKEN_WHEN_LABEL) as [EventMediaTakenWhen, string][]
 ).map(([value, label]) => ({ value, label }))
 
-function plateOptions(plates: readonly EventMediaPlateOption[]) {
-  return [
-    { value: '', label: 'ללא שיוך לרכב' },
-    ...plates.map((plate) => ({
-      value: plate.id,
-      label: formatPlate(plate.plate_number),
-    })),
-  ]
+function mediaPlateLabel(plate: EventMediaPlateOption): string {
+  const caption = treatedPlateCaption(plate.model, plate.color)
+  const plateLabel = formatPlate(plate.plate_number)
+  return caption ? `${plateLabel} ${caption}` : plateLabel
+}
+
+function MediaPlateChoice({ plate }: { plate: EventMediaPlateOption }) {
+  const caption = treatedPlateCaption(plate.model, plate.color)
+  return (
+    <span className="media-plate-choice">
+      <CarLogo slug={plate.logo_slug} />
+      <LicensePlate plate={plate.plate_number} size="sm" />
+      {caption ? (
+        <span className="media-plate-choice__caption t-caption text-secondary">{caption}</span>
+      ) : null}
+    </span>
+  )
+}
+
+function MediaPlateSelect({
+  plates,
+  value,
+  disabled,
+  onChange,
+}: {
+  plates: readonly EventMediaPlateOption[]
+  value: string[]
+  disabled?: boolean
+  onChange: (ids: string[]) => void
+}) {
+  if (plates.length === 0) return null
+  return (
+    <SelectField
+      label="רכבים בתמונה"
+      multiple
+      placeholder="בחירה"
+      values={value}
+      disabled={disabled}
+      options={plates.map((plate) => ({
+        value: plate.id,
+        label: mediaPlateLabel(plate),
+        content: <MediaPlateChoice plate={plate} />,
+      }))}
+      onValuesChange={onChange}
+    />
+  )
 }
 
 export function EventMediaGallery({
@@ -82,7 +123,7 @@ export function EventMediaGallery({
   const [viewer, setViewer] = useState<EventMedia | null>(null)
   const [editing, setEditing] = useState(false)
   const [editTakenWhen, setEditTakenWhen] = useState<EventMediaTakenWhen>('before_treatment')
-  const [editPlateId, setEditPlateId] = useState('')
+  const [editPlateIds, setEditPlateIds] = useState<string[]>([])
   const [editCaption, setEditCaption] = useState('')
   const [editError, setEditError] = useState<string | undefined>()
   const [savingEdit, setSavingEdit] = useState(false)
@@ -141,7 +182,7 @@ export function EventMediaGallery({
       width: compressed.width,
       height: compressed.height,
       takenWhen,
-      treatedPlateId: latest.treatedPlateId || null,
+      treatedPlateIds: latest.treatedPlateIds,
       caption: latest.caption.trim() || null,
     })
     if (!result.ok) {
@@ -163,7 +204,7 @@ export function EventMediaGallery({
       file,
       previewUrl: URL.createObjectURL(file),
       takenWhen: '',
-      treatedPlateId: '',
+      treatedPlateIds: [],
       caption: '',
       uploading: false,
     }))
@@ -185,7 +226,7 @@ export function EventMediaGallery({
     setEditing(false)
     setConfirmDelete(false)
     setEditTakenWhen(item.taken_when)
-    setEditPlateId(item.treated_plate_id ?? '')
+    setEditPlateIds(item.treated_plate_ids)
     setEditCaption(item.caption ?? '')
     setEditError(undefined)
   }
@@ -201,7 +242,7 @@ export function EventMediaGallery({
     const result = await updateEventMedia({
       id: viewer.id,
       takenWhen: editTakenWhen,
-      treatedPlateId: editPlateId || null,
+      treatedPlateIds: editPlateIds,
       caption: editCaption.trim() || null,
     })
     setSavingEdit(false)
@@ -213,7 +254,7 @@ export function EventMediaGallery({
     const next: EventMedia = {
       ...viewer,
       taken_when: editTakenWhen,
-      treated_plate_id: editPlateId || null,
+      treated_plate_ids: editPlateIds,
       caption: editCaption.trim() || null,
     }
     setItems((current) => current.map((row) => (row.id === next.id ? next : row)))
@@ -238,14 +279,14 @@ export function EventMediaGallery({
   }
 
   const ownViewer = Boolean(viewer && viewerId && viewer.uploaded_by === viewerId && canWrite)
-  const linkedPlate = viewer
-    ? plates.find((plate) => plate.id === viewer.treated_plate_id)
-    : undefined
+  const linkedPlates = viewer
+    ? plates.filter((plate) => viewer.treated_plate_ids.includes(plate.id))
+    : []
 
   return (
     <div className="event-media">
       <div className="row-between event-media__head">
-        <h3 className="field__label event-media__title">תיעוד מצולם</h3>
+        <h3 className="field__label event-media__title">{EVENT_MEDIA_TITLE}</h3>
         {canWrite ? (
           <p className="t-caption text-muted">
             {items.length}/{EVENT_MEDIA_CAP}
@@ -280,15 +321,12 @@ export function EventMediaGallery({
             <li key={draft.key} className="event-media__draft">
               <img src={draft.previewUrl} alt="" className="event-media__draft-thumb" />
               <div className="event-media__draft-fields">
-                {plates.length > 0 ? (
-                  <SelectField
-                    label="רכב"
-                    value={draft.treatedPlateId}
-                    disabled={draft.uploading}
-                    options={plateOptions(plates)}
-                    onChange={(event) => patchDraft(draft.key, { treatedPlateId: event.target.value })}
-                  />
-                ) : null}
+                <MediaPlateSelect
+                  plates={plates}
+                  value={draft.treatedPlateIds}
+                  disabled={draft.uploading}
+                  onChange={(ids) => patchDraft(draft.key, { treatedPlateIds: ids })}
+                />
                 <TextField
                   label="תיאור"
                   placeholder="למשל: פגיעה בגלגל קדמי"
@@ -384,7 +422,8 @@ export function EventMediaGallery({
               ? EVENT_MEDIA_TAKEN_WHEN_LABEL[viewer.taken_when]
               : 'תמונה'
         }
-        form={editing}
+        form={false}
+        wide={!confirmDelete}
         onClose={() => {
           if (deleting || savingEdit) return
           setViewer(null)
@@ -424,35 +463,6 @@ export function EventMediaGallery({
       >
         {viewer && confirmDelete ? (
           <p className="t-body">לא ניתן לשחזר.</p>
-        ) : viewer && editing ? (
-          <div className="stack-4">
-            <SelectField
-              label="מתי צולמה"
-              required
-              value={editTakenWhen}
-              options={TAKEN_WHEN_OPTIONS}
-              onChange={(event) => setEditTakenWhen(event.target.value as EventMediaTakenWhen)}
-            />
-            {plates.length > 0 ? (
-              <SelectField
-                label="רכב"
-                value={editPlateId}
-                options={plateOptions(plates)}
-                onChange={(event) => setEditPlateId(event.target.value)}
-              />
-            ) : null}
-            <TextField
-              label="תיאור"
-              placeholder="למשל: פגיעה בגלגל קדמי"
-              value={editCaption}
-              error={editError}
-              maxLength={200}
-              onChange={(event) => {
-                setEditCaption(event.target.value)
-                setEditError(undefined)
-              }}
-            />
-          </div>
         ) : viewer ? (
           <div className="event-media__lightbox">
             {viewer.signed_url ? (
@@ -460,15 +470,65 @@ export function EventMediaGallery({
             ) : (
               <p className="t-body text-muted">{EVENT_MEDIA_NETWORK}</p>
             )}
-            {linkedPlate ? (
-              <div className="event-media__lightbox-plate">
-                <LicensePlate plate={linkedPlate.plate_number} size="sm" />
-              </div>
-            ) : null}
-            {viewer.caption ? <p className="t-body">{viewer.caption}</p> : null}
-            <p className="t-caption text-muted">
-              {[viewer.uploader_name, formatDateTime(viewer.created_at)].filter(Boolean).join(' · ')}
-            </p>
+            <div className="event-media__side">
+              {editing ? (
+                <div className="stack-4">
+                  <SelectField
+                    label="מתי צולמה"
+                    required
+                    value={editTakenWhen}
+                    options={TAKEN_WHEN_OPTIONS}
+                    onChange={(event) => setEditTakenWhen(event.target.value as EventMediaTakenWhen)}
+                  />
+                  <MediaPlateSelect
+                    plates={plates}
+                    value={editPlateIds}
+                    onChange={setEditPlateIds}
+                  />
+                  <TextField
+                    label="תיאור"
+                    placeholder="למשל: פגיעה בגלגל קדמי"
+                    value={editCaption}
+                    error={editError}
+                    maxLength={200}
+                    onChange={(event) => {
+                      setEditCaption(event.target.value)
+                      setEditError(undefined)
+                    }}
+                  />
+                </div>
+              ) : (
+                <>
+                  <dl className="event-media__meta">
+                    <div className="event-media__meta-row">
+                      <dt className="t-label text-secondary">תיאור</dt>
+                      <dd className="t-body">{viewer.caption?.trim() || '—'}</dd>
+                    </div>
+                    <div className="event-media__meta-row">
+                      <dt className="t-label text-secondary">רכבים בתמונה</dt>
+                      <dd>
+                        {linkedPlates.length > 0 ? (
+                          <ul className="event-media__plate-list">
+                            {linkedPlates.map((plate) => (
+                              <li key={plate.id}>
+                                <MediaPlateChoice plate={plate} />
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="t-body">—</span>
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="t-caption text-muted">
+                    {[viewer.uploader_name, formatDateTime(viewer.created_at)]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                </>
+              )}
+            </div>
           </div>
         ) : null}
       </Dialog>
