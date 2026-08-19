@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { EVENT_MEDIA_LEFTOVER_ERROR } from './eventMedia'
 import {
   deriveEventStatusAfterParticipation,
   emptyResponderFillDraft,
@@ -151,5 +152,56 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
       12,
     )
     expect(errors.treated_plates).toBeUndefined()
+  })
+
+  it('complete mode errors when a photo draft is missing when-taken', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      12,
+      1,
+    )
+    expect(errors.event_media).toBe(EVENT_MEDIA_LEFTOVER_ERROR)
+  })
+
+  it('draft mode ignores unfinished photo drafts', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'draft',
+      plates,
+      12,
+      2,
+    )
+    expect(errors.event_media).toBeUndefined()
+  })
+
+  it('complete mode allows zero unfinished photo drafts', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      12,
+      0,
+    )
+    expect(errors.event_media).toBeUndefined()
   })
 })

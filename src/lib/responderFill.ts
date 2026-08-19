@@ -1,6 +1,7 @@
 import { plateDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
+import { leftoverEventMediaError } from './eventMedia'
 import { leftoverTreatedPlateError, mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
 
 export { plateDigits }
@@ -24,6 +25,7 @@ export type ResponderFillErrors = Partial<
     | 'route'
     | 'treatment_detail'
     | 'treated_plates'
+    | 'event_media'
     | 'form',
     string
   >
@@ -91,6 +93,7 @@ export function validateResponderFillDraft(
   mode: 'draft' | 'complete',
   allowedPlates: string[] = [],
   totalKm: number | null = null,
+  unfinishedMediaDraftCount = 0,
 ): ResponderFillErrors {
   const errors: ResponderFillErrors = {}
   const start = parseOptionalNumber(draft.odometer_start)
@@ -119,6 +122,8 @@ export function validateResponderFillDraft(
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
     const leftover = leftoverTreatedPlateError(draft.treated_plate_pending, mode)
     if (leftover) errors.treated_plates = leftover
+    const leftoverMedia = leftoverEventMediaError(unfinishedMediaDraftCount, mode)
+    if (leftoverMedia) errors.event_media = leftoverMedia
   }
 
   // Live + submit: start must be strictly lower than end once both are numbers.
@@ -523,6 +528,7 @@ export async function completeResponderFill(input: {
   draft: ResponderFillDraft
   allowedPlates: string[]
   totalKm: number | null
+  unfinishedMediaDraftCount?: number
 }): Promise<
   | { ok: true; eventStatus: EventStatus | null }
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors }
@@ -532,6 +538,7 @@ export async function completeResponderFill(input: {
     'complete',
     input.allowedPlates,
     input.totalKm,
+    input.unfinishedMediaDraftCount ?? 0,
   )
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'יש למלא את כל שדות החובה לפני סיום הדיווח.', fieldErrors }
