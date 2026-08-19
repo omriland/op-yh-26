@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   EVENT_MEDIA_CAP,
+  EVENT_MEDIA_CAP_ERROR,
   EVENT_MEDIA_CAPTION_ERROR,
   EVENT_MEDIA_LEFTOVER_ERROR,
+  EVENT_MEDIA_NETWORK,
   canAddMoreMedia,
   captionError,
   eventMediaStoragePath,
   groupMediaByTakenWhen,
   leftoverEventMediaError,
+  mapEventMediaError,
+  mergeMediaPlates,
   slotsRemaining,
   type EventMedia,
 } from './eventMedia'
@@ -90,5 +94,34 @@ describe('groupMediaByTakenWhen', () => {
 describe('eventMediaStoragePath', () => {
   it('is {eventId}/{mediaId}.jpg', () => {
     expect(eventMediaStoragePath('e1', 'm1')).toBe('e1/m1.jpg')
+  })
+})
+
+describe('mapEventMediaError', () => {
+  it('maps the cap exception', () => {
+    expect(mapEventMediaError('event_media_cap')).toBe(EVENT_MEDIA_CAP_ERROR)
+    expect(mapEventMediaError('new row violates event_media_cap')).toBe(EVENT_MEDIA_CAP_ERROR)
+  })
+
+  it('falls back to the network copy', () => {
+    expect(mapEventMediaError('jwt expired')).toBe(EVENT_MEDIA_NETWORK)
+    expect(mapEventMediaError(undefined)).toBe(EVENT_MEDIA_NETWORK)
+  })
+})
+
+describe('mergeMediaPlates', () => {
+  it('unions responder-keyed and event-keyed plates by id', () => {
+    expect(
+      mergeMediaPlates(
+        [{ id: 'a', plate_number: '12-345-67' }],
+        [
+          { id: 'a', plate_number: '12-345-67' },
+          { id: 'b', plate_number: '123-45-678' },
+        ],
+      ),
+    ).toEqual([
+      { id: 'a', plate_number: '12-345-67' },
+      { id: 'b', plate_number: '123-45-678' },
+    ])
   })
 })
