@@ -164,7 +164,7 @@ export async function listEventMediaPlates(eventId: string): Promise<EventMediaP
       .eq('event_id', eventId),
     supabase
       .from('event_treated_plates')
-      .select('id, plate_number, event_responders!inner(event_id)')
+      .select('id, plate_number, event_responders!event_treated_plates_event_responder_id_fkey!inner(event_id)')
       .eq('event_responders.event_id', eventId),
   ])
   return mergeMediaPlates(
