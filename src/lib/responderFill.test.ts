@@ -38,7 +38,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
     expect(errors.odometer_end).toBeUndefined()
   })
 
-  it('complete mode errors when totalKm is missing (generic copy, no number)', () => {
+  it('complete mode accepts odometers when lead totalKm is missing', () => {
     const errors = validateResponderFillDraft(
       draft({
         vehicle_plate: '1234567',
@@ -51,10 +51,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
       plates,
       null,
     )
-    expect(errors.odometer_end).toBe(
-      'האחמ״ש טרם הזין קילומטרים לאירוע. לא ניתן לסיים את הדיווח.',
-    )
-    expect(JSON.stringify(errors)).not.toMatch(/\d{2,}/)
+    expect(errors).toEqual({})
   })
 
   it('complete mode requires user-entered end even when totalKm is set', () => {

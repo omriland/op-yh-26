@@ -1,7 +1,7 @@
 {
-  "minVersionCode": 14,
-  "latestVersionCode": 14,
-  "latestVersionName": "0.3.3",
-  "apkUrl": "https://yahpz.com/android/yahpaz-0.3.3.apk",
-  "messageHe": "יש גרסה חדשה של האפליקציה (כולל סריקת לוחיות ניסיונית). אם ההתקנה נכשלת — הסירו את הגרסה הישנה ואז התקינו מחדש."
+  "minVersionCode": 15,
+  "latestVersionCode": 15,
+  "latestVersionName": "0.3.4",
+  "apkUrl": "https://yahpz.com/android/yahpaz-0.3.4.apk",
+  "messageHe": "יש גרסה חדשה של האפליקציה. אפשר לתעד אירוע מיד אחרי שיבוץ, גם לפני הזנת קילומטרים. אם ההתקנה נכשלת — הסירו את הגרסה הישנה ואז התקינו מחדש."
 }

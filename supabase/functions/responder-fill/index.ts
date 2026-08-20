@@ -664,10 +664,6 @@ async function handleNotifyFillReady(
       skipped.push({ id: assignment.id, reason: "already_sent" });
       continue;
     }
-    if (assignment.total_km == null) {
-      skipped.push({ id: assignment.id, reason: "no_km" });
-      continue;
-    }
     if (assignment.status === "done") {
       skipped.push({ id: assignment.id, reason: "done" });
       continue;
@@ -736,7 +732,7 @@ async function handleNotifyFillReady(
 
     const htmlInner = [
       `<p style="margin:0 0 16px;">שלום ${escapeHtml(fullName)},</p>`,
-      `<p style="margin:0 0 16px;">האחמ״ש סיים להזין את הקילומטרים לאירוע ששובצתם אליו. ניתן כעת להשלים את הדיווח.</p>`,
+      `<p style="margin:0 0 16px;">שובצתם לאירוע. ניתן כעת לתעד פרטים ולהוסיף כלי רכב שטופלו, גם לפני הזנת הקילומטרים.</p>`,
       contextBits
         ? `<p style="margin:0 0 16px;font-size:14px;color:#5B6F86;">${escapeHtml(contextBits)}</p>`
         : "",
@@ -751,7 +747,7 @@ async function handleNotifyFillReady(
       "",
       `שלום ${fullName},`,
       "",
-      "האחמ״ש סיים להזין את הקילומטרים לאירוע ששובצתם אליו. ניתן כעת להשלים את הדיווח.",
+      "שובצתם לאירוע. ניתן כעת לתעד פרטים ולהוסיף כלי רכב שטופלו, גם לפני הזנת הקילומטרים.",
       contextBits,
       "",
       link,

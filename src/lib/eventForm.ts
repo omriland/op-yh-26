@@ -1,7 +1,7 @@
 import { sortByRoadName } from './roadSort'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
-import { assignmentIdsNewlySetKm } from './fillReadyNotify'
+import { fillReadyNotifyIds } from './fillReadyNotify'
 import { notifyFillReady } from './responderFillToken'
 import { planTrackingSync } from './liveTrack'
 import { startResponderTracking, stopResponderTracking } from './liveTrackApi'
@@ -568,7 +568,7 @@ export async function saveEventForm(input: {
   })
   if (!sync.ok) return sync
 
-  const notifyIds = assignmentIdsNewlySetKm(sync.previousKm, sync.nextKmRows)
+  const notifyIds = fillReadyNotifyIds(sync.previousKm, sync.nextKmRows)
   if (notifyIds.length > 0 && !draft.is_cancelled) {
     // Soft-fail: event save already succeeded.
     void notifyFillReady({ eventResponderIds: notifyIds }).catch(() => {})
