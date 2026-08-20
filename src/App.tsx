@@ -52,6 +52,8 @@ import { captureAppPageview } from './lib/posthog'
 import { appAnalyticsPath } from './lib/posthogAppPath'
 import { applyCockpitUrl, parseCockpitPath } from './lib/cockpitPath'
 import { isAndroidDownloadPath } from './lib/androidDownload'
+import { verifyPrivacyPageAccess } from './lib/privacyPageAccess'
+import { isPrivacyPath, parsePrivacyTokenFromSearch } from './lib/privacyPageToken'
 
 type EventSurface =
   | { kind: 'list' }
@@ -105,6 +107,11 @@ function Gate() {
     | { status: 'blocked'; message: string }
   >({ status: 'idle' })
   const [fillBootDone, setFillBootDone] = useState(false)
+  const [privacyGate, setPrivacyGate] = useState<
+    | { status: 'idle' }
+    | { status: 'checking' }
+    | { status: 'embedded' }
+  >({ status: 'idle' })
 
   // Resolve ?fill_token=… before requiring login (scoped fill link).
   useEffect(() => {
@@ -142,6 +149,40 @@ function Gate() {
           message: 'קישור הדיווח אינו תקין או שפג תוקפו.',
         })
         setFillBootDone(true)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // App-minted HMAC on /privacy?t=… — show the policy without a second login.
+  useEffect(() => {
+    if (!isPrivacyPath(window.location.pathname)) {
+      setPrivacyGate({ status: 'idle' })
+      return
+    }
+    const token = parsePrivacyTokenFromSearch(window.location.search)
+    if (!token) {
+      setPrivacyGate({ status: 'idle' })
+      return
+    }
+
+    let active = true
+    setPrivacyGate({ status: 'checking' })
+    verifyPrivacyPageAccess(token)
+      .then((ok) => {
+        if (!active) return
+        if (ok) {
+          setLegalPage('privacy')
+          setPrivacyGate({ status: 'embedded' })
+        } else {
+          setPrivacyGate({ status: 'idle' })
+        }
+      })
+      .catch(() => {
+        if (!active) return
+        setPrivacyGate({ status: 'idle' })
       })
 
     return () => {
@@ -264,7 +305,11 @@ function Gate() {
   const analyticsPath = useMemo(
     () =>
       appAnalyticsPath({
-        loading: loading || !fillBootDone || tokenFill.status === 'checking',
+        loading:
+          loading ||
+          !fillBootDone ||
+          tokenFill.status === 'checking' ||
+          privacyGate.status === 'checking',
         signedIn: Boolean(session),
         passwordSetup: Boolean(passwordSetupReason),
         tokenFill: tokenFill.status === 'idle' ? 'idle' : tokenFill.status,
@@ -287,6 +332,7 @@ function Gate() {
       loading,
       fillBootDone,
       tokenFill,
+      privacyGate.status,
       trackToken,
       session,
       passwordSetupReason,
@@ -482,6 +528,26 @@ function Gate() {
       <div className="shell" data-theme="field">
         <main className="shell__main">
           <LiveTrackPage trackToken={trackToken} />
+        </main>
+      </div>
+    )
+  }
+
+  if (privacyGate.status === 'checking') {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <EventListSkeleton count={3} />
+        </main>
+      </div>
+    )
+  }
+
+  if (legalPage === 'privacy' && privacyGate.status === 'embedded') {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <PrivacyPolicyPage />
         </main>
       </div>
     )

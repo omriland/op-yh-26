@@ -1,23 +1,36 @@
+import { useEffect } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { PRIVACY_POLICY } from '../lib/privacyPolicy'
 
 type PrivacyPolicyPageProps = {
-  onBack: () => void
+  onBack?: () => void
 }
 
 export function PrivacyPolicyPage({ onBack }: PrivacyPolicyPageProps) {
+  useEffect(() => {
+    const robots = document.createElement('meta')
+    robots.name = 'robots'
+    robots.content = 'noindex, nofollow'
+    document.head.appendChild(robots)
+    return () => {
+      robots.remove()
+    }
+  }, [])
+
   return (
     <article className="privacy">
-      <div className="detail__back">
-        <Button
-          variant="ghost"
-          onClick={onBack}
-          icon={<ChevronRight size={20} strokeWidth={1.75} />}
-        >
-          חזרה
-        </Button>
-      </div>
+      {onBack ? (
+        <div className="detail__back">
+          <Button
+            variant="ghost"
+            onClick={onBack}
+            icon={<ChevronRight size={20} strokeWidth={1.75} />}
+          >
+            חזרה
+          </Button>
+        </div>
+      ) : null}
 
       <header className="privacy__header">
         <h1 className="t-title">{PRIVACY_POLICY.title}</h1>
