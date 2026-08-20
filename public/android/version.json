@@ -1,7 +1,7 @@
 {
-  "minVersionCode": 13,
-  "latestVersionCode": 13,
-  "latestVersionName": "0.3.2",
-  "apkUrl": "https://yahpz.com/android/yahpaz-0.3.2.apk",
-  "messageHe": "יש גרסה חדשה של האפליקציה. יש להוריד ולהתקין כדי להמשיך."
+  "minVersionCode": 14,
+  "latestVersionCode": 14,
+  "latestVersionName": "0.3.3",
+  "apkUrl": "https://yahpz.com/android/yahpaz-0.3.3.apk",
+  "messageHe": "יש גרסה חדשה של האפליקציה (כולל סריקת לוחיות ניסיונית). אם ההתקנה נכשלת — הסירו את הגרסה הישנה ואז התקינו מחדש."
 }
