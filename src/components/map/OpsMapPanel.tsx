@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapPinned } from 'lucide-react'
+import { MapLayersControl } from './MapLayersControl'
 import { LocationPlacesField } from '../events/LocationPlacesField'
 import { EmptyState } from '../ui/EmptyState'
 import { EventListSkeleton } from '../ui/Skeleton'
@@ -34,6 +35,8 @@ import {
   opsMapViewTrigger,
   shouldRefitOpsMapView,
 } from '../../lib/opsMapView'
+import { defaultOpsMapLayers, type OpsMapLayers } from '../../lib/policeStations'
+import { attachPoliceStationLayer } from '../../lib/policeStationsMap'
 
 export type SearchOrigin = {
   location: string
@@ -366,6 +369,8 @@ function OpsMapCanvas({
   const mapListenersRef = useRef<{ remove: () => void }[]>([])
   const [mapError, setMapError] = useState<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
+  const [layers, setLayers] = useState<OpsMapLayers>(defaultOpsMapLayers)
+  const policeLayerRef = useRef<ReturnType<typeof attachPoliceStationLayer> | null>(null)
 
   useEffect(() => {
     const host = hostRef.current
@@ -381,8 +386,12 @@ function OpsMapCanvas({
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: true,
+          fullscreenControlOptions: maps.ControlPosition
+            ? { position: maps.ControlPosition.RIGHT_BOTTOM }
+            : undefined,
           gestureHandling: 'greedy',
         })
+        policeLayerRef.current = attachPoliceStationLayer(maps, map)
         function markUserMoved() {
           if (applyingViewRef.current) return
           userHasMovedMapRef.current = true
@@ -409,6 +418,8 @@ function OpsMapCanvas({
       staticOverlaysRef.current = []
       for (const overlay of liveOverlaysRef.current.values()) overlay.setMap(null)
       liveOverlaysRef.current.clear()
+      policeLayerRef.current?.detach()
+      policeLayerRef.current = null
       sessionRef.current?.searchOverlay?.setMap(null)
       sessionRef.current = null
       userHasMovedMapRef.current = false
@@ -525,6 +536,12 @@ function OpsMapCanvas({
     }
   }, [mapReady, livePins])
 
+  useEffect(() => {
+    const session = sessionRef.current
+    if (!session || !mapReady) return
+    policeLayerRef.current?.setVisible(layers.policeStations)
+  }, [mapReady, layers.policeStations])
+
   if (mapError) {
     return (
       <p className="form-alert" role="alert">
@@ -540,6 +557,7 @@ function OpsMapCanvas({
       aria-label="מפת כתובות ואירועים"
     >
       <div ref={hostRef} className="user-map__canvas" />
+      <MapLayersControl layers={layers} onChange={setLayers} />
     </div>
   )
 }

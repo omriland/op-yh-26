@@ -9,18 +9,60 @@ export type MapsApi = {
       mapTypeControl?: boolean
       streetViewControl?: boolean
       fullscreenControl?: boolean
+      fullscreenControlOptions?: { position?: number }
       gestureHandling?: string
     },
   ) => GoogleMap
+  ControlPosition?: { RIGHT_BOTTOM: number }
   LatLng: new (lat: number, lng: number) => GoogleLatLng
   LatLngBounds: new () => GoogleBounds
   OverlayView: {
     new (): GoogleOverlay
   }
+  InfoWindow: new (opts?: { content?: string }) => GoogleInfoWindow
 }
 
 export type MapsEventListener = {
   remove: () => void
+}
+
+type GoogleLatLng = { lat: () => number; lng: () => number }
+
+export type GoogleMapDataFeature = {
+  getProperty: (name: string) => unknown
+}
+
+export type GoogleMapDataMouseEvent = {
+  feature: GoogleMapDataFeature
+  latLng: GoogleLatLng | null
+  domEvent?: MouseEvent
+}
+
+export type GoogleMapDataStyle = {
+  fillColor?: string
+  fillOpacity?: number
+  strokeColor?: string
+  strokeWeight?: number
+  strokeOpacity?: number
+}
+
+export type GoogleMapData = {
+  loadGeoJson: (url: string) => void
+  setStyle: (style: GoogleMapDataStyle) => void
+  overrideStyle: (feature: GoogleMapDataFeature, style: GoogleMapDataStyle) => void
+  revertStyle: (feature?: GoogleMapDataFeature) => void
+  setMap: (map: GoogleMap | null) => void
+  addListener: (
+    eventName: string,
+    handler: (event: GoogleMapDataMouseEvent) => void,
+  ) => MapsEventListener
+}
+
+export type GoogleInfoWindow = {
+  setContent: (content: string) => void
+  setPosition: (position: { lat: number; lng: number }) => void
+  open: (map: GoogleMap) => void
+  close: () => void
 }
 
 export type GoogleMap = {
@@ -28,9 +70,9 @@ export type GoogleMap = {
   panTo: (center: { lat: number; lng: number }) => void
   setZoom: (zoom: number) => void
   addListener: (eventName: string, handler: () => void) => MapsEventListener
+  getDiv: () => HTMLElement
+  data: GoogleMapData
 }
-
-type GoogleLatLng = { lat: () => number; lng: () => number }
 
 type GoogleBounds = {
   extend: (point: GoogleLatLng | { lat: number; lng: number }) => void
