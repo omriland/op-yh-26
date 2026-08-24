@@ -38,4 +38,10 @@ describe('desktop shell cards', () => {
     expect(css).toMatch(/\.sidebar__brand\s*\{/)
     expect(ruleBody(css, '.shell--cards')).toMatch(/background:\s*var\(--surface-sunken\)/)
   })
+
+  it('opens the sidebar user menu toward the content card', () => {
+    const body = ruleBody(css, '.menu--rise')
+    expect(body).toMatch(/inset-inline-start:\s*0/)
+    expect(body).toMatch(/inset-inline-end:\s*auto/)
+  })
 })
