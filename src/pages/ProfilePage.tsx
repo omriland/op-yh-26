@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LogOut } from 'lucide-react'
+import { LogOut, MessageSquare } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { formatDateTime, formatNumber, formatPhone, monoClass } from '../lib/format'
@@ -184,6 +184,8 @@ export function ProfilePage() {
     })
     const listed = await fetchPartnerClients()
     if (listed.ok) setClients(listed.clients)
+    const listedApps = await fetchPartnerApps()
+    if (listedApps.ok) setApps(listedApps.apps)
   }
 
   async function onRotateSecret(clientId: string) {
@@ -264,6 +266,89 @@ export function ProfilePage() {
         </section>
 
         <section className="card">
+          <h2 className="t-section">חיבור לטלגרם</h2>
+          <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
+            דיווח אירועים בצ׳אט, בלי להיכנס למפרט.
+          </p>
+          <div style={{ marginBlockStart: 'var(--space-4)' }}>
+            {grants === null || apps === null ? (
+              <Skeleton height={24} />
+            ) : grantError ? (
+              <p className="t-body text-muted">{grantError}</p>
+            ) : apps.length === 0 && grants.length === 0 ? (
+              <div className="stack-3">
+                <p className="t-body">עדיין לא מחוברים.</p>
+                <p className="t-caption text-muted">
+                  {isAdmin
+                    ? 'רשמו את הבוט פעם אחת למטה. אחר כך לוחצים חבר לטלגרם.'
+                    : 'החיבור ייפתח כאן אחרי שהמנהל ירשום את הבוט.'}
+                </p>
+                {isAdmin ? (
+                  <Button
+                    onClick={() =>
+                      document.getElementById('partner-bot-register')?.scrollIntoView({
+                        block: 'start',
+                      })
+                    }
+                  >
+                    רישום בוט
+                  </Button>
+                ) : null}
+              </div>
+            ) : apps.length === 0 ? (
+              <div className="stack-4">
+                {grants.map((grant) => (
+                  <div key={grant.id} className="stack-3">
+                    <Ledger>
+                      <LedgerRow label="יישום" value={grant.name} />
+                      <LedgerRow label="בתוקף עד" value={formatDateTime(grant.expires_at)} />
+                    </Ledger>
+                    <Button variant="destructive" onClick={() => setRevokeId(grant.id)}>
+                      בטל גישה
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="stack-4">
+                {apps.map((app) => {
+                  const live = liveGrantForBot(grants, app.telegram_bot_username)
+                  const connectLabel = apps.length === 1 ? 'חבר לטלגרם' : `חבר את ${app.name}`
+                  return (
+                    <div key={app.client_id} className="stack-3">
+                      {live ? (
+                        <Ledger>
+                          <LedgerRow label="יישום" value={app.name} />
+                          <LedgerRow label="בתוקף עד" value={formatDateTime(live.expires_at)} />
+                        </Ledger>
+                      ) : null}
+                      {live ? (
+                        <Button variant="destructive" onClick={() => setRevokeId(live.id)}>
+                          בטל גישה
+                        </Button>
+                      ) : (
+                        <Button
+                          block
+                          disabled={Boolean(connectingId) || isImpersonating()}
+                          loading={connectingId === app.client_id}
+                          loadingLabel="מחבר…"
+                          icon={
+                            <MessageSquare size={20} strokeWidth={1.75} aria-hidden="true" />
+                          }
+                          onClick={() => void onConnectApp(app)}
+                        >
+                          {connectLabel}
+                        </Button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="card">
           <h2 className="t-section">סיכום פעילות</h2>
           <div className="profile-stats" style={{ marginBlockStart: 'var(--space-4)' }}>
             <div className="profile-stats__cell">
@@ -329,73 +414,8 @@ export function ProfilePage() {
           </div>
         </section>
 
-        <section className="card">
-          <h2 className="t-section">חיבורים</h2>
-          <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
-            חיבור לבוט בטלגרם להשלמת דיווחים בצ׳אט.
-          </p>
-          <div style={{ marginBlockStart: 'var(--space-4)' }}>
-            {grants === null || apps === null ? (
-              <Skeleton height={24} />
-            ) : grantError ? (
-              <p className="t-body text-muted">{grantError}</p>
-            ) : apps.length === 0 && grants.length === 0 ? (
-              <p className="t-body text-muted">
-                החיבור לבוט ייפתח כאן אחרי שהמנהל ירשום אותו.
-              </p>
-            ) : apps.length === 0 ? (
-              <div className="stack-4">
-                {grants.map((grant) => (
-                  <div key={grant.id} className="stack-3">
-                    <Ledger>
-                      <LedgerRow label="יישום" value={grant.name} />
-                      <LedgerRow label="בתוקף עד" value={formatDateTime(grant.expires_at)} />
-                    </Ledger>
-                    <Button variant="destructive" onClick={() => setRevokeId(grant.id)}>
-                      בטל גישה
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="stack-4">
-                {apps.map((app) => {
-                  const live = liveGrantForBot(grants, app.telegram_bot_username)
-                  const connectLabel = apps.length === 1 ? 'חבר לטלגרם' : `חבר את ${app.name}`
-                  return (
-                    <div key={app.client_id} className="stack-3">
-                      <Ledger>
-                        <LedgerRow label="יישום" value={app.name} />
-                        {live ? (
-                          <LedgerRow label="בתוקף עד" value={formatDateTime(live.expires_at)} />
-                        ) : (
-                          <LedgerRow label="מצב" value="לא מחובר" />
-                        )}
-                      </Ledger>
-                      {live ? (
-                        <Button variant="destructive" onClick={() => setRevokeId(live.id)}>
-                          בטל גישה
-                        </Button>
-                      ) : (
-                        <Button
-                          disabled={Boolean(connectingId) || isImpersonating()}
-                          loading={connectingId === app.client_id}
-                          loadingLabel="מחבר…"
-                          onClick={() => void onConnectApp(app)}
-                        >
-                          {connectLabel}
-                        </Button>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </section>
-
         {isAdmin ? (
-          <section className="card stack-4">
+          <section className="card stack-4" id="partner-bot-register">
             <h2 className="t-section">רישום בוט</h2>
             <p className="t-caption text-muted">
               פעם אחת ליחידה, למי שבונה את הבוט. הכוננים מתחברים למעלה, בלי סודות.
