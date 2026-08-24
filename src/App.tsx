@@ -54,6 +54,8 @@ import { applyCockpitUrl, parseCockpitPath } from './lib/cockpitPath'
 import { isAndroidDownloadPath } from './lib/androidDownload'
 import { verifyPrivacyPageAccess } from './lib/privacyPageAccess'
 import { isPrivacyPath, parsePrivacyTokenFromSearch } from './lib/privacyPageToken'
+import { isOAuthAuthorizePath, parseOAuthAuthorizeRequest } from './lib/partnerOAuth'
+import { OAuthAuthorizePage } from './pages/OAuthAuthorizePage'
 
 type EventSurface =
   | { kind: 'list' }
@@ -317,6 +319,8 @@ function Gate() {
         tracking: Boolean(trackToken),
         otp: loginOtp.state,
         legalPage,
+        oauthAuthorize:
+          typeof window !== 'undefined' && isOAuthAuthorizePath(window.location.pathname),
         view,
         eventKind: eventSurface.kind,
         eventId:
@@ -680,6 +684,17 @@ function Gate() {
         onVerified={() => setLoginOtp({ state: 'ok' })}
       />
     )
+  }
+
+  if (isOAuthAuthorizePath(window.location.pathname)) {
+    const parsed = parseOAuthAuthorizeRequest({
+      pathname: window.location.pathname,
+      search: window.location.search,
+    })
+    if (!parsed.ok) {
+      return <OAuthAuthorizePage request={null} error={parsed.error} />
+    }
+    return <OAuthAuthorizePage request={parsed.request} />
   }
 
   // Role allowlist — not nav entries — so profile / fuel / lists / reports stay

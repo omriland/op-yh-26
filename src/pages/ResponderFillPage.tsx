@@ -27,6 +27,7 @@ import {
   failTreatedPlateLookup,
   removeTreatedPlate,
   setTreatedPlateLeftWhere,
+  settleTreatedPlatePending,
 } from '../lib/treatedPlates'
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
@@ -309,14 +310,35 @@ export function ResponderFillPage({
 
   async function onComplete() {
     if (!ctx || !draft || readOnly) return
+    const settled = settleTreatedPlatePending(
+      draft.treated_plate_pending,
+      draft.treated_plates,
+      'complete',
+    )
+    if (!settled.ok) {
+      setErrors({ treated_plates: settled.error })
+      show(settled.error, 'alert')
+      setSubmitAttempt((n) => n + 1)
+      return
+    }
+    const nextDraft = {
+      ...draft,
+      treated_plates: settled.plates,
+      treated_plate_pending: '',
+    }
+    if (settled.committed) enqueuePlateLookup(settled.committed.plate_number)
+    patchDraft({
+      treated_plates: settled.plates,
+      treated_plate_pending: '',
+    })
     setCompleting(true)
     setErrors({})
     const result = fillToken
-      ? await saveFillByToken({ fillToken, mode: 'complete', draft })
+      ? await saveFillByToken({ fillToken, mode: 'complete', draft: nextDraft })
       : await completeResponderFill({
           assignmentId: ctx.assignmentId,
           eventId: ctx.eventId,
-          draft,
+          draft: nextDraft,
           allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
           totalKm: ctx.totalKm,
           unfinishedMediaDraftCount: unfinishedMediaDrafts,

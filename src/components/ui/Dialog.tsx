@@ -38,6 +38,11 @@ export function Dialog({
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)
+  // Form dialogs pass an inline onClose that changes every keystroke. Keep the
+  // latest callback here so the trap effect only re-runs when `open` changes —
+  // otherwise focus jumps to the first control (the X) on every letter.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   /**
    * `aria-modal="true"` is a promise about behavior. Without a trap it is a lie to
@@ -58,7 +63,7 @@ export function Dialog({
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         event.stopPropagation()
-        onClose()
+        onCloseRef.current()
         return
       }
       if (event.key !== 'Tab') return
@@ -89,7 +94,7 @@ export function Dialog({
       document.removeEventListener('keydown', onKeyDown, true)
       restoreTo.current?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 

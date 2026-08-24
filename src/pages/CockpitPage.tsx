@@ -6,6 +6,7 @@ import {
   cockpitDeleteHint,
   cockpitEventMapPins,
   geocodeCockpitEventPins,
+  mergeCockpitEventPins,
   cockpitNeighborId,
   cockpitReelDetail,
   cockpitReelLead,
@@ -17,6 +18,7 @@ import {
   formatCockpitClock,
   insertCockpitDraft,
   isCockpitTypingTarget,
+  saveEventLocationPin,
   type CockpitDeleteHintKind,
   type CockpitEventPin,
   type CockpitReelItem,
@@ -61,14 +63,22 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   const [introOpen, setIntroOpen] = useState(false)
   const knownEventPins = useMemo(() => cockpitEventMapPins(reel), [reel])
   const [geocodedEventPins, setGeocodedEventPins] = useState<CockpitEventPin[]>([])
+  const [pinOverrides, setPinOverrides] = useState<Record<string, { lat: number; lng: number }>>(
+    {},
+  )
+  const [locationPinDrop, setLocationPinDrop] = useState<{
+    eventId: string
+    lat: number
+    lng: number
+    nonce: number
+  } | null>(null)
   const eventPins = useMemo(() => {
-    const byId = new Map<string, CockpitEventPin>()
-    for (const pin of knownEventPins) byId.set(pin.eventId, pin)
-    for (const pin of geocodedEventPins) {
-      if (!byId.has(pin.eventId)) byId.set(pin.eventId, pin)
-    }
-    return [...byId.values()]
-  }, [knownEventPins, geocodedEventPins])
+    const merged = mergeCockpitEventPins(knownEventPins, geocodedEventPins)
+    return merged.map((pin) => {
+      const override = pinOverrides[pin.eventId]
+      return override ? { ...pin, lat: override.lat, lng: override.lng } : pin
+    })
+  }, [knownEventPins, geocodedEventPins, pinOverrides])
 
   useEffect(() => {
     if (!mapOpen) return
@@ -109,9 +119,25 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     if (mapOpen) requestMapEventFocus(eventId)
   }
 
+  async function handleEventPinMove(eventId: string, lat: number, lng: number) {
+    setPinOverrides((current) => ({ ...current, [eventId]: { lat, lng } }))
+    if (selectedEventId === eventId) {
+      setLocationPinDrop({ eventId, lat, lng, nonce: Date.now() })
+      return
+    }
+    if (!user) return
+    const result = await saveEventLocationPin({ eventId, lat, lng, userId: user.id })
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    void reloadReel().catch(() => {})
+  }
+
   async function reloadReel() {
     const rows = await fetchCockpitReel()
     setReel(rows)
+    setPinOverrides({})
     return rows
   }
 
@@ -384,6 +410,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             onPersisted={() => {
               void reloadReel().catch(() => {})
             }}
+            locationPinDrop={locationPinDrop}
           />
         ) : loadState === 'ready' && reel.length === 0 ? (
           <EmptyState
@@ -469,6 +496,9 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             focusEventId={mapEventFocus?.eventId}
             focusEventRequestId={mapEventFocus?.requestId}
             onEventSelect={selectEvent}
+            onEventPinMove={(eventId, lat, lng) => {
+              void handleEventPinMove(eventId, lat, lng)
+            }}
           />
         </div>
       ) : null}

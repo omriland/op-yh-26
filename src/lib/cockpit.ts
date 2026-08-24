@@ -1,4 +1,6 @@
 import { todayJerusalem } from './eventForm'
+import { eventGeocodeQuery, roadNumberForGeocode } from './eventGeocode'
+import { locationPinIsLocked, type LocationPinSource } from './locationPin'
 import { geocodePlaceQuery } from './googlePlaces'
 import { supabase } from './supabase'
 
@@ -14,6 +16,7 @@ export type CockpitReelItem = {
   location: string | null
   location_lat: number | null
   location_lng: number | null
+  location_pin_source: LocationPinSource | null
   frozen_over_60km?: boolean
   frozen_suspicious_duplicate?: boolean
   event_type: { name: string } | null
@@ -31,6 +34,7 @@ const COCKPIT_REEL_SELECT = `
   location,
   location_lat,
   location_lng,
+  location_pin_source,
   frozen_over_60km,
   frozen_suspicious_duplicate,
   event_type:event_types(name),
@@ -137,28 +141,7 @@ export type CockpitEventPin = {
   lng: number
 }
 
-export function roadNumberForGeocode(roadName: string): string | null {
-  const paren = roadName.match(/\((\d+)\)/)
-  if (paren?.[1]) return paren[1]
-  const digits = roadName.match(/\d+/)
-  return digits?.[0] ?? null
-}
-
-/** Google query: road number first, then the free-text location. */
-export function eventGeocodeQuery(
-  road: string | null | undefined,
-  location: string | null | undefined,
-): string | null {
-  const roadName = road?.trim() ?? ''
-  const place = location?.trim() ?? ''
-  const number = roadName ? roadNumberForGeocode(roadName) : null
-  const roadPart = number ? `כביש ${number}` : roadName
-  if (!roadPart && !place) return null
-  if (!roadPart) return place
-  if (!place) return roadPart
-  if (place.includes(roadPart) || place.includes(roadName)) return place
-  return `${roadPart} ${place}`
-}
+export { eventGeocodeQuery, roadNumberForGeocode } from './eventGeocode'
 
 export function cockpitEventPinLabel(event: {
   event_type: { name: string } | null
@@ -237,6 +220,7 @@ export async function geocodeCockpitEventPins(
     location: string | null
     location_lat: number | null
     location_lng: number | null
+    location_pin_source?: string | null
     event_type: { name: string } | null
     road: { name: string } | null
     responders?: { ended_at: string | null }[]
@@ -247,7 +231,12 @@ export async function geocodeCockpitEventPins(
   await Promise.all(
     events.map(async (event) => {
       if (!cockpitEventStillOpenOnMap(event)) return
-      if (event.location_lat != null && event.location_lng != null) return
+      if (locationPinIsLocked(event.location_pin_source)) {
+        if (event.location_lat != null && event.location_lng != null) {
+          pins.push(toCockpitEventPin(event, event.location_lat, event.location_lng))
+        }
+        return
+      }
       const query = eventGeocodeQuery(event.road?.name, event.location)
       if (!query) return
       const coords = await lookup(query)
@@ -256,6 +245,17 @@ export async function geocodeCockpitEventPins(
     }),
   )
   return pins
+}
+
+/** Stored coords are a fallback; a Google lookup for the current כביש + מיקום wins. */
+export function mergeCockpitEventPins(
+  stored: CockpitEventPin[],
+  geocoded: CockpitEventPin[],
+): CockpitEventPin[] {
+  const byId = new Map<string, CockpitEventPin>()
+  for (const pin of stored) byId.set(pin.eventId, pin)
+  for (const pin of geocoded) byId.set(pin.eventId, pin)
+  return [...byId.values()]
 }
 
 export function cockpitReelDetail(event: {
@@ -369,4 +369,26 @@ export async function insertCockpitDraft(shiftLeadId: string): Promise<
     return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
   }
   return { ok: true, eventId: data.id as string }
+}
+
+export async function saveEventLocationPin(input: {
+  eventId: string
+  lat: number
+  lng: number
+  userId: string
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('events')
+    .update({
+      location_lat: input.lat,
+      location_lng: input.lng,
+      location_place_id: null,
+      location_pin_source: 'shift_lead',
+      location_pinned_at: new Date().toISOString(),
+      location_pinned_by: input.userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.eventId)
+  if (error) return { ok: false, error: 'שמירת המיקום נכשלה. בדקו את החיבור ונסו שוב.' }
+  return { ok: true }
 }

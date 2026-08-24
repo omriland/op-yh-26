@@ -135,6 +135,23 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
     expect(errors.treated_plates).toBe('השלימו או מחקו את המספר בשדה מספרי כלי רכב.')
   })
 
+  it('complete mode auto-commits a finished leftover plate', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+        treated_plate_pending: '24100502',
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(errors.treated_plates).toBeUndefined()
+  })
+
   it('complete mode allows zero treated plates', () => {
     const errors = validateResponderFillDraft(
       draft({

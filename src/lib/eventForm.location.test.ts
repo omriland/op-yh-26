@@ -58,6 +58,33 @@ describe('buildLocationPayload', () => {
       location_place_id: 'ChIJx',
       location_lat: 32.1,
       location_lng: 34.8,
+      location_pin_source: 'places',
+      location_pinned_at: null,
+      location_pinned_by: null,
+    })
+  })
+
+  it('stores a human-corrected pin without a Google place id', () => {
+    expect(
+      buildLocationPayload(
+        draft({
+          location: 'מחלף השלום',
+          location_place_id: null,
+          location_lat: 32.07,
+          location_lng: 34.79,
+          location_pin_source: 'shift_lead',
+          location_pinned_at: '2026-08-24T07:00:00.000Z',
+          location_pinned_by: 'lead-1',
+        }),
+      ),
+    ).toEqual({
+      location: 'מחלף השלום',
+      location_place_id: null,
+      location_lat: 32.07,
+      location_lng: 34.79,
+      location_pin_source: 'shift_lead',
+      location_pinned_at: '2026-08-24T07:00:00.000Z',
+      location_pinned_by: 'lead-1',
     })
   })
 
@@ -76,10 +103,13 @@ describe('buildLocationPayload', () => {
       location_place_id: null,
       location_lat: null,
       location_lng: null,
+      location_pin_source: null,
+      location_pinned_at: null,
+      location_pinned_by: null,
     })
   })
 
-  it('nulls everything when location empty', () => {
+  it('nulls place fields when location empty unless a human pin is locked', () => {
     expect(
       buildLocationPayload(
         draft({
@@ -94,6 +124,33 @@ describe('buildLocationPayload', () => {
       location_place_id: null,
       location_lat: null,
       location_lng: null,
+      location_pin_source: null,
+      location_pinned_at: null,
+      location_pinned_by: null,
+    })
+  })
+
+  it('keeps a locked pin even if location text is empty', () => {
+    expect(
+      buildLocationPayload(
+        draft({
+          location: '  ',
+          location_place_id: null,
+          location_lat: 32.07,
+          location_lng: 34.79,
+          location_pin_source: 'shift_lead',
+          location_pinned_at: '2026-08-24T07:00:00.000Z',
+          location_pinned_by: 'lead-1',
+        }),
+      ),
+    ).toEqual({
+      location: null,
+      location_place_id: null,
+      location_lat: 32.07,
+      location_lng: 34.79,
+      location_pin_source: 'shift_lead',
+      location_pinned_at: '2026-08-24T07:00:00.000Z',
+      location_pinned_by: 'lead-1',
     })
   })
 })

@@ -88,6 +88,34 @@ export function leftoverTreatedPlateError(
   return TREATED_PLATE_LEFTOVER_ERROR
 }
 
+export type SettleTreatedPlatePendingResult =
+  | {
+      ok: true
+      plates: TreatedPlate[]
+      pending: string
+      committed: TreatedPlate | null
+    }
+  | { ok: false; error: string }
+
+/** On complete, commit a finished 7/8-digit leftover instead of blocking. */
+export function settleTreatedPlatePending(
+  pending: string,
+  plates: readonly TreatedPlate[],
+  mode: 'draft' | 'complete',
+): SettleTreatedPlatePendingResult {
+  if (mode !== 'complete' || !plateDigits(pending)) {
+    return { ok: true, plates: [...plates], pending, committed: null }
+  }
+  const result = commitTreatedPlate(pending, plates)
+  if (result.ok) {
+    return { ok: true, plates: result.plates, pending: '', committed: result.plate }
+  }
+  if (result.error === TREATED_PLATE_LENGTH_ERROR) {
+    return { ok: false, error: TREATED_PLATE_LEFTOVER_ERROR }
+  }
+  return { ok: false, error: result.error }
+}
+
 export function removeTreatedPlate(
   plates: readonly TreatedPlate[],
   plateDigitsKey: string,

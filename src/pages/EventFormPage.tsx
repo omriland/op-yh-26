@@ -49,9 +49,19 @@ import {
   applyDistrictChangeRoad,
   districtCodeById,
   districtNeedsPlacesLocation,
+  shouldClearLocationOnDistrictChange,
 } from '../lib/systemDistricts'
 import { COCKPIT_AUTOSAVE_MS } from '../lib/cockpit'
 import { LocationPlacesField } from '../components/events/LocationPlacesField'
+import { LocationCoordsField } from '../components/events/LocationCoordsField'
+import {
+  applyLeadMapPin,
+  applyLocationFieldChange,
+  clearLockedLocationPin,
+  emptyLocationPinMeta,
+  formatLocationCoords,
+  locationPinIsLocked,
+} from '../lib/locationPin'
 
 type EventFormPageProps = {
   eventId?: string
@@ -67,6 +77,8 @@ type EventFormPageProps = {
   onEventId?: (eventId: string) => void
   /** Quiet persist — refresh the גלגלת without leaving the form. */
   onPersisted?: (eventId: string) => void
+  /** Cockpit map drop — apply a shift-lead pin without changing כביש / מיקום text. */
+  locationPinDrop?: { eventId: string; lat: number; lng: number; nonce: number } | null
 }
 
 type SavePulse = 'idle' | 'saving' | 'saved' | 'error'
@@ -87,6 +99,7 @@ export function EventFormPage({
   onSavedAndCreateNew,
   onEventId,
   onPersisted,
+  locationPinDrop,
 }: EventFormPageProps) {
   const { user, profile, roles } = useAuth()
   const { show } = useToast()
@@ -605,6 +618,34 @@ export function EventFormPage({
     return () => window.clearTimeout(timer)
   }, [variant, draft, baseline, loadState])
 
+  const pinDropNonceRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!locationPinDrop || !user || !draft) return
+    if (locationPinDrop.eventId !== (draft.id ?? eventId)) return
+    if (pinDropNonceRef.current === locationPinDrop.nonce) return
+    pinDropNonceRef.current = locationPinDrop.nonce
+    updateDraft(
+      applyLeadMapPin(
+        {
+          location: draft.location,
+          location_place_id: draft.location_place_id,
+          location_lat: draft.location_lat,
+          location_lng: draft.location_lng,
+          location_pin_source: draft.location_pin_source,
+          location_pinned_at: draft.location_pinned_at,
+          location_pinned_by: draft.location_pinned_by,
+        },
+        {
+          lat: locationPinDrop.lat,
+          lng: locationPinDrop.lng,
+          userId: user.id,
+          at: new Date().toISOString(),
+        },
+      ),
+    )
+    queueMicrotask(() => void persistLatest())
+  }, [locationPinDrop, user, draft])
+
   useEffect(() => {
     return () => {
       if (variant === 'cockpit') void persistLatest()
@@ -669,6 +710,8 @@ export function EventFormPage({
     : 'אירוע חדש'
 
   const placesLocation = districtNeedsPlacesLocation(lookups.districts, draft.district_id)
+  const selectedRoadName =
+    lookups.roads.find((row) => row.id === draft.road_id)?.name ?? null
   const needsMinimum = !hasEventMinimum(draft, lookups.districts)
   const saveHint =
     savePulse === 'saving'
@@ -828,6 +871,9 @@ export function EventFormPage({
                       district_id: nextId,
                       road_id: nextRoadId,
                       ...locationFields,
+                      ...(shouldClearLocationOnDistrictChange(previousCode, nextCode)
+                        ? emptyLocationPinMeta()
+                        : {}),
                     })
                     setErrors((current) => ({
                       ...current,
@@ -868,7 +914,18 @@ export function EventFormPage({
                   error={errors.road_id}
                   options={lookups.roads.map((row) => ({ value: row.id, label: row.name }))}
                   onChange={(event) => {
-                    updateDraft({ road_id: event.target.value })
+                    updateDraft({
+                      road_id: event.target.value,
+                      ...(variant === 'cockpit' &&
+                      !locationPinIsLocked(draft.location_pin_source)
+                        ? {
+                            location_place_id: null,
+                            location_lat: null,
+                            location_lng: null,
+                            ...emptyLocationPinMeta(),
+                          }
+                        : {}),
+                    })
                     setErrors((current) => ({ ...current, road_id: undefined }))
                     queueMicrotask(() => void persistLatest())
                   }}
@@ -879,6 +936,7 @@ export function EventFormPage({
                 <LocationPlacesField
                   required
                   error={errors.location}
+                  roadName={variant === 'cockpit' ? selectedRoadName : null}
                   value={{
                     location: draft.location,
                     location_place_id: draft.location_place_id,
@@ -886,7 +944,20 @@ export function EventFormPage({
                     location_lng: draft.location_lng,
                   }}
                   onChange={(next) => {
-                    updateDraft(next)
+                    updateDraft(
+                      applyLocationFieldChange(
+                        {
+                          location: draft.location,
+                          location_place_id: draft.location_place_id,
+                          location_lat: draft.location_lat,
+                          location_lng: draft.location_lng,
+                          location_pin_source: draft.location_pin_source,
+                          location_pinned_at: draft.location_pinned_at,
+                          location_pinned_by: draft.location_pinned_by,
+                        },
+                        next,
+                      ),
+                    )
                     setErrors((current) => ({ ...current, location: undefined }))
                   }}
                   onBlurCommit={() => void persistLatest()}
@@ -900,16 +971,58 @@ export function EventFormPage({
                   placeholder="למשל: מחלף שורק, לכיוון צפון"
                   value={draft.location}
                   onChange={(event) =>
-                    updateDraft({
-                      location: event.target.value,
-                      location_place_id: null,
-                      location_lat: null,
-                      location_lng: null,
-                    })
+                    updateDraft(
+                      applyLocationFieldChange(
+                        {
+                          location: draft.location,
+                          location_place_id: draft.location_place_id,
+                          location_lat: draft.location_lat,
+                          location_lng: draft.location_lng,
+                          location_pin_source: draft.location_pin_source,
+                          location_pinned_at: draft.location_pinned_at,
+                          location_pinned_by: draft.location_pinned_by,
+                        },
+                        {
+                          location: event.target.value,
+                          location_place_id: null,
+                          location_lat: null,
+                          location_lng: null,
+                        },
+                      ),
+                    )
                   }
                   onBlur={() => void persistLatest()}
                 />
               )}
+
+              {draft.location_lat != null && draft.location_lng != null ? (
+                <LocationCoordsField
+                  lat={draft.location_lat}
+                  lng={draft.location_lng}
+                  source={draft.location_pin_source}
+                  onCopy={() => {
+                    const value = formatLocationCoords(draft.location_lat!, draft.location_lng!)
+                    void navigator.clipboard.writeText(value).then(
+                      () => show('הקואורדינטות הועתקו', 'done'),
+                      () => show('ההעתקה נכשלה. נסו שוב.', 'alert'),
+                    )
+                  }}
+                  onResetToGoogle={() => {
+                    updateDraft(
+                      clearLockedLocationPin({
+                        location: draft.location,
+                        location_place_id: draft.location_place_id,
+                        location_lat: draft.location_lat,
+                        location_lng: draft.location_lng,
+                        location_pin_source: draft.location_pin_source,
+                        location_pinned_at: draft.location_pinned_at,
+                        location_pinned_by: draft.location_pinned_by,
+                      }),
+                    )
+                    queueMicrotask(() => void persistLatest())
+                  }}
+                />
+              ) : null}
 
               <TextAreaField
                 label="הערות"

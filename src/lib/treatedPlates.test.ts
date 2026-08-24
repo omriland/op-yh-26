@@ -11,6 +11,7 @@ import {
   mapTreatedPlateRows,
   removeTreatedPlate,
   setTreatedPlateLeftWhere,
+  settleTreatedPlatePending,
   treatedPlateCaption,
   treatedPlateMeta,
 } from './treatedPlates'
@@ -60,6 +61,42 @@ describe('leftoverTreatedPlateError', () => {
 
   it('allows empty pending on complete', () => {
     expect(leftoverTreatedPlateError('', 'complete')).toBeUndefined()
+  })
+})
+
+describe('settleTreatedPlatePending', () => {
+  it('leaves a complete plate in the open field on draft', () => {
+    expect(settleTreatedPlatePending('24100502', [], 'draft')).toEqual({
+      ok: true,
+      plates: [],
+      pending: '24100502',
+      committed: null,
+    })
+  })
+
+  it('commits a complete 8-digit leftover on complete', () => {
+    const plate = { plate_number: '241-00-502', ...blank }
+    expect(settleTreatedPlatePending('24100502', [], 'complete')).toEqual({
+      ok: true,
+      plates: [plate],
+      pending: '',
+      committed: plate,
+    })
+  })
+
+  it('still errors incomplete leftover digits on complete', () => {
+    expect(settleTreatedPlatePending('241', [], 'complete')).toEqual({
+      ok: false,
+      error: TREATED_PLATE_LEFTOVER_ERROR,
+    })
+  })
+
+  it('surfaces a duplicate instead of leftover when the open plate is already on the list', () => {
+    const existing = [{ plate_number: '241-00-502', ...blank }]
+    expect(settleTreatedPlatePending('24100502', existing, 'complete')).toEqual({
+      ok: false,
+      error: TREATED_PLATE_DUPLICATE_ERROR,
+    })
   })
 })
 

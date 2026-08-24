@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { eventGeocodeQuery } from '../../lib/eventGeocode'
 import { emptyLocationPlaceFields, type LocationPlaceFields } from '../../lib/systemDistricts'
 import {
   fetchPlaceDetails,
@@ -16,6 +17,8 @@ type LocationPlacesFieldProps = {
   required?: boolean
   label?: string
   placeholder?: string
+  /** When set, Google autocomplete is queried as road + typed location. */
+  roadName?: string | null
   /** Events keep a free-text first row. User addresses must pick a Google place. */
   allowFreeText?: boolean
   onAutocompleteUnavailable?: () => void
@@ -29,6 +32,7 @@ export function LocationPlacesField({
   required,
   label = 'מיקום',
   placeholder = 'הקלידו כתובת או שם מקום',
+  roadName = null,
   allowFreeText = true,
   onAutocompleteUnavailable,
 }: LocationPlacesFieldProps) {
@@ -72,8 +76,11 @@ export function LocationPlacesField({
 
   useEffect(() => {
     const trimmed = query.trim()
-    if (!open || !trimmed) {
-      setPredictions([])
+    const googleQuery = eventGeocodeQuery(roadName, trimmed)
+    const fetchWhileClosed = roadName != null
+    if (!googleQuery || (!open && !fetchWhileClosed)) {
+      if (!open && !fetchWhileClosed) setPredictions([])
+      if (!googleQuery) setPredictions([])
       return
     }
     if (!hasGoogleMapsApiKey()) {
@@ -84,7 +91,7 @@ export function LocationPlacesField({
 
     let cancelled = false
     const handle = window.setTimeout(() => {
-      void fetchPlacePredictions(trimmed, sessionRef.current).then((result) => {
+      void fetchPlacePredictions(googleQuery, sessionRef.current).then((result) => {
         if (cancelled) return
         if (!result.ok) {
           notifyUnavailable()
@@ -100,8 +107,8 @@ export function LocationPlacesField({
       window.clearTimeout(handle)
     }
     // notifyUnavailable reads refs; intentionally omit callback from deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- open/query only
-  }, [query, open])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open/query/roadName only
+  }, [query, open, roadName])
 
   const freeTextLabel = query.trim()
     ? `שימוש ב־"${query.trim()}" כפי שהוזן`

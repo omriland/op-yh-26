@@ -9,6 +9,11 @@ import {
   districtNeedsPlacesLocation,
   LOCATION_REQUIRED_ERROR,
 } from './systemDistricts'
+import {
+  emptyLocationPinMeta,
+  locationPinIsLocked,
+  type LocationPinSource,
+} from './locationPin'
 
 export type LookupOption = { id: string; name: string; code?: string | null }
 
@@ -101,6 +106,9 @@ export type EventFormDraft = {
   location_place_id: string | null
   location_lat: number | null
   location_lng: number | null
+  location_pin_source: LocationPinSource | null
+  location_pinned_at: string | null
+  location_pinned_by: string | null
   notes: string
   is_cancelled: boolean
   shift_lead: { full_name: string; callsign: string }
@@ -197,6 +205,9 @@ export function emptyEventDraft(lead: {
     location_place_id: null,
     location_lat: null,
     location_lng: null,
+    location_pin_source: null,
+    location_pinned_at: null,
+    location_pinned_by: null,
     notes: '',
     is_cancelled: false,
     shift_lead: lead,
@@ -286,6 +297,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
       `
       id, status, event_date, police_event_id, district_id, patrol_callsign,
       event_type_id, road_id, location, location_place_id, location_lat, location_lng,
+      location_pin_source, location_pinned_at, location_pinned_by,
       notes, is_cancelled,
       shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
       responders:event_responders(
@@ -316,6 +328,9 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     location_place_id: string | null
     location_lat: number | null
     location_lng: number | null
+    location_pin_source: LocationPinSource | null
+    location_pinned_at: string | null
+    location_pinned_by: string | null
     notes: string | null
     is_cancelled: boolean
     shift_lead: { full_name: string; callsign: string } | null
@@ -335,6 +350,9 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     location_place_id: row.location_place_id ?? null,
     location_lat: row.location_lat ?? null,
     location_lng: row.location_lng ?? null,
+    location_pin_source: row.location_pin_source ?? null,
+    location_pinned_at: row.location_pinned_at ?? null,
+    location_pinned_by: row.location_pinned_by ?? null,
     notes: row.notes ?? '',
     is_cancelled: row.is_cancelled ?? false,
     shift_lead: row.shift_lead ?? { full_name: '—', callsign: '—' },
@@ -419,31 +437,52 @@ export function eventForeignIds(
   }
 }
 
-/** Persist place ids/coords only when a Google pick is current. */
+/** Persist location text plus the canonical map pin. */
 export function buildLocationPayload(draft: EventFormDraft): {
   location: string | null
   location_place_id: string | null
   location_lat: number | null
   location_lng: number | null
+  location_pin_source: LocationPinSource | null
+  location_pinned_at: string | null
+  location_pinned_by: string | null
 } {
   const location = draft.location.trim() || null
-  if (!location) {
+  const locked = locationPinIsLocked(draft.location_pin_source)
+  const hasCoords = draft.location_lat != null && draft.location_lng != null
+
+  if (!location && !locked) {
     return {
       location: null,
       location_place_id: null,
       location_lat: null,
       location_lng: null,
+      ...emptyLocationPinMeta(),
     }
   }
+
+  if (locked && hasCoords) {
+    return {
+      location,
+      location_place_id: null,
+      location_lat: draft.location_lat,
+      location_lng: draft.location_lng,
+      location_pin_source: draft.location_pin_source,
+      location_pinned_at: draft.location_pinned_at,
+      location_pinned_by: draft.location_pinned_by,
+    }
+  }
+
   const hasPlace =
-    Boolean(draft.location_place_id) &&
-    draft.location_lat != null &&
-    draft.location_lng != null
+    Boolean(draft.location_place_id) && hasCoords
   return {
     location,
     location_place_id: hasPlace ? draft.location_place_id : null,
     location_lat: hasPlace ? draft.location_lat : null,
     location_lng: hasPlace ? draft.location_lng : null,
+    location_pin_source: hasPlace ? 'places' : null,
+    location_pinned_at: null,
+    location_pinned_by: null,
   }
 }
 
@@ -533,6 +572,9 @@ export async function saveEventForm(input: {
     location_place_id: locationPayload.location_place_id,
     location_lat: locationPayload.location_lat,
     location_lng: locationPayload.location_lng,
+    location_pin_source: locationPayload.location_pin_source,
+    location_pinned_at: locationPayload.location_pinned_at,
+    location_pinned_by: locationPayload.location_pinned_by,
     notes: draft.notes.trim() || null,
     is_cancelled: draft.is_cancelled,
     status: nextStatus,

@@ -57,6 +57,7 @@ type OpsMapPanelProps = {
   focusEventId?: string
   focusEventRequestId?: number
   onEventSelect?: (eventId: string) => void
+  onEventPinMove?: (eventId: string, lat: number, lng: number) => void
   fill?: boolean
   requirePins?: boolean
 }
@@ -66,6 +67,7 @@ export function OpsMapPanel({
   focusEventId,
   focusEventRequestId,
   onEventSelect,
+  onEventPinMove,
   fill = false,
   requirePins = true,
 }: OpsMapPanelProps) {
@@ -207,6 +209,7 @@ export function OpsMapPanel({
               focusEventId={activeFocusEventId}
               focusEventRequestId={focusEventRequestId}
               onEventSelect={onEventSelect}
+              onEventPinMove={onEventPinMove}
               fill={fill}
             />
           )}
@@ -340,6 +343,7 @@ function OpsMapCanvas({
   focusEventId,
   focusEventRequestId,
   onEventSelect,
+  onEventPinMove,
   fill,
 }: {
   pins: MapPin[]
@@ -350,6 +354,7 @@ function OpsMapCanvas({
   focusEventId?: string
   focusEventRequestId?: number
   onEventSelect?: (eventId: string) => void
+  onEventPinMove?: (eventId: string, lat: number, lng: number) => void
   fill: boolean
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -358,6 +363,8 @@ function OpsMapCanvas({
   const liveOverlaysRef = useRef(new Map<string, MapPinOverlay>())
   const onEventSelectRef = useRef(onEventSelect)
   onEventSelectRef.current = onEventSelect
+  const onEventPinMoveRef = useRef(onEventPinMove)
+  onEventPinMoveRef.current = onEventPinMove
   const userHasMovedMapRef = useRef(false)
   const applyingViewRef = useRef(true)
   const viewInitializedRef = useRef(false)
@@ -460,6 +467,9 @@ function OpsMapCanvas({
         onEventSelectRef.current
           ? () => onEventSelectRef.current?.(pin.eventId)
           : undefined,
+        undefined,
+        false,
+        (next) => onEventPinMoveRef.current?.(pin.eventId, next.lat, next.lng),
       )
       overlay.setMap(session.map)
       overlays.push(overlay)

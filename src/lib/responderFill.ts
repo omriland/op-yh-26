@@ -2,7 +2,7 @@ import { plateDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 import { leftoverEventMediaError } from './eventMedia'
-import { leftoverTreatedPlateError, mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
+import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
 
 export { plateDigits }
 
@@ -115,8 +115,12 @@ export function validateResponderFillDraft(
     if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא מד אוץ סיום.'
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
-    const leftover = leftoverTreatedPlateError(draft.treated_plate_pending, mode)
-    if (leftover) errors.treated_plates = leftover
+    const settled = settleTreatedPlatePending(
+      draft.treated_plate_pending,
+      draft.treated_plates,
+      mode,
+    )
+    if (!settled.ok) errors.treated_plates = settled.error
     const leftoverMedia = leftoverEventMediaError(unfinishedMediaDraftCount, mode)
     if (leftoverMedia) errors.event_media = leftoverMedia
   }
@@ -527,8 +531,25 @@ export async function completeResponderFill(input: {
   | { ok: true; eventStatus: EventStatus | null }
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors }
 > {
+  const settled = settleTreatedPlatePending(
+    input.draft.treated_plate_pending,
+    input.draft.treated_plates,
+    'complete',
+  )
+  if (!settled.ok) {
+    return {
+      ok: false,
+      error: 'יש למלא את כל שדות החובה לפני סיום הדיווח.',
+      fieldErrors: { treated_plates: settled.error },
+    }
+  }
+  const draft = {
+    ...input.draft,
+    treated_plates: settled.plates,
+    treated_plate_pending: '',
+  }
   const fieldErrors = validateResponderFillDraft(
-    input.draft,
+    draft,
     'complete',
     input.allowedPlates,
     input.totalKm,
@@ -537,5 +558,5 @@ export async function completeResponderFill(input: {
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'יש למלא את כל שדות החובה לפני סיום הדיווח.', fieldErrors }
   }
-  return saveParticipation({ ...input, status: 'done' })
+  return saveParticipation({ ...input, draft, status: 'done' })
 }

@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { settleTreatedPlatePending } from './treatedPlates'
 import type { ResponderFillContext, ResponderFillDraft, ResponderFillErrors } from './responderFill'
 
 export type LoadByTokenResult =
@@ -43,12 +44,32 @@ export async function saveFillByToken(input: {
   mode: 'draft' | 'complete'
   draft: ResponderFillDraft
 }): Promise<SaveByTokenResult> {
+  let draft = input.draft
+  if (input.mode === 'complete') {
+    const settled = settleTreatedPlatePending(
+      input.draft.treated_plate_pending,
+      input.draft.treated_plates,
+      'complete',
+    )
+    if (!settled.ok) {
+      return {
+        ok: false,
+        error: 'יש למלא את כל שדות החובה לפני סיום הדיווח.',
+        fieldErrors: { treated_plates: settled.error },
+      }
+    }
+    draft = {
+      ...input.draft,
+      treated_plates: settled.plates,
+      treated_plate_pending: '',
+    }
+  }
   const { data, error } = await supabase.functions.invoke('responder-fill', {
     body: {
       action: 'save_by_token',
       fill_token: input.fillToken,
       mode: input.mode,
-      draft: input.draft,
+      draft,
     },
   })
 

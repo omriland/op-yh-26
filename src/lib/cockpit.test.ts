@@ -10,6 +10,7 @@ import {
   cockpitEventStillOpenOnMap,
   eventGeocodeQuery,
   geocodeCockpitEventPins,
+  mergeCockpitEventPins,
   cockpitNeighborId,
   cockpitReelDetail,
   cockpitReelLead,
@@ -220,7 +221,7 @@ describe('eventGeocodeQuery', () => {
 })
 
 describe('geocodeCockpitEventPins', () => {
-  it('looks up events that have road or location but no coordinates', async () => {
+  it('looks up open events from current road and location even when coordinates exist', async () => {
     const queries: string[] = []
     const pins = await geocodeCockpitEventPins(
       [
@@ -258,16 +259,90 @@ describe('geocodeCockpitEventPins', () => {
       },
     )
 
-    expect(queries).toEqual(['כביש 20 מחלף השלום'])
+    expect(queries.sort()).toEqual(['כביש 20 מחלף', 'כביש 20 מחלף השלום'])
+    expect(pins).toEqual(
+      expect.arrayContaining([
+        {
+          eventId: 'known',
+          label: '20 מחלף',
+          title: '1 · כביש 20 · מחלף',
+          lat: 32.07,
+          lng: 34.79,
+        },
+        {
+          eventId: 'lookup',
+          label: 'תאונה · 20 מחלף השלום',
+          title: '2 · תאונה · כביש 20 · מחלף השלום',
+          lat: 32.07,
+          lng: 34.79,
+        },
+      ]),
+    )
+    expect(pins).toHaveLength(2)
+  })
+
+  it('does not look up a human-locked pin and keeps stored coordinates', async () => {
+    const queries: string[] = []
+    const pins = await geocodeCockpitEventPins(
+      [
+        {
+          id: 'locked',
+          police_event_id: '3',
+          location: 'מחלף',
+          location_lat: 32.05,
+          location_lng: 34.75,
+          location_pin_source: 'shift_lead',
+          event_type: { name: 'תאונה' },
+          road: { name: 'כביש 20' },
+        },
+      ],
+      async (query) => {
+        queries.push(query)
+        return { lat: 1, lng: 1 }
+      },
+    )
+
+    expect(queries).toEqual([])
     expect(pins).toEqual([
       {
-        eventId: 'lookup',
-        label: 'תאונה · 20 מחלף השלום',
-        title: '2 · תאונה · כביש 20 · מחלף השלום',
-        lat: 32.07,
-        lng: 34.79,
+        eventId: 'locked',
+        label: 'תאונה · 20 מחלף',
+        title: '3 · תאונה · כביש 20 · מחלף',
+        lat: 32.05,
+        lng: 34.75,
       },
     ])
+  })
+})
+
+describe('mergeCockpitEventPins', () => {
+  it('lets a fresh Google lookup replace stored coordinates', () => {
+    const stored = {
+      eventId: 'e1',
+      label: 'תאונה · 20 מחלף',
+      title: '1',
+      lat: 32.1,
+      lng: 34.8,
+    }
+    const geocoded = {
+      eventId: 'e1',
+      label: 'תאונה · 4 שורק',
+      title: '1',
+      lat: 31.9,
+      lng: 34.7,
+    }
+    expect(mergeCockpitEventPins([stored], [geocoded])).toEqual([geocoded])
+  })
+
+  it('keeps stored coordinates when Google has no match', () => {
+    const stored = {
+      eventId: 'e1',
+      label: 'תאונה · 20 מחלף',
+      title: '1',
+      lat: 32.1,
+      lng: 34.8,
+    }
+    expect(mergeCockpitEventPins([stored], [])).toEqual([stored])
   })
 })
 

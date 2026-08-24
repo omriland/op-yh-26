@@ -19,6 +19,7 @@ export type MapsApi = {
   OverlayView: {
     new (): GoogleOverlay
   }
+  Point: new (x: number, y: number) => { x: number; y: number }
   InfoWindow: new (opts?: { content?: string }) => GoogleInfoWindow
 }
 
@@ -84,6 +85,7 @@ type GoogleOverlay = {
   getPanes: () => { overlayMouseTarget: HTMLElement } | null
   getProjection: () => {
     fromLatLngToDivPixel: (latLng: GoogleLatLng) => { x: number; y: number } | null
+    fromDivPixelToLatLng: (point: { x: number; y: number }) => GoogleLatLng | null
   }
   onAdd(): void
   draw(): void
@@ -179,6 +181,7 @@ export function createLabeledPin(
   onClick?: () => void,
   tooltip?: { text: string; alert?: boolean; live?: boolean },
   unavailable = false,
+  onDragEnd?: (next: { lat: number; lng: number }) => void,
 ): MapPinOverlay {
   class LabeledPin extends maps.OverlayView {
     private el: HTMLDivElement | null = null
@@ -197,7 +200,8 @@ export function createLabeledPin(
         variant === 'event' ? 'user-map-pin--event' : '',
         variant === 'live' ? 'user-map-pin--live' : '',
         unavailable ? 'user-map-pin--unavailable' : '',
-        onClick ? 'user-map-pin--hit' : '',
+        onClick || onDragEnd ? 'user-map-pin--hit' : '',
+        onDragEnd ? 'user-map-pin--draggable' : '',
       ]
         .filter(Boolean)
         .join(' ')
@@ -207,7 +211,57 @@ export function createLabeledPin(
       } else {
         el.title = title
       }
-      if (onClick) {
+      if (onDragEnd) {
+        el.setAttribute('aria-grabbed', 'false')
+        let dragging = false
+        let moved = false
+        let startX = 0
+        let startY = 0
+        let origin = this.latLng
+        el.addEventListener('pointerdown', (event) => {
+          if (event.button !== 0) return
+          event.preventDefault()
+          event.stopPropagation()
+          dragging = true
+          moved = false
+          startX = event.clientX
+          startY = event.clientY
+          origin = this.latLng
+          el.classList.add('user-map-pin--dragging')
+          el.setAttribute('aria-grabbed', 'true')
+          el.setPointerCapture(event.pointerId)
+        })
+        el.addEventListener('pointermove', (event) => {
+          if (!dragging) return
+          const dx = event.clientX - startX
+          const dy = event.clientY - startY
+          if (!moved && dx * dx + dy * dy < 64) return
+          moved = true
+          const proj = this.getProjection()
+          const startPx = proj.fromLatLngToDivPixel(origin)
+          if (!startPx) return
+          const next = proj.fromDivPixelToLatLng(new maps.Point(startPx.x + dx, startPx.y + dy))
+          if (!next) return
+          this.latLng = next
+          this.draw()
+        })
+        el.addEventListener('pointerup', (event) => {
+          if (!dragging) return
+          dragging = false
+          el.classList.remove('user-map-pin--dragging')
+          el.setAttribute('aria-grabbed', 'false')
+          try {
+            el.releasePointerCapture(event.pointerId)
+          } catch {
+            /* already released */
+          }
+          if (moved) {
+            onDragEnd({ lat: this.latLng.lat(), lng: this.latLng.lng() })
+          } else {
+            onClick?.()
+          }
+        })
+      } else if (onClick) {
         el.addEventListener('click', onClick)
       }
       const dot = document.createElement('span')

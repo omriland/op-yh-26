@@ -367,6 +367,36 @@ textarea.field__input {
   color: var(--status-alert);
 }
 
+.location-coords {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.location-coords__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+}
+
+.location-coords__pin {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.location-coords__value {
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.location-coords__reset {
+  flex: none;
+}
+
 /* ============================================================
    Inline alert
    ============================================================ */
@@ -5762,6 +5792,16 @@ textarea.field__input {
 
 .user-map-pin--event .user-map-pin__dot {
   background: var(--status-alert);
+}
+
+.user-map-pin--draggable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.user-map-pin--dragging {
+  cursor: grabbing;
+  z-index: 5;
 }
 
 .user-map-pin--live {

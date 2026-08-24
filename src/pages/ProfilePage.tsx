@@ -2,14 +2,27 @@ import { useEffect, useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { supabase } from '../lib/supabase'
-import { formatNumber, formatPhone, monoClass } from '../lib/format'
+import { formatDateTime, formatNumber, formatPhone, monoClass } from '../lib/format'
 import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
 import { addressKindLabel, fetchOwnAddresses, type UserAddressRow } from '../lib/userAddresses'
+import {
+  createPartnerClient,
+  fetchPartnerClients,
+  fetchPartnerGrants,
+  revokePartnerGrant,
+  rotatePartnerClientSecret,
+  type PartnerClient,
+  type PartnerGrant,
+} from '../lib/partnerApi'
+import { isTelegramBotUsername, normalizeTelegramBotUsername } from '../lib/partnerOAuth'
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
+import { Dialog } from '../components/ui/Dialog'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
+import { TextField } from '../components/ui/TextField'
+import { useToast } from '../components/ui/Toast'
 
 const ROLE_LABELS: Partial<Record<AppRole, string>> = {
   admin: 'מנהל',
@@ -25,8 +38,25 @@ type Vehicle = { id: string; plate_number: string; model: string; archived: bool
 
 export function ProfilePage() {
   const { profile, roles, signOut } = useAuth()
+  const { show } = useToast()
+  const isAdmin = roles.includes('admin')
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null)
   const [addresses, setAddresses] = useState<UserAddressRow[] | null>(null)
+  const [grants, setGrants] = useState<PartnerGrant[] | null>(null)
+  const [grantError, setGrantError] = useState<string | null>(null)
+  const [revokeId, setRevokeId] = useState<string | null>(null)
+  const [revoking, setRevoking] = useState(false)
+  const [clients, setClients] = useState<PartnerClient[] | null>(null)
+  const [appName, setAppName] = useState('')
+  const [botUsername, setBotUsername] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [secretOnce, setSecretOnce] = useState<{
+    title: string
+    clientId: string
+    secret: string
+    authorizeUrl?: string
+  } | null>(null)
 
   useEffect(() => {
     if (!profile) return
@@ -55,10 +85,92 @@ export function ProfilePage() {
         if (active) setAddresses([])
       })
 
+    fetchPartnerGrants().then((result) => {
+      if (!active) return
+      if (result.ok) {
+        setGrants(result.grants)
+        setGrantError(null)
+      } else {
+        setGrants([])
+        setGrantError(result.error)
+      }
+    })
+
     return () => {
       active = false
     }
   }, [profile])
+
+  useEffect(() => {
+    if (!profile || !isAdmin) return
+    let active = true
+    fetchPartnerClients().then((result) => {
+      if (!active) return
+      if (result.ok) setClients(result.clients)
+      else setClients([])
+    })
+    return () => {
+      active = false
+    }
+  }, [profile, isAdmin])
+
+  async function onRevokeGrant() {
+    if (!revokeId) return
+    setRevoking(true)
+    const result = await revokePartnerGrant(revokeId)
+    setRevoking(false)
+    if (!result.ok) {
+      show(result.error)
+      return
+    }
+    setGrants((current) => (current ?? []).filter((row) => row.id !== revokeId))
+    setRevokeId(null)
+    show('הגישה בוטלה')
+  }
+
+  async function onCreateClient() {
+    const name = appName.trim()
+    const bot = normalizeTelegramBotUsername(botUsername)
+    if (!name) {
+      setCreateError('יש להזין שם יישום.')
+      return
+    }
+    if (!isTelegramBotUsername(bot)) {
+      setCreateError('שם המשתמש של הבוט אינו תקין.')
+      return
+    }
+    setCreating(true)
+    setCreateError(null)
+    const result = await createPartnerClient({ name, telegramBotUsername: bot })
+    setCreating(false)
+    if (!result.ok) {
+      setCreateError(result.error)
+      return
+    }
+    setAppName('')
+    setBotUsername('')
+    setSecretOnce({
+      title: 'הסוד יוצג פעם אחת בלבד',
+      clientId: result.clientId,
+      secret: result.clientSecret,
+      authorizeUrl: result.authorizeUrl,
+    })
+    const listed = await fetchPartnerClients()
+    if (listed.ok) setClients(listed.clients)
+  }
+
+  async function onRotateSecret(clientId: string) {
+    const result = await rotatePartnerClientSecret(clientId)
+    if (!result.ok) {
+      show(result.error)
+      return
+    }
+    setSecretOnce({
+      title: 'הסוד החדש יוצג פעם אחת בלבד',
+      clientId,
+      secret: result.clientSecret,
+    })
+  }
 
   if (!profile) {
     return (
@@ -190,6 +302,98 @@ export function ProfilePage() {
           </div>
         </section>
 
+        <section className="card">
+          <h2 className="t-section">חיבורים</h2>
+          <div style={{ marginBlockStart: 'var(--space-4)' }}>
+            {grants === null ? (
+              <Skeleton height={24} />
+            ) : grantError ? (
+              <p className="t-body text-muted">{grantError}</p>
+            ) : grants.length === 0 ? (
+              <p className="t-body text-muted">אין יישומים מחוברים.</p>
+            ) : (
+              <div className="stack-4">
+                {grants.map((grant) => (
+                  <div key={grant.id} className="stack-3">
+                    <Ledger>
+                      <LedgerRow label="יישום" value={grant.name} />
+                      <LedgerRow
+                        label="בתוקף עד"
+                        value={formatDateTime(grant.expires_at)}
+                      />
+                    </Ledger>
+                    <Button variant="destructive" onClick={() => setRevokeId(grant.id)}>
+                      בטל גישה
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {isAdmin ? (
+          <section className="card stack-4">
+            <h2 className="t-section">יישומים לשותפים</h2>
+            {clients === null ? (
+              <Skeleton height={24} />
+            ) : clients.length === 0 ? (
+              <p className="t-body text-muted">עדיין לא רשום יישום שותף.</p>
+            ) : (
+              <div className="stack-4">
+                {clients.map((client) => (
+                  <div key={client.id} className="stack-3">
+                    <Ledger>
+                      <LedgerRow label="שם" value={client.name} />
+                      <LedgerRow label="מזהה" value={client.client_id} isolate />
+                      <LedgerRow
+                        label="בוט"
+                        value={`@${client.telegram_bot_username}`}
+                        isolate
+                      />
+                    </Ledger>
+                    <Button
+                      variant="secondary"
+                      onClick={() => void onRotateSecret(client.client_id)}
+                    >
+                      חידוש סוד
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="stack-3">
+              <TextField
+                label="שם היישום"
+                required
+                value={appName}
+                onChange={(event) => setAppName(event.target.value)}
+              />
+              <TextField
+                label="שם משתמש בטלגרם"
+                hint="בלי @"
+                isolate
+                required
+                value={botUsername}
+                onChange={(event) => setBotUsername(event.target.value)}
+              />
+              {createError ? (
+                <p className="alert alert--error" role="alert">
+                  {createError}
+                </p>
+              ) : null}
+              <Button
+                variant="secondary"
+                loading={creating}
+                loadingLabel="יוצר…"
+                onClick={() => void onCreateClient()}
+              >
+                יצירת יישום
+              </Button>
+            </div>
+          </section>
+        ) : null}
+
         <Button
           variant="secondary"
           onClick={() => void signOut()}
@@ -198,6 +402,55 @@ export function ProfilePage() {
           התנתקות
         </Button>
       </div>
+
+      <Dialog
+        open={Boolean(revokeId)}
+        title="לבטל את הגישה?"
+        onClose={() => !revoking && setRevokeId(null)}
+        footer={
+          <>
+            <Button
+              variant="destructive"
+              loading={revoking}
+              loadingLabel="מבטל…"
+              onClick={() => void onRevokeGrant()}
+            >
+              בטל גישה
+            </Button>
+            <Button variant="secondary" disabled={revoking} onClick={() => setRevokeId(null)}>
+              ביטול
+            </Button>
+          </>
+        }
+      >
+        <p className="t-body">הבוט לא יוכל להשלים דיווחים בשמך עד שתאשרו מחדש.</p>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(secretOnce)}
+        title={secretOnce?.title ?? 'סוד יישום'}
+        onClose={() => setSecretOnce(null)}
+        footer={
+          <Button variant="primary" onClick={() => setSecretOnce(null)}>
+            הבנתי
+          </Button>
+        }
+      >
+        {secretOnce ? (
+          <div className="stack-3">
+            <p className="t-body text-secondary">שמרו את הסוד אצל השותף. לא נציג אותו שוב.</p>
+            <Ledger>
+              <LedgerRow label="מזהה" value={secretOnce.clientId} isolate />
+              <LedgerRow label="סוד" value={secretOnce.secret} isolate />
+            </Ledger>
+            {secretOnce.authorizeUrl ? (
+              <p className="t-caption text-muted" style={{ overflowWrap: 'anywhere' }}>
+                {secretOnce.authorizeUrl}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </Dialog>
     </div>
   )
 }

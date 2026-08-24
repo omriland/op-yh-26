@@ -24,6 +24,7 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 | סוג אירוע | select (event_types) | |
 | כביש | select (roads) | When שלוחה is `תחנה / אחר / משוכפל`, default to the road whose name contains `101` (still editable). |
 | מיקום | text / Places combobox | Plain text for normal שלוחות. For system שלוחה `תחנה / אחר / משוכפל`: Google Places autocomplete (HE), free-text row always first, **required**. Spec: `2026-08-11-yahpaz-system-districts-places-location-design.md`. |
+| קואורדינטות | read-only + copy | Shown under מיקום when `location_lat`/`location_lng` exist. One row: mono LTR `N.NNNNN, E.EEEEE` + copy, and if the pin is human-locked, ghost `חזרה למיקום מגוגל` on the same row. Map drag does not edit כביש/מיקום. Spec: `2026-08-24-yahpaz-event-location-pin-design.md`. |
 | הערות | textarea | optional |
 
 `אחמ״ש` is not an input — it renders as a read-only ledger row (auto: creator's name + callsign) at the top of the section.
