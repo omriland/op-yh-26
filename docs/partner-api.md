@@ -1,15 +1,13 @@
 # אבן דרך — Partner API
 
-**Share this:** [https://yahpz.com/partner-api/](https://yahpz.com/partner-api/) (Swagger UI)  
-**Spec file:** [https://yahpz.com/partner-api/openapi.yaml](https://yahpz.com/partner-api/openapi.yaml)
+**Share this:** [https://yahpz.com/partner-api/](https://yahpz.com/partner-api/)
+
+**Volunteers do not use this page.** They open [yahpz.com](https://yahpz.com), go to **פרופיל**, and tap **חבר לטלגרם**.
 
 **Product:** אבן דרך (Yahpaz)  
-**Audience:** Trusted third-party apps (for example a Telegram bot) acting **as one volunteer**  
+**Audience:** The trusted server that runs the Telegram bot  
 **Version:** 1.0  
-**Date:** 2026-08-24  
-**Status:** Production (Edge live; web consent on yahpz.com after the next site deploy)
-
-The **official** contract is the OpenAPI spec + Swagger UI above. This markdown is a readable companion. Internal design notes live in `docs/superpowers/specs/2026-08-24-yahpaz-partner-responder-api-design.md`.
+**Date:** 2026-08-24
 
 ---
 

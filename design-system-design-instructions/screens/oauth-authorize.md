@@ -11,7 +11,7 @@ Partner-app consent after login. Same portal as login: Command stage, Field docu
 ## Entry
 
 `https://yahpz.com/oauth/authorize?client_id=&redirect_uri=&state=&scope=responder:fill`  
-Logged-out visitors see **כניסה** on this URL, then this screen after OTP / password setup.
+Logged-in volunteers connect from **פרופיל → חבר לטלגרם** (no extra login). This URL is for when Telegram sent them here while logged out, then this screen after OTP / password setup.
 
 ## Layout
 
@@ -20,8 +20,8 @@ Masthead: **אבן דרך** + unit lockup (same as login).
 Card:
 
 1. `--type-title` equivalent via `.login__heading`: `אישור גישה`
-2. Body `--type-body` / `--text-secondary`: היישום **{name}** מבקש גישה להשלמת דיווחי האירועים שלך (קילומטרים, טיפול, לוחיות ומדיה) למשך 7 ימים.
-3. Primary block: `אשר גישה` (loading `מאשר…`)
+2. Body `--type-body` / `--text-secondary`: היישום **{name}** ישלים דיווחי אירועים בשמך בטלגרם למשך 7 ימים.
+3. Primary block: `אשר והמשך לטלגרם` (loading `מאשר…`)
 4. Ghost: `לא עכשיו`
 
 One primary control.

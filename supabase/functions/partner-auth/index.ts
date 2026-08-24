@@ -180,6 +180,9 @@ Deno.serve(async (req: Request) => {
     if (action === "list_grants") {
       return handleListGrants(admin, cfg, req);
     }
+    if (action === "list_apps") {
+      return handleListApps(admin, cfg, req);
+    }
     if (action === "revoke_grant") {
       return handleRevokeGrant(admin, cfg, req, body);
     }
@@ -410,6 +413,32 @@ async function handleListGrants(
   });
 
   return json(200, { grants });
+}
+
+async function handleListApps(
+  admin: SupabaseClient,
+  cfg: { url: string; anon: string },
+  req: Request,
+): Promise<Response> {
+  const user = await userFromRequest(req, cfg.url, cfg.anon);
+  if (!user) return json(401, { error: "יש להתחבר מחדש." });
+  const active = await requireActiveProfile(admin, user.id);
+  if (!active.ok) return active.response;
+
+  const { data, error } = await admin
+    .from("oauth_clients")
+    .select("name, client_id, telegram_bot_username")
+    .eq("is_active", true)
+    .order("created_at", { ascending: true });
+  if (error) return json(400, { error: "לא ניתן לטעון יישומים." });
+
+  const apps = (data ?? []).map((row) => ({
+    name: row.name,
+    client_id: row.client_id,
+    telegram_bot_username: row.telegram_bot_username,
+    redirect_uri: redirectUriForBot(row.telegram_bot_username as string),
+  }));
+  return json(200, { apps });
 }
 
 async function handleRevokeGrant(

@@ -33,7 +33,7 @@ A trusted partner wants to build a **Telegram bot** so volunteers can complete t
 |---|---|
 | Client | One trusted partner; `client_id` + hashed `client_secret` |
 | Transport | HTTP Edge API, not PostgREST |
-| Linking | `/oauth/authorize` from Telegram + **חיבורים** revoke |
+| Linking | Profile **חבר לטלגרם** (logged in) or `/oauth/authorize` from Telegram; **חיבורים** revoke |
 | Completion | `https://t.me/<bot>?start=<one_time_code>` (Telegram 64-char start limit) |
 | Token | Opaque bearer, 7 days, no refresh; re-link replaces the grant |
 | Writes | Same rules as `validateResponderFillDraft` + plates + media |

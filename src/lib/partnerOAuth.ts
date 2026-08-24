@@ -98,6 +98,28 @@ export function grantIsUsable(
   return expires > now.getTime()
 }
 
+export function randomOAuthState(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `st_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`
+}
+
+export function liveGrantForBot<T extends { telegram_bot_username: string; expires_at: string }>(
+  grants: T[],
+  botUsername: string,
+  now: Date = new Date(),
+): T | null {
+  const bot = normalizeTelegramBotUsername(botUsername).toLowerCase()
+  return (
+    grants.find(
+      (grant) =>
+        normalizeTelegramBotUsername(grant.telegram_bot_username).toLowerCase() === bot &&
+        grantIsUsable({ expiresAt: grant.expires_at, revokedAt: null }, now),
+    ) ?? null
+  )
+}
+
 export function isOpenStandaloneParticipation(row: {
   origin: string
   isCancelled: boolean

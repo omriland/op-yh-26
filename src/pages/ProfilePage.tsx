@@ -6,15 +6,19 @@ import { formatDateTime, formatNumber, formatPhone, monoClass } from '../lib/for
 import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
 import { addressKindLabel, fetchOwnAddresses, type UserAddressRow } from '../lib/userAddresses'
 import {
+  connectPartnerApp,
   createPartnerClient,
+  fetchPartnerApps,
   fetchPartnerClients,
   fetchPartnerGrants,
   revokePartnerGrant,
   rotatePartnerClientSecret,
+  type PartnerApp,
   type PartnerClient,
   type PartnerGrant,
 } from '../lib/partnerApi'
-import { isTelegramBotUsername, normalizeTelegramBotUsername } from '../lib/partnerOAuth'
+import { isTelegramBotUsername, liveGrantForBot, normalizeTelegramBotUsername } from '../lib/partnerOAuth'
+import { isImpersonating } from '../lib/impersonationStash'
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
@@ -43,7 +47,9 @@ export function ProfilePage() {
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null)
   const [addresses, setAddresses] = useState<UserAddressRow[] | null>(null)
   const [grants, setGrants] = useState<PartnerGrant[] | null>(null)
+  const [apps, setApps] = useState<PartnerApp[] | null>(null)
   const [grantError, setGrantError] = useState<string | null>(null)
+  const [connectingId, setConnectingId] = useState<string | null>(null)
   const [revokeId, setRevokeId] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
   const [clients, setClients] = useState<PartnerClient[] | null>(null)
@@ -96,6 +102,12 @@ export function ProfilePage() {
       }
     })
 
+    fetchPartnerApps().then((result) => {
+      if (!active) return
+      if (result.ok) setApps(result.apps)
+      else setApps([])
+    })
+
     return () => {
       active = false
     }
@@ -126,6 +138,21 @@ export function ProfilePage() {
     setGrants((current) => (current ?? []).filter((row) => row.id !== revokeId))
     setRevokeId(null)
     show('הגישה בוטלה')
+  }
+
+  async function onConnectApp(app: PartnerApp) {
+    if (isImpersonating()) {
+      show('לא ניתן לחבר יישום בזמן התחזות.')
+      return
+    }
+    setConnectingId(app.client_id)
+    const result = await connectPartnerApp(app)
+    if (!result.ok) {
+      setConnectingId(null)
+      show(result.error)
+      return
+    }
+    window.location.assign(result.redirect)
   }
 
   async function onCreateClient() {
@@ -304,23 +331,25 @@ export function ProfilePage() {
 
         <section className="card">
           <h2 className="t-section">חיבורים</h2>
+          <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
+            חיבור לבוט בטלגרם להשלמת דיווחים בצ׳אט.
+          </p>
           <div style={{ marginBlockStart: 'var(--space-4)' }}>
-            {grants === null ? (
+            {grants === null || apps === null ? (
               <Skeleton height={24} />
             ) : grantError ? (
               <p className="t-body text-muted">{grantError}</p>
-            ) : grants.length === 0 ? (
-              <p className="t-body text-muted">אין יישומים מחוברים.</p>
-            ) : (
+            ) : apps.length === 0 && grants.length === 0 ? (
+              <p className="t-body text-muted">
+                החיבור לבוט ייפתח כאן אחרי שהמנהל ירשום אותו.
+              </p>
+            ) : apps.length === 0 ? (
               <div className="stack-4">
                 {grants.map((grant) => (
                   <div key={grant.id} className="stack-3">
                     <Ledger>
                       <LedgerRow label="יישום" value={grant.name} />
-                      <LedgerRow
-                        label="בתוקף עד"
-                        value={formatDateTime(grant.expires_at)}
-                      />
+                      <LedgerRow label="בתוקף עד" value={formatDateTime(grant.expires_at)} />
                     </Ledger>
                     <Button variant="destructive" onClick={() => setRevokeId(grant.id)}>
                       בטל גישה
@@ -328,17 +357,53 @@ export function ProfilePage() {
                   </div>
                 ))}
               </div>
+            ) : (
+              <div className="stack-4">
+                {apps.map((app) => {
+                  const live = liveGrantForBot(grants, app.telegram_bot_username)
+                  const connectLabel = apps.length === 1 ? 'חבר לטלגרם' : `חבר את ${app.name}`
+                  return (
+                    <div key={app.client_id} className="stack-3">
+                      <Ledger>
+                        <LedgerRow label="יישום" value={app.name} />
+                        {live ? (
+                          <LedgerRow label="בתוקף עד" value={formatDateTime(live.expires_at)} />
+                        ) : (
+                          <LedgerRow label="מצב" value="לא מחובר" />
+                        )}
+                      </Ledger>
+                      {live ? (
+                        <Button variant="destructive" onClick={() => setRevokeId(live.id)}>
+                          בטל גישה
+                        </Button>
+                      ) : (
+                        <Button
+                          disabled={Boolean(connectingId) || isImpersonating()}
+                          loading={connectingId === app.client_id}
+                          loadingLabel="מחבר…"
+                          onClick={() => void onConnectApp(app)}
+                        >
+                          {connectLabel}
+                        </Button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         </section>
 
         {isAdmin ? (
           <section className="card stack-4">
-            <h2 className="t-section">יישומים לשותפים</h2>
+            <h2 className="t-section">רישום בוט</h2>
+            <p className="t-caption text-muted">
+              פעם אחת ליחידה, למי שבונה את הבוט. הכוננים מתחברים למעלה, בלי סודות.
+            </p>
             {clients === null ? (
               <Skeleton height={24} />
             ) : clients.length === 0 ? (
-              <p className="t-body text-muted">עדיין לא רשום יישום שותף.</p>
+              <p className="t-body text-muted">עדיין לא רשום בוט.</p>
             ) : (
               <div className="stack-4">
                 {clients.map((client) => (
@@ -438,7 +503,7 @@ export function ProfilePage() {
       >
         {secretOnce ? (
           <div className="stack-3">
-            <p className="t-body text-secondary">שמרו את הסוד אצל השותף. לא נציג אותו שוב.</p>
+            <p className="t-body text-secondary">שמרו את הסוד אצל מי שבונה את הבוט. הכוננים לא צריכים אותו.</p>
             <Ledger>
               <LedgerRow label="מזהה" value={secretOnce.clientId} isolate />
               <LedgerRow label="סוד" value={secretOnce.secret} isolate />

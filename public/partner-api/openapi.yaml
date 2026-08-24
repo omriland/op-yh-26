@@ -10,70 +10,13 @@ info:
     name: אבן דרך
     url: https://yahpz.com
   description: |
-    Official HTTP contract for **trusted third-party apps** (for example a Telegram bot)
-    acting as **one volunteer**.
+    Volunteers connect in the product: **פרופיל → חבר לטלגרם**. This spec is only for
+    the trusted server that runs the Telegram bot.
 
-    **Share this page:** [https://yahpz.com/partner-api/](https://yahpz.com/partner-api/)
-    · Raw spec: [openapi.yaml](./openapi.yaml)
+    After `/start yp_…`, exchange the code (`partner-auth` `token`) and call
+    `responder-api` with the `ypat_` bearer. Pick an **Example** on each operation
+    for the JSON `action`. Errors are Hebrew; show them in chat.
 
-    ## What access grants
-
-    After the volunteer approves your app on yahpz.com you may, as that volunteer:
-
-    - See who they are
-    - List **open standalone** assignments
-    - Load one event (draft, vehicles, treated plates, photos)
-    - Save a draft or **complete** the report (same rules as השלמת הפרטים שלי)
-    - Add / remove / look up treated civilian plates
-    - Upload / list / update / delete **their** photos
-
-    User-facing `error` strings are **Hebrew** — show them in chat. Machine `code`
-    values are English.
-
-    ## Out of scope (v1)
-
-    - Create or edit unit events, shift-lead fields, or `total_km`
-    - Shift / shift-born events (`origin = shift`)
-    - Other volunteers’ private drafts
-    - PostgREST, Auth, or Storage directly
-    - Volunteer passwords or refresh tokens
-
-    Scope: `responder:fill` (only scope in v1). Access token lives **7 days**. No refresh.
-
-    ## Credentials
-
-    | Name | Use |
-    |---|---|
-    | `client_id` | Authorize URL + `token` / `revoke` body |
-    | `client_secret` | **Server only.** Never put this in Telegram, a webpage, or a mobile app |
-    | Publishable `apikey` | Same anon key as the website. Required on every Edge call. Not authorization |
-
-    Click **Authorize** in this page and paste the publishable `apikey`. For fill calls
-    also paste the volunteer `ypat_…` token as the bearer.
-
-    Try it out from this origin is allowed (CORS). Production bots must call **server-to-server**.
-    Do not paste a production `client_secret` on a shared computer.
-
-    ## Linking (browser, not Edge)
-
-    1. Bind a random `state` to **this Telegram user** in your DB, then open:
-
-    `https://yahpz.com/oauth/authorize?client_id={id}&redirect_uri=https://t.me/{bot}&state={state}&scope=responder:fill`
-
-    2. Volunteer logs in on yahpz.com and taps **אשר גישה**.
-    3. Browser goes to `https://t.me/{bot}?start=yp_{code}` (one-time code, ~5 minutes).
-    4. Your server calls **Exchange code** (`action: token`).
-    5. Store `access_token` keyed by Telegram user id.
-
-    `redirect_uri` must be exactly `https://t.me/{bot_username}` (optional trailing slash).
-    We do not echo `state` through Telegram — the start payload is too small.
-
-    Re-linking replaces the previous grant. Volunteer can also revoke under **חיבורים**.
-
-    ## How these two POSTs work
-
-    Both Edge functions take **JSON with `action`**. Use the **Examples** dropdown on
-    each operation to pick `token`, `whoami`, `complete`, and so on.
 servers:
   - url: https://rtvizpsfvtjowbimugns.supabase.co/functions/v1
     description: Production Edge

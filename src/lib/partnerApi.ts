@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { randomOAuthState } from './partnerOAuth'
 
 export type PartnerGrant = {
   id: string
@@ -19,6 +20,13 @@ export type PartnerClient = {
 
 export type PartnerClientInfo = {
   name: string
+  telegram_bot_username: string
+  redirect_uri: string
+}
+
+export type PartnerApp = {
+  name: string
+  client_id: string
   telegram_bot_username: string
   redirect_uri: string
 }
@@ -90,6 +98,26 @@ export async function fetchPartnerGrants(): Promise<
   })
   if (!result.ok) return result
   return { ok: true, grants: result.data.grants ?? [] }
+}
+
+export async function fetchPartnerApps(): Promise<
+  { ok: true; apps: PartnerApp[] } | { ok: false; error: string }
+> {
+  const result = await invokePartnerAuth<{ apps?: PartnerApp[] }>({
+    action: 'list_apps',
+  })
+  if (!result.ok) return result
+  return { ok: true, apps: result.data.apps ?? [] }
+}
+
+export async function connectPartnerApp(app: PartnerApp): Promise<
+  { ok: true; redirect: string } | { ok: false; error: string }
+> {
+  return approvePartnerAuthorize({
+    clientId: app.client_id,
+    redirectUri: app.redirect_uri,
+    state: randomOAuthState(),
+  })
 }
 
 export async function revokePartnerGrant(

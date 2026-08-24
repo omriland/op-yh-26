@@ -1,74 +1,166 @@
 <!doctype html>
-<html lang="en">
+<html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>אבן דרך Partner API</title>
+    <title>חיבור לבוט - אבן דרך</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="stylesheet" href="/partner-api/vendor/swagger-ui.css" />
     <style>
       :root {
         --yp-navy: #1d4e89;
+        --yp-ink: #182a47;
+        --yp-muted: #5b6b82;
+        --yp-line: #d8dee8;
+        --yp-paper: #f6f7f9;
+      }
+      * {
+        box-sizing: border-box;
       }
       html,
       body {
         margin: 0;
-        background: #f6f7f9;
+        background: var(--yp-paper);
+        color: var(--yp-ink);
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
       }
       .docs-header {
         background: var(--yp-navy);
         color: #fff;
-        padding: 20px 28px 18px;
-        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        padding: 28px 24px 24px;
       }
       .docs-header h1 {
-        margin: 0 0 6px;
-        font-size: 22px;
+        margin: 0 0 8px;
+        font-size: 1.75rem;
         font-weight: 700;
       }
       .docs-header p {
         margin: 0;
-        max-width: 52rem;
-        font-size: 14px;
-        line-height: 1.45;
+        max-width: 40rem;
+        font-size: 1rem;
+        line-height: 1.5;
         opacity: 0.92;
       }
-      .docs-header a {
-        color: #fff;
+      main {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 28px 24px 64px;
       }
-      .swagger-ui .topbar {
+      h2 {
+        margin: 0 0 12px;
+        font-size: 1.25rem;
+      }
+      ol {
+        margin: 0;
+        padding-inline-start: 1.25rem;
+      }
+      li {
+        margin-block: 10px;
+        line-height: 1.5;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid var(--yp-line);
+        border-radius: 12px;
+        padding: 20px 20px 16px;
+        margin-block-end: 16px;
+      }
+      .muted {
+        color: var(--yp-muted);
+        font-size: 0.9375rem;
+        line-height: 1.5;
+      }
+      a {
+        color: var(--yp-navy);
+      }
+      button.spec-toggle {
+        appearance: none;
+        background: transparent;
+        border: 1px solid var(--yp-line);
+        border-radius: 8px;
+        color: var(--yp-ink);
+        cursor: pointer;
+        font: inherit;
+        padding: 12px 16px;
+        min-height: 44px;
+        width: 100%;
+      }
+      button.spec-toggle:hover {
+        background: var(--yp-paper);
+      }
+      .spec-wrap {
+        display: none;
+        margin-block-start: 16px;
+        margin-inline: -24px;
+      }
+      .spec-wrap.is-open {
+        display: block;
+      }
+      .swagger-ui .topbar,
+      .swagger-ui .info .title small {
         display: none;
       }
-      .swagger-ui .info {
-        margin: 24px 0 12px;
-      }
     </style>
+    <link rel="stylesheet" href="/partner-api/vendor/swagger-ui.css" />
   </head>
   <body>
     <header class="docs-header">
-      <h1>אבן דרך Partner API</h1>
-      <p>
-        Official Swagger for trusted third-party apps.
-        Spec file:
-        <a href="/partner-api/openapi.yaml">openapi.yaml</a>
-      </p>
+      <h1>חיבור לבוט בטלגרם</h1>
+      <p>הכונן לא ממלא מפרט. הוא נכנס לחשבון ולוחץ כפתור אחד.</p>
     </header>
-    <div id="swagger-ui"></div>
+    <main>
+      <section class="card">
+        <h2>לכונן</h2>
+        <ol>
+          <li>נכנסים ל־<a href="https://yahpz.com">yahpz.com</a> ומתחברים.</li>
+          <li>פרופיל ← <strong>חבר לטלגרם</strong>.</li>
+          <li>טלגרם נפתח. זהו.</li>
+        </ol>
+        <p class="muted">
+          אם הקישור הגיע מתוך הבוט: מתחברים באתר, לוחצים <strong>אשר והמשך לטלגרם</strong>, וחוזרים לצ׳אט.
+          בטלים בפרופיל ← <strong>בטל גישה</strong>.
+        </p>
+      </section>
+      <section class="card">
+        <h2>למי שבונה את הבוט</h2>
+        <ol>
+          <li>מנהל רושם את הבוט פעם אחת בפרופיל (רישום בוט) ומעביר לכם מזהה וסוד.</li>
+          <li>כשהכונן מסיים את החיבור, טלגרם שולח אליכם <span dir="ltr">/start yp_…</span></li>
+          <li>אתם מחליפים את הקוד באסימון וקוראים לפעולות המילוי.</li>
+        </ol>
+        <p class="muted">
+          הקובץ הגולמי:
+          <a href="/partner-api/openapi.yaml" dir="ltr">openapi.yaml</a>
+        </p>
+        <button class="spec-toggle" type="button" id="open-spec">הצג מפרט מלא</button>
+      </section>
+    </main>
+    <div class="spec-wrap" id="spec-wrap" dir="ltr">
+      <div id="swagger-ui"></div>
+    </div>
     <script src="/partner-api/vendor/swagger-ui-bundle.js"></script>
     <script>
-      window.ui = SwaggerUIBundle({
-        url: "/partner-api/openapi.yaml",
-        dom_id: "#swagger-ui",
-        deepLinking: true,
-        filter: true,
-        tryItOutEnabled: true,
-        persistAuthorization: false,
-        displayRequestDuration: true,
-        docExpansion: "list",
-        defaultModelsExpandDepth: 1,
-        syntaxHighlight: { activate: true, theme: "agate" },
-      });
+      const toggle = document.getElementById('open-spec')
+      const wrap = document.getElementById('spec-wrap')
+      let loaded = false
+      toggle.addEventListener('click', function () {
+        const open = wrap.classList.toggle('is-open')
+        toggle.textContent = open ? 'הסתר מפרט מלא' : 'הצג מפרט מלא'
+        if (open && !loaded) {
+          loaded = true
+          window.ui = SwaggerUIBundle({
+            url: '/partner-api/openapi.yaml',
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            tryItOutEnabled: true,
+            persistAuthorization: false,
+            docExpansion: 'none',
+            defaultModelsExpandDepth: -1,
+            filter: false,
+            syntaxHighlight: { activate: true, theme: 'agate' },
+          })
+        }
+      })
     </script>
   </body>
 </html>

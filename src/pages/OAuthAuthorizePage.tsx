@@ -87,8 +87,7 @@ export function OAuthAuthorizePage({ request, error: bootError }: OAuthAuthorize
                   ? (bootError ?? 'קישור האישור אינו תקין.')
                   : appName ? (
                     <>
-                      היישום <strong>{appName}</strong> מבקש גישה להשלמת דיווחי האירועים שלך
-                      (קילומטרים, טיפול, לוחיות ומדיה) למשך 7 ימים.
+                      היישום <strong>{appName}</strong> ישלים דיווחי אירועים בשמך בטלגרם למשך 7 ימים.
                     </>
                   ) : (
                     'טוען פרטי יישום…'
@@ -115,7 +114,7 @@ export function OAuthAuthorizePage({ request, error: bootError }: OAuthAuthorize
                   loadingLabel="מאשר…"
                   onClick={() => void onApprove()}
                 >
-                  אשר גישה
+                  אשר והמשך לטלגרם
                 </Button>
                 <div className="login__links">
                   <Button variant="ghost" disabled={busy} onClick={() => setDenied(true)}>

@@ -9,9 +9,11 @@ import {
   isOpenStandaloneParticipation,
   isTelegramBotUsername,
   isTelegramStartParam,
+  liveGrantForBot,
   normalizeTelegramBotUsername,
   parseOAuthAuthorizeRequest,
   partnerAccessTokenLooksValid,
+  randomOAuthState,
   redirectUriForBot,
   redirectUriMatchesClient,
   telegramStartRedirect,
@@ -123,6 +125,22 @@ describe('token shapes and grant expiry', () => {
         now,
       ),
     ).toBe(false)
+  })
+
+  it('finds a live grant for a bot username', () => {
+    const now = new Date('2026-08-24T10:00:00.000Z')
+    const grants = [
+      { telegram_bot_username: 'YahpazFillBot', expires_at: '2026-08-31T10:00:00.000Z' },
+      { telegram_bot_username: 'OtherBot', expires_at: '2026-08-24T09:00:00.000Z' },
+    ]
+    expect(liveGrantForBot(grants, 'yahpazfillbot', now)?.telegram_bot_username).toBe(
+      'YahpazFillBot',
+    )
+    expect(liveGrantForBot(grants, 'OtherBot', now)).toBeNull()
+  })
+
+  it('returns a non-empty oauth state', () => {
+    expect(randomOAuthState().length).toBeGreaterThan(8)
   })
 })
 
