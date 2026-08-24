@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>חיבור לבוט - אבן דרך</title>
+    <title>Connect a Telegram bot — Yahpaz</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <style>
       :root {
@@ -105,34 +105,34 @@
   </head>
   <body>
     <header class="docs-header">
-      <h1>חיבור לבוט בטלגרם</h1>
-      <p>הכונן לא ממלא מפרט. הוא נכנס לחשבון ולוחץ כפתור אחד.</p>
+      <h1>Connect a Telegram bot</h1>
+      <p>Volunteers do not fill in a spec. They sign in and tap one button.</p>
     </header>
     <main>
       <section class="card">
-        <h2>לכונן</h2>
+        <h2>For volunteers</h2>
         <ol>
-          <li>נכנסים ל־<a href="https://yahpz.com">yahpz.com</a> ומתחברים.</li>
-          <li>פרופיל ← <strong>חבר לטלגרם</strong>.</li>
-          <li>טלגרם נפתח. זהו.</li>
+          <li>Open <a href="https://yahpz.com">yahpz.com</a> and sign in.</li>
+          <li>Profile → <strong>Connect to Telegram</strong>.</li>
+          <li>Telegram opens. Done.</li>
         </ol>
         <p class="muted">
-          אם הקישור הגיע מתוך הבוט: מתחברים באתר, לוחצים <strong>אשר והמשך לטלגרם</strong>, וחוזרים לצ׳אט.
-          בטלים בפרופיל ← <strong>בטל גישה</strong>.
+          If the link came from the bot: sign in on the site, tap <strong>Confirm and continue to Telegram</strong>, then return to the chat.
+          Revoke in Profile → <strong>Revoke access</strong>.
         </p>
       </section>
       <section class="card">
-        <h2>למי שבונה את הבוט</h2>
+        <h2>For bot builders</h2>
         <ol>
-          <li>מנהל רושם את הבוט פעם אחת בפרופיל (רישום בוט) ומעביר לכם מזהה וסוד.</li>
-          <li>כשהכונן מסיים את החיבור, טלגרם שולח אליכם <span dir="ltr">/start yp_…</span></li>
-          <li>אתם מחליפים את הקוד באסימון וקוראים לפעולות המילוי.</li>
+          <li>An admin registers the bot once in Settings (Register bot) and sends you a client id and token.</li>
+          <li>When the volunteer finishes connecting, Telegram sends you <span dir="ltr">/start yp_…</span></li>
+          <li>Exchange the code for a token and call the fill actions.</li>
         </ol>
         <p class="muted">
-          הקובץ הגולמי:
-          <a href="/partner-api/openapi.yaml" dir="ltr">openapi.yaml</a>
+          Raw spec:
+          <a href="/partner-api/openapi.yaml">openapi.yaml</a>
         </p>
-        <button class="spec-toggle" type="button" id="open-spec">הצג מפרט מלא</button>
+        <button class="spec-toggle" type="button" id="open-spec">Show full specification</button>
       </section>
     </main>
     <div class="spec-wrap" id="spec-wrap" dir="ltr">
@@ -145,7 +145,7 @@
       let loaded = false
       toggle.addEventListener('click', function () {
         const open = wrap.classList.toggle('is-open')
-        toggle.textContent = open ? 'הסתר מפרט מלא' : 'הצג מפרט מלא'
+        toggle.textContent = open ? 'Hide full specification' : 'Show full specification'
         if (open && !loaded) {
           loaded = true
           window.ui = SwaggerUIBundle({

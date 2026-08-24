@@ -19,6 +19,7 @@ import {
 } from './lib/adminSegments'
 import { reportsNavPlacement } from './lib/reports/access'
 import { AdminListsPage } from './pages/AdminListsPage'
+import { SETTINGS_BOT_KEY, type SettingsPaneKey } from './lib/settingsPanes'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { UsersMapPage } from './pages/UsersMapPage'
 import { FuelQuarterPage } from './pages/FuelQuarterPage'
@@ -114,6 +115,7 @@ function Gate() {
     | { status: 'checking' }
     | { status: 'embedded' }
   >({ status: 'idle' })
+  const [listsPane, setListsPane] = useState<SettingsPaneKey | undefined>()
 
   // Resolve ?fill_token=… before requiring login (scoped fill link).
   useEffect(() => {
@@ -728,6 +730,7 @@ function Gate() {
       { view, eventSurface, shiftSurface, sectionReset },
       next,
     )
+    if (next !== 'lists' || view === 'lists') setListsPane(undefined)
     setLegalPage(null)
     setEventSurface(nextState.eventSurface)
     setShiftSurface(nextState.shiftSurface)
@@ -888,7 +891,16 @@ function Gate() {
           onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
         />
       ) : activeView === 'profile' ? (
-        <ProfilePage />
+        <ProfilePage
+          onOpenBotSettings={
+            isAdmin
+              ? () => {
+                  setListsPane(SETTINGS_BOT_KEY)
+                  navigate('lists')
+                }
+              : undefined
+          }
+        />
       ) : activeView === 'map' ? (
         <div className="page--wide">
           <UsersMapPage key={sectionReset} />
@@ -903,7 +915,7 @@ function Gate() {
               <AdminSegmentBar view={activeView} onChange={navigate} />
             ) : null}
             {activeView === 'lists' ? (
-              <AdminListsPage key={sectionReset} />
+              <AdminListsPage key={sectionReset} initialPane={listsPane} />
             ) : activeView === 'fuel_quarter' ? (
               <FuelQuarterPage key={sectionReset} />
             ) : (

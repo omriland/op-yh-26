@@ -61,8 +61,8 @@ Yahpaz owns identity and writes. The partner owns Telegram and stores the bearer
 | `oauth_authorization_codes` | 5-minute, single-use start params |
 | `oauth_access_tokens` | 7-day hashed bearers; `revoked_at` |
 | Web `/oauth/authorize` | Login required; Hebrew consent; block impersonation |
-| Profile **חיבורים** | List grant + expiry + **בטל גישה** |
-| Profile (admin) **יישומים לשותפים** | Create client; show `client_id` + secret **once** |
+| Profile **חיבור לטלגרם** | Volunteer connect + revoke; no secrets |
+| Settings (admin) **רישום בוט** | Create client; show `client_id` + secret **once** |
 | Edge `partner-auth` | client_info, authorize, token, revoke, list_grants, admin_* |
 | Edge `responder-api` | Fill/plates/media for the token’s user |
 
@@ -142,7 +142,7 @@ All `POST /functions/v1/partner-auth`. Partner sends `apikey` = anon key.
 | `admin_list_clients` | admin JWT | | clients without secrets |
 | `admin_rotate_secret` | admin JWT | `client_id` | new secret once; existing access tokens stay until expiry/revoke |
 
-Invalid client / secret: generic `יישום או סוד אינם תקינים.` (no user enumeration).
+Invalid client / token: generic `יישום או טוקן אינם תקינים.` (no user enumeration).
 
 ## responder-api actions
 

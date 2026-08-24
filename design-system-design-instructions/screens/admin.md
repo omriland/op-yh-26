@@ -60,14 +60,14 @@ Super Admin only (DB-granted `super_admin`, not in role checkboxes):
 
 Every signed-in user, personal nav after `אנשי קשר` (not ניהול / not כלים לאחמ״ש). Live GPS pins stay אחמ״ש + מנהל. Title `מפה`. Caption `חפשו כתובת כדי לראות מי הכוננים הקרובים. כל סיכה היא כתובת אחת של משתמש פעיל.` Interactive Google Map. Places-only search `חיפוש כתובת` (no free text). On pick: search pin labeled with the chosen address (`--status-partial` disc), center the address and fit a 30 km box in each direction, and list `כוננים קרובים` — one row per user (their nearest address) only if that address is within 30 km, nearest-first, distance `מ׳` / `ק״מ`. Empty in-range: `אין כוננים בטווח 30 ק״מ.` Tap a row to pan/zoom to that address. User pins: `--accent` disc + raised caption (`או״ק · בית/עבודה/שם`). Effective לא זמין stays on the map but uses `--status-draft` disc + inactive grey caption (`color-mix` 28% `--status-draft` on `--text-on-accent`, caption text `--status-draft`); hover/focus tooltip is `לא זמין`, or `לא זמין עד DD.MM.YYYY` when a future return date exists (tooltip border `--status-draft`). Hover/focus tooltip otherwise sits flush under the pin caption (`left: 50%` + `translateX(-50%)` in map pixel space): solid `--surface-raised` fill, `--text-primary`, `--accent` border + overlay shadow; `חניכה ברכב פרטי` uses `--status-alert` text/border. Active users only; hide `מנהלה` / `חניכה בסיסית` / `משמרות בלבד`. **Live responder pins** (latest GPS while their track page is open): `--status-done` disc `--space-6` with Lucide car icon (`--text-on-accent`, `--space-4`), caption `{או״ק || שם} · בדרך`, tooltip `{סוג · כביש מיקום} · HH:MM` (Asia/Jerusalem; tooltip border `--status-done`). Same person may also have address pin(s). Live pins are not hit targets and are not in `כוננים קרובים`. Pin gone when tracking stops (`ended_at` or un-assign) or when the last ping is older than 30s; it returns on the next ping. Empty: `אין כתובות להצגה` + `כשתמלאו כתובת למשתמש פעיל, היא תופיע כאן.` Missing key: `המפה אינה זמינה`. Canvas min-height 720px, `--radius-md`, hairline, `--surface-sunken`.
 
-## הגדרות (Closed lists + broadcast)
+## הגדרות (Closed lists + broadcast + bot)
 
-Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כבישים` · `סוגי רכב לטיפול`. Plus a second menu card for unit-wide broadcast.
+Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כבישים` · `סוגי רכב לטיפול`. Plus a second menu card for unit-wide broadcast, and a third for Telegram bot registration.
 
 ### Layout
 
-- Desktop: two stacked menu cards at inline-start (240 px, nav-item styling, no group headings) — closed lists in the first card, `תפוצה לכלל היחידה` in the second — + selected pane in the content area.
-- Mobile: the same two menu cards on the הגדרות picker → tap opens that pane full-screen.
+- Desktop: three stacked menu cards at inline-start (240 px, nav-item styling, no group headings) — closed lists in the first card, `תפוצה לכלל היחידה` in the second, `רישום בוט` in the third — + selected pane in the content area.
+- Mobile: the same three menu cards on the הגדרות picker → tap opens that pane full-screen.
 
 ### Items view
 
@@ -83,6 +83,10 @@ Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כביש
 Admin-only compose + send log, inside הגדרות (not a top-level ניהול tab). Title `תפוצה לכלל היחידה`. Caption `שליחת הודעה למנהלים, לאחמ״שים או לכלל המשתמשים הפעילים.` No `הוספת פריט`.
 
 Compose card: channel chips `אימייל` · `SMS` · `SMS + אימייל`; audience chips `כלל המשתמשים` · `מנהלים` · `אחמ״שים`. Subject `נושא` only when the channel includes email. Body `תוכן ההודעה`. Preview/confirm add `N עם האפליקציה` when someone in the audience has אבן דרך (push is extra, not a channel chip). Primary `שליחה` → confirm dialog `אישור שליחה` with recipient/skip/app counts. Success toast reports sent / skipped / failed / התראות. Log heading `שידורים קודמים`; empty `עדיין לא נשלחה תפוצה.` Specs: `docs/superpowers/specs/2026-08-15-yahpaz-unit-broadcast-design.md`, `docs/superpowers/specs/2026-08-17-yahpaz-unit-broadcast-push-design.md`.
+
+### רישום בוט
+
+Admin-only unit wiring, inside הגדרות (not on פרופיל). Title `רישום בוט`. No caption. No `הוספת פריט`. Empty: `עדיין לא רשום בוט.` Rows: ledger `שם` / `מזהה` (LTR isolate) / `בוט` `@username` + secondary `חידוש טוקן`. Create fields: `שם היישום`, `שם משתמש בטלגרם` (hint `בלי @`, isolate). Secondary `יצירת יישום` (loading `יוצר…`). Token dialog is English LTR (for the bot builder): `This token is shown only once` / `The new token is shown only once` / `Save the token with whoever is building the bot. Volunteers do not need it.` Ledger `Client ID` · `Token`. Primary `Got it`. Close `Close`. Impersonation: banner `צפייה כמשתמש — לא ניתן לרשום בוט.` + disabled create/rotate. Volunteers connect on פרופיל after a bot exists.
 
 ## States
 

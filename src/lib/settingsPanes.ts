@@ -1,8 +1,12 @@
 import { CLOSED_LISTS, type ClosedListKey } from './closedLists'
 
 export const SETTINGS_BROADCAST_KEY = 'unit_broadcast' as const
+export const SETTINGS_BOT_KEY = 'partner_bot' as const
 
-export type SettingsPaneKey = ClosedListKey | typeof SETTINGS_BROADCAST_KEY
+export type SettingsPaneKey =
+  | ClosedListKey
+  | typeof SETTINGS_BROADCAST_KEY
+  | typeof SETTINGS_BOT_KEY
 
 export const SETTINGS_LIST_GROUP = {
   label: 'רשימות',
@@ -20,6 +24,22 @@ export const SETTINGS_BROADCAST_GROUP = {
   items: [SETTINGS_BROADCAST],
 } as const
 
+export const SETTINGS_BOT = {
+  key: SETTINGS_BOT_KEY,
+  label: 'רישום בוט',
+} as const
+
+export const SETTINGS_BOT_GROUP = {
+  label: 'בוט',
+  items: [SETTINGS_BOT],
+} as const
+
+export const SETTINGS_MENU_GROUPS = [
+  SETTINGS_LIST_GROUP,
+  SETTINGS_BROADCAST_GROUP,
+  SETTINGS_BOT_GROUP,
+] as const
+
 export function isClosedListPane(key: SettingsPaneKey): key is ClosedListKey {
-  return key !== SETTINGS_BROADCAST_KEY
+  return CLOSED_LISTS.some((item) => item.key === key)
 }

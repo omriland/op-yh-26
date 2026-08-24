@@ -129,7 +129,7 @@ Store `access_token` keyed by your Telegram user id. Treat it like a password.
 
 | HTTP | `error` | Notes |
 |---|---|---|
-| 401 | יישום או סוד אינם תקינים. | Wrong `client_id` / `client_secret` |
+| 401 | יישום או טוקן אינם תקינים. | Wrong `client_id` / `client_secret` |
 | 400 | קוד האישור אינו תקין או שפג תוקפו. | Used, unknown, or malformed (`code` may be `"expired"`) |
 | 403 | החשבון אינו פעיל. | Volunteer deactivated |
 
@@ -148,7 +148,7 @@ Call when the user sends `/unlink` (or equivalent).
 
 **200** `{ "ok": true }` even if the token was already gone (idempotent).
 
-Same 401 as `token` if the secret is wrong.
+Same 401 as `token` if `client_secret` is wrong.
 
 ---
 
@@ -623,5 +623,5 @@ Only own photos.
 
 ## Support
 
-Questions about credentials or a new bot username: Yahpaz admin (פרופיל → יישומים לשותפים).  
+Questions about credentials or a new bot username: Yahpaz admin (הגדרות → רישום בוט).  
 Contract changes will bump the version at the top of this file.

@@ -10,12 +10,13 @@ import {
   type ClosedListItem,
 } from '../lib/closedLists'
 import {
+  SETTINGS_BOT,
   SETTINGS_BROADCAST,
-  SETTINGS_BROADCAST_GROUP,
-  SETTINGS_LIST_GROUP,
+  SETTINGS_MENU_GROUPS,
   isClosedListPane,
   type SettingsPaneKey,
 } from '../lib/settingsPanes'
+import { PartnerBotSettings } from './PartnerBotSettings'
 import { UnitBroadcastPage } from './UnitBroadcastPage'
 import { SYSTEM_DISTRICT_LOCKED_ERROR } from '../lib/systemDistricts'
 import { useIsDesktop } from '../lib/useMediaQuery'
@@ -32,11 +33,11 @@ type Editor =
   | { mode: 'edit'; item: ClosedListItem }
   | null
 
-export function AdminListsPage() {
+export function AdminListsPage({ initialPane }: { initialPane?: SettingsPaneKey }) {
   const isDesktop = useIsDesktop()
   const { show } = useToast()
   const [selectedKey, setSelectedKey] = useState<SettingsPaneKey | null>(
-    isDesktop ? 'districts' : null,
+    isDesktop ? (initialPane ?? 'districts') : (initialPane ?? null),
   )
   const [items, setItems] = useState<ClosedListItem[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -52,9 +53,12 @@ export function AdminListsPage() {
     [selectedKey],
   )
   const selectedBroadcast = selectedKey === SETTINGS_BROADCAST.key
+  const selectedBot = selectedKey === SETTINGS_BOT.key
   const selectedTitle = selectedBroadcast
     ? SETTINGS_BROADCAST.label
-    : (selectedListMeta?.label ?? 'הגדרות')
+    : selectedBot
+      ? SETTINGS_BOT.label
+      : (selectedListMeta?.label ?? 'הגדרות')
   const selectedDescription = selectedBroadcast
     ? SETTINGS_BROADCAST.description
     : selectedListMeta?.description
@@ -192,23 +196,27 @@ export function AdminListsPage() {
                   ) : null}
                 </div>
               </div>
-              {selectedBroadcast ? null : isDesktop ? (
-                <Button
-                  onClick={openCreate}
-                  icon={<Plus size={20} strokeWidth={1.75} />}
-                  disabled={Boolean(editor)}
-                >
-                  הוספת פריט
-                </Button>
-              ) : (
-                <IconButton label="הוספת פריט" onClick={openCreate} disabled={Boolean(editor)}>
-                  <Plus size={20} strokeWidth={1.75} />
-                </IconButton>
-              )}
+              {selectedKey && isClosedListPane(selectedKey) ? (
+                isDesktop ? (
+                  <Button
+                    onClick={openCreate}
+                    icon={<Plus size={20} strokeWidth={1.75} />}
+                    disabled={Boolean(editor)}
+                  >
+                    הוספת פריט
+                  </Button>
+                ) : (
+                  <IconButton label="הוספת פריט" onClick={openCreate} disabled={Boolean(editor)}>
+                    <Plus size={20} strokeWidth={1.75} />
+                  </IconButton>
+                )
+              ) : null}
             </div>
 
             {selectedBroadcast ? (
               <UnitBroadcastPage embedded />
+            ) : selectedBot ? (
+              <PartnerBotSettings />
             ) : (
               <>
             {banner ? (
@@ -327,32 +335,21 @@ function SettingsMenus({
 }) {
   return (
     <div className="lists-nav-stack">
-      <nav className="lists-nav" aria-label={SETTINGS_LIST_GROUP.label}>
-        {SETTINGS_LIST_GROUP.items.map((list) => (
-          <button
-            key={list.key}
-            type="button"
-            className="nav-item"
-            aria-current={selectedKey === list.key ? 'page' : undefined}
-            onClick={() => onSelect(list.key)}
-          >
-            {list.label}
-          </button>
-        ))}
-      </nav>
-      <nav className="lists-nav" aria-label={SETTINGS_BROADCAST_GROUP.label}>
-        {SETTINGS_BROADCAST_GROUP.items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className="nav-item"
-            aria-current={selectedKey === item.key ? 'page' : undefined}
-            onClick={() => onSelect(item.key)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      {SETTINGS_MENU_GROUPS.map((group) => (
+        <nav key={group.label} className="lists-nav" aria-label={group.label}>
+          {group.items.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className="nav-item"
+              aria-current={selectedKey === item.key ? 'page' : undefined}
+              onClick={() => onSelect(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      ))}
     </div>
   )
 }

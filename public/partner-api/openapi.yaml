@@ -1,21 +1,21 @@
 openapi: 3.0.3
 info:
-  title: אבן דרך Partner API
+  title: Yahpaz Partner API
   version: "1.0.0"
   license:
     name: Proprietary
     url: https://yahpz.com/partner-api/
   termsOfService: https://yahpz.com/partner-api/
   contact:
-    name: אבן דרך
+    name: Yahpaz
     url: https://yahpz.com
   description: |
-    Volunteers connect in the product: **פרופיל → חבר לטלגרם**. This spec is only for
+    Volunteers connect in the product: **Profile → Connect to Telegram**. This spec is only for
     the trusted server that runs the Telegram bot.
 
     After `/start yp_…`, exchange the code (`partner-auth` `token`) and call
     `responder-api` with the `ypat_` bearer. Pick an **Example** on each operation
-    for the JSON `action`. Errors are Hebrew; show them in chat.
+    for the JSON `action`. User-facing `error` strings are Hebrew; show them in chat.
 
 servers:
   - url: https://rtvizpsfvtjowbimugns.supabase.co/functions/v1
@@ -69,7 +69,7 @@ paths:
             enum: [responder:fill]
       responses:
         "302":
-          description: After **אשר גישה**, redirect to `https://t.me/{bot}?start=yp_{code}`. **לא עכשיו** issues nothing.
+          description: After **Confirm access**, redirect to `https://t.me/{bot}?start=yp_{code}`. **Not now** issues nothing.
         "200":
           description: Consent HTML (volunteer is sent through login first if needed)
         "400":
@@ -149,7 +149,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
               example:
-                error: יישום או סוד אינם תקינים.
+                error: יישום או טוקן אינם תקינים.
         "403":
           description: Volunteer account inactive
           content:
@@ -173,7 +173,7 @@ paths:
 
         | `action` | Purpose |
         |---|---|
-        | `whoami` | Volunteer name and או״ק |
+        | `whoami` | Volunteer name and callsign |
         | `list_open_events` | Open standalone assignments |
         | `get_event` | One event — draft, vehicles, plates, media |
         | `save_draft` | Partial save (`in_progress`) |
@@ -747,7 +747,7 @@ components:
     TakenWhen:
       type: string
       enum: [before_treatment, during_after_treatment]
-      description: before_treatment = לפני הטיפול · during_after_treatment = במהלך/לאחר הטיפול
+      description: before_treatment = before treatment · during_after_treatment = during/after treatment
     WhoamiResponse:
       type: object
       required: [user_id, full_name, callsign]

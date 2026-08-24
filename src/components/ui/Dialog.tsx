@@ -12,6 +12,9 @@ type DialogProps = {
   form?: boolean
   /** Event-media viewer: `--content-max` on desktop. */
   wide?: boolean
+  dir?: 'ltr' | 'rtl'
+  lang?: string
+  closeLabel?: string
 }
 
 const FOCUSABLE = [
@@ -31,6 +34,9 @@ export function Dialog({
   footer,
   form = false,
   wide = false,
+  dir,
+  lang,
+  closeLabel = 'סגירה',
 }: DialogProps) {
   const isDesktop = useIsDesktop()
   // Unique per instance: a hardcoded id makes aria-labelledby ambiguous the moment
@@ -106,6 +112,8 @@ export function Dialog({
       <div
         ref={dialogRef}
         tabIndex={-1}
+        dir={dir}
+        lang={lang}
         className={[
           'dialog',
           form ? 'dialog--form' : '',
@@ -121,7 +129,7 @@ export function Dialog({
           <h2 id={titleId} className="t-section">
             {title}
           </h2>
-          <button type="button" className="icon-btn" aria-label="סגירה" onClick={onClose}>
+          <button type="button" className="icon-btn" aria-label={closeLabel} onClick={onClose}>
             <X size={20} strokeWidth={1.75} />
           </button>
         </header>

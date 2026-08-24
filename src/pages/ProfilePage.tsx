@@ -7,17 +7,13 @@ import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
 import { addressKindLabel, fetchOwnAddresses, type UserAddressRow } from '../lib/userAddresses'
 import {
   connectPartnerApp,
-  createPartnerClient,
   fetchPartnerApps,
-  fetchPartnerClients,
   fetchPartnerGrants,
   revokePartnerGrant,
-  rotatePartnerClientSecret,
   type PartnerApp,
-  type PartnerClient,
   type PartnerGrant,
 } from '../lib/partnerApi'
-import { isTelegramBotUsername, liveGrantForBot, normalizeTelegramBotUsername } from '../lib/partnerOAuth'
+import { liveGrantForBot } from '../lib/partnerOAuth'
 import { isImpersonating } from '../lib/impersonationStash'
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
@@ -25,7 +21,6 @@ import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
-import { TextField } from '../components/ui/TextField'
 import { useToast } from '../components/ui/Toast'
 
 const ROLE_LABELS: Partial<Record<AppRole, string>> = {
@@ -40,7 +35,7 @@ function visibleRoles(roles: AppRole[]): AppRole[] {
 
 type Vehicle = { id: string; plate_number: string; model: string; archived: boolean }
 
-export function ProfilePage() {
+export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => void }) {
   const { profile, roles, signOut } = useAuth()
   const { show } = useToast()
   const isAdmin = roles.includes('admin')
@@ -52,17 +47,6 @@ export function ProfilePage() {
   const [connectingId, setConnectingId] = useState<string | null>(null)
   const [revokeId, setRevokeId] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
-  const [clients, setClients] = useState<PartnerClient[] | null>(null)
-  const [appName, setAppName] = useState('')
-  const [botUsername, setBotUsername] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
-  const [secretOnce, setSecretOnce] = useState<{
-    title: string
-    clientId: string
-    secret: string
-    authorizeUrl?: string
-  } | null>(null)
 
   useEffect(() => {
     if (!profile) return
@@ -113,19 +97,6 @@ export function ProfilePage() {
     }
   }, [profile])
 
-  useEffect(() => {
-    if (!profile || !isAdmin) return
-    let active = true
-    fetchPartnerClients().then((result) => {
-      if (!active) return
-      if (result.ok) setClients(result.clients)
-      else setClients([])
-    })
-    return () => {
-      active = false
-    }
-  }, [profile, isAdmin])
-
   async function onRevokeGrant() {
     if (!revokeId) return
     setRevoking(true)
@@ -153,52 +124,6 @@ export function ProfilePage() {
       return
     }
     window.location.assign(result.redirect)
-  }
-
-  async function onCreateClient() {
-    const name = appName.trim()
-    const bot = normalizeTelegramBotUsername(botUsername)
-    if (!name) {
-      setCreateError('יש להזין שם יישום.')
-      return
-    }
-    if (!isTelegramBotUsername(bot)) {
-      setCreateError('שם המשתמש של הבוט אינו תקין.')
-      return
-    }
-    setCreating(true)
-    setCreateError(null)
-    const result = await createPartnerClient({ name, telegramBotUsername: bot })
-    setCreating(false)
-    if (!result.ok) {
-      setCreateError(result.error)
-      return
-    }
-    setAppName('')
-    setBotUsername('')
-    setSecretOnce({
-      title: 'הסוד יוצג פעם אחת בלבד',
-      clientId: result.clientId,
-      secret: result.clientSecret,
-      authorizeUrl: result.authorizeUrl,
-    })
-    const listed = await fetchPartnerClients()
-    if (listed.ok) setClients(listed.clients)
-    const listedApps = await fetchPartnerApps()
-    if (listedApps.ok) setApps(listedApps.apps)
-  }
-
-  async function onRotateSecret(clientId: string) {
-    const result = await rotatePartnerClientSecret(clientId)
-    if (!result.ok) {
-      show(result.error)
-      return
-    }
-    setSecretOnce({
-      title: 'הסוד החדש יוצג פעם אחת בלבד',
-      clientId,
-      secret: result.clientSecret,
-    })
   }
 
   if (!profile) {
@@ -280,19 +205,11 @@ export function ProfilePage() {
                 <p className="t-body">עדיין לא מחוברים.</p>
                 <p className="t-caption text-muted">
                   {isAdmin
-                    ? 'רשמו את הבוט פעם אחת למטה. אחר כך לוחצים חבר לטלגרם.'
+                    ? 'רשמו את הבוט בהגדרות.'
                     : 'החיבור ייפתח כאן אחרי שהמנהל ירשום את הבוט.'}
                 </p>
-                {isAdmin ? (
-                  <Button
-                    onClick={() =>
-                      document.getElementById('partner-bot-register')?.scrollIntoView({
-                        block: 'start',
-                      })
-                    }
-                  >
-                    רישום בוט
-                  </Button>
+                {isAdmin && onOpenBotSettings ? (
+                  <Button onClick={onOpenBotSettings}>רישום בוט</Button>
                 ) : null}
               </div>
             ) : apps.length === 0 ? (
@@ -414,71 +331,6 @@ export function ProfilePage() {
           </div>
         </section>
 
-        {isAdmin ? (
-          <section className="card stack-4" id="partner-bot-register">
-            <h2 className="t-section">רישום בוט</h2>
-            <p className="t-caption text-muted">
-              פעם אחת ליחידה, למי שבונה את הבוט. הכוננים מתחברים למעלה, בלי סודות.
-            </p>
-            {clients === null ? (
-              <Skeleton height={24} />
-            ) : clients.length === 0 ? (
-              <p className="t-body text-muted">עדיין לא רשום בוט.</p>
-            ) : (
-              <div className="stack-4">
-                {clients.map((client) => (
-                  <div key={client.id} className="stack-3">
-                    <Ledger>
-                      <LedgerRow label="שם" value={client.name} />
-                      <LedgerRow label="מזהה" value={client.client_id} isolate />
-                      <LedgerRow
-                        label="בוט"
-                        value={`@${client.telegram_bot_username}`}
-                        isolate
-                      />
-                    </Ledger>
-                    <Button
-                      variant="secondary"
-                      onClick={() => void onRotateSecret(client.client_id)}
-                    >
-                      חידוש סוד
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="stack-3">
-              <TextField
-                label="שם היישום"
-                required
-                value={appName}
-                onChange={(event) => setAppName(event.target.value)}
-              />
-              <TextField
-                label="שם משתמש בטלגרם"
-                hint="בלי @"
-                isolate
-                required
-                value={botUsername}
-                onChange={(event) => setBotUsername(event.target.value)}
-              />
-              {createError ? (
-                <p className="alert alert--error" role="alert">
-                  {createError}
-                </p>
-              ) : null}
-              <Button
-                variant="secondary"
-                loading={creating}
-                loadingLabel="יוצר…"
-                onClick={() => void onCreateClient()}
-              >
-                יצירת יישום
-              </Button>
-            </div>
-          </section>
-        ) : null}
-
         <Button
           variant="secondary"
           onClick={() => void signOut()}
@@ -509,32 +361,6 @@ export function ProfilePage() {
         }
       >
         <p className="t-body">הבוט לא יוכל להשלים דיווחים בשמך עד שתאשרו מחדש.</p>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(secretOnce)}
-        title={secretOnce?.title ?? 'סוד יישום'}
-        onClose={() => setSecretOnce(null)}
-        footer={
-          <Button variant="primary" onClick={() => setSecretOnce(null)}>
-            הבנתי
-          </Button>
-        }
-      >
-        {secretOnce ? (
-          <div className="stack-3">
-            <p className="t-body text-secondary">שמרו את הסוד אצל מי שבונה את הבוט. הכוננים לא צריכים אותו.</p>
-            <Ledger>
-              <LedgerRow label="מזהה" value={secretOnce.clientId} isolate />
-              <LedgerRow label="סוד" value={secretOnce.secret} isolate />
-            </Ledger>
-            {secretOnce.authorizeUrl ? (
-              <p className="t-caption text-muted" style={{ overflowWrap: 'anywhere' }}>
-                {secretOnce.authorizeUrl}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
       </Dialog>
     </div>
   )

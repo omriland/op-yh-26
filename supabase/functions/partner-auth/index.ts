@@ -19,7 +19,7 @@ const ALLOW_HEADERS =
 const CODE_TTL_MS = 5 * 60 * 1000;
 const ACCESS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SCOPE = "responder:fill";
-const GENERIC_CLIENT_ERROR = "יישום או סוד אינם תקינים.";
+const GENERIC_CLIENT_ERROR = "יישום או טוקן אינם תקינים.";
 
 type JsonBody = Record<string, unknown>;
 
@@ -535,7 +535,7 @@ async function handleAdminRotate(
     .from("oauth_clients")
     .update({ client_secret_hash: hash })
     .eq("id", client.id);
-  if (error) return json(400, { error: "לא ניתן לחדש את הסוד." });
+  if (error) return json(400, { error: "לא ניתן לחדש את הטוקן." });
 
   return json(200, { client_id: client.client_id, client_secret: secret });
 }

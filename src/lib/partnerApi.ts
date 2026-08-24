@@ -176,6 +176,6 @@ export async function rotatePartnerClientSecret(
   })
   if (!result.ok) return result
   const clientSecret = result.data.client_secret?.trim()
-  if (!clientSecret) return { ok: false, error: 'לא ניתן לחדש את הסוד.' }
+  if (!clientSecret) return { ok: false, error: 'לא ניתן לחדש את הטוקן.' }
   return { ok: true, clientSecret }
 }
