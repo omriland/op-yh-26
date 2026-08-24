@@ -14,7 +14,7 @@ A trusted partner wants to build a **Telegram bot** so volunteers can complete t
 
 - One registered partner app; volunteer **authorizes** it on yahpz.com
 - Telegram starts the link; **חיבורים** on the profile revokes it
-- 7-day opaque access token, **no refresh**; `/unlink` or revoke or expiry ends access
+- 60-day opaque access token, **no refresh**; `/unlink` or revoke or expiry ends access
 - Full standalone fill parity: plate, odometers, route, treatment, notes, treated plates, media
 - Structured validation errors the bot can show in chat
 
@@ -35,7 +35,7 @@ A trusted partner wants to build a **Telegram bot** so volunteers can complete t
 | Transport | HTTP Edge API, not PostgREST |
 | Linking | Profile **חבר לטלגרם** (logged in) or `/oauth/authorize` from Telegram; **חיבורים** revoke |
 | Completion | `https://t.me/<bot>?start=<one_time_code>` (Telegram 64-char start limit) |
-| Token | Opaque bearer, 7 days, no refresh; re-link replaces the grant |
+| Token | Opaque bearer, 60 days, no refresh; re-link replaces the grant |
 | Writes | Same rules as `validateResponderFillDraft` + plates + media |
 | Media | JPEG only, max 1.5 MB already-compressed (partner compresses / Telegram size) |
 | JWT gateway | `partner-auth` and `responder-api` deploy with `--no-verify-jwt`; functions authenticate themselves |
@@ -59,10 +59,10 @@ Yahpaz owns identity and writes. The partner owns Telegram and stores the bearer
 |---|---|
 | `oauth_clients` | Partner app: name, `client_id`, secret hash, Telegram bot username |
 | `oauth_authorization_codes` | 5-minute, single-use start params |
-| `oauth_access_tokens` | 7-day hashed bearers; `revoked_at` |
+| `oauth_access_tokens` | 60-day hashed bearers; `revoked_at` |
 | Web `/oauth/authorize` | Login required; Hebrew consent; block impersonation |
 | Profile **חיבור לטלגרם** | Volunteer connect + revoke; no secrets |
-| Settings (admin) **רישום בוט** | Create client; show `client_id` + secret **once** |
+| Settings (admin) **רישום בוט** | Create / rotate / **remove** client; show `client_id` + secret **once** |
 | Edge `partner-auth` | client_info, authorize, token, revoke, list_grants, admin_* |
 | Edge `responder-api` | Fill/plates/media for the token’s user |
 
@@ -119,7 +119,7 @@ URL: `https://yahpz.com/oauth/authorize?client_id=&redirect_uri=&state=&scope=re
 
 Logged-out visitors see existing login (same path). After OTP / password-setup, consent.
 
-Consent copy (Hebrew): app name, what they grant (השלמת דיווחי אירועים: קילומטרים, טיפול, לוחיות, מדיה), 7 days, **אשר גישה** / **לא עכשיו**.
+Consent copy (Hebrew): app name, what they grant (השלמת דיווחי אירועים: קילומטרים, טיפול, לוחיות, מדיה), 60 days, **אשר גישה** / **לא עכשיו**.
 
 Deny: stay on a short “בוטל” card; no code issued.
 
@@ -141,6 +141,7 @@ All `POST /functions/v1/partner-auth`. Partner sends `apikey` = anon key.
 | `admin_create_client` | admin JWT | `name`, `telegram_bot_username` | `{ client_id, client_secret }` once |
 | `admin_list_clients` | admin JWT | | clients without secrets |
 | `admin_rotate_secret` | admin JWT | `client_id` | new secret once; existing access tokens stay until expiry/revoke |
+| `admin_delete_client` | admin JWT | `client_id` | delete client (cascade codes + tokens); username can be registered again |
 
 Invalid client / token: generic `יישום או טוקן אינם תקינים.` (no user enumeration).
 

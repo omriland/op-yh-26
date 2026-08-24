@@ -3,7 +3,8 @@
 export const OAUTH_AUTHORIZE_PATH = '/oauth/authorize'
 export const PARTNER_SCOPE = 'responder:fill'
 export const AUTHORIZATION_CODE_TTL_MS = 5 * 60 * 1000
-export const ACCESS_TOKEN_TTL_SEC = 7 * 24 * 60 * 60
+export const ACCESS_TOKEN_TTL_DAYS = 60
+export const ACCESS_TOKEN_TTL_SEC = ACCESS_TOKEN_TTL_DAYS * 24 * 60 * 60
 export const START_PARAM_PREFIX = 'yp_'
 export const ACCESS_TOKEN_PREFIX = 'ypat_'
 

@@ -78,7 +78,7 @@ Rules:
 - `scope` must be `responder:fill`.
 - `state` is required.
 
-After login (and SMS OTP if that account uses it), they see Hebrew consent: 7-day access to complete their event reports (kilometers, treatment, plates, media).
+After login (and SMS OTP if that account uses it), they see Hebrew consent: 60-day access to complete their event reports (kilometers, treatment, plates, media).
 
 **אשר גישה** redirects the browser to:
 
@@ -118,12 +118,12 @@ Content-Type: application/json
 {
   "access_token": "ypat_…",
   "token_type": "Bearer",
-  "expires_in": 604800,
+  "expires_in": 5184000,
   "scope": "responder:fill"
 }
 ```
 
-`expires_in` is **7 days** (604800 seconds). There is **no refresh token**. After expiry, revoke, or unlink on yahpz.com (**חיבורים**), send them through authorize again.
+`expires_in` is **60 days** (5184000 seconds). There is **no refresh token**. After expiry, revoke, or unlink on yahpz.com (**חיבורים**), send them through authorize again.
 
 Store `access_token` keyed by your Telegram user id. Treat it like a password.
 
@@ -599,7 +599,7 @@ Only own photos.
 
 | `action` | Auth | Purpose |
 |---|---|---|
-| `token` | `client_id` + `client_secret` | Code → 7-day access token |
+| `token` | `client_id` + `client_secret` | Code → 60-day access token |
 | `revoke` | `client_id` + `client_secret` + `token` | Kill that access token |
 
 ### `POST …/responder-api` (volunteer access token)

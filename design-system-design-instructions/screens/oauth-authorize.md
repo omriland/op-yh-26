@@ -20,7 +20,7 @@ Masthead: **אבן דרך** + unit lockup (same as login).
 Card:
 
 1. `--type-title` equivalent via `.login__heading`: `אישור גישה`
-2. Body `--type-body` / `--text-secondary`: היישום **{name}** ישלים דיווחי אירועים בשמך בטלגרם למשך 7 ימים.
+2. Body `--type-body` / `--text-secondary`: היישום **{name}** ישלים דיווחי אירועים בשמך בטלגרם למשך 60 ימים.
 3. Primary block: `אשר והמשך לטלגרם` (loading `מאשר…`)
 4. Ghost: `לא עכשיו`
 

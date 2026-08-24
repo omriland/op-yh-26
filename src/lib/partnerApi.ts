@@ -179,3 +179,14 @@ export async function rotatePartnerClientSecret(
   if (!clientSecret) return { ok: false, error: 'לא ניתן לחדש את הטוקן.' }
   return { ok: true, clientSecret }
 }
+
+export async function deletePartnerClient(
+  clientId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await invokePartnerAuth<{ ok?: boolean }>({
+    action: 'admin_delete_client',
+    client_id: clientId,
+  })
+  if (!result.ok) return result
+  return { ok: true }
+}

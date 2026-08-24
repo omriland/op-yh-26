@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { isImpersonating } from '../lib/impersonationStash'
-import {
-  type OAuthAuthorizeRequest,
-} from '../lib/partnerOAuth'
+import { ACCESS_TOKEN_TTL_DAYS, type OAuthAuthorizeRequest } from '../lib/partnerOAuth'
 import { approvePartnerAuthorize, fetchPartnerClientInfo } from '../lib/partnerApi'
 import { Button } from '../components/ui/Button'
 
@@ -87,7 +85,8 @@ export function OAuthAuthorizePage({ request, error: bootError }: OAuthAuthorize
                   ? (bootError ?? 'קישור האישור אינו תקין.')
                   : appName ? (
                     <>
-                      היישום <strong>{appName}</strong> ישלים דיווחי אירועים בשמך בטלגרם למשך 7 ימים.
+                      היישום <strong>{appName}</strong> ישלים דיווחי אירועים בשמך בטלגרם למשך{' '}
+                      {ACCESS_TOKEN_TTL_DAYS} ימים.
                     </>
                   ) : (
                     'טוען פרטי יישום…'

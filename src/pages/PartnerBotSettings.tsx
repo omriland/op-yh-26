@@ -8,6 +8,7 @@ import { useToast } from '../components/ui/Toast'
 import { isImpersonating } from '../lib/impersonationStash'
 import {
   createPartnerClient,
+  deletePartnerClient,
   fetchPartnerClients,
   rotatePartnerClientSecret,
   type PartnerClient,
@@ -22,6 +23,9 @@ export function PartnerBotSettings() {
   const [botUsername, setBotUsername] = useState('')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [listError, setListError] = useState<string | null>(null)
+  const [deleteClient, setDeleteClient] = useState<PartnerClient | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [secretOnce, setSecretOnce] = useState<{
     title: string
     clientId: string
@@ -33,8 +37,13 @@ export function PartnerBotSettings() {
     let active = true
     fetchPartnerClients().then((result) => {
       if (!active) return
-      if (result.ok) setClients(result.clients)
-      else setClients([])
+      if (result.ok) {
+        setClients(result.clients)
+        setListError(null)
+      } else {
+        setClients([])
+        setListError(result.error)
+      }
     })
     return () => {
       active = false
@@ -93,6 +102,24 @@ export function PartnerBotSettings() {
     })
   }
 
+  async function onDeleteClient() {
+    if (!deleteClient) return
+    if (viewingAsOther) {
+      show('לא ניתן לרשום בוט בזמן התחזות.')
+      return
+    }
+    setDeleting(true)
+    const result = await deletePartnerClient(deleteClient.client_id)
+    setDeleting(false)
+    if (!result.ok) {
+      show(result.error)
+      return
+    }
+    setClients((current) => (current ?? []).filter((row) => row.id !== deleteClient.id))
+    setDeleteClient(null)
+    show('הבוט הוסר')
+  }
+
   return (
     <>
       {viewingAsOther ? (
@@ -104,6 +131,8 @@ export function PartnerBotSettings() {
       <section className="card stack-4">
         {clients === null ? (
           <Skeleton height={24} />
+        ) : listError ? (
+          <p className="t-body text-muted">{listError}</p>
         ) : clients.length === 0 ? (
           <p className="t-body text-muted">עדיין לא רשום בוט.</p>
         ) : (
@@ -121,6 +150,13 @@ export function PartnerBotSettings() {
                   onClick={() => void onRotateSecret(client.client_id)}
                 >
                   חידוש טוקן
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={viewingAsOther}
+                  onClick={() => setDeleteClient(client)}
+                >
+                  הסרה
                 </Button>
               </div>
             ))}
@@ -187,6 +223,34 @@ export function PartnerBotSettings() {
             ) : null}
           </div>
         ) : null}
+      </Dialog>
+      <Dialog
+        open={Boolean(deleteClient)}
+        title="להסיר את הבוט?"
+        onClose={() => !deleting && setDeleteClient(null)}
+        footer={
+          <>
+            <Button
+              variant="destructive"
+              loading={deleting}
+              loadingLabel="מסיר…"
+              onClick={() => void onDeleteClient()}
+            >
+              הסרה
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={deleting}
+              onClick={() => setDeleteClient(null)}
+            >
+              ביטול
+            </Button>
+          </>
+        }
+      >
+        <p className="t-body">
+          החיבורים הקיימים יבוטלו. אפשר לרשום את אותו בוט מחדש אחר כך.
+        </p>
       </Dialog>
     </>
   )

@@ -17,7 +17,7 @@ import {
 const ALLOW_HEADERS =
   "authorization, x-client-info, apikey, content-type, x-yahpaz-partner-token";
 const CODE_TTL_MS = 5 * 60 * 1000;
-const ACCESS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ACCESS_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 const SCOPE = "responder:fill";
 const GENERIC_CLIENT_ERROR = "יישום או טוקן אינם תקינים.";
 
@@ -194,6 +194,9 @@ Deno.serve(async (req: Request) => {
     }
     if (action === "admin_rotate_secret") {
       return handleAdminRotate(admin, cfg, req, body);
+    }
+    if (action === "admin_delete_client") {
+      return handleAdminDelete(admin, cfg, req, body);
     }
 
     return json(400, { error: "פעולה לא מוכרת." });
@@ -538,4 +541,25 @@ async function handleAdminRotate(
   if (error) return json(400, { error: "לא ניתן לחדש את הטוקן." });
 
   return json(200, { client_id: client.client_id, client_secret: secret });
+}
+
+async function handleAdminDelete(
+  admin: SupabaseClient,
+  cfg: { url: string; anon: string },
+  req: Request,
+  body: JsonBody,
+): Promise<Response> {
+  const user = await userFromRequest(req, cfg.url, cfg.anon);
+  if (!user) return json(401, { error: "יש להתחבר מחדש." });
+  if (!(await requireAdmin(admin, user.id))) {
+    return json(403, { error: "אין הרשאה." });
+  }
+
+  const clientId = trim(body.client_id);
+  const client = await findClientByPublicId(admin, clientId);
+  if (!client) return json(400, { error: "היישום אינו מוכר." });
+
+  const { error } = await admin.from("oauth_clients").delete().eq("id", client.id);
+  if (error) return json(400, { error: "לא ניתן להסיר את הבוט." });
+  return json(200, { ok: true });
 }

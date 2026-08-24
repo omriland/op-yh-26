@@ -102,7 +102,7 @@ describe('token shapes and grant expiry', () => {
   it('accepts ypat_ access tokens', () => {
     expect(partnerAccessTokenLooksValid('ypat_abcdefghijklmnopqrstuvwx')).toBe(true)
     expect(partnerAccessTokenLooksValid('secret')).toBe(false)
-    expect(ACCESS_TOKEN_TTL_SEC).toBe(7 * 24 * 60 * 60)
+    expect(ACCESS_TOKEN_TTL_SEC).toBe(60 * 24 * 60 * 60)
   })
 
   it('treats revoked or expired grants as unusable', () => {

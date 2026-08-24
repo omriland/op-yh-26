@@ -135,7 +135,7 @@ paths:
                   value:
                     access_token: ypat_…
                     token_type: Bearer
-                    expires_in: 604800
+                    expires_in: 5184000
                     scope: responder:fill
                 revoke:
                   value:
@@ -395,7 +395,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: ypat
-      description: Volunteer access token (`ypat_…`), 7 days.
+      description: Volunteer access token (`ypat_…`), 60 days.
     PartnerTokenHeader:
       type: apiKey
       in: header
@@ -567,8 +567,8 @@ components:
           enum: [Bearer]
         expires_in:
           type: integer
-          enum: [604800]
-          description: 7 days, seconds
+          enum: [5184000]
+          description: 60 days, seconds
         scope:
           type: string
           enum: [responder:fill]
