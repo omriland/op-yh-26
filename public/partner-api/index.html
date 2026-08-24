@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>אבן דרך Partner API</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/partner-api/vendor/swagger-ui.css" />
+    <style>
+      :root {
+        --yp-navy: #1d4e89;
+      }
+      html,
+      body {
+        margin: 0;
+        background: #f6f7f9;
+      }
+      .docs-header {
+        background: var(--yp-navy);
+        color: #fff;
+        padding: 20px 28px 18px;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      .docs-header h1 {
+        margin: 0 0 6px;
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .docs-header p {
+        margin: 0;
+        max-width: 52rem;
+        font-size: 14px;
+        line-height: 1.45;
+        opacity: 0.92;
+      }
+      .docs-header a {
+        color: #fff;
+      }
+      .swagger-ui .topbar {
+        display: none;
+      }
+      .swagger-ui .info {
+        margin: 24px 0 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="docs-header">
+      <h1>אבן דרך Partner API</h1>
+      <p>
+        Official Swagger for trusted third-party apps.
+        Spec file:
+        <a href="/partner-api/openapi.yaml">openapi.yaml</a>
+      </p>
+    </header>
+    <div id="swagger-ui"></div>
+    <script src="/partner-api/vendor/swagger-ui-bundle.js"></script>
+    <script>
+      window.ui = SwaggerUIBundle({
+        url: "/partner-api/openapi.yaml",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        filter: true,
+        tryItOutEnabled: true,
+        persistAuthorization: false,
+        displayRequestDuration: true,
+        docExpansion: "list",
+        defaultModelsExpandDepth: 1,
+        syntaxHighlight: { activate: true, theme: "agate" },
+      });
+    </script>
+  </body>
+</html>

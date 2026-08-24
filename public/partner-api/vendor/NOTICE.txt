@@ -1,0 +1,2 @@
+Swagger UI 5.27.1 (Apache-2.0)
+https://github.com/swagger-api/swagger-ui

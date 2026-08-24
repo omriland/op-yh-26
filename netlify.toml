@@ -27,6 +27,23 @@
     Content-Type = "application/vnd.android.package-archive"
     Cache-Control = "public, max-age=300"
 
+[[headers]]
+  for = "/partner-api/openapi.yaml"
+  [headers.values]
+    Content-Type = "application/yaml; charset=utf-8"
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"
+
+[[redirects]]
+  from = "/partner-api"
+  to = "/partner-api/"
+  status = 301
+
+[[redirects]]
+  from = "/partner-api/"
+  to = "/partner-api/index.html"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

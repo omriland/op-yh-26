@@ -3,6 +3,7 @@
 **Date:** 2026-08-24  
 **Repo:** `op-yh-26` (web + Edge + DB)  
 **Status:** Approved in brainstorming (Approach 1); remaining sections filled to implement  
+**Official partner contract (share this):** https://yahpz.com/partner-api/ (Swagger) · spec `public/partner-api/openapi.yaml` · notes `docs/partner-api.md`  
 **Depends on:** `2026-08-09-yahpaz-responder-fill-design.md`, treated plates, event media
 
 ## Problem

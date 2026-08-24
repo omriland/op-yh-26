@@ -1,0 +1,1055 @@
+openapi: 3.0.3
+info:
+  title: אבן דרך Partner API
+  version: "1.0.0"
+  license:
+    name: Proprietary
+    url: https://yahpz.com/partner-api/
+  termsOfService: https://yahpz.com/partner-api/
+  contact:
+    name: אבן דרך
+    url: https://yahpz.com
+  description: |
+    Official HTTP contract for **trusted third-party apps** (for example a Telegram bot)
+    acting as **one volunteer**.
+
+    **Share this page:** [https://yahpz.com/partner-api/](https://yahpz.com/partner-api/)
+    · Raw spec: [openapi.yaml](./openapi.yaml)
+
+    ## What access grants
+
+    After the volunteer approves your app on yahpz.com you may, as that volunteer:
+
+    - See who they are
+    - List **open standalone** assignments
+    - Load one event (draft, vehicles, treated plates, photos)
+    - Save a draft or **complete** the report (same rules as השלמת הפרטים שלי)
+    - Add / remove / look up treated civilian plates
+    - Upload / list / update / delete **their** photos
+
+    User-facing `error` strings are **Hebrew** — show them in chat. Machine `code`
+    values are English.
+
+    ## Out of scope (v1)
+
+    - Create or edit unit events, shift-lead fields, or `total_km`
+    - Shift / shift-born events (`origin = shift`)
+    - Other volunteers’ private drafts
+    - PostgREST, Auth, or Storage directly
+    - Volunteer passwords or refresh tokens
+
+    Scope: `responder:fill` (only scope in v1). Access token lives **7 days**. No refresh.
+
+    ## Credentials
+
+    | Name | Use |
+    |---|---|
+    | `client_id` | Authorize URL + `token` / `revoke` body |
+    | `client_secret` | **Server only.** Never put this in Telegram, a webpage, or a mobile app |
+    | Publishable `apikey` | Same anon key as the website. Required on every Edge call. Not authorization |
+
+    Click **Authorize** in this page and paste the publishable `apikey`. For fill calls
+    also paste the volunteer `ypat_…` token as the bearer.
+
+    Try it out from this origin is allowed (CORS). Production bots must call **server-to-server**.
+    Do not paste a production `client_secret` on a shared computer.
+
+    ## Linking (browser, not Edge)
+
+    1. Bind a random `state` to **this Telegram user** in your DB, then open:
+
+    `https://yahpz.com/oauth/authorize?client_id={id}&redirect_uri=https://t.me/{bot}&state={state}&scope=responder:fill`
+
+    2. Volunteer logs in on yahpz.com and taps **אשר גישה**.
+    3. Browser goes to `https://t.me/{bot}?start=yp_{code}` (one-time code, ~5 minutes).
+    4. Your server calls **Exchange code** (`action: token`).
+    5. Store `access_token` keyed by Telegram user id.
+
+    `redirect_uri` must be exactly `https://t.me/{bot_username}` (optional trailing slash).
+    We do not echo `state` through Telegram — the start payload is too small.
+
+    Re-linking replaces the previous grant. Volunteer can also revoke under **חיבורים**.
+
+    ## How these two POSTs work
+
+    Both Edge functions take **JSON with `action`**. Use the **Examples** dropdown on
+    each operation to pick `token`, `whoami`, `complete`, and so on.
+servers:
+  - url: https://rtvizpsfvtjowbimugns.supabase.co/functions/v1
+    description: Production Edge
+tags:
+  - name: Linking
+    description: Browser consent on yahpz.com
+  - name: Auth
+    description: App credentials → volunteer access token
+  - name: Responder
+    description: Fill API (requires ypat_ access token)
+paths:
+  /oauth/authorize:
+    get:
+      tags: [Linking]
+      operationId: authorize
+      summary: Open volunteer consent
+      description: |
+        Open this URL in the volunteer’s browser (or as a Telegram link).
+        Not an Edge function. `redirect_uri` must match the registered bot.
+      security: []
+      servers:
+        - url: https://yahpz.com
+          description: Production site
+      parameters:
+        - name: client_id
+          in: query
+          required: true
+          schema:
+            type: string
+            example: ypb_…
+        - name: redirect_uri
+          in: query
+          required: true
+          description: Exact `https://t.me/{bot_username}` (optional trailing slash)
+          schema:
+            type: string
+            format: uri
+            example: https://t.me/YourBot
+        - name: state
+          in: query
+          required: true
+          description: Partner CSRF. Bind to the Telegram user before sending the link.
+          schema:
+            type: string
+        - name: scope
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [responder:fill]
+      responses:
+        "302":
+          description: After **אשר גישה**, redirect to `https://t.me/{bot}?start=yp_{code}`. **לא עכשיו** issues nothing.
+        "200":
+          description: Consent HTML (volunteer is sent through login first if needed)
+        "400":
+          description: Missing or invalid query parameters (`client_id`, `redirect_uri`, `state`, `scope`)
+
+  /partner-auth:
+    post:
+      tags: [Auth]
+      operationId: partnerAuth
+      summary: Token or revoke
+      description: |
+        Use the **Example** dropdown:
+
+        | `action` | Purpose |
+        |---|---|
+        | `token` | One-time `yp_{code}` → 7-day `ypat_` access token |
+        | `revoke` | Kill that access token (`/unlink`). Idempotent. |
+
+        Also send `apikey` (and typically `Authorization: Bearer` with the **same** publishable key).
+      security:
+        - AnonKey: []
+        - AnonKey: []
+          AnonBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/TokenRequest"
+                - $ref: "#/components/schemas/RevokeRequest"
+              discriminator:
+                propertyName: action
+                mapping:
+                  token: "#/components/schemas/TokenRequest"
+                  revoke: "#/components/schemas/RevokeRequest"
+            examples:
+              token:
+                summary: token — exchange authorization code
+                value:
+                  action: token
+                  client_id: ypb_…
+                  client_secret: "…"
+                  code: yp_…
+              revoke:
+                summary: revoke — unlink
+                value:
+                  action: revoke
+                  client_id: ypb_…
+                  client_secret: "…"
+                  token: ypat_…
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/TokenResponse"
+                  - $ref: "#/components/schemas/OkResponse"
+              examples:
+                token:
+                  value:
+                    access_token: ypat_…
+                    token_type: Bearer
+                    expires_in: 604800
+                    scope: responder:fill
+                revoke:
+                  value:
+                    ok: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Wrong client_id or client_secret
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+              example:
+                error: יישום או סוד אינם תקינים.
+        "403":
+          description: Volunteer account inactive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+              example:
+                error: החשבון אינו פעיל.
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+  /responder-api:
+    post:
+      tags: [Responder]
+      operationId: responderApi
+      summary: Responder fill actions
+      description: |
+        Every body includes `"action"`. Use the **Example** dropdown.
+
+        Send `Authorization: Bearer ypat_…` (or `X-Yahpaz-Partner-Token`). Also send `apikey`.
+
+        | `action` | Purpose |
+        |---|---|
+        | `whoami` | Volunteer name and או״ק |
+        | `list_open_events` | Open standalone assignments |
+        | `get_event` | One event — draft, vehicles, plates, media |
+        | `save_draft` | Partial save (`in_progress`) |
+        | `complete` | Validate and lock the report (`done`) |
+        | `lookup_treated_plate` | Registry model / color (`hit` may be null) |
+        | `add_treated_plate` | Add a treated plate (7 or 8 digits) |
+        | `remove_treated_plate` | Remove a treated plate |
+        | `list_media` | List photos (`signed_url` ~1 hour) |
+        | `upload_media` | JPEG ≤ 1.5 MB, max 20 per event |
+        | `update_media` | Own photo metadata |
+        | `delete_media` | Own photo |
+
+        **Complete / draft validation** (same as the website)
+
+        | Field | Draft | Complete |
+        |---|---|---|
+        | `vehicle_plate` | optional | Required; digits from `allowed_plates` |
+        | `odometer_start` / `odometer_end` | empty OK; must be numbers if set | Both required; **end strictly greater than start** |
+        | `route` | optional | Required |
+        | `treatment_detail` | optional | Required |
+        | `treatment_notes` | always optional | always optional |
+
+        Omitted `draft` keys keep stored values. All draft values are **strings**. Photos are not required to complete.
+
+        Write locks: `locked` (already done), `cancelled`, `shift_born`. Media may still be **uploaded** after complete while assigned and not cancelled.
+      security:
+        - AnonKey: []
+          PartnerToken: []
+        - AnonKey: []
+          PartnerTokenHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/WhoamiRequest"
+                - $ref: "#/components/schemas/ListOpenEventsRequest"
+                - $ref: "#/components/schemas/GetEventRequest"
+                - $ref: "#/components/schemas/SaveDraftRequest"
+                - $ref: "#/components/schemas/CompleteRequest"
+                - $ref: "#/components/schemas/LookupPlateRequest"
+                - $ref: "#/components/schemas/AddPlateRequest"
+                - $ref: "#/components/schemas/RemovePlateRequest"
+                - $ref: "#/components/schemas/ListMediaRequest"
+                - $ref: "#/components/schemas/UploadMediaRequest"
+                - $ref: "#/components/schemas/UpdateMediaRequest"
+                - $ref: "#/components/schemas/DeleteMediaRequest"
+              discriminator:
+                propertyName: action
+                mapping:
+                  whoami: "#/components/schemas/WhoamiRequest"
+                  list_open_events: "#/components/schemas/ListOpenEventsRequest"
+                  get_event: "#/components/schemas/GetEventRequest"
+                  save_draft: "#/components/schemas/SaveDraftRequest"
+                  complete: "#/components/schemas/CompleteRequest"
+                  lookup_treated_plate: "#/components/schemas/LookupPlateRequest"
+                  add_treated_plate: "#/components/schemas/AddPlateRequest"
+                  remove_treated_plate: "#/components/schemas/RemovePlateRequest"
+                  list_media: "#/components/schemas/ListMediaRequest"
+                  upload_media: "#/components/schemas/UploadMediaRequest"
+                  update_media: "#/components/schemas/UpdateMediaRequest"
+                  delete_media: "#/components/schemas/DeleteMediaRequest"
+            examples:
+              whoami:
+                summary: whoami
+                value:
+                  action: whoami
+              list_open_events:
+                summary: list_open_events
+                value:
+                  action: list_open_events
+              get_event:
+                summary: get_event
+                value:
+                  action: get_event
+                  event_id: 00000000-0000-4000-8000-000000000001
+              save_draft:
+                summary: save_draft
+                value:
+                  action: save_draft
+                  event_id: 00000000-0000-4000-8000-000000000001
+                  draft:
+                    vehicle_plate: "1234567"
+                    odometer_start: "45210"
+                    odometer_end: "45240"
+                    route: דרך צומת …
+                    treatment_detail: …
+                    treatment_notes: ""
+              complete:
+                summary: complete
+                value:
+                  action: complete
+                  event_id: 00000000-0000-4000-8000-000000000001
+                  draft:
+                    vehicle_plate: "1234567"
+                    odometer_start: "45210"
+                    odometer_end: "45240"
+                    route: דרך צומת …
+                    treatment_detail: פירוט הטיפול
+                    treatment_notes: ""
+              lookup_treated_plate:
+                summary: lookup_treated_plate
+                value:
+                  action: lookup_treated_plate
+                  plate_number: "1234567"
+              add_treated_plate:
+                summary: add_treated_plate
+                value:
+                  action: add_treated_plate
+                  event_id: 00000000-0000-4000-8000-000000000001
+                  plate_number: "1234567"
+                  left_where: צד ימין של הכביש
+              remove_treated_plate:
+                summary: remove_treated_plate
+                value:
+                  action: remove_treated_plate
+                  event_id: 00000000-0000-4000-8000-000000000001
+                  plate_number: "1234567"
+              list_media:
+                summary: list_media
+                value:
+                  action: list_media
+                  event_id: 00000000-0000-4000-8000-000000000001
+              upload_media:
+                summary: upload_media
+                value:
+                  action: upload_media
+                  event_id: 00000000-0000-4000-8000-000000000001
+                  taken_when: before_treatment
+                  caption: גלגל קדמי
+                  treated_plate_ids: []
+                  image_base64: /9j/4AAQ…
+              update_media:
+                summary: update_media
+                value:
+                  action: update_media
+                  media_id: 00000000-0000-4000-8000-000000000002
+                  taken_when: during_after_treatment
+                  caption: ""
+                  treated_plate_ids:
+                    - 00000000-0000-4000-8000-000000000003
+              delete_media:
+                summary: delete_media
+                value:
+                  action: delete_media
+                  media_id: 00000000-0000-4000-8000-000000000002
+      responses:
+        "200":
+          description: Success — shape depends on `action`
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/WhoamiResponse"
+                  - $ref: "#/components/schemas/ListOpenEventsResponse"
+                  - $ref: "#/components/schemas/EventPayload"
+                  - $ref: "#/components/schemas/SaveCompleteResponse"
+                  - $ref: "#/components/schemas/LookupPlateResponse"
+                  - $ref: "#/components/schemas/AddPlateResponse"
+                  - $ref: "#/components/schemas/OkResponse"
+                  - $ref: "#/components/schemas/ListMediaResponse"
+                  - $ref: "#/components/schemas/UploadMediaResponse"
+              examples:
+                whoami:
+                  value:
+                    user_id: 00000000-0000-4000-8000-000000000010
+                    full_name: ישראל ישראלי
+                    callsign: י-1
+                list_open_events:
+                  value:
+                    events:
+                      - event_id: 00000000-0000-4000-8000-000000000001
+                        assignment_id: 00000000-0000-4000-8000-000000000011
+                        participation_status: pending
+                        event_date: "2026-08-24"
+                        police_event_id: 12-34-567
+                        event_type_name: תאונה
+                        road_name: כביש 6
+                        location: …
+                        shift_lead_name: שם מלא · או״ק
+                complete:
+                  value:
+                    ok: true
+                    eventStatus: partial
+                    participationStatus: done
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/InvalidToken"
+        "404":
+          description: Not assigned, missing event, or missing media
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+              examples:
+                event:
+                  value:
+                    error: אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.
+                media:
+                  value:
+                    error: התמונה לא נמצאה.
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
+components:
+  securitySchemes:
+    AnonKey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Publishable anon key (same as the website). Not authorization.
+    AnonBearer:
+      type: http
+      scheme: bearer
+      description: "Same publishable anon key, for the Supabase gateway (`Authorization: Bearer`)."
+    PartnerToken:
+      type: http
+      scheme: bearer
+      bearerFormat: ypat
+      description: Volunteer access token (`ypat_…`), 7 days.
+    PartnerTokenHeader:
+      type: apiKey
+      in: header
+      name: X-Yahpaz-Partner-Token
+      description: Alternative to Authorization when a gateway requires a JWT there.
+  responses:
+    InvalidToken:
+      description: Missing, expired, revoked, or unknown access token — send the volunteer through authorize again
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorWithCode"
+          example:
+            error: החיבור פג או בוטל. יש לקשר מחדש.
+            code: invalid_token
+    MethodNotAllowed:
+      description: Not POST (Edge) / not GET (authorize)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
+          example:
+            error: שיטת הבקשה אינה נתמכת.
+    BadRequest:
+      description: Validation, unknown action, cancelled / locked / shift-born, or malformed JSON
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+          examples:
+            fieldErrors:
+              summary: Field validation
+              value:
+                error: בדקו את השדות המסומנים.
+                fieldErrors:
+                  odometer_end: מד אוץ סיום חייב להיות גדול ממד אוץ התחלה
+            completeRequired:
+              summary: Complete missing required fields
+              value:
+                error: יש למלא את כל שדות החובה לפני סיום הדיווח.
+                fieldErrors:
+                  route: יש למלא נתיב נסיעה.
+            expiredCode:
+              summary: Authorization code expired or used
+              value:
+                error: קוד האישור אינו תקין או שפג תוקפו.
+                code: expired
+            unknownAction:
+              value:
+                error: פעולה לא מוכרת.
+            notJson:
+              value:
+                error: גוף הבקשה אינו תקין.
+            missingEventId:
+              value:
+                error: חסר מזהה אירוע.
+            shiftBorn:
+              value:
+                error: אירוע זה אינו זמין דרך ה-API.
+                code: shift_born
+            locked:
+              value:
+                error: לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.
+                code: locked
+            cancelled:
+              value:
+                error: האירוע בוטל.
+                code: cancelled
+            plateDigits:
+              value:
+                error: יש להזין 7 או 8 ספרות.
+                fieldErrors:
+                  treated_plates: יש להזין 7 או 8 ספרות.
+            plateDuplicate:
+              value:
+                error: מספר זה כבר נוסף.
+                fieldErrors:
+                  treated_plates: מספר זה כבר נוסף.
+            plateMissing:
+              value:
+                error: הלוחית לא נמצאה.
+            jpeg:
+              value:
+                error: לא ניתן להעלות קובץ זה. בחרו תמונה.
+            jpegTooLarge:
+              value:
+                error: הקובץ גדול מדי. בחרו תמונה אחרת.
+            mediaCap:
+              value:
+                error: ניתן לצרף עד 20 תמונות לאירוע.
+            caption:
+              value:
+                error: התיאור קצר עד 200 תווים.
+            takenWhen:
+              value:
+                error: יש לבחור מתי צולמה התמונה.
+                fieldErrors:
+                  event_media: יש לבחור מתי צולמה התמונה.
+  schemas:
+    ErrorMessage:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    ErrorWithCode:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          enum: [invalid_token, expired, shift_born, locked, cancelled]
+    ErrorBody:
+      allOf:
+        - $ref: "#/components/schemas/ErrorWithCode"
+        - type: object
+          properties:
+            fieldErrors:
+              type: object
+              additionalProperties:
+                type: string
+              description: Keys may include vehicle_plate, odometer_start, odometer_end, route, treatment_detail, treated_plates, event_media
+    OkResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+    TokenRequest:
+      type: object
+      required: [action, client_id, client_secret, code]
+      properties:
+        action:
+          type: string
+          enum: [token]
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        code:
+          type: string
+          description: Start parameter from Telegram (`yp_…`)
+    RevokeRequest:
+      type: object
+      required: [action, client_id, client_secret, token]
+      properties:
+        action:
+          type: string
+          enum: [revoke]
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        token:
+          type: string
+          description: Access token to revoke (`ypat_…`)
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in, scope]
+      properties:
+        access_token:
+          type: string
+          example: ypat_…
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          enum: [604800]
+          description: 7 days, seconds
+        scope:
+          type: string
+          enum: [responder:fill]
+    WhoamiRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [whoami]
+    ListOpenEventsRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [list_open_events]
+    GetEventRequest:
+      type: object
+      required: [action, event_id]
+      properties:
+        action:
+          type: string
+          enum: [get_event]
+        event_id:
+          type: string
+          format: uuid
+    SaveDraftRequest:
+      type: object
+      required: [action, event_id]
+      properties:
+        action:
+          type: string
+          enum: [save_draft]
+        event_id:
+          type: string
+          format: uuid
+        draft:
+          $ref: "#/components/schemas/Draft"
+    CompleteRequest:
+      type: object
+      required: [action, event_id]
+      properties:
+        action:
+          type: string
+          enum: [complete]
+        event_id:
+          type: string
+          format: uuid
+        draft:
+          $ref: "#/components/schemas/Draft"
+    LookupPlateRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [lookup_treated_plate]
+        plate_number:
+          type: string
+        plate:
+          type: string
+          description: Alias of plate_number
+    AddPlateRequest:
+      type: object
+      required: [action, event_id]
+      properties:
+        action:
+          type: string
+          enum: [add_treated_plate]
+        event_id:
+          type: string
+          format: uuid
+        plate_number:
+          type: string
+        plate:
+          type: string
+        left_where:
+          type: string
+          nullable: true
+    RemovePlateRequest:
+      type: object
+      required: [action, event_id]
+      properties:
+        action:
+          type: string
+          enum: [remove_treated_plate]
+        event_id:
+          type: string
+          format: uuid
+        plate_number:
+          type: string
+        plate:
+          type: string
+    ListMediaRequest:
+      type: object
+      required: [action, event_id]
+      properties:
+        action:
+          type: string
+          enum: [list_media]
+        event_id:
+          type: string
+          format: uuid
+    UploadMediaRequest:
+      type: object
+      required: [action, event_id, taken_when, image_base64]
+      properties:
+        action:
+          type: string
+          enum: [upload_media]
+        event_id:
+          type: string
+          format: uuid
+        taken_when:
+          $ref: "#/components/schemas/TakenWhen"
+        caption:
+          type: string
+          maxLength: 200
+        treated_plate_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        image_base64:
+          type: string
+          description: JPEG bytes as base64. Optional `data:image/jpeg;base64,` prefix. Magic bytes FF D8 FF. Max 1572864 bytes decoded.
+    UpdateMediaRequest:
+      type: object
+      required: [action, media_id, taken_when]
+      properties:
+        action:
+          type: string
+          enum: [update_media]
+        media_id:
+          type: string
+          format: uuid
+        taken_when:
+          $ref: "#/components/schemas/TakenWhen"
+        caption:
+          type: string
+          maxLength: 200
+        treated_plate_ids:
+          type: array
+          description: If sent, replaces plate links
+          items:
+            type: string
+            format: uuid
+    DeleteMediaRequest:
+      type: object
+      required: [action, media_id]
+      properties:
+        action:
+          type: string
+          enum: [delete_media]
+        media_id:
+          type: string
+          format: uuid
+    Draft:
+      type: object
+      description: All values are strings. Omitted keys keep the stored assignment values.
+      properties:
+        vehicle_plate:
+          type: string
+          description: Digits only (no hyphens)
+        odometer_start:
+          type: string
+        odometer_end:
+          type: string
+        route:
+          type: string
+        treatment_detail:
+          type: string
+        treatment_notes:
+          type: string
+    TakenWhen:
+      type: string
+      enum: [before_treatment, during_after_treatment]
+      description: before_treatment = לפני הטיפול · during_after_treatment = במהלך/לאחר הטיפול
+    WhoamiResponse:
+      type: object
+      required: [user_id, full_name, callsign]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        callsign:
+          type: string
+    ListOpenEventsResponse:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenEvent"
+    OpenEvent:
+      type: object
+      required:
+        - event_id
+        - assignment_id
+        - participation_status
+        - event_date
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        assignment_id:
+          type: string
+          format: uuid
+        participation_status:
+          type: string
+          enum: [pending, in_progress]
+        event_date:
+          type: string
+          format: date
+        police_event_id:
+          type: string
+          nullable: true
+        event_type_name:
+          type: string
+          nullable: true
+        road_name:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        shift_lead_name:
+          type: string
+          nullable: true
+    EventPayload:
+      type: object
+      required:
+        - event_id
+        - assignment_id
+        - event_status
+        - participation_status
+        - is_cancelled
+        - vehicles
+        - allowed_plates
+        - draft
+        - treated_plates
+        - media
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        assignment_id:
+          type: string
+          format: uuid
+        event_status:
+          type: string
+          enum: [draft, in_progress, partial, done]
+        participation_status:
+          type: string
+          enum: [pending, in_progress, done]
+        event_date:
+          type: string
+          format: date
+        police_event_id:
+          type: string
+          nullable: true
+        event_type_name:
+          type: string
+          nullable: true
+        is_cancelled:
+          type: boolean
+        road_name:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        shift_lead_name:
+          type: string
+          nullable: true
+        vehicles:
+          type: array
+          items:
+            type: object
+            required: [plate]
+            properties:
+              plate:
+                type: string
+                description: Digits only
+              model:
+                type: string
+                nullable: true
+        allowed_plates:
+          type: array
+          items:
+            type: string
+        draft:
+          $ref: "#/components/schemas/Draft"
+        treated_plates:
+          type: array
+          items:
+            $ref: "#/components/schemas/TreatedPlate"
+        media:
+          type: array
+          items:
+            $ref: "#/components/schemas/MediaItem"
+    SaveCompleteResponse:
+      type: object
+      required: [ok, eventStatus, participationStatus]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        eventStatus:
+          type: string
+          enum: [draft, in_progress, partial, done]
+          description: done only when every assigned responder is done
+        participationStatus:
+          type: string
+          enum: [pending, in_progress, done]
+    LookupPlateResponse:
+      type: object
+      required: [hit]
+      properties:
+        hit:
+          description: Israeli registry match, or null if unknown (add is still allowed)
+          nullable: true
+          type: object
+          properties:
+            model:
+              type: string
+              nullable: true
+            color:
+              type: string
+              nullable: true
+            manufacturer:
+              type: string
+              nullable: true
+    AddPlateResponse:
+      type: object
+      required: [ok, plate]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        plate:
+          $ref: "#/components/schemas/TreatedPlate"
+    TreatedPlate:
+      type: object
+      required: [id, plate_number]
+      properties:
+        id:
+          type: string
+          format: uuid
+        plate_number:
+          type: string
+          description: Formatted with hyphens
+        model:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        left_where:
+          type: string
+          nullable: true
+        manufacturer:
+          type: string
+          nullable: true
+        logo_slug:
+          type: string
+          nullable: true
+        sort_order:
+          type: integer
+    ListMediaResponse:
+      type: object
+      required: [media]
+      properties:
+        media:
+          type: array
+          items:
+            $ref: "#/components/schemas/MediaItem"
+    UploadMediaResponse:
+      type: object
+      required: [ok, media]
+      properties:
+        ok:
+          type: boolean
+          enum: [true]
+        media:
+          $ref: "#/components/schemas/MediaItem"
+    MediaItem:
+      type: object
+      required: [id, taken_when]
+      properties:
+        id:
+          type: string
+          format: uuid
+        uploaded_by:
+          type: string
+          format: uuid
+        caption:
+          type: string
+          nullable: true
+        taken_when:
+          $ref: "#/components/schemas/TakenWhen"
+        byte_size:
+          type: integer
+          nullable: true
+        width:
+          type: integer
+          nullable: true
+        height:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        treated_plate_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        signed_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Valid about one hour — do not persist as a permanent URL
