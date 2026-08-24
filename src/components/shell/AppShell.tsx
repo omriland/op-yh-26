@@ -154,12 +154,6 @@ export function AppShell({
           className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}
           data-theme="field"
         >
-          {isDesktop && !withSidebar ? (
-            <div className="shell__chrome" data-theme="command">
-              <BrandMark view={view} onHome={onHome} />
-              <UserChrome onNavigate={onNavigate} onHome={onHome} />
-            </div>
-          ) : null}
           {children}
           {showSecurityBadge && onOpenPrivacy ? (
             <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} />

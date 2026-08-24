@@ -2349,35 +2349,6 @@ textarea.field__input {
     border: 1px solid var(--stroke-hairline);
     border-radius: var(--radius-lg);
   }
-
-  .shell__chrome {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    height: var(--appbar-height);
-    max-width: none;
-    width: 100%;
-    margin-inline: 0;
-    padding-inline: var(--space-4);
-    border-block-end: 1px solid var(--stroke-hairline);
-    background: var(--surface-page);
-    color: var(--text-primary);
-    position: sticky;
-    inset-block-start: 0;
-    z-index: 20;
-  }
-
-  .shell__main > .shell__chrome {
-    max-width: none;
-    width: 100%;
-    margin-inline: 0;
-  }
-
-  .shell__chrome .appbar__brand {
-    max-width: calc(100% - 200px);
-  }
 }
 
 @media (min-width: 641px) and (max-width: 1024px) {

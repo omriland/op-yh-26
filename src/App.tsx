@@ -702,11 +702,11 @@ function Gate() {
     (onShifts && eventOverlay) ||
     (onShifts && (shiftSurface.kind === 'form' || shiftSurface.kind === 'detail'))
 
-  // Desktop always keeps sidebar nav on list/admin/profile (fixes my-shifts with no navbar).
-  const shellWithSidebar = isDesktop && !immersiveSurface
+  // Desktop always keeps the sidebar — no replacement top bar on forms/detail/fill.
+  const shellWithSidebar = isDesktop
   const shellNarrow = isDesktop && immersiveSurface && !onCockpit
   // Manager desktop layout (tables / wide pages). Chrome is Command; content is Field.
-  const commandShell = shellWithSidebar && (manages || isAdminHub)
+  const commandShell = isDesktop && (manages || isAdminHub)
 
   function navigate(next: AppView) {
     const nextState = applyNavClick(
