@@ -21,10 +21,11 @@
 |---|---|---|
 | `--radius-sm` | 4 | Inputs, buttons, selects, table cells' selection |
 | `--radius-md` | 8 | Cards, dialogs, sheets, toasts |
+| `--radius-lg` | 16 | Desktop shell cards only (sidebar + main) |
 | `--radius-stamp` | 3 | Stamp chips only |
 | `--radius-full` | 9999 | Avatars, and the 8px user-presence disc on משתמשים |
 
-Documents are not bubbly. Nothing else is rounded except avatars and the user-presence disc. No pill buttons.
+Documents are not bubbly. Inner records stay `--radius-md`. `--radius-lg` is only the desktop shell cards. Nothing else is rounded except avatars and the user-presence disc. No pill buttons.
 
 ## Hairlines & borders
 
@@ -60,7 +61,7 @@ No other shadows exist. No colored shadows ever.
 - **Page padding-inline:** 16 px mobile, 24 px tablet, 32 px desktop.
 - **Mobile shell:** top app bar (48 px, Command-ink in both themes) + content + bottom tab bar (56 px + safe-area) for primary navigation.
 - **Nav item click:** always returns that section's root (list / library / hub), even if that item is already current — e.g. a report runner → דוחות library; fuel usage → ניהול דלק chooser. Back-from-detail inside a section is unchanged until the nav item is clicked.
-- **Desktop Command chrome:** sidebar at the **inline-start** (right side in RTL), default 240 px wide (user-resizable 190–265 px via invisible edge handle; preference in `localStorage`), Command `--surface-page` with hairline at its inline-end; **content area beside it is Field** (`data-theme="field"` on `.shell__main`).
+- **Desktop Command chrome:** no full-width top bar. Two floating cards on Field `--surface-sunken`, gutter `--space-3`: sidebar card at the **inline-start** (right side in RTL), default 240 px wide (user-resizable 190–265 px via invisible edge handle; preference in `localStorage`), Command `--surface-page`, hairline, `--radius-lg`; **content card beside it is Field** (`data-theme="field"` on `.shell__main`, Field `--surface-page`, same hairline + radius). Wordmark sits at the top of the sidebar; availability + user menu pin to the sidebar footer. Immersive screens (no sidebar) keep one content card with a 48 px Command strip inside it.
 - **Grid:** single column mobile. Desktop uses CSS grid with `gap: var(--space-6)`; event detail uses the split defined in `screens/event-detail.md`.
 
 ## Density

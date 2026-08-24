@@ -82,6 +82,7 @@
   /* ---- Radii ---- */
   --radius-sm: 4px;
   --radius-md: 8px;
+  --radius-lg: 16px;
   --radius-stamp: 3px;
   --radius-full: 9999px;
 

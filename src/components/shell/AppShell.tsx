@@ -122,12 +122,19 @@ export function AppShell({
   onCreateShift,
   children,
 }: AppShellProps) {
+  const isDesktop = useIsDesktop()
+
   return (
-    <div className="shell" data-theme="field">
+    <div
+      className={['shell', isDesktop ? 'shell--cards' : ''].filter(Boolean).join(' ')}
+      data-theme="field"
+    >
       <a className="skip-link" href="#main">
         דילוג לתוכן
       </a>
-      <TopAppBar view={view} onNavigate={onNavigate} onHome={onHome} />
+      {isDesktop ? null : (
+        <TopAppBar view={view} onNavigate={onNavigate} onHome={onHome} />
+      )}
       <ImpersonationBar onRestored={onHome} />
       <RolePreviewBar onRestored={onHome} />
       <UpdateAvailableNotice />
@@ -136,6 +143,7 @@ export function AppShell({
           <Sidebar
             view={view}
             onNavigate={onNavigate}
+            onHome={onHome}
             entries={entries}
             onCreateEvent={onCreateEvent}
             onCreateShift={onCreateShift}
@@ -146,6 +154,12 @@ export function AppShell({
           className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}
           data-theme="field"
         >
+          {isDesktop && !withSidebar ? (
+            <div className="shell__chrome" data-theme="command">
+              <BrandMark view={view} onHome={onHome} />
+              <UserChrome onNavigate={onNavigate} onHome={onHome} />
+            </div>
+          ) : null}
           {children}
           {showSecurityBadge && onOpenPrivacy ? (
             <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} />
@@ -176,6 +190,36 @@ function isNavCurrent(entry: NavEntry, view: AppView) {
   return entry.view === view || Boolean(entry.alsoCurrentFor?.includes(view))
 }
 
+function BrandMark({
+  view,
+  onHome,
+  layout = 'bar',
+}: {
+  view: AppView
+  onHome: () => void
+  layout?: 'bar' | 'sidebar'
+}) {
+  const cockpit = view === 'cockpit'
+  return (
+    <button
+      type="button"
+      className={layout === 'sidebar' ? 'sidebar__brand' : 'appbar__brand'}
+      onClick={onHome}
+      aria-label="חזרה למסך הראשי"
+    >
+      <span className="appbar__system">{cockpit ? 'אבן דרך - הקוקפיט' : 'אבן דרך'}</span>
+      {cockpit ? null : (
+        <>
+          {layout === 'bar' ? <span className="appbar__brand-rule" aria-hidden="true" /> : null}
+          <span className={layout === 'sidebar' ? 'sidebar__brand-unit' : 'appbar__unit'}>
+            היחידה הארצית לפינוי צירים
+          </span>
+        </>
+      )}
+    </button>
+  )
+}
+
 /** Always Command ink — the constant institutional band, in both theme contexts. */
 function TopAppBar({
   view,
@@ -185,6 +229,23 @@ function TopAppBar({
   view: AppView
   onNavigate: (view: AppView) => void
   onHome: () => void
+}) {
+  return (
+    <header className="appbar" data-theme="command">
+      <BrandMark view={view} onHome={onHome} />
+      <UserChrome onNavigate={onNavigate} onHome={onHome} />
+    </header>
+  )
+}
+
+function UserChrome({
+  onNavigate,
+  onHome,
+  menuRise = false,
+}: {
+  onNavigate: (view: AppView) => void
+  onHome: () => void
+  menuRise?: boolean
 }) {
   const { profile, user, roles, signOut, reloadProfile } = useAuth()
   const isDesktop = useIsDesktop()
@@ -252,24 +313,7 @@ function TopAppBar({
 
   return (
     <>
-      <header className="appbar" data-theme="command">
-        <button
-          type="button"
-          className="appbar__brand"
-          onClick={onHome}
-          aria-label="חזרה למסך הראשי"
-        >
-          <span className="appbar__system">
-            {view === 'cockpit' ? 'אבן דרך - הקוקפיט' : 'אבן דרך'}
-          </span>
-          {view === 'cockpit' ? null : (
-            <>
-              <span className="appbar__brand-rule" aria-hidden="true" />
-              <span className="appbar__unit">היחידה הארצית לפינוי צירים</span>
-            </>
-          )}
-        </button>
-        <div className="appbar__cluster">
+      <div className="appbar__cluster">
           {isDesktop && profile ? (
             <AvailabilityPopoverTrigger
               target={{
@@ -295,7 +339,10 @@ function TopAppBar({
             <Avatar name={profile?.full_name ?? 'משתמש'} />
           </button>
           {open ? (
-            <div className="menu" role="menu">
+            <div
+              className={['menu', menuRise ? 'menu--rise' : ''].filter(Boolean).join(' ')}
+              role="menu"
+            >
               <div className="menu__header">
                 <p className="t-body-strong">{profile?.full_name ?? 'משתמש'}</p>
                 <p className="t-caption text-muted">
@@ -398,7 +445,6 @@ function TopAppBar({
           ) : null}
         </div>
         </div>
-      </header>
       {user?.id ? (
         <ImpersonationPickerDialog
           open={pickerOpen}
@@ -446,12 +492,14 @@ function splitSidebarEntries(entries: NavEntry[]) {
 function Sidebar({
   view,
   onNavigate,
+  onHome,
   entries,
   onCreateEvent,
   onCreateShift,
 }: {
   view: AppView
   onNavigate: (view: AppView) => void
+  onHome: () => void
   entries: NavEntry[]
   onCreateEvent?: () => void
   onCreateShift?: () => void
@@ -540,6 +588,7 @@ function Sidebar({
 
   return (
     <nav className="sidebar" aria-label="ניווט ראשי" data-theme="command" style={{ width }}>
+      <BrandMark layout="sidebar" view={view} onHome={onHome} />
       <div className="sidebar__nav">
         <SidebarNavItems
           entries={main}
@@ -549,8 +598,8 @@ function Sidebar({
           onCreateShift={onCreateShift}
         />
       </div>
-      {end.length > 0 ? (
-        <div className="sidebar__footer">
+      <div className="sidebar__footer">
+        {end.length > 0 ? (
           <SidebarNavItems
             entries={end}
             view={view}
@@ -558,8 +607,13 @@ function Sidebar({
             onCreateEvent={onCreateEvent}
             onCreateShift={onCreateShift}
           />
-        </div>
-      ) : null}
+        ) : null}
+        <UserChrome
+          onNavigate={onNavigate}
+          onHome={onHome}
+          menuRise
+        />
+      </div>
       <div
         className="sidebar__resize"
         role="separator"

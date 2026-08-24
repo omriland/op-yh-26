@@ -1783,6 +1783,11 @@ textarea.field__input {
   padding: var(--space-3);
 }
 
+.menu--rise {
+  inset-block-start: auto;
+  inset-block-end: calc(100% + var(--space-1));
+}
+
 @keyframes menu-in {
   from {
     opacity: 0;
@@ -1853,9 +1858,55 @@ textarea.field__input {
   width: var(--sidebar-width);
   min-height: 0;
   overflow: hidden;
-  padding: var(--space-6) var(--space-3);
+  padding: var(--space-4) var(--space-3);
   border-inline-end: 1px solid var(--stroke-hairline);
   background: var(--surface-page);
+}
+
+.sidebar__brand {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.sidebar__brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sidebar__brand:hover {
+    opacity: 0.9;
+  }
+}
+
+.sidebar__brand-unit {
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+
+.sidebar__footer .appbar__cluster {
+  width: 100%;
+  justify-content: space-between;
+  margin-block-start: var(--space-3);
+  padding-block-start: var(--space-3);
+  padding-inline: var(--space-2);
+  border-block-start: 1px solid var(--stroke-hairline);
 }
 
 /* Invisible desktop-only drag edge — shown when .sidebar is display:block. */
@@ -2272,6 +2323,57 @@ textarea.field__input {
 
   .shell__main {
     padding: var(--space-12) var(--space-8);
+  }
+
+  .shell--cards {
+    background: var(--surface-sunken);
+  }
+
+  .shell--cards .shell__body {
+    padding: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  .shell--cards .sidebar {
+    overflow: visible;
+    border-inline-end: 0;
+    border: 1px solid var(--stroke-hairline);
+    border-radius: var(--radius-lg);
+  }
+
+  .shell--cards .shell__main {
+    background: var(--surface-page);
+    border: 1px solid var(--stroke-hairline);
+    border-radius: var(--radius-lg);
+  }
+
+  .shell__chrome {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    height: var(--appbar-height);
+    max-width: none;
+    width: 100%;
+    margin-inline: 0;
+    padding-inline: var(--space-4);
+    border-block-end: 1px solid var(--stroke-hairline);
+    background: var(--surface-page);
+    color: var(--text-primary);
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 20;
+  }
+
+  .shell__main > .shell__chrome {
+    max-width: none;
+    width: 100%;
+    margin-inline: 0;
+  }
+
+  .shell__chrome .appbar__brand {
+    max-width: calc(100% - 200px);
   }
 }
 
@@ -5311,7 +5413,9 @@ textarea.field__input {
 
 .shell__main > .cockpit {
   max-width: none;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
 }
 
 .cockpit {
