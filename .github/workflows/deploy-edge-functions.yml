@@ -35,11 +35,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          for fn in admin-users phone-otp responder-fill send-email unit-broadcast partner-auth responder-api; do
+          for fn in admin-users phone-otp responder-fill send-email unit-broadcast; do
             echo "Deploying $fn"
-            if [ "$fn" = "partner-auth" ] || [ "$fn" = "responder-api" ]; then
-              supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns --no-verify-jwt
-            else
-              supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns
-            fi
+            supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns
           done
