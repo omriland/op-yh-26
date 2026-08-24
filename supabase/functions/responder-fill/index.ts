@@ -732,13 +732,12 @@ async function handleNotifyFillReady(
 
     const htmlInner = [
       `<p style="margin:0 0 16px;">שלום ${escapeHtml(fullName)},</p>`,
-      `<p style="margin:0 0 16px;">שובצתם לאירוע. ניתן כעת לתעד פרטים ולהוסיף כלי רכב שטופלו, גם לפני הזנת הקילומטרים.</p>`,
+      `<p style="margin:0 0 16px;">שובצתם לאירוע. ניתן כעת לתעד פרטים, גם לפני הזנת הקילומטרים.</p>`,
       contextBits
         ? `<p style="margin:0 0 16px;font-size:14px;color:#5B6F86;">${escapeHtml(contextBits)}</p>`
         : "",
-      ctaButtonHtml(link, "להשלמת הדיווח"),
-      `<p style="margin:0 0 16px;font-size:13px;color:#5B6F86;word-break:break-all;">או העתיקו את הכתובת: ${escapeHtml(link)}</p>`,
-      `<p style="margin:0;font-size:14px;color:#5B6F86;">אם לא ציפיתם להודעה זו, ניתן להתעלם ממנה.</p>`,
+      ctaButtonHtml(link, "להשלמת התיעוד"),
+      `<p style="margin:0;font-size:14px;color:#5B6F86;">שובצת לאירוע בטעות? התעלם מהודעה זו וצור קשר עם אחד האחמ"שים</p>`,
     ].join("");
 
     const text = [
@@ -747,19 +746,19 @@ async function handleNotifyFillReady(
       "",
       `שלום ${fullName},`,
       "",
-      "שובצתם לאירוע. ניתן כעת לתעד פרטים ולהוסיף כלי רכב שטופלו, גם לפני הזנת הקילומטרים.",
+      "שובצתם לאירוע. ניתן כעת לתעד פרטים, גם לפני הזנת הקילומטרים.",
       contextBits,
       "",
       link,
       "",
-      "אם לא ציפיתם להודעה זו, ניתן להתעלם ממנה.",
+      'שובצת לאירוע בטעות? התעלם מהודעה זו וצור קשר עם אחד האחמ"שים',
     ]
       .filter((line) => line !== "")
       .join("\n");
 
     const mail = await sendTransactionalEmail({
       to: email,
-      subject: "דיווח מוכן להשלמה - אבן דרך",
+      subject: "אירוע ממתין לתיעוד - אבן דרך",
       htmlInner,
       textInner: text,
       idempotencyKey: `fill-ready/${assignment.id}`,

@@ -836,7 +836,9 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
     "לכניסה ראשונית למערכת והגדרת סיסמה, יש ללחוץ על הקישור:",
     actionLink,
     "",
-    "אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה.",
+    `או להעתיק את הכתובת: ${actionLink}`,
+    "",
+    "אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה",
   ].join("\n");
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -848,7 +850,7 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
     body: JSON.stringify({
       from: "אבן דרך - יחפ״צ <invites@send.yahpz.com>",
       to: [to],
-      subject: 'הזמנה למערכת אבן דרך - יחפ״צ',
+      subject: 'הוזמנת למערכת אבן דרך - יחפ״צ',
       text,
       html: `
         <div dir="rtl" lang="he" style="margin:0;padding:0;background:#F6F8FA;">
@@ -871,7 +873,7 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
                         <a href="${actionLink}" style="display:inline-block;background:#1D4E89;color:#FFFFFF;text-decoration:none;padding:12px 28px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:700;border-radius:4px;">להשלמת הרישום</a>
                       </p>
                       <p style="margin:0 0 16px;font-size:13px;color:#5B6F86;word-break:break-all;">
-                        או העתיקו את הכתובת: ${actionLink}
+                        או להעתיק את הכתובת: ${actionLink}
                       </p>
                       <p style="margin:0;font-size:14px;color:#5B6F86;">אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה</p>
                     </td>
