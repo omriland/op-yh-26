@@ -1,3 +1,5 @@
+import type { EventFreezeFlags } from '../eventFreeze'
+
 export type ReportAudience = 'admin' | 'admin_and_shift_lead'
 
 export type ReportViewer = {
@@ -27,6 +29,7 @@ export type ReportTableRow = {
   groupKey?: string
   groupLabel?: string
   searchText?: string
+  freeze?: EventFreezeFlags
 }
 
 export type ReportRowAction = {
@@ -34,6 +37,20 @@ export type ReportRowAction = {
   hoverText: string
   confirmTitle: string
   confirmBody: (row: ReportTableRow) => string
+  apply: (row: ReportTableRow) => Promise<void>
+}
+
+export type ReportRowCommand = {
+  id: string
+  label: string
+  variant: 'secondary' | 'destructive'
+  confirmTitle: string
+  confirmBody: (row: ReportTableRow) => string
+  confirmLabel: string
+  loadingLabel: string
+  successToast: string
+  failToast: string
+  visible?: (row: ReportTableRow, viewer: ReportViewer) => boolean
   apply: (row: ReportTableRow) => Promise<void>
 }
 
@@ -48,6 +65,7 @@ export type ReportKind = {
   csvFilename: string
   columns: ReportColumn[]
   action?: ReportRowAction
+  commands?: ReportRowCommand[]
   load: (inputs: ReportInputs) => Promise<ReportTableRow[]>
 }
 

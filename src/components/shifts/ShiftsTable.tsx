@@ -13,7 +13,10 @@ import {
   type ShiftListItem,
 } from '../../lib/shifts'
 import { IconButton } from '../ui/Button'
+import { shiftRecordLogStatus } from '../../lib/shiftLogStatus'
+import { shiftStamp } from '../../lib/status'
 import { StampChip } from '../ui/StampChip'
+import { EventFrozenMark } from '../events/EventFrozenMark'
 
 type ShiftsTableProps = {
   shifts: ShiftListItem[]
@@ -48,6 +51,7 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent }: ShiftsTableProps) {
             <th scope="col">אחמ״ש</th>
             <th scope="col">כוננים</th>
             <th scope="col">אירועים</th>
+            <th scope="col">סטטוס</th>
           </tr>
         </thead>
         <tbody>
@@ -61,7 +65,18 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent }: ShiftsTableProps) {
             const expanded = openId === shift.id
             return (
               <Fragment key={shift.id}>
-                <tr onClick={() => onOpen(shift.id)}>
+                <tr
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`פתיחת משמרת ${formatDate(shift.shift_date)}`}
+                  onClick={() => onOpen(shift.id)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return
+                    if (event.target !== event.currentTarget) return
+                    event.preventDefault()
+                    onOpen(shift.id)
+                  }}
+                >
                   <td className="num table-cell--nowrap">
                     <IconButton
                       label={expanded ? 'סגירת אירועים' : 'פתיחת אירועים'}
@@ -96,10 +111,13 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent }: ShiftsTableProps) {
                   <td>{shift.shift_lead?.full_name ?? '—'}</td>
                   <td className="num mono">{shift.responders.length}</td>
                   <td className="num mono">{born.length}</td>
+                  <td>
+                    <StampChip {...shiftStamp(shiftRecordLogStatus(shift))} />
+                  </td>
                 </tr>
                 {expanded ? (
-                  <tr>
-                    <td colSpan={6}>
+                  <tr className="is-static">
+                    <td colSpan={7}>
                       {born.length === 0 ? (
                         <p className="t-body text-secondary">אין אירועים ממשמרת זו.</p>
                       ) : (
@@ -115,8 +133,11 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent }: ShiftsTableProps) {
                                   onClick={() => onOpenEvent?.(event.id)}
                                 >
                                   <span className="event-card__top">
-                                    <span className="t-body-strong">
-                                      {event.event_type?.name ?? 'אירוע'}
+                                    <span className="event-card__type">
+                                      <EventFrozenMark flags={event} />
+                                      <span className="t-body-strong">
+                                        {event.event_type?.name ?? 'אירוע'}
+                                      </span>
                                     </span>
                                     <StampChip {...stamp} />
                                   </span>

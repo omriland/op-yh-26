@@ -17,7 +17,10 @@ export function TextAreaField({
 }: TextAreaFieldProps) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
-  const describedBy = error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined
+  const describedBy =
+    [error ? `${fieldId}-error` : null, hint ? `${fieldId}-hint` : null]
+      .filter(Boolean)
+      .join(' ') || undefined
   const isBlank = Boolean(required) && !value
 
   return (

@@ -10,7 +10,8 @@ import { TextField } from '../ui/TextField'
 import { useToast } from '../ui/Toast'
 import { downloadCsv, toCsv } from '../../lib/reports/csv'
 import { filterReportRows } from '../../lib/reports/search'
-import type { ReportKind, ReportTableRow, ReportViewer } from '../../lib/reports/types'
+import type { ReportKind, ReportRowCommand, ReportTableRow, ReportViewer } from '../../lib/reports/types'
+import { EventFrozenMark } from '../events/EventFrozenMark'
 import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
@@ -37,6 +38,10 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
   const [failed, setFailed] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [pendingRow, setPendingRow] = useState<ReportTableRow | null>(null)
+  const [pendingCommand, setPendingCommand] = useState<{
+    command: ReportRowCommand
+    row: ReportTableRow
+  } | null>(null)
   const [applying, setApplying] = useState(false)
 
   const periodRange = periodToRange(period)
@@ -86,6 +91,21 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
     } finally {
       setApplying(false)
       setPendingRow(null)
+    }
+  }
+
+  async function confirmCommand() {
+    if (!pendingCommand) return
+    setApplying(true)
+    try {
+      await pendingCommand.command.apply(pendingCommand.row)
+      show(pendingCommand.command.successToast, 'done')
+      setReloadKey((key) => key + 1)
+    } catch {
+      show(pendingCommand.command.failToast, 'alert')
+    } finally {
+      setApplying(false)
+      setPendingCommand(null)
     }
   }
 
@@ -223,9 +243,11 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
               {asTable ? (
                 <ReportTable
                   kind={kind}
+                  viewer={viewer}
                   rows={section.rows}
                   onOpenEvent={onOpenEvent}
                   onAction={kind.action ? setPendingRow : undefined}
+                  onCommand={(command, row) => setPendingCommand({ command, row })}
                 />
               ) : (
                 <ul className="stack-3">
@@ -233,9 +255,11 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
                     <ReportCard
                       key={row.id}
                       kind={kind}
+                      viewer={viewer}
                       row={row}
                       onOpenEvent={onOpenEvent}
                       onAction={kind.action ? setPendingRow : undefined}
+                      onCommand={(command, nextRow) => setPendingCommand({ command, row: nextRow })}
                     />
                   ))}
                 </ul>
@@ -264,6 +288,35 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
           }
         >
           <p className="t-body">{pendingRow ? kind.action.confirmBody(pendingRow) : null}</p>
+        </Dialog>
+      ) : null}
+
+      {kind.commands ? (
+        <Dialog
+          open={pendingCommand != null}
+          title={pendingCommand?.command.confirmTitle ?? ''}
+          onClose={() => {
+            if (!applying) setPendingCommand(null)
+          }}
+          footer={
+            <>
+              <Button
+                variant={pendingCommand?.command.variant === 'destructive' ? 'destructive' : 'primary'}
+                loading={applying}
+                loadingLabel={pendingCommand?.command.loadingLabel}
+                onClick={() => void confirmCommand()}
+              >
+                {pendingCommand?.command.confirmLabel}
+              </Button>
+              <Button variant="secondary" disabled={applying} onClick={() => setPendingCommand(null)}>
+                ביטול
+              </Button>
+            </>
+          }
+        >
+          <p className="t-body">
+            {pendingCommand ? pendingCommand.command.confirmBody(pendingCommand.row) : null}
+          </p>
         </Dialog>
       ) : null}
     </div>
@@ -317,18 +370,68 @@ function ReportActionValue({
   )
 }
 
+function visibleCommands(
+  kind: ReportKind,
+  row: ReportTableRow,
+  viewer: ReportViewer,
+): ReportRowCommand[] {
+  return (kind.commands ?? []).filter((command) => !command.visible || command.visible(row, viewer))
+}
+
+function ReportTitle({ row, value }: { row: ReportTableRow; value: string }) {
+  return (
+    <span className="event-card__type">
+      <EventFrozenMark flags={row.freeze} />
+      <span>{value}</span>
+    </span>
+  )
+}
+
+function ReportCommandButtons({
+  commands,
+  row,
+  onCommand,
+}: {
+  commands: ReportRowCommand[]
+  row: ReportTableRow
+  onCommand?: (command: ReportRowCommand, row: ReportTableRow) => void
+}) {
+  if (commands.length === 0 || !onCommand) return null
+  return (
+    <div className="report-row-commands">
+      {commands.map((command) => (
+        <Button
+          key={command.id}
+          variant={command.variant}
+          onClick={(event) => {
+            event.stopPropagation()
+            onCommand(command, row)
+          }}
+        >
+          {command.label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
 function ReportTable({
   kind,
+  viewer,
   rows,
   onOpenEvent,
   onAction,
+  onCommand,
 }: {
   kind: ReportKind
+  viewer: ReportViewer
   rows: ReportTableRow[]
   onOpenEvent?: (eventId: string) => void
   onAction?: (row: ReportTableRow) => void
+  onCommand?: (command: ReportRowCommand, row: ReportTableRow) => void
 }) {
   const actionColumnId = kind.action?.columnId
+  const showCommands = Boolean(kind.commands?.length)
 
   return (
     <div className="table-wrap">
@@ -340,16 +443,20 @@ function ReportTable({
                 {column.header}
               </th>
             ))}
+            {showCommands ? <th scope="col">פעולות</th> : null}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const commands = visibleCommands(kind, row, viewer)
+            return (
             <tr
               key={row.id}
               onClick={row.eventId && onOpenEvent ? () => onOpenEvent(row.eventId!) : undefined}
             >
               {kind.columns.map((column, index) => {
                 const isActionCell = Boolean(kind.action && actionColumnId === column.id)
+                const value = row.values[index] ?? '—'
                 return (
                 <td
                   key={column.id}
@@ -360,17 +467,25 @@ function ReportTable({
                     <ReportActionValue
                       kind={kind}
                       row={row}
-                      value={row.values[index] ?? '—'}
+                      value={value}
                       onAction={onAction}
                     />
+                  ) : index === 0 ? (
+                    <ReportTitle row={row} value={value} />
                   ) : (
-                    row.values[index] ?? '—'
+                    value
                   )}
                 </td>
                 )
               })}
+              {showCommands ? (
+                <td onClick={(event) => event.stopPropagation()}>
+                  <ReportCommandButtons commands={commands} row={row} onCommand={onCommand} />
+                </td>
+              ) : null}
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -379,17 +494,22 @@ function ReportTable({
 
 function ReportCard({
   kind,
+  viewer,
   row,
   onOpenEvent,
   onAction,
+  onCommand,
 }: {
   kind: ReportKind
+  viewer: ReportViewer
   row: ReportTableRow
   onOpenEvent?: (eventId: string) => void
   onAction?: (row: ReportTableRow) => void
+  onCommand?: (command: ReportRowCommand, row: ReportTableRow) => void
 }) {
   const actionId = kind.action?.columnId
   const title = row.values[0] ?? '—'
+  const commands = visibleCommands(kind, row, viewer)
   const rest = kind.columns.slice(1).map((column, index) => ({
     id: column.id,
     header: column.header,
@@ -397,6 +517,11 @@ function ReportCard({
     numeric: column.numeric,
     isAction: Boolean(actionId && column.id === actionId),
   }))
+
+  const titleNode = <ReportTitle row={row} value={title} />
+  const commandBar = (
+    <ReportCommandButtons commands={commands} row={row} onCommand={onCommand} />
+  )
 
   if (kind.action && onAction) {
     return (
@@ -406,7 +531,7 @@ function ReportCard({
           className="event-card"
           onClick={row.eventId && onOpenEvent ? () => onOpenEvent(row.eventId!) : undefined}
         >
-          <span className="t-body">{title}</span>
+          <span className="t-body">{titleNode}</span>
           {rest
             .filter((item) => !item.isAction)
             .map((item) => (
@@ -423,13 +548,14 @@ function ReportCard({
               <ReportActionValue kind={kind} row={row} value={item.value} onAction={onAction} />
             </span>
           ))}
+        {commandBar}
       </li>
     )
   }
 
   const body = (
     <>
-      <span className="t-body">{title}</span>
+      <span className="t-body">{titleNode}</span>
       {rest.map((item) => (
         <span key={item.header} className="t-caption text-muted">
           {item.header}:{' '}
@@ -441,13 +567,19 @@ function ReportCard({
 
   if (row.eventId && onOpenEvent) {
     return (
-      <li className="card">
+      <li className="card stack-2">
         <button type="button" className="event-card" onClick={() => onOpenEvent(row.eventId!)}>
           {body}
         </button>
+        {commandBar}
       </li>
     )
   }
 
-  return <li className="card stack-2">{body}</li>
+  return (
+    <li className="card stack-2">
+      {body}
+      {commandBar}
+    </li>
+  )
 }

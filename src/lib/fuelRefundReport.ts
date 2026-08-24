@@ -11,6 +11,8 @@ export type FuelRefundParticipation = {
   responder_id: string
   event_id: string
   total_km: number | null
+  /** Frozen events are excluded from refund totals until an admin approves. */
+  frozen?: boolean
 }
 
 export type FuelRefundRow = {
@@ -65,7 +67,8 @@ export function buildFuelRefundRows(
   credits: FuelRefundKmCredit[] = [],
 ): FuelRefundRow[] {
   // Only rows where the shift-lead entered kilometers — event/participation status ignored.
-  const withKm = participations.filter((row) => row.total_km != null)
+  // Frozen events (60km / duplicate, pending admin) do not count until approved.
+  const withKm = participations.filter((row) => row.total_km != null && !row.frozen)
 
   const byUser = new Map<string, FuelRefundParticipation[]>()
   for (const row of withKm) {
@@ -110,6 +113,10 @@ type ParticipationQueryRow = {
   responder_id: string
   event_id: string
   total_km: number | null
+  events:
+    | { frozen_over_60km?: boolean; frozen_suspicious_duplicate?: boolean }
+    | { frozen_over_60km?: boolean; frozen_suspicious_duplicate?: boolean }[]
+    | null
 }
 
 /**
@@ -129,7 +136,7 @@ export async function fetchParticipationsReportedInRange(
       responder_id,
       event_id,
       total_km,
-      events!inner(created_at, origin)
+      events!inner(created_at, origin, frozen_over_60km, frozen_suspicious_duplicate)
     `,
     )
     .eq('events.origin', 'manual')
@@ -139,11 +146,16 @@ export async function fetchParticipationsReportedInRange(
 
   if (error) throw new Error(error.message)
 
-  return ((data ?? []) as ParticipationQueryRow[]).map((row) => ({
-    responder_id: row.responder_id,
-    event_id: row.event_id,
-    total_km: row.total_km,
-  }))
+  return ((data ?? []) as ParticipationQueryRow[]).map((row) => {
+    const event = Array.isArray(row.events) ? row.events[0] : row.events
+    const frozen = Boolean(event?.frozen_over_60km || event?.frozen_suspicious_duplicate)
+    return {
+      responder_id: row.responder_id,
+      event_id: row.event_id,
+      total_km: row.total_km,
+      frozen,
+    }
+  })
 }
 
 export async function fetchPersonalShiftKmCredits(

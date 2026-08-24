@@ -12,6 +12,8 @@ function event(partial: Partial<KmExceptionEventSource> & Pick<KmExceptionEventS
     is_cancelled: partial.is_cancelled ?? false,
     police_event_id: partial.police_event_id ?? null,
     location: partial.location ?? null,
+    frozen_over_60km: partial.frozen_over_60km,
+    frozen_suspicious_duplicate: partial.frozen_suspicious_duplicate,
     event_type: partial.event_type ?? { name: 'תאונה' },
     road: partial.road ?? { name: 'כביש 1' },
     shift_lead: partial.shift_lead ?? { full_name: 'אחמש', callsign: 'L1' },
@@ -191,5 +193,46 @@ describe('buildKmExceptionRows', () => {
       { from: '2026-08-01', to: '2026-08-31' },
     )
     expect(rows.map((row) => row.event_id)).toEqual(['end', 'start'])
+  })
+
+  it('omits an event after over-60km approval unfreezes it', () => {
+    const rows = buildKmExceptionRows([
+      event({
+        id: 'approved',
+        frozen_over_60km: false,
+        responders: [
+          { status: 'done', total_km: 80, profile: { full_name: 'א', callsign: 'A' } },
+        ],
+      }),
+    ])
+    expect(rows).toEqual([])
+  })
+
+  it('keeps a still-frozen over-60km event on the list', () => {
+    const rows = buildKmExceptionRows([
+      event({
+        id: 'pending',
+        frozen_over_60km: true,
+        responders: [
+          { status: 'done', total_km: 80, profile: { full_name: 'א', callsign: 'A' } },
+        ],
+      }),
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.event_id).toBe('pending')
+  })
+
+  it('shows the event again when a later responder re-freezes it over 60km', () => {
+    const rows = buildKmExceptionRows([
+      event({
+        id: 'reopened',
+        frozen_over_60km: true,
+        responders: [
+          { status: 'done', total_km: 70, profile: { full_name: 'א', callsign: 'A' } },
+          { status: 'done', total_km: 90, profile: { full_name: 'ב', callsign: 'B' } },
+        ],
+      }),
+    ])
+    expect(rows.map((row) => row.responder_callsign)).toEqual(['B', 'A'])
   })
 })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { Button } from '../ui/Button'
 import { formatDate, formatPlate, hebrewWeekdayLetter, monoClass } from '../../lib/format'
 import {
   lastSavedByLabel,
@@ -9,11 +10,14 @@ import {
 import {
   SHIFT_KIND_LABELS,
   VEHICLE_TYPE_LABELS,
+  isShiftPendingLog,
   type ShiftBornEventSummary,
   type ShiftListItem,
 } from '../../lib/shifts'
-import { Button } from '../ui/Button'
+import { shiftRecordLogStatus } from '../../lib/shiftLogStatus'
+import { shiftStamp } from '../../lib/status'
 import { StampChip } from '../ui/StampChip'
+import { EventFrozenMark } from '../events/EventFrozenMark'
 
 type ShiftCardProps = {
   shift: ShiftListItem
@@ -55,6 +59,8 @@ export function ShiftCard({
       ? formatPlate(shift.personal_vehicle.plate_number)
       : null
   const saved = lastSavedByLabel(shift.last_saved?.full_name)
+  const pending = isShiftPendingLog(shift)
+  const stamp = shiftStamp(shiftRecordLogStatus(shift))
 
   return (
     <li className={['card', 'stack-3', open ? 'assignment-card--open' : ''].join(' ')}>
@@ -62,18 +68,11 @@ export function ShiftCard({
         <button
           type="button"
           className="assignment-card__toggle"
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
+          onClick={() => onOpen(shift.id)}
         >
           <span className="assignment-card__identity">
             <span className="t-section">
               {kindLabel} · {vehicleLabel}
-              {plate ? (
-                <>
-                  {' · '}
-                  <span className={monoClass(plate)}>{plate}</span>
-                </>
-              ) : null}
             </span>
             <span className="t-body text-secondary">
               {responderCount} כוננים · {eventCount} אירועים
@@ -81,9 +80,24 @@ export function ShiftCard({
             <span className="event-card__meta">
               <span className="mono">{formatDate(shift.shift_date)}</span>
               {` (${hebrewWeekdayLetter(shift.shift_date)})`}
+              {plate ? (
+                <span>
+                  {' · '}
+                  <span className={monoClass(plate)}>{plate}</span>
+                </span>
+              ) : null}
               {saved ? <span> · {saved}</span> : null}
             </span>
           </span>
+        </button>
+        <StampChip {...stamp} />
+        <button
+          type="button"
+          className="shift-card__disclose"
+          aria-expanded={open}
+          aria-label={open ? 'הסתרת אירועי המשמרת' : 'הצגת אירועי המשמרת'}
+          onClick={() => setOpen((current) => !current)}
+        >
           <ChevronDown
             size={20}
             strokeWidth={1.75}
@@ -92,19 +106,21 @@ export function ShiftCard({
           />
         </button>
       </div>
-      <Button
-        block
-        disabled={fillDisabled}
-        title={fillDisabled ? fillDisabledReason : undefined}
-        aria-label={
-          fillDisabled && fillDisabledReason
-            ? `תיעוד משמרת. ${fillDisabledReason}`
-            : undefined
-        }
-        onClick={() => (onFill ?? onOpen)(shift.id)}
-      >
-        תיעוד משמרת
-      </Button>
+      {fillDisabled || pending ? (
+        <Button
+          block
+          disabled={fillDisabled}
+          title={fillDisabled ? fillDisabledReason : undefined}
+          aria-label={
+            fillDisabled && fillDisabledReason
+              ? `תיעוד משמרת. ${fillDisabledReason}`
+              : undefined
+          }
+          onClick={() => (onFill ?? onOpen)(shift.id)}
+        >
+          תיעוד משמרת
+        </Button>
+      ) : null}
       {open ? (
         <ul className="assignment-card__body stack-3">
           {born.length === 0 ? (
@@ -121,7 +137,10 @@ export function ShiftCard({
                     onClick={() => onOpenEvent?.(event.id)}
                   >
                     <span className="event-card__top">
-                      <span className="t-body-strong">{event.event_type?.name ?? 'אירוע'}</span>
+                      <span className="event-card__type">
+                        <EventFrozenMark flags={event} />
+                        <span className="t-body-strong">{event.event_type?.name ?? 'אירוע'}</span>
+                      </span>
                       <StampChip {...stamp} />
                     </span>
                     <span className="t-caption text-muted">

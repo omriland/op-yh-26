@@ -204,7 +204,7 @@ async function fetchParticipationsInQuarter(
       `
       responder_id,
       total_km,
-      events!inner(created_at, status)
+      events!inner(created_at, status, frozen_over_60km, frozen_suspicious_duplicate)
     `,
     )
     .eq('events.status', 'done')
@@ -217,12 +217,25 @@ async function fetchParticipationsInQuarter(
   type Row = {
     responder_id: string
     total_km: number | null
-    events: { created_at: string; status: EventStatus } | { created_at: string; status: EventStatus }[]
+    events:
+      | {
+          created_at: string
+          status: EventStatus
+          frozen_over_60km?: boolean
+          frozen_suspicious_duplicate?: boolean
+        }
+      | {
+          created_at: string
+          status: EventStatus
+          frozen_over_60km?: boolean
+          frozen_suspicious_duplicate?: boolean
+        }[]
   }
 
   return ((data ?? []) as Row[]).flatMap((row) => {
     const event = Array.isArray(row.events) ? row.events[0] : row.events
     if (!event || !includeEventInFuelAllocation(event.status)) return []
+    if (event.frozen_over_60km || event.frozen_suspicious_duplicate) return []
     return [
       {
         responder_id: row.responder_id,

@@ -1,4 +1,5 @@
 import { searchQueryVariants } from './searchQuery'
+import { shiftRecordLogStatus } from './shiftLogStatus'
 import { supabase } from './supabase'
 import type { EventStatus, ShiftStatus } from './status'
 
@@ -50,6 +51,8 @@ export type ShiftBornEventSummary = {
   emergency_means: boolean
   event_type: { name: string } | null
   last_saved: { full_name: string } | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   updated_at?: string
   treated: { id?: string; vehicle_kind_id?: string; quantity?: number }[]
 }
@@ -92,6 +95,8 @@ export const SHIFT_LIST_SELECT = `
     road_id,
     location,
     emergency_means,
+    frozen_over_60km,
+    frozen_suspicious_duplicate,
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
     treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id)
@@ -287,6 +292,8 @@ const SHIFT_DETAIL_SELECT = `
     location,
     emergency_means,
     updated_at,
+    frozen_over_60km,
+    frozen_suspicious_duplicate,
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
     treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(vehicle_kind_id, quantity)
@@ -360,13 +367,27 @@ export function isShiftFuture(
   return shiftDate > today
 }
 
-/** Past/today shift still missing an odometer — same rule as the nav attention dot. */
+/** Past/today shift that is not fully logged — same rule as the nav attention dot. */
 export function isShiftPendingLog(
-  shift: { shift_date: string; odometer_start: number | null; odometer_end: number | null },
+  shift: {
+    shift_date: string
+    status?: ShiftStatus
+    odometer_start?: number | null
+    odometer_end?: number | null
+    born_events?: ShiftListItem['born_events']
+  },
   today: string = jerusalemToday(),
 ): boolean {
-  return (
-    !isShiftFuture(shift.shift_date, today) &&
-    (shift.odometer_start == null || shift.odometer_end == null)
-  )
+  if (isShiftFuture(shift.shift_date, today)) return false
+  if (shift.born_events) {
+    return (
+      shiftRecordLogStatus({
+        odometer_start: shift.odometer_start ?? null,
+        odometer_end: shift.odometer_end ?? null,
+        born_events: shift.born_events,
+      }) !== 'closed'
+    )
+  }
+  if (shift.status) return shift.status !== 'closed'
+  return shift.odometer_start == null || shift.odometer_end == null
 }

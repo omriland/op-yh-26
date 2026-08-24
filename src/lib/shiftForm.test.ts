@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   SHIFT_CREW_ERROR,
+  SHIFT_ODOMETER_ORDER_ERROR,
+  summarizeShiftSaveErrors,
   buildShiftUpdatePayload,
+  computeTotalKm,
   shiftEventAlreadyLinkedMessage,
   validateShiftSave,
   type ShiftFormDraft,
@@ -9,6 +12,7 @@ import {
 
 const baseDraft: ShiftFormDraft = {
   id: 's1',
+  status: 'in_progress',
   shift_date: '2026-08-11',
   shift_kind: 'morning',
   vehicle_type: 'personal',
@@ -102,3 +106,91 @@ describe('buildShiftUpdatePayload', () => {
     expect(payload.personal_vehicle_id).toBeNull()
   })
 })
+
+function draft(over: Partial<ShiftFormDraft> = {}): ShiftFormDraft {
+  // A crew of one keeps the crew rule satisfied so only odometer errors surface.
+  return { ...baseDraft, responder_ids: ['u1'], ...over }
+}
+
+describe('odometer order', () => {
+  it('rejects an end reading below the start', () => {
+    // Assert the constant is real first: `hit?.message` against an undefined export
+    // passes vacuously, which is how this rule could ship unimplemented.
+    expect(typeof SHIFT_ODOMETER_ORDER_ERROR).toBe('string')
+    expect(SHIFT_ODOMETER_ORDER_ERROR.length).toBeGreaterThan(0)
+
+    const errors = validateShiftSave(draft({ odometer_start: 120000, odometer_end: 119800 }))
+    const hit = errors.find((e) => e.field === 'odometer_end')
+    expect(hit).toBeDefined()
+    expect(hit?.message).toBe(SHIFT_ODOMETER_ORDER_ERROR)
+  })
+
+  it('allows an equal reading — a shift whose vehicle never left base is zero km', () => {
+    const errors = validateShiftSave(draft({ odometer_start: 120000, odometer_end: 120000 }))
+    expect(errors.some((e) => e.field === 'odometer_end')).toBe(false)
+  })
+
+  it('allows a normal ascending pair', () => {
+    const errors = validateShiftSave(draft({ odometer_start: 120000, odometer_end: 120412 }))
+    expect(errors.some((e) => e.field === 'odometer_end')).toBe(false)
+  })
+
+  it('stays silent while only one reading is present', () => {
+    // Null the sibling explicitly — baseDraft carries both readings, so omitting one
+    // from the override would leave a stale value and test the reversed case instead.
+    expect(
+      validateShiftSave(
+        draft({ odometer_start: 120000, odometer_end: null }),
+      ).some((e) => e.field === 'odometer_end'),
+    ).toBe(false)
+    expect(
+      validateShiftSave(
+        draft({ odometer_start: null, odometer_end: 120000 }),
+      ).some((e) => e.field === 'odometer_end'),
+    ).toBe(false)
+  })
+
+  it('names the problem without an exclamation mark', () => {
+    expect(SHIFT_ODOMETER_ORDER_ERROR).not.toContain('!')
+    expect(SHIFT_ODOMETER_ORDER_ERROR).toContain('מד אוץ סיום')
+  })
+})
+
+describe('computeTotalKm', () => {
+  it('never yields a negative distance', () => {
+    expect(computeTotalKm(120000, 119800)).toBeNull()
+  })
+
+  it('yields zero for an unmoved vehicle', () => {
+    expect(computeTotalKm(120000, 120000)).toBe(0)
+  })
+
+  it('yields the difference for a normal pair', () => {
+    expect(computeTotalKm(120000, 120412)).toBe(412)
+  })
+
+  it('yields null when either reading is missing', () => {
+    expect(computeTotalKm(null, 120412)).toBeNull()
+    expect(computeTotalKm(120000, null)).toBeNull()
+  })
+})
+
+describe('summarizeShiftSaveErrors', () => {
+  it('names the odometer problem rather than the missing-field default', () => {
+    const errors = validateShiftSave(draft({ odometer_start: 120000, odometer_end: 119800 }))
+    expect(summarizeShiftSaveErrors(errors)).toBe(SHIFT_ODOMETER_ORDER_ERROR)
+  })
+
+  it('names the crew problem when that is the blocker', () => {
+    const errors = validateShiftSave(draft({ responder_ids: [] }))
+    expect(summarizeShiftSaveErrors(errors)).toBe(SHIFT_CREW_ERROR)
+  })
+
+  it('falls back to the missing-field summary', () => {
+    const errors = validateShiftSave(draft({ shift_date: '' }))
+    expect(summarizeShiftSaveErrors(errors)).toBe(
+      'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.',
+    )
+  })
+})
+

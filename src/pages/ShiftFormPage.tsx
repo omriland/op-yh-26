@@ -18,6 +18,7 @@ import {
   type ShiftSaveError,
 } from '../lib/shiftForm'
 import { lastSavedByLabel } from '../lib/shiftBornEvents'
+import { deriveShiftLogStatus, eventToLogSnapshot } from '../lib/shiftLogStatus'
 import {
   saveShiftBornEventFill,
   shiftBornEventFillRowsFrom,
@@ -40,11 +41,20 @@ import { Button, IconButton } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
+import { Dialog } from '../components/ui/Dialog'
+import {
+  clearFillDraft,
+  fillDraftSavedLabel,
+  readFillDraft,
+  stashFillDraft,
+} from '../lib/fillDraftStash'
 import { SelectField } from '../components/ui/SelectField'
 import { TextAreaField } from '../components/ui/TextAreaField'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
+import { StampChip } from '../components/ui/StampChip'
 import { useToast } from '../components/ui/Toast'
+import { shiftStamp } from '../lib/status'
 
 type ShiftFormPageProps = {
   shiftId?: string
@@ -63,6 +73,9 @@ type FieldErrors = Partial<Record<ShiftSaveError['field'], string>> & { form?: s
 
 type LoadState = 'loading' | 'ready' | 'denied' | 'too_early'
 
+const SHIFT_STASH_SCOPE = 'shiftForm'
+const SHIFT_STASH_DEBOUNCE_MS = 600
+
 const VEHICLE_OPTIONS: { value: ShiftVehicleType; label: string }[] = [
   { value: 'patrol_north', label: VEHICLE_TYPE_LABELS.patrol_north },
   { value: 'patrol_center', label: VEHICLE_TYPE_LABELS.patrol_center },
@@ -71,6 +84,7 @@ const VEHICLE_OPTIONS: { value: ShiftVehicleType; label: string }[] = [
 
 function emptyDraft(): ShiftFormDraft {
   return {
+    status: 'in_progress',
     shift_date: todayJerusalem(),
     shift_kind: 'morning',
     vehicle_type: 'patrol_north',
@@ -135,6 +149,12 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const [personalVehicles, setPersonalVehicles] = useState<PersonalVehicleOption[]>([])
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [errors, setErrors] = useState<FieldErrors>({})
+  const [localSavedAt, setLocalSavedAt] = useState<number | null>(null)
+  const [restoredFromDevice, setRestoredFromDevice] = useState(false)
+  const [leaveConfirm, setLeaveConfirm] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const stashLatest = useRef<(() => void) | null>(null)
+  const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saving, setSaving] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerQuery, setPickerQuery] = useState('')
@@ -206,6 +226,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
 
           const nextDraft: ShiftFormDraft = {
             id: existing.id,
+            status: existing.status,
             shift_date: existing.shift_date,
             shift_kind: existing.shift_kind,
             vehicle_type: existing.vehicle_type,
@@ -235,6 +256,25 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
           setAssignedProfiles(new Map())
           setLastSavedName(null)
           setBornRows([])
+        }
+
+        // A device copy exists only if it was written after the last successful save,
+        // so it is the newer of the two. Restore it and say so.
+        const stashKey = shiftId ?? 'new'
+        const stashed = readFillDraft<ShiftFormDraft>(
+          SHIFT_STASH_SCOPE,
+          stashKey,
+          Date.now(),
+        )
+        if (
+          stashed &&
+          JSON.stringify(stashed.draft) !== JSON.stringify(draftRef.current)
+        ) {
+          draftRef.current = stashed.draft
+          setDraft(stashed.draft)
+          setLocalSavedAt(stashed.savedAt)
+          setRestoredFromDevice(true)
+          setDirty(true)
         }
 
         setLoadState('ready')
@@ -310,7 +350,65 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
       draftRef.current = next
       return next
     })
-    if (errors.form) setErrors((current) => ({ ...current, form: undefined }))
+    setDirty(true)
+    // Clear the errors the edit could have resolved, so a corrected field stops
+    // showing red before the next save attempt. The odometer rule is cross-field, so
+    // editing either reading clears the error that lives on the end field.
+    const touched = Object.keys(patch) as (keyof ShiftFormDraft)[]
+    const clears = touched.filter((key) => key in errors)
+    const clearsOdometer =
+      'odometer_start' in patch || 'odometer_end' in patch ? Boolean(errors.odometer_end) : false
+
+    if (errors.form || clears.length > 0 || clearsOdometer) {
+      setErrors((current) => {
+        const next: FieldErrors = { ...current, form: undefined }
+        for (const key of clears) delete next[key as keyof FieldErrors]
+        if (clearsOdometer) next.odometer_end = undefined
+        return next
+      })
+    }
+  }
+
+  // Device-local mirror. ~24 controls behind one save, on the more interruptible of
+  // the two documentation flows — the volunteer is often still standing at the vehicle.
+  useEffect(() => {
+    if (!draft || loadState !== 'ready') return
+    const key = shiftId ?? 'new'
+    const flush = () => {
+      stashFillDraft(SHIFT_STASH_SCOPE, key, draftRef.current ?? draft, Date.now())
+      setLocalSavedAt(Date.now())
+    }
+    stashLatest.current = flush
+    if (!dirty) return
+
+    if (stashTimer.current) clearTimeout(stashTimer.current)
+    stashTimer.current = setTimeout(flush, SHIFT_STASH_DEBOUNCE_MS)
+    return () => {
+      if (stashTimer.current) clearTimeout(stashTimer.current)
+    }
+  }, [draft, dirty, loadState, shiftId])
+
+  useEffect(() => {
+    function flushHidden() {
+      if (document.visibilityState === 'hidden') stashLatest.current?.()
+    }
+    function flushHide() {
+      stashLatest.current?.()
+    }
+    document.addEventListener('visibilitychange', flushHidden)
+    window.addEventListener('pagehide', flushHide)
+    return () => {
+      document.removeEventListener('visibilitychange', flushHidden)
+      window.removeEventListener('pagehide', flushHide)
+    }
+  }, [])
+
+  function requestLeave() {
+    if (dirty) {
+      setLeaveConfirm(true)
+      return
+    }
+    onBack()
   }
 
   function bumpTypeCount(eventTypeId: string, delta: number) {
@@ -425,6 +523,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     const nextDraft = {
       ...current,
       id: result.shiftId,
+      status: result.status,
       total_km: computeTotalKm(current.odometer_start, current.odometer_end),
     }
     draftRef.current = nextDraft
@@ -433,6 +532,8 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
       shift_id: result.shiftId,
       is_new: !current.id,
     })
+    setDirty(false)
+    clearFillDraft(SHIFT_STASH_SCOPE, shiftId ?? 'new')
     show('המשמרת נשמרה', 'done')
     onSaved(result.shiftId)
   }
@@ -470,13 +571,28 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   }
 
   const isEdit = Boolean(draft.id)
+  const liveStatus = deriveShiftLogStatus({
+    odometer_start: draft.odometer_start,
+    odometer_end: draft.odometer_end,
+    events: bornRows.map((row) =>
+      eventToLogSnapshot({
+        status: row.status,
+        police_event_id: row.draft.police_event_id || null,
+        treatment_detail: row.draft.treatment_detail || null,
+        treatment_notes: row.draft.treatment_notes || null,
+        road_id: row.draft.road_id || null,
+        location: row.draft.location || null,
+        treated: row.draft.treated,
+      }),
+    ),
+  })
   const title = isEdit ? 'עריכת משמרת' : 'משמרת חדשה'
 
   return (
     <div className="event-form">
       <div className="event-form__panel" data-theme="field">
         <header className="event-form__head">
-          <button type="button" className="event-form__back" onClick={onBack}>
+          <button type="button" className="event-form__back" onClick={requestLeave}>
             <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" />
             <span>חזרה</span>
           </button>
@@ -484,6 +600,11 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
           <div className="event-form__title-row">
             <div className="event-form__title-block">
               <h1 className="t-title">{title}</h1>
+              {restoredFromDevice ? (
+                <p className="banner banner--info t-body" role="status">
+                  שוחזרו פרטים שנשמרו במכשיר ולא נשמרו בשרת. בדקו אותם ולחצו על שמירה.
+                </p>
+              ) : null}
               {errors.form ? (
                 <p className="t-caption field__hint--error" aria-live="polite">
                   {errors.form}
@@ -494,6 +615,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                 </p>
               )}
             </div>
+            <StampChip {...shiftStamp(liveStatus)} header />
           </div>
         </header>
 
@@ -662,8 +784,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
               {assignedPeople.length === 0 ? (
                 <div className="assignment-empty">
                   <p className="t-body text-secondary">
-                    {canEditResponders
-                      ? 'יש לשבץ כוננים למשמרת.'
+                    {canEditResponders                      ? 'יש לשבץ כוננים למשמרת.'
                       : 'לא שובצו כוננים למשמרת זו.'}
                   </p>
                 </div>
@@ -788,6 +909,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   label='מד אוץ סיום'
                   numeric
                   inputMode="numeric"
+                  error={errors.odometer_end}
                   value={numberToInput(draft.odometer_end)}
                   onChange={(event) => {
                     updateDraft({
@@ -818,8 +940,41 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
             <Button block loading={saving} loadingLabel="שומר…" onClick={() => void handleSave()}>
               שמירה
             </Button>
+            {localSavedAt ? (
+              <p className="t-caption text-muted" aria-live="polite">
+                {`נשמר במכשיר ${fillDraftSavedLabel(localSavedAt)}`}
+              </p>
+            ) : (
+              <p className="t-caption text-muted">הפרטים נשמרים במכשיר עד לשמירה.</p>
+            )}
           </div>
         </FormStickyFooter>
+
+        <Dialog
+          open={leaveConfirm}
+          title="לצאת מהטופס?"
+          onClose={() => setLeaveConfirm(false)}
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setLeaveConfirm(false)
+                  onBack()
+                }}
+              >
+                יציאה
+              </Button>
+              <Button variant="ghost" onClick={() => setLeaveConfirm(false)}>
+                חזרה לטופס
+              </Button>
+            </>
+          }
+        >
+          <p className="t-body">
+            יש פרטים שטרם נשמרו. הם נשמרו במכשיר ויחזרו כשתפתחו את הטופס שוב.
+          </p>
+        </Dialog>
       </div>
     </div>
   )

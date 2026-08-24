@@ -4,6 +4,7 @@ import type { StampDescriptor } from '../../lib/status'
 import type { EventListItem } from '../../lib/events'
 import { policeEventLabel } from '../../lib/shiftBornEvents'
 import { EventTypeLabel } from './EventTypeLabel'
+import { EventFrozenMark } from './EventFrozenMark'
 
 type MineLoggedEventRowProps = {
   event: EventListItem
@@ -24,7 +25,10 @@ export function MineLoggedEventRow({ event, stamp, onOpen }: MineLoggedEventRowP
     <li className="list-rows__item list-rows__item--stack mine-logged-row">
       <button type="button" className="mine-logged-row__hit" onClick={() => onOpen(event.id)}>
         <span className="list-rows__label">
-          <EventTypeLabel event={event} as="body" fallback="אירוע" />
+          <span className="event-card__type">
+            <EventFrozenMark flags={event} />
+            <EventTypeLabel event={event} as="body" fallback="אירוע" />
+          </span>
           <span className="t-body text-secondary">{place || '—'}</span>
           <span className="t-caption text-muted mine-logged-row__meta">
             <span className="mono">{formatDate(event.event_date)}</span>

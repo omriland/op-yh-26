@@ -132,7 +132,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
       plates,
       12,
     )
-    expect(errors.treated_plates).toBe('השלימו או מחקו את המספר בתחתית.')
+    expect(errors.treated_plates).toBe('השלימו או מחקו את המספר בשדה מספרי כלי רכב.')
   })
 
   it('complete mode allows zero treated plates', () => {

@@ -61,12 +61,13 @@ describe('hasOpenMineShifts', () => {
     ).toBe(true)
   })
 
-  it('is false when odometers are complete on editable shifts', () => {
+  it('is false when the shift is already closed', () => {
     expect(
       hasOpenMineShifts(
         [
           {
             shift_date: '2026-08-10',
+            status: 'closed',
             odometer_start: 100,
             odometer_end: 150,
           },
@@ -74,6 +75,22 @@ describe('hasOpenMineShifts', () => {
         today,
       ),
     ).toBe(false)
+  })
+
+  it('stays open when odometers are in but the status is still a draft', () => {
+    expect(
+      hasOpenMineShifts(
+        [
+          {
+            shift_date: '2026-08-10',
+            status: 'draft',
+            odometer_start: 100,
+            odometer_end: 150,
+          },
+        ],
+        today,
+      ),
+    ).toBe(true)
   })
 
   it('ignores future shifts even without odometers', () => {

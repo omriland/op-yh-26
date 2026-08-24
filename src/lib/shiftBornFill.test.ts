@@ -1,74 +1,50 @@
 import { describe, expect, it } from 'vitest'
-import { shiftBornEventFillRowsFrom } from './shiftBornFill'
+import {
+  emptyShiftBornFillDraft,
+  shiftBornCompleteErrors,
+  type ShiftBornFillDraft,
+} from './shiftBornFill'
 
-describe('shiftBornEventFillRowsFrom', () => {
-  it('keeps police event id and treated rows for the debrief save', () => {
-    const rows = shiftBornEventFillRowsFrom([
-      {
-        id: 'evt-1',
-        status: 'in_progress',
-        police_event_id: ' 12 ',
-        treatment_detail: 'חילוץ',
-        treatment_notes: null,
-        road_id: 'road-1',
-        location: 'צומת',
-        updated_at: '2026-08-16T08:00:00Z',
-        event_type: { name: 'תקוע' },
-        treated: [
-          { vehicle_kind_id: 'kind-1', quantity: 2 },
-          { vehicle_kind_id: 'kind-2', quantity: 0 },
-        ],
-        treated_plates: [
-          {
-            plate_number: '12-345-67',
-            model: 'REXTON',
-            color: 'שחור',
-            left_where: 'שוליים',
-            manufacturer: 'סאנגיונג ד.קור',
-            logo_slug: 'ssangyong',
-          },
-        ],
-      },
-      {
-        id: 'evt-skip',
-        status: 'in_progress',
-        police_event_id: null,
-        treatment_detail: null,
-        treatment_notes: null,
-        road_id: null,
-        location: null,
-        updated_at: null,
-        event_type: null,
-        treated: [],
-      },
-    ])
+function draft(over: Partial<ShiftBornFillDraft> = {}): ShiftBornFillDraft {
+  return { ...emptyShiftBornFillDraft(), ...over }
+}
 
-    expect(rows).toEqual([
-      {
-        id: 'evt-1',
-        typeName: 'תקוע',
-        status: 'in_progress',
-        expected_updated_at: '2026-08-16T08:00:00Z',
-        draft: {
-          police_event_id: ' 12 ',
-          treatment_detail: 'חילוץ',
-          treatment_notes: '',
-          road_id: 'road-1',
-          location: 'צומת',
-          treated: [{ vehicle_kind_id: 'kind-1', quantity: 2 }],
-          treated_plates: [
-            {
-              plate_number: '12-345-67',
-              model: 'REXTON',
-              color: 'שחור',
-              left_where: 'שוליים',
-              manufacturer: 'סאנגיונג ד.קור',
-              logo_slug: 'ssangyong',
-              details_status: 'ready',
-            },
-          ],
-        },
-      },
-    ])
+describe('shiftBornCompleteErrors', () => {
+  it('refuses an empty record on all three required fields', () => {
+    const errors = shiftBornCompleteErrors(draft())
+    expect(errors.road_id).toBe('יש לבחור כביש')
+    expect(errors.location).toBe('יש להזין מיקום')
+    expect(errors.treatment_detail).toBe('יש להזין פירוט טיפול')
+  })
+
+  it('accepts a complete record', () => {
+    const errors = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'חילוץ' }),
+    )
+    expect(errors).toEqual({})
+  })
+
+  it('treats whitespace as empty', () => {
+    const errors = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: '   ', treatment_detail: '\n\t' }),
+    )
+    expect(errors.location).toBeDefined()
+    expect(errors.treatment_detail).toBeDefined()
+    expect(errors.road_id).toBeUndefined()
+  })
+
+  it('names the problem and the action, with no exclamation mark', () => {
+    const errors = shiftBornCompleteErrors(draft())
+    for (const message of Object.values(errors)) {
+      expect(message).not.toContain('!')
+      expect(message.startsWith('יש ')).toBe(true)
+    }
+  })
+
+  it('does not require the optional fields', () => {
+    const errors = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: 'x', treatment_detail: 'y' }),
+    )
+    expect(errors).toEqual({})
   })
 })

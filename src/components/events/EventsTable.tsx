@@ -3,6 +3,7 @@ import { doneFraction, type EventListItem } from '../../lib/events'
 import { eventLeadDisplayName } from '../../lib/shiftBornEvents'
 import { HoverTip } from '../ui/HoverTip'
 import { EventTypeLabel } from './EventTypeLabel'
+import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
 
 type EventsTableProps = {
@@ -41,7 +42,10 @@ export function EventsTable({ events, onOpen }: EventsTableProps) {
                   {event.police_event_id ?? '—'}
                 </td>
                 <td>
-                  <EventTypeLabel event={event} />
+                  <span className="event-card__type">
+                    <EventFrozenMark flags={event} />
+                    <EventTypeLabel event={event} />
+                  </span>
                 </td>
                 <td className="table-col--location">
                   <HoverTip

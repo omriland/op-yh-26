@@ -17,6 +17,8 @@ export type OpenDocumentationEventSource = {
   is_cancelled: boolean
   police_event_id: string | null
   location: string | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   shift_lead_id: string
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
@@ -35,6 +37,8 @@ export type OpenDocumentationRow = {
   road_name: string | null
   location: string | null
   fill_status: OpenDocumentationFillStatus
+  frozen_over_60km: boolean
+  frozen_suspicious_duplicate: boolean
 }
 
 const OPEN_EVENT_STATUSES = new Set<EventStatus>(['in_progress', 'partial'])
@@ -74,6 +78,8 @@ export function buildOpenDocumentationRows(
         road_name: event.road?.name ?? null,
         location: event.location,
         fill_status: responder.status === 'in_progress' ? 'in_progress' : 'pending',
+        frozen_over_60km: Boolean(event.frozen_over_60km),
+        frozen_suspicious_duplicate: Boolean(event.frozen_suspicious_duplicate),
       })
     }
   }
@@ -94,6 +100,8 @@ const OPEN_DOCUMENTATION_SELECT = `
   is_cancelled,
   police_event_id,
   location,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
   shift_lead_id,
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),

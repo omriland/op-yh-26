@@ -70,7 +70,10 @@ export function ShiftsPage({
     const load =
       scope === 'mine' && user
         ? fetchMyShifts(user.id)
-        : fetchShifts(asTable ? { limit: UNIT_SHIFTS_LIST_LIMIT } : undefined)
+        : // The card list is the phone's path and gets the same 200-row cap as the
+          // table: an uncapped select pulls every shift with its nested born_events,
+          // responders and treated rows over the weakest connection in the product.
+          fetchShifts({ limit: UNIT_SHIFTS_LIST_LIMIT })
     load
       .then((rows) => {
         if (active) setShifts(rows)
@@ -82,7 +85,7 @@ export function ShiftsPage({
     return () => {
       active = false
     }
-  }, [asTable, scope, user, reloadKey])
+  }, [scope, user, reloadKey])
 
   useEffect(() => {
     setLoggedWindows(1)
@@ -179,9 +182,7 @@ export function ShiftsPage({
         {scope === 'unit' ? (
           <div className="page-head__intro">
             <h1 className="t-title">משמרות</h1>
-            {asTable ? (
-              <p className="t-caption text-muted">{unitShiftsListHint(UNIT_SHIFTS_LIST_LIMIT)}</p>
-            ) : null}
+            <p className="t-caption text-muted">{unitShiftsListHint(UNIT_SHIFTS_LIST_LIMIT)}</p>
           </div>
         ) : (
           <h1 className="t-title">המשמרות שלי</h1>
@@ -242,7 +243,7 @@ export function ShiftsPage({
             <div className="stack-4">
               {mineSections.pending.length === 0 ? (
                 <p className="t-body text-secondary mine-section-empty">
-                  מברוק! אין לך עוד משמרות לתעד כרגע
+                  אין משמרות שממתינות לתיעוד.
                 </p>
               ) : (
                 <ShiftCards

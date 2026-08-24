@@ -8,6 +8,8 @@ import type { StampDescriptor } from '../../lib/status'
 import type { EventListItem } from '../../lib/events'
 import { policeEventLabel } from '../../lib/shiftBornEvents'
 import { EventTypeLabel } from './EventTypeLabel'
+import { EventFrozenMark } from './EventFrozenMark'
+import { EventFrozenNotice } from './EventFrozenNotice'
 
 type EventCardProps = {
   event: EventListItem
@@ -64,6 +66,7 @@ export function EventCard({
               </span>
             </HoverTip>
           ) : null}
+          <EventFrozenMark flags={event} />
           <EventTypeLabel event={event} as="section" fallback="אירוע" />
         </span>
         <span className="event-card__place t-body text-secondary">{place || '—'}</span>
@@ -82,6 +85,7 @@ export function EventCard({
           ) : null}
         </span>
       </button>
+      <EventFrozenNotice flags={event} />
       <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>
         <StampChip {...stamp} />
       </button>

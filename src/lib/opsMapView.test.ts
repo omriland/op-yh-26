@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { opsMapViewTrigger, shouldRefitOpsMapView } from './opsMapView'
+import {
+  opsMapEventFocusTarget,
+  opsMapViewTrigger,
+  shouldRefitOpsMapView,
+} from './opsMapView'
+
+describe('opsMapEventFocusTarget', () => {
+  const pins = [
+    { eventId: 'a', lat: 32.1, lng: 34.8 },
+    { eventId: 'b', lat: 31.8, lng: 34.7 },
+  ]
+
+  it('returns the matching event pin', () => {
+    expect(opsMapEventFocusTarget(pins, 'b')).toEqual({ lat: 31.8, lng: 34.7 })
+  })
+
+  it('returns null when the event has no pin yet', () => {
+    expect(opsMapEventFocusTarget(pins, 'missing')).toBeNull()
+    expect(opsMapEventFocusTarget(pins, null)).toBeNull()
+  })
+})
 
 describe('opsMapViewTrigger', () => {
   it('uses init until the first camera apply', () => {

@@ -32,6 +32,8 @@ export type EventListItem = {
   treatment_detail: string | null
   treatment_notes: string | null
   emergency_means: boolean
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   district: { name: string } | null
   event_type: { name: string } | null
   road: { name: string } | null
@@ -60,6 +62,8 @@ export const EVENT_LIST_SELECT = `
   treatment_detail,
   treatment_notes,
   emergency_means,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
   district:districts(name),
   event_type:event_types(name),
   road:roads(name),
@@ -156,26 +160,54 @@ export async function fetchEventsByIds(ids: string[]): Promise<EventListItem[]> 
   return mergeEventLists([], rows)
 }
 
+/**
+ * Cap on the viewer's already-documented events. Open assignments are never
+ * capped — they are the responder's outstanding obligations, and dropping one
+ * would hide work the volunteer still owes. The archive is what gets a window.
+ */
+export const MINE_LOGGED_FETCH_LIMIT = 200
+
 /** Events the viewer is assigned to as a responder. */
 export async function fetchMyEvents(userId: string): Promise<EventListItem[]> {
   const { data: assignments, error: assignmentsError } = await supabase
     .from('event_responders')
-    .select('event_id')
+    .select('event_id, status')
     .eq('responder_id', userId)
 
   if (assignmentsError) throw new Error(assignmentsError.message)
 
-  const eventIds = (assignments ?? []).map((row) => row.event_id as string)
-  if (eventIds.length === 0) return []
+  const rows = assignments ?? []
+  const openIds: string[] = []
+  const doneIds: string[] = []
+  for (const row of rows) {
+    const id = row.event_id as string
+    if ((row.status as string) === 'done') doneIds.push(id)
+    else openIds.push(id)
+  }
 
-  const { data, error } = await supabase
-    .from('events')
-    .select(EVENT_LIST_SELECT)
-    .in('id', eventIds)
-    .order('event_date', { ascending: false })
+  if (openIds.length === 0 && doneIds.length === 0) return []
 
-  if (error) throw new Error(error.message)
-  return (data ?? []) as unknown as EventListItem[]
+  // Two queries so the cap lands only on the archive. A single capped query
+  // ordered by date would silently drop an old event the responder still owes.
+  const [open, logged] = await Promise.all([
+    openIds.length === 0
+      ? Promise.resolve([])
+      : fetchEventsByIds(openIds),
+    doneIds.length === 0
+      ? Promise.resolve([])
+      : (async () => {
+          const { data, error } = await supabase
+            .from('events')
+            .select(EVENT_LIST_SELECT)
+            .in('id', doneIds)
+            .order('event_date', { ascending: false })
+            .limit(MINE_LOGGED_FETCH_LIMIT)
+          if (error) throw new Error(error.message)
+          return (data ?? []) as unknown as EventListItem[]
+        })(),
+  ])
+
+  return mergeEventLists(open, logged)
 }
 
 export type EventResponderDetail = {
@@ -227,6 +259,8 @@ const EVENT_DETAIL_SELECT = `
   treatment_notes,
   emergency_means,
   updated_at,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
   district:districts(name),
   event_type:event_types(name),
   road:roads(name),
@@ -268,6 +302,8 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
   treatment_notes,
   emergency_means,
   updated_at,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
   district:districts(name),
   event_type:event_types(name),
   road:roads(name),
@@ -423,6 +459,20 @@ export async function deleteEvent(
     .maybeSingle()
   if (error || !data) {
     return { ok: false, error: 'מחיקת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+  }
+  return { ok: true }
+}
+
+export async function approveEventFreeze(
+  eventId: string,
+  reason: 'over_60km' | 'suspicious_duplicate',
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.rpc('approve_event_freeze', {
+    p_event_id: eventId,
+    p_reason: reason,
+  })
+  if (error) {
+    return { ok: false, error: 'אישור האירוע נכשל. בדקו את החיבור ונסו שוב.' }
   }
   return { ok: true }
 }

@@ -453,6 +453,12 @@ textarea.field__input {
   animation: stamp-press var(--duration-base) var(--ease-standard);
 }
 
+/* The header stamp carries the −8° tilt, so its press must preserve it or the
+   chip snaps upright when the animation ends. */
+.stamp--header.stamp--press {
+  animation: stamp-press-header var(--duration-base) var(--ease-standard);
+}
+
 /* ============================================================
    Event status trail — desktop Events table pipeline
    ============================================================ */
@@ -581,6 +587,18 @@ textarea.field__input {
 @keyframes stamp-press {
   from {
     opacity: 0;
+    transform: scale(1.12);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes stamp-press-header {
+  from {
+    opacity: 0;
     transform: rotate(-8deg) scale(1.12);
   }
 
@@ -613,6 +631,7 @@ textarea.field__input {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     'body stamp'
+    'notice notice'
     'fill fill';
   column-gap: var(--space-3);
   row-gap: var(--space-2);
@@ -635,12 +654,24 @@ textarea.field__input {
   gap: var(--space-2);
   width: 100%;
   border: 0;
+  border-radius: var(--radius-sm);
   text-align: start;
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
 .event-card:active {
   background: var(--surface-sunken);
+}
+
+/* Pointer feedback on the whole-card target, matching the value 06-components.md
+   gives the equivalent table row and the shift-group toggle on this same page.
+   Washed variants are excluded on purpose: an overdue card must not turn blue on
+   hover, and the system has no deeper-tint token to darken a wash with. */
+@media (hover: hover) {
+  .event-card-shell:not(.event-card-shell--manual):not(.event-card-shell--overdue)
+    .event-card:hover {
+    background: var(--accent-subtle);
+  }
 }
 
 .event-card__top {
@@ -669,10 +700,95 @@ textarea.field__input {
   color: var(--status-alert);
 }
 
+.event-frozen-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.event-frozen-mark__hit {
+  display: inline-flex;
+  align-items: center;
+  color: var(--status-pending);
+}
+
+.event-frozen-mark__hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Freeze reason as a hairline document line — readable with no pointer, because
+   a frozen event is excluded from the quarterly fuel refund. */
+/* Shift card: identity opens the record, the chevron discloses its born events.
+   Two jobs, two targets, both at the 44px floor. */
+.shift-card__disclose {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+@media (hover: hover) {
+  .shift-card__disclose:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+/* The two readings, entered on the card — the common case never opens the form. */
+/* `stack-2` does not exist in this project — only stack-3 and stack-4 — so the
+   fields and the actions had no separation at all. Own the spacing here. */
+.shift-odometer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.shift-odometer__fields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 641px) {
+  .shift-odometer__fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.shift-odometer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.event-frozen-notice {
+  grid-area: notice;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--stroke-hairline);
+  color: var(--status-pending);
+}
+
+.event-frozen-notice svg {
+  flex-shrink: 0;
+}
+
 .event-card__stamp {
   grid-area: stamp;
   align-self: start;
   justify-self: end;
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   padding: 0;
   background: transparent;
@@ -690,6 +806,7 @@ textarea.field__input {
   .event-card-shell:has(.event-card__fill) {
     grid-template-areas:
       'body stamp'
+      'notice notice'
       '. fill';
   }
 
@@ -1214,7 +1331,7 @@ textarea.field__input {
 
 .form-section__counter {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .form-section__fields {
@@ -1800,14 +1917,6 @@ textarea.field__input {
   height: 40px;
 }
 
-.sidebar__section-label {
-  margin-block: var(--space-4) var(--space-1);
-  padding-inline: var(--space-3);
-  color: var(--text-muted);
-  font: 500 13px/18px var(--font-ui);
-  letter-spacing: 0.01em;
-}
-
 .nav-item {
   position: relative;
   display: flex;
@@ -1840,11 +1949,11 @@ textarea.field__input {
 
 .nav-attention-dot {
   position: absolute;
-  top: -1px;
-  right: -2px;
+  inset-block-start: -1px;
+  inset-inline-end: -2px;
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--status-alert);
   box-shadow: 0 0 0 1.5px var(--surface-page);
   pointer-events: none;
@@ -1881,35 +1990,6 @@ textarea.field__input {
     color: var(--accent);
   }
 
-  .nav-item--cockpit:hover::after {
-    opacity: 1;
-    animation: spin 1.2s linear infinite;
-  }
-}
-
-.nav-item--cockpit {
-  isolation: isolate;
-  overflow: hidden;
-}
-
-.nav-item--cockpit::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  width: var(--sidebar-width);
-  height: var(--sidebar-width);
-  inset-inline-start: calc(var(--space-3) + 10px - (var(--sidebar-width) / 2));
-  inset-block-start: calc(50% - (var(--sidebar-width) / 2));
-  border-radius: var(--radius-full);
-  pointer-events: none;
-  opacity: 0;
-  background: conic-gradient(
-    from 0deg,
-    color-mix(in srgb, var(--accent) 36%, transparent),
-    transparent 55deg,
-    transparent 360deg
-  );
-  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
 .shell__main {
@@ -2274,103 +2354,41 @@ textarea.field__input {
   margin-block-end: var(--space-6);
 }
 
-.mine-insight {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-4);
-  margin-block-end: var(--space-6);
-  padding: var(--space-4);
-  border: 1px solid var(--stroke-hairline);
-  border-inline-start: 4px solid var(--accent);
-  border-radius: var(--radius-md);
-  background: var(--accent-subtle);
+/* Document header for the responder's own record list: title, then a ledger line.
+   Not a greeting and not a counter tile — 01-identity.md ("not a dashboard"). */
+/* Unit-list search. Full width on the phone, fixed beside the title on desktop. */
+.events-search {
+  width: 100%;
 }
 
-.mine-insight--clear {
-  border-inline-start-color: var(--status-done);
-  background: var(--status-done-tint);
+@media (min-width: 1025px) {
+  .events-search {
+    width: 280px;
+  }
 }
 
-.mine-insight__stat {
+.mine-head {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  min-width: 72px;
-  padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-  border: 1px solid var(--stroke-hairline);
-  color: var(--accent);
-}
-
-.mine-insight--clear .mine-insight__stat {
-  color: var(--status-done);
-}
-
-.mine-insight__count {
-  font-family: var(--font-mono);
-  font-size: 40px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.02em;
-}
-
-.mine-insight__body {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.mine-insight__eyebrow {
-  display: inline-flex;
-  align-items: center;
   gap: var(--space-2);
-  margin: 0;
-  color: var(--accent);
+  margin-block-end: var(--space-5);
 }
 
-.mine-insight--clear .mine-insight__eyebrow {
-  color: var(--status-done);
-}
-
-.mine-insight__hello,
-.mine-insight__summary {
+.mine-head .t-title {
   margin: 0;
 }
 
-.mine-insight__summary {
-  color: var(--text-secondary);
+.mine-head .ledger {
+  margin: 0;
 }
 
-.mine-insight__notice {
-  margin-block-start: var(--space-2);
-  color: var(--text-primary);
+.mine-head__notice {
+  margin: 0;
 }
 
 .mine-section-empty {
   margin: 0;
   padding-block: var(--space-3);
-}
-
-.mine-inbox-head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-block-end: var(--space-4);
-}
-
-.mine-inbox-head .t-title,
-.mine-inbox-head .t-body {
-  margin: 0;
-}
-
-.mine-inbox-head__notice {
-  margin: 0;
-  color: var(--text-primary);
 }
 
 .mine-logged-caption {
@@ -2474,10 +2492,6 @@ textarea.field__input {
 
 .event-group + .event-group {
   margin-block-start: var(--space-4);
-}
-
-.event-group--logged .stack-4 > .stack-3 > .card {
-  opacity: 0.7;
 }
 
 .group-head {
@@ -3404,11 +3418,11 @@ textarea.field__input {
   width: 100%;
   max-width: 360px;
   padding: var(--space-3) var(--space-4);
-  border: 1px solid rgba(242, 246, 250, 0.15);
+  border: 1px solid var(--stroke-hairline);
   border-inline-start-width: 3px;
   border-radius: var(--radius-md);
-  background: #2a4168;
-  color: #f2f6fa;
+  background: var(--surface-overlay);
+  color: var(--text-primary);
   box-shadow: var(--shadow-overlay);
   animation: toast-in var(--duration-base) var(--ease-standard);
 }
@@ -3418,15 +3432,15 @@ textarea.field__input {
 }
 
 .toast--done {
-  border-inline-start-color: #66c79b;
+  border-inline-start-color: var(--status-done);
 }
 
 .toast--alert {
-  border-inline-start-color: #ef8177;
+  border-inline-start-color: var(--status-alert);
 }
 
 .toast--info {
-  border-inline-start-color: #8fbceb;
+  border-inline-start-color: var(--accent);
 }
 
 .toast__icon {
@@ -3992,6 +4006,15 @@ textarea.field__input {
 
 .chips.admin-segments.mine-inbox-tabs {
   margin-block-end: var(--space-4);
+  align-items: stretch;
+  min-height: 44px;
+}
+
+/* The inbox mode switch is a primary touch target, not a filter chip. */
+.chips.admin-segments.mine-inbox-tabs .chip {
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .lists-layout--desktop {
@@ -4089,6 +4112,13 @@ textarea.field__input {
 .report-km-action:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.report-row-commands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
 }
 
 .fuel-hub {
@@ -4753,6 +4783,14 @@ textarea.field__input {
   color: var(--text-primary);
 }
 
+/* Alert banner uses the declared alert-on-tint pairing, not alert ink on paper,
+   which 02-color.md lists as a known-failing trap. */
+.banner--alert {
+  border-color: var(--status-alert);
+  background: var(--status-alert-tint);
+  color: var(--status-alert-on-tint);
+}
+
 .impersonation-bar {
   display: flex;
   flex: none;
@@ -5136,7 +5174,7 @@ textarea.field__input {
 .time-field__now {
   border: 0;
   padding: var(--space-1) var(--space-2);
-  min-height: 28px;
+  min-height: 44px;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--accent);
@@ -5164,6 +5202,7 @@ textarea.field__input {
 }
 
 .stepper__btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5173,6 +5212,15 @@ textarea.field__input {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-primary);
+}
+
+/* 06-components.md draws the stepper at 36x36; 08-accessibility.md names stepper
+   buttons in the 44px floor. The button stays 36 and the touch target grows past it,
+   so both hold and a gloved thumb still lands. */
+.stepper__btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
 }
 
 @media (hover: hover) {
@@ -5276,6 +5324,8 @@ textarea.field__input {
 }
 
 .cockpit__reel {
+  position: relative;
+  z-index: 22;
   display: flex;
   flex-direction: column;
   flex: none;
@@ -5468,6 +5518,13 @@ textarea.field__input {
     height: 100%;
     border-block-end: 0;
     border-inline-end: 1px solid var(--stroke-hairline);
+  }
+
+  .cockpit-map-drawer {
+    width: min(
+      calc(var(--sidebar-width) * 2.5),
+      calc(100% - var(--sidebar-width) * 1.5)
+    );
   }
 
   .cockpit__row.is-current::after {

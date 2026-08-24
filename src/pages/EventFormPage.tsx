@@ -42,6 +42,8 @@ import { EventListSkeleton } from '../components/ui/Skeleton'
 import { captureEvent } from '../lib/posthog'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
+import { useRevealFirstError } from '../lib/revealFirstError'
+import { over60kmHint } from '../lib/eventFreeze'
 import {
   applyDistrictChangeLocation,
   applyDistrictChangeRoad,
@@ -100,6 +102,8 @@ export function EventFormPage({
   const [previousIsCancelled, setPreviousIsCancelled] = useState(false)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied'>('loading')
   const [errors, setErrors] = useState<EventFormErrors>({})
+  /** Bumped on every failed submit so an identical second failure still re-focuses. */
+  const [submitAttempt, setSubmitAttempt] = useState(0)
   const [saving, setSaving] = useState(false)
   const [savePulse, setSavePulse] = useState<SavePulse>('idle')
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -292,8 +296,7 @@ export function EventFormPage({
               : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
             'alert',
           )
-          const first = document.querySelector('[aria-invalid="true"]')
-          first?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setSubmitAttempt((n) => n + 1)
         }
         return false
       }
@@ -582,6 +585,8 @@ export function EventFormPage({
   const dialogOpen =
     leaveConfirm || removeTarget !== null || overnightPrompt !== null || pickerOpen
 
+  useRevealFirstError(submitAttempt)
+
   useDesktopFormSubmit(() => void persistExplicit(), {
     enabled:
       variant !== 'cockpit' &&
@@ -791,6 +796,7 @@ export function EventFormPage({
                 <TextField
                   label="מספר אירוע"
                   numeric
+                  inputMode="numeric"
                   value={draft.police_event_id}
                   error={errors.police_event_id}
                   onChange={(event) => updateDraft({ police_event_id: event.target.value })}
@@ -1080,6 +1086,11 @@ export function EventFormPage({
                               label="קילומטרים"
                               numeric={responder.hasVehicle}
                               inputMode={responder.hasVehicle ? 'decimal' : undefined}
+                              hint={
+                                responder.hasVehicle
+                                  ? over60kmHint(responder.total_km)
+                                  : undefined
+                              }
                               value={
                                 responder.hasVehicle
                                   ? responder.total_km

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardList, ListChecks, Plus, Search } from 'lucide-react'
+import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { textIncludesQuery } from '../lib/searchQuery'
 import {
@@ -37,9 +37,9 @@ import {
   MINE_PENDING_EMPTY_CAPTION,
   MINE_PENDING_EMPTY_TITLE,
   MINE_PENDING_EMPTY_VIEW_LOGGED,
+  MINE_PENDING_TAB_LABEL,
   mineEventMatchesQuery,
   mineLoggedNoResultsTitle,
-  openMineSummary,
   shiftGroupPendingCaption,
   shiftGroupShouldStartOpen,
   type MineInboxTab,
@@ -50,6 +50,7 @@ import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button, IconButton } from '../components/ui/Button'
 import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { FilterChips } from '../components/ui/FilterChips'
 import { EventCard } from '../components/events/EventCard'
@@ -78,7 +79,7 @@ export function EventsPage({
   onFill,
 }: EventsPageProps) {
   const isDesktop = useIsDesktop()
-  const { user, profile } = useAuth()
+  const { user } = useAuth()
   const { show } = useToast()
   const [events, setEvents] = useState<EventListItem[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -100,7 +101,11 @@ export function EventsPage({
     const load =
       scope === 'mine' && user
         ? fetchMyEvents(user.id)
-        : fetchEvents(asTable ? { limit: UNIT_EVENTS_LIST_LIMIT } : undefined)
+        : // The card list is the phone's path. It gets the same 200-row cap as
+          // the desktop table — an uncapped select pulls every event with its
+          // nested responders over the worst connection in the product, and
+          // search already queries the full database for older records.
+          fetchEvents({ limit: UNIT_EVENTS_LIST_LIMIT })
     load
       .then((rows) => {
         if (active) setEvents(rows)
@@ -112,7 +117,7 @@ export function EventsPage({
     return () => {
       active = false
     }
-  }, [asTable, scope, user, reloadKey])
+  }, [scope, user, reloadKey])
 
   useEffect(() => {
     setLoggedWindows(1)
@@ -245,79 +250,50 @@ export function EventsPage({
     if (scope !== 'mine' || !events) return 0
     return events.filter((event) => ownParticipation(event, user?.id) !== 'done').length
   }, [events, scope, user?.id])
-  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || profile?.full_name?.trim() || null
 
   return (
     <div className={asTable ? 'page--wide' : undefined}>
       {scope === 'mine' ? (
-        isDesktop ? (
-          <section
-            className={[
-              'mine-insight',
-              events !== null && openMineCount === 0 ? 'mine-insight--clear' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            aria-label="סיכום הדיווחים שלי"
-          >
-            <div className="mine-insight__stat" aria-hidden="true">
-              <span className="mine-insight__count mono">
-                {events === null ? '—' : openMineCount}
-              </span>
-            </div>
-            <div className="mine-insight__body">
-              <p className="mine-insight__eyebrow t-label">
-                <ListChecks size={16} strokeWidth={1.75} aria-hidden="true" />
-                האירועים שלי
-              </p>
-              <h1 className="t-title mine-insight__hello">
-                {firstName ? `שלום, ${firstName}` : 'שלום'}
-              </h1>
-              <p className="t-body mine-insight__summary">
-                {openMineSummary(openMineCount, events !== null)}
-              </p>
-              {shouldShowIncompleteFuelNotice(openMineCount) ? (
-                <p className="t-body mine-insight__notice" role="note">
-                  {INCOMPLETE_FUEL_REFUND_NOTICE}
-                </p>
-              ) : null}
-            </div>
-          </section>
-        ) : (
-          <div className="mine-inbox-head">
-            <h1 className="t-title">האירועים שלי</h1>
-            <p className="t-body text-secondary">{openMineSummary(openMineCount, events !== null)}</p>
-            {shouldShowIncompleteFuelNotice(openMineCount) ? (
-              <p className="t-body mine-inbox-head__notice" role="note">
-                {INCOMPLETE_FUEL_REFUND_NOTICE}
-              </p>
-            ) : null}
-          </div>
-        )
+        // One document header on every width. The record surface gets a title and
+        // a ledger line, not a greeting and a counter tile — 01-identity.md.
+        <header className="mine-head">
+          <h1 className="t-title">האירועים שלי</h1>
+          <Ledger>
+            <LedgerRow
+              label={MINE_PENDING_TAB_LABEL}
+              value={
+                events === null ? null : (
+                  <span className="t-num-lg">{openMineCount}</span>
+                )
+              }
+            />
+          </Ledger>
+          {shouldShowIncompleteFuelNotice(openMineCount) ? (
+            <p className="t-caption text-muted mine-head__notice" role="note">
+              {INCOMPLETE_FUEL_REFUND_NOTICE}
+            </p>
+          ) : null}
+        </header>
       ) : (
         <div className="page-head">
           <div className="page-head__intro">
             <h1 className="t-title">אירועים</h1>
-            {asTable ? (
-              <p className="t-caption text-muted">{unitEventsListHint(UNIT_EVENTS_LIST_LIMIT)}</p>
-            ) : null}
+            <p className="t-caption text-muted">{unitEventsListHint(UNIT_EVENTS_LIST_LIMIT)}</p>
           </div>
           <div className="page-head__actions">
-            {asTable ? (
-              <label className="field__control" style={{ width: 280 }}>
-                <span className="visually-hidden">חיפוש אירועים</span>
-                <input
-                  className="field__input field__input--with-affix"
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק"
-                />
-                <span className="field__affix" aria-hidden="true">
-                  <Search size={20} strokeWidth={1.75} />
-                </span>
-              </label>
-            ) : null}
+            <label className="field__control events-search">
+              <span className="visually-hidden">חיפוש אירועים</span>
+              <input
+                className="field__input field__input--with-affix"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק"
+              />
+              <span className="field__affix" aria-hidden="true">
+                <Search size={20} strokeWidth={1.75} />
+              </span>
+            </label>
             {canCreate && onCreate ? (
               isDesktop ? (
                 <Button onClick={onCreate} icon={<Plus size={20} strokeWidth={1.75} />}>

@@ -1,7 +1,7 @@
 import type { StampDescriptor } from '../../lib/status'
 
 type StampChipProps = StampDescriptor & {
-  /** Event-detail letterhead stamp: larger and rotated −1.5°. */
+  /** Event-detail letterhead stamp: larger and rotated −8°. */
   header?: boolean
   /** Only for live status transitions — never on page load or in lists. */
   press?: boolean

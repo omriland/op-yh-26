@@ -49,6 +49,7 @@ import {
   formatLastLogin,
   formatPhone,
   formatPlate,
+  isValidOptionalPhone,
   isValidPhone,
   monoClass,
   phoneDigits,
@@ -428,7 +429,8 @@ export function AdminUsersPage() {
       setFormError('יש לבחור לפחות תפקיד אחד.')
       return
     }
-    if (!isValidPhone(draft.phone)) {
+    const phoneOk = draft.id ? isValidOptionalPhone(draft.phone) : isValidPhone(draft.phone)
+    if (!phoneOk) {
       setFormError('יש להזין מספר טלפון בן 10 ספרות.')
       return
     }
@@ -454,7 +456,7 @@ export function AdminUsersPage() {
       }
     }
 
-    const phone = phoneDigits(draft.phone)
+    const phone = phoneDigits(draft.phone) || null
     const addresses = persistableAddresses(draft.addresses)
 
     setSaving(true)
@@ -1274,13 +1276,17 @@ export function AdminUsersPage() {
                 inputMode="numeric"
                 autoComplete="tel"
                 isolate
-                required
+                required={!draft.id}
                 numeric
                 value={draft.phone}
                 onChange={(event) =>
                   setDraft({ ...draft, phone: formatPhone(event.target.value) })
                 }
-                hint="10 ספרות, למשל: 050-1234567"
+                hint={
+                  draft.id
+                    ? 'אופציונלי. אם ממלאים — 10 ספרות, למשל: 050-1234567'
+                    : '10 ספרות, למשל: 050-1234567'
+                }
               />
               <SelectField
                 label="סטטוס"

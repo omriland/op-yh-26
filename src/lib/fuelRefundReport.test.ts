@@ -21,6 +21,7 @@ function part(
     event_id: overrides.event_id ?? 'e1',
     total_km: overrides.total_km ?? null,
     responder_id: overrides.responder_id,
+    frozen: overrides.frozen,
   }
 }
 
@@ -88,6 +89,34 @@ describe('buildFuelRefundRows', () => {
     ])
     const beni = rows.find((r) => r.id === 'a')!
     expect(beni.total_km).toBe(0)
+    expect(beni.event_count).toBe(1)
+  })
+
+  it('excludes frozen events from km and event count', () => {
+    const rows = buildFuelRefundRows(profiles, [
+      part({ responder_id: 'b', event_id: 'e-ok', total_km: 12 }),
+      part({ responder_id: 'b', event_id: 'e-frozen', total_km: 80, frozen: true }),
+    ])
+    const avi = rows.find((r) => r.id === 'b')!
+    expect(avi.total_km).toBe(12)
+    expect(avi.event_count).toBe(1)
+  })
+
+  it('still excludes a 60km-approved event that remains frozen as a duplicate', () => {
+    const rows = buildFuelRefundRows(profiles, [
+      part({ responder_id: 'a', event_id: 'e-both', total_km: 90, frozen: true }),
+    ])
+    const beni = rows.find((r) => r.id === 'a')!
+    expect(beni.total_km).toBe(0)
+    expect(beni.event_count).toBe(0)
+  })
+
+  it('counts an event after it is fully unfrozen', () => {
+    const rows = buildFuelRefundRows(profiles, [
+      part({ responder_id: 'a', event_id: 'e-approved', total_km: 90, frozen: false }),
+    ])
+    const beni = rows.find((r) => r.id === 'a')!
+    expect(beni.total_km).toBe(90)
     expect(beni.event_count).toBe(1)
   })
 

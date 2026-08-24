@@ -158,6 +158,11 @@ export function isValidPhone(raw: string): boolean {
   return phoneDigits(raw).length === 10
 }
 
+/** Empty is allowed; a partial number is not. */
+export function isValidOptionalPhone(raw: string): boolean {
+  return phoneDigits(raw).length === 0 || isValidPhone(raw)
+}
+
 const HEBREW = /[\u0590-\u05FF]/
 
 /**

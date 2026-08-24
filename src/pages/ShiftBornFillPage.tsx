@@ -6,7 +6,9 @@ import {
   fetchShiftBornFillContext,
   saveShiftBornEventFill,
   type ShiftBornFillContext,
+  shiftBornCompleteErrors,
   type ShiftBornFillDraft,
+  type ShiftBornFillErrors,
 } from '../lib/shiftBornFill'
 import { lastSavedByLabel, SHIFT_BORN_CHIP } from '../lib/shiftBornEvents'
 import { formatDate, plateDigits } from '../lib/format'
@@ -33,6 +35,7 @@ import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
+import { useRevealFirstError } from '../lib/revealFirstError'
 
 type ShiftBornFillPageProps = {
   eventId: string
@@ -54,6 +57,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [plateError, setPlateError] = useState<string | undefined>()
   const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
   const [mediaError, setMediaError] = useState<string | undefined>()
+  /** Someone else saved this event while it was open here; the local text is kept. */
+  const [conflict, setConflict] = useState(false)
+  const [errors, setErrors] = useState<ShiftBornFillErrors>({})
+  /** Bumped on every failed submit so an identical second failure still re-focuses. */
+  const [submitAttempt, setSubmitAttempt] = useState(0)
   const plateLookupTail = useRef(Promise.resolve())
 
   useEffect(() => {
@@ -164,14 +172,19 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
       if (result.error.includes('רעננו')) {
         const next = await fetchShiftBornFillContext(eventId)
         if (next) {
-          setCtx(next)
-          setDraft(next.draft)
+          // Never replace what the user typed. Conflict detection exists to prevent
+          // loss; adopting the server copy here would guarantee it, and would
+          // penalise precisely the person who was still working. Take the new
+          // token so a deliberate re-save can win, keep their text, and say so.
+          setCtx((current) => (current ? { ...current, ...next, draft: current.draft } : next))
           setExpectedAt(next.expected_updated_at)
+          setConflict(true)
         }
       }
       return false
     }
     setExpectedAt(result.updated_at)
+    setConflict(false)
     return true
   }
 
@@ -179,10 +192,19 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     setSaving(true)
     const ok = await persist(false)
     setSaving(false)
-    if (ok) show('האירוע נשמר', 'done')
+    if (ok) show('הטיוטה נשמרה', 'done')
   }
 
   async function onComplete() {
+    if (!draft) return
+    const fieldErrors = shiftBornCompleteErrors(draft)
+    if (Object.keys(fieldErrors).length > 0) {
+      setErrors(fieldErrors)
+      show('יש להשלים את השדות המסומנים כדי לסיים את הדיווח.', 'alert')
+      setSubmitAttempt((n) => n + 1)
+      return
+    }
+    setErrors({})
     const leftover = leftoverEventMediaError(unfinishedMediaDrafts, 'complete')
     if (leftover) {
       setMediaError(leftover)
@@ -193,10 +215,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     const ok = await persist(true)
     setCompleting(false)
     if (ok) {
-      show('האירוע הושלם', 'done')
+      show('הדיווח הושלם', 'done')
       onCompleted?.()
     }
   }
+
+  useRevealFirstError(submitAttempt)
 
   useDesktopFormSubmit(() => void onSave(), {
     enabled: loadState === 'ready' && Boolean(draft) && !readOnly && !saving && !completing,
@@ -239,6 +263,13 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           </div>
         </div>
 
+        {conflict ? (
+          <p className="banner banner--alert t-body" role="alert">
+            מישהו שמר את האירוע בזמן שמילאתם. הפרטים שהזנתם נשמרו כאן ולא נמחקו.
+            בדקו אותם ולחצו שוב על שמירה כדי לשמור את הגרסה שלכם.
+          </p>
+        ) : null}
+
         <section className="card responder-fill__context">
           <Ledger>
             <LedgerRow label="תאריך" value={formatDate(ctx.event.event_date)} numeric />
@@ -252,6 +283,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             <TextField
               label="מספר אירוע"
               numeric
+              inputMode="numeric"
               value={draft.police_event_id}
               disabled={readOnly}
               onChange={(event) => patchDraft({ police_event_id: event.target.value })}
@@ -259,6 +291,8 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             <SelectField
               label="כביש"
               searchable
+              required
+              error={errors.road_id}
               searchPlaceholder="חיפוש כביש"
               value={draft.road_id}
               disabled={readOnly}
@@ -267,6 +301,8 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             />
             <TextField
               label="מיקום"
+              required
+              error={errors.location}
               placeholder="למשל: מחלף שורק, לכיוון צפון"
               value={draft.location}
               disabled={readOnly}
@@ -274,9 +310,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             />
             <TextAreaField
               label="פירוט הטיפול"
+              required
+              error={errors.treatment_detail}
               value={draft.treatment_detail}
               disabled={readOnly}
-              style={{ minHeight: 120 }}
+              rows={5}
               onChange={(event) => patchDraft({ treatment_detail: event.target.value })}
             />
             <TreatedPlatesField
@@ -330,7 +368,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           <FormStickyFooter>
             <div className="event-form__footer-actions">
               <Button loading={completing} loadingLabel="שומר…" onClick={() => void onComplete()}>
-                סיום
+                סיום דיווח
               </Button>
               <Button
                 variant="secondary"

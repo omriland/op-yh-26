@@ -16,6 +16,9 @@ export type DuplicateParticipationSource = {
   road_name: string | null
   full_name: string | null
   callsign: string | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
+  approved_suspicious_duplicate?: boolean
 }
 
 export type DuplicateMember = {
@@ -30,6 +33,9 @@ export type DuplicateMember = {
   road_name: string | null
   full_name: string | null
   callsign: string | null
+  frozen_over_60km: boolean
+  frozen_suspicious_duplicate: boolean
+  approved_suspicious_duplicate: boolean
 }
 
 export type DuplicateCluster = {
@@ -72,6 +78,9 @@ function toMember(src: DuplicateParticipationSource): DuplicateMember {
     road_name: src.road_name,
     full_name: src.full_name,
     callsign: src.callsign,
+    frozen_over_60km: Boolean(src.frozen_over_60km),
+    frozen_suspicious_duplicate: Boolean(src.frozen_suspicious_duplicate),
+    approved_suspicious_duplicate: Boolean(src.approved_suspicious_duplicate),
   }
 }
 
@@ -114,6 +123,8 @@ export function buildDuplicateClusters(
       .map((i) => toMember(sources[i]!))
       .sort((a, b) => a.started_at.localeCompare(b.started_at))
 
+    if (members.every((member) => member.approved_suspicious_duplicate)) continue
+
     const event_date = members[0]!.event_date
     clusters.push({
       id: members.map((m) => m.event_id).sort().join(':'),
@@ -138,6 +149,9 @@ type EventQueryRow = {
   is_cancelled: boolean
   police_event_id: string | null
   location: string | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
+  approved_suspicious_duplicate?: boolean
   event_type: { name: string } | { name: string }[] | null
   road: { name: string } | { name: string }[] | null
   responders:
@@ -173,6 +187,9 @@ function flattenEvents(events: EventQueryRow[]): DuplicateParticipationSource[] 
         road_name: road?.name ?? null,
         full_name: profile?.full_name ?? null,
         callsign: profile?.callsign ?? null,
+        frozen_over_60km: Boolean(event.frozen_over_60km),
+        frozen_suspicious_duplicate: Boolean(event.frozen_suspicious_duplicate),
+        approved_suspicious_duplicate: Boolean(event.approved_suspicious_duplicate),
       })
     }
   }
@@ -185,6 +202,9 @@ const DUPLICATE_SELECT = `
   is_cancelled,
   police_event_id,
   location,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
+  approved_suspicious_duplicate,
   event_type:event_types(name),
   road:roads(name),
   responders:event_responders(

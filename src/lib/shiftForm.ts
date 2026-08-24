@@ -1,10 +1,12 @@
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import { supabase } from './supabase'
-import type { ShiftStatus } from './status'
+import { deriveShiftLogStatus, eventToLogSnapshot } from './shiftLogStatus'
+import type { EventStatus, ShiftStatus } from './status'
 import type { ShiftKind, ShiftVehicleType } from './shifts'
 
 export type ShiftFormDraft = {
   id?: string
+  status: ShiftStatus
   shift_date: string
   shift_kind: ShiftKind
   vehicle_type: ShiftVehicleType
@@ -26,6 +28,9 @@ export function computeTotalKm(
   odometerEnd: number | null,
 ): number | null {
   if (odometerStart == null || odometerEnd == null) return null
+  // A reversed pair is a typo, not a distance. Refuse it rather than writing a
+  // negative into `total_km`, which feeds the fuel-refund and km-exception reports.
+  if (odometerEnd < odometerStart) return null
   return odometerEnd - odometerStart
 }
 
@@ -76,8 +81,44 @@ export function suggestRollupsFromLinkedEvents(input: {
 
 export const SHIFT_CREW_ERROR = 'יש לשבץ בין כונן אחד לשלושה'
 
+/**
+ * Deliberately permits an equal pair, unlike the event-fill rule, which demands
+ * strictly greater. A shift whose vehicle never left base is a real zero-km shift;
+ * only a reversed pair is wrong. The copy matches the rule it enforces.
+ */
+export const SHIFT_ODOMETER_ORDER_ERROR =
+  'מד אוץ סיום אינו יכול להיות קטן ממד אוץ התחלה'
+
+export function shiftStatusFromDraft(
+  draft: Pick<ShiftFormDraft, 'odometer_start' | 'odometer_end'>,
+  events: Parameters<typeof deriveShiftLogStatus>[0]['events'] = [],
+): ShiftStatus {
+  return deriveShiftLogStatus({
+    odometer_start: draft.odometer_start,
+    odometer_end: draft.odometer_end,
+    events,
+  })
+}
+
+/** One-line summary for the form banner, naming whichever gate actually failed. */
+export function summarizeShiftSaveErrors(fieldErrors: ShiftSaveError[]): string {
+  if (fieldErrors.some((row) => row.field === 'odometer_end')) {
+    return SHIFT_ODOMETER_ORDER_ERROR
+  }
+  if (fieldErrors.some((row) => row.field === 'responder_ids')) {
+    return SHIFT_CREW_ERROR
+  }
+  return 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.'
+}
+
 export type ShiftSaveError = {
-  field: 'shift_date' | 'shift_kind' | 'vehicle_type' | 'personal_vehicle_id' | 'responder_ids'
+  field:
+    | 'shift_date'
+    | 'shift_kind'
+    | 'vehicle_type'
+    | 'personal_vehicle_id'
+    | 'responder_ids'
+    | 'odometer_end'
   message: string
 }
 
@@ -98,6 +139,13 @@ export function validateShiftSave(draft: ShiftFormDraft): ShiftSaveError[] {
   }
   if (draft.responder_ids.length < 1 || draft.responder_ids.length > 3) {
     errors.push({ field: 'responder_ids', message: SHIFT_CREW_ERROR })
+  }
+  if (
+    draft.odometer_start != null &&
+    draft.odometer_end != null &&
+    draft.odometer_end < draft.odometer_start
+  ) {
+    errors.push({ field: 'odometer_end', message: SHIFT_ODOMETER_ORDER_ERROR })
   }
   return errors
 }
@@ -291,10 +339,54 @@ function mapShiftUpdateError(error: { message?: string }): string {
   return 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
 }
 
+export async function refreshShiftLogStatus(
+  shiftId: string,
+): Promise<ShiftStatus | null> {
+  const [{ data: shift, error: shiftError }, { data: events, error: eventsError }] =
+    await Promise.all([
+      supabase
+        .from('shifts')
+        .select('odometer_start, odometer_end')
+        .eq('id', shiftId)
+        .maybeSingle(),
+      supabase
+        .from('events')
+        .select(
+          'status, police_event_id, treatment_detail, treatment_notes, road_id, location, treated:event_treated_vehicles(quantity)',
+        )
+        .eq('shift_id', shiftId)
+        .eq('origin', 'shift'),
+    ])
+
+  if (shiftError || eventsError || !shift) return null
+
+  const status = deriveShiftLogStatus({
+    odometer_start: (shift.odometer_start as number | null) ?? null,
+    odometer_end: (shift.odometer_end as number | null) ?? null,
+    events: (events ?? []).map((row) =>
+      eventToLogSnapshot({
+        status: row.status as EventStatus,
+        police_event_id: row.police_event_id as string | null,
+        treatment_detail: row.treatment_detail as string | null,
+        treatment_notes: row.treatment_notes as string | null,
+        road_id: row.road_id as string | null,
+        location: row.location as string | null,
+        treated: row.treated as { quantity?: number }[] | null,
+      }),
+    ),
+  })
+
+  await supabase.from('shifts').update({ status }).eq('id', shiftId)
+  return status
+}
+
 export async function saveShiftForm(
   draft: ShiftFormDraft,
   shiftLeadId: string,
-  options?: { syncResponders?: boolean; canEditIdentity?: boolean },
+  options?: {
+    syncResponders?: boolean
+    canEditIdentity?: boolean
+  },
 ): Promise<
   | { ok: true; shiftId: string; status: ShiftStatus }
   | { ok: false; error: string; fieldErrors?: ShiftSaveError[] }
@@ -303,10 +395,9 @@ export async function saveShiftForm(
   if (fieldErrors.length > 0) {
     return {
       ok: false,
-      error:
-        fieldErrors.some((row) => row.field === 'responder_ids')
-          ? SHIFT_CREW_ERROR
-          : 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.',
+      // Name the actual blocker. A reversed odometer is not a missing-field problem,
+      // and telling the user to fill in the date would send them to the wrong section.
+      error: summarizeShiftSaveErrors(fieldErrors),
       fieldErrors,
     }
   }
@@ -328,7 +419,6 @@ export async function saveShiftForm(
   }
 
   let shiftId = draft.id
-  const nextStatus: ShiftStatus = 'draft'
   const syncResponders = options?.syncResponders ?? true
 
   if (shiftId) {
@@ -354,7 +444,7 @@ export async function saveShiftForm(
     }
     const { data, error } = await supabase
       .from('shifts')
-      .insert({ ...shiftPayload, shift_lead_id: shiftLeadId, status: nextStatus })
+      .insert({ ...shiftPayload, shift_lead_id: shiftLeadId, status: 'in_progress' })
       .select('id')
       .single()
 
@@ -379,7 +469,8 @@ export async function saveShiftForm(
     return { ok: false, error: mapShiftUpdateError(syncError) }
   }
 
-  return { ok: true, shiftId, status: nextStatus }
+  const status = (await refreshShiftLogStatus(shiftId)) ?? 'in_progress'
+  return { ok: true, shiftId, status }
 }
 
 /** Admin-only delete (enforced by RLS). */

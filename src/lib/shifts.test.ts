@@ -72,10 +72,42 @@ describe('isShiftPendingLog', () => {
     ).toBe(true)
   })
 
-  it('is false when both odometers are filled', () => {
+  it('is false when the stored status is already closed', () => {
     expect(
-      isShiftPendingLog({ shift_date: '2026-08-10', odometer_start: 100, odometer_end: 140 }, today),
+      isShiftPendingLog(
+        { shift_date: '2026-08-10', status: 'closed', odometer_start: 100, odometer_end: 140 },
+        today,
+      ),
     ).toBe(false)
+  })
+
+  it('stays pending when odometers are in but a born event is still open', () => {
+    expect(
+      isShiftPendingLog(
+        {
+          shift_date: '2026-08-10',
+          odometer_start: 100,
+          odometer_end: 140,
+          born_events: [
+            {
+              id: 'e1',
+              event_date: '2026-08-10',
+              police_event_id: '1',
+              status: 'in_progress',
+              treatment_detail: 'חילוץ',
+              treatment_notes: null,
+              road_id: null,
+              location: 'איילון',
+              emergency_means: false,
+              event_type: { name: 'תקוע' },
+              last_saved: null,
+              treated: [],
+            },
+          ],
+        },
+        today,
+      ),
+    ).toBe(true)
   })
 
   it('ignores future shifts', () => {

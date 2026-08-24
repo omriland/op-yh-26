@@ -14,6 +14,8 @@ export type CockpitReelItem = {
   location: string | null
   location_lat: number | null
   location_lng: number | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   event_type: { name: string } | null
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
@@ -29,6 +31,8 @@ const COCKPIT_REEL_SELECT = `
   location,
   location_lat,
   location_lng,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),

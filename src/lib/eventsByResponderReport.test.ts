@@ -15,6 +15,8 @@ function event(
     is_cancelled: partial.is_cancelled ?? false,
     police_event_id: partial.police_event_id ?? 'P-1',
     location: partial.location ?? 'צומת',
+    frozen_over_60km: partial.frozen_over_60km,
+    frozen_suspicious_duplicate: partial.frozen_suspicious_duplicate,
     event_type: partial.event_type ?? { name: 'תאונה' },
     district: partial.district ?? { name: 'מרכז' },
     road: partial.road ?? { name: 'כביש 1' },
@@ -67,6 +69,25 @@ describe('buildEventsByResponderRows', () => {
       total_km: 12,
       responder_name: 'דנה לוי',
       responder_callsign: 'D1',
+      frozen_over_60km: false,
+      frozen_suspicious_duplicate: false,
+    })
+  })
+
+  it('carries freeze flags from the event onto each volunteer row', () => {
+    const rows = buildEventsByResponderRows(
+      [
+        event({
+          id: 'frozen',
+          frozen_over_60km: true,
+          frozen_suspicious_duplicate: true,
+        }),
+      ],
+      range,
+    )
+    expect(rows[0]).toMatchObject({
+      frozen_over_60km: true,
+      frozen_suspicious_duplicate: true,
     })
   })
 

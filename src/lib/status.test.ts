@@ -4,8 +4,17 @@ import {
   EVENT_STATUS_ORDER,
   eventStamp,
   eventStatusTrailSteps,
+  shiftStamp,
   splitRespondersByParticipation,
 } from './status'
+
+describe('shift status vocabulary', () => {
+  it('labels logging progress, not a live-shift claim', () => {
+    expect(shiftStamp('in_progress').label).toBe('פתוחה')
+    expect(shiftStamp('draft').label).toBe('טיוטה')
+    expect(shiftStamp('closed').label).toBe('נסגרה')
+  })
+})
 
 describe('event status vocabulary', () => {
   it('uses the approved Hebrew labels for each event status', () => {

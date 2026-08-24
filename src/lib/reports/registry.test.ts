@@ -99,4 +99,30 @@ describe('REPORT_KINDS', () => {
       'ק״מ',
     ])
   })
+
+  it('registers admin freeze commands on km-exceptions and duplicate events', () => {
+    const km = REPORT_KINDS.find((item) => item.id === 'km_exceptions')
+    expect(km?.commands?.map((command) => command.id)).toEqual(['approve_over_60km'])
+    expect(km?.commands?.[0]?.label).toBe('אישור להחזר דלק')
+    const frozenRow = {
+      id: 'r1',
+      values: [],
+      eventId: 'e1',
+      freeze: { frozen_over_60km: true, frozen_suspicious_duplicate: false },
+    }
+    expect(km?.commands?.[0]?.visible?.(frozenRow, { userId: 'a', isAdmin: true })).toBe(true)
+    expect(km?.commands?.[0]?.visible?.(frozenRow, { userId: 'a', isAdmin: false })).toBe(false)
+
+    const dup = REPORT_KINDS.find((item) => item.id === 'duplicate_events')
+    expect(dup?.commands?.map((command) => command.id)).toEqual(['approve_duplicate', 'delete_duplicate'])
+    const dupRow = {
+      id: 'r1',
+      values: [],
+      eventId: 'e1',
+      freeze: { frozen_over_60km: false, frozen_suspicious_duplicate: true },
+    }
+    expect(dup?.commands?.[0]?.visible?.(dupRow, { userId: 'a', isAdmin: true })).toBe(true)
+    expect(dup?.commands?.[1]?.visible?.(dupRow, { userId: 'a', isAdmin: true })).toBe(true)
+    expect(dup?.commands?.[1]?.visible?.(dupRow, { userId: 'a', isAdmin: false })).toBe(false)
+  })
 })

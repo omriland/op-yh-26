@@ -5,6 +5,7 @@ import {
   formatLastLogin,
   formatPlate,
   hebrewWeekdayLetter,
+  isValidOptionalPhone,
   plateNumberForSave,
 } from './format'
 
@@ -22,6 +23,19 @@ describe('hebrewWeekdayLetter', () => {
 describe('formatDateWithWeekday', () => {
   it('puts the weekday letter in brackets after the date', () => {
     expect(formatDateWithWeekday('2026-08-16')).toBe("16.08.2026 (א')")
+  })
+})
+
+describe('isValidOptionalPhone', () => {
+  it('accepts empty and a full 10-digit number', () => {
+    expect(isValidOptionalPhone('')).toBe(true)
+    expect(isValidOptionalPhone('   ')).toBe(true)
+    expect(isValidOptionalPhone('050-1234567')).toBe(true)
+  })
+
+  it('rejects a partial number', () => {
+    expect(isValidOptionalPhone('050-123')).toBe(false)
+    expect(isValidOptionalPhone('050')).toBe(false)
   })
 })
 

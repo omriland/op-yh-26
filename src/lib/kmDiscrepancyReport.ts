@@ -17,6 +17,8 @@ export type KmDiscrepancyEventSource = {
   is_cancelled: boolean
   police_event_id: string | null
   location: string | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
   responders: KmDiscrepancyResponderSource[]
@@ -38,6 +40,8 @@ export type KmDiscrepancyRow = {
   lead_km: number
   responder_km: number
   diff: number
+  frozen_over_60km: boolean
+  frozen_suspicious_duplicate: boolean
 }
 
 export type LeadKmReplacement =
@@ -99,6 +103,8 @@ export function buildKmDiscrepancyRows(
         lead_km: responder.total_km,
         responder_km: volunteerKm,
         diff: volunteerKm - responder.total_km,
+        frozen_over_60km: Boolean(event.frozen_over_60km),
+        frozen_suspicious_duplicate: Boolean(event.frozen_suspicious_duplicate),
       })
     }
   }
@@ -120,6 +126,8 @@ const KM_DISCREPANCY_SELECT = `
   is_cancelled,
   police_event_id,
   location,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
   responders:event_responders(

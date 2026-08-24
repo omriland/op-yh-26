@@ -1,4 +1,6 @@
 import { fetchDuplicateClusters } from '../duplicateEventsReport'
+import { approveEventFreeze, deleteEvent } from '../events'
+import { eventFreezeFlagsFromRow } from '../eventFreeze'
 import { loadEventsByResponderReport } from '../eventsByResponderReport'
 import {
   defaultFuelRefundRange,
@@ -74,6 +76,7 @@ const openDocumentation: ReportKind = {
         id: row.id,
         eventId: row.event_id,
         searchText: [responder, row.police_event_id ?? '', placeText].join(' '),
+        freeze: eventFreezeFlagsFromRow(row),
         values: [
           row.police_event_id ?? '—',
           formatDate(row.event_date),
@@ -120,6 +123,7 @@ const eventsByResponder: ReportKind = {
         groupKey: row.responder_id,
         groupLabel: responder,
         searchText: [responder, row.police_event_id ?? '', placeText, row.district_name ?? ''].join(' '),
+        freeze: eventFreezeFlagsFromRow(row),
         values: [
           responder,
           formatDate(row.event_date),
@@ -178,6 +182,7 @@ const kmDiscrepancy: ReportKind = {
         assignmentId: row.assignment_id,
         actionValue: row.responder_km,
         searchText: [responder, row.police_event_id ?? '', placeText].join(' '),
+        freeze: eventFreezeFlagsFromRow(row),
         values: [
           policeEventLabel(row.police_event_id, row.is_cancelled),
           formatDate(row.event_date),
@@ -220,6 +225,7 @@ const kmExceptions: ReportKind = {
         eventId: row.event_id,
         groupKey: row.event_date,
         groupLabel: formatDayHeading(row.event_date),
+        freeze: eventFreezeFlagsFromRow(row),
         values: [
           formatDate(row.event_date),
           person(row.responder_name, row.responder_callsign),
@@ -232,6 +238,25 @@ const kmExceptions: ReportKind = {
       }),
     )
   },
+  commands: [
+    {
+      id: 'approve_over_60km',
+      label: 'אישור להחזר דלק',
+      variant: 'secondary',
+      confirmTitle: 'לאשר את האירוע להחזר דלק?',
+      confirmBody: () => 'האירוע ייספר בהחזר הדלק. ההקפאה בגלל חריגת קילומטרים תוסר.',
+      confirmLabel: 'אישור להחזר דלק',
+      loadingLabel: 'מאשר…',
+      successToast: 'האירוע אושר להחזר דלק',
+      failToast: 'אישור האירוע נכשל. בדקו את החיבור ונסו שוב.',
+      visible: (row, viewer) => Boolean(viewer.isAdmin && row.eventId && row.freeze?.frozen_over_60km),
+      async apply(row) {
+        if (!row.eventId) throw new Error('missing event')
+        const result = await approveEventFreeze(row.eventId, 'over_60km')
+        if (!result.ok) throw new Error(result.error)
+      },
+    },
+  ],
 }
 
 const duplicateEvents: ReportKind = {
@@ -258,6 +283,7 @@ const duplicateEvents: ReportKind = {
           eventId: member.event_id,
           groupKey: cluster.id,
           groupLabel: `${formatDate(cluster.event_date)} · ${cluster.sizeLabel}`,
+          freeze: eventFreezeFlagsFromRow(member),
           values: [
             formatDate(member.event_date),
             formatTime(member.started_at) ?? '—',
@@ -270,6 +296,48 @@ const duplicateEvents: ReportKind = {
       ),
     )
   },
+  commands: [
+    {
+      id: 'approve_duplicate',
+      label: 'אישור האירוע',
+      variant: 'secondary',
+      confirmTitle: 'לאשר את האירוע?',
+      confirmBody: () => 'ההקפאה בגלל חשד לאירוע כפול תוסר, והאירוע ייספר בהחזר הדלק אם אינו מוקפא מסיבה אחרת.',
+      confirmLabel: 'אישור האירוע',
+      loadingLabel: 'מאשר…',
+      successToast: 'האירוע אושר',
+      failToast: 'אישור האירוע נכשל. בדקו את החיבור ונסו שוב.',
+      visible: (row, viewer) =>
+        Boolean(viewer.isAdmin && row.eventId && row.freeze?.frozen_suspicious_duplicate),
+      async apply(row) {
+        if (!row.eventId) throw new Error('missing event')
+        const result = await approveEventFreeze(row.eventId, 'suspicious_duplicate')
+        if (!result.ok) throw new Error(result.error)
+      },
+    },
+    {
+      id: 'delete_duplicate',
+      label: 'מחיקה',
+      variant: 'destructive',
+      confirmTitle: 'למחוק את האירוע?',
+      confirmBody: (row) => {
+        const police = row.values[5]
+        return police && police !== '—'
+          ? `למחוק את האירוע ${police}? הפעולה אינה ניתנת לביטול.`
+          : 'למחוק את האירוע? הפעולה אינה ניתנת לביטול.'
+      },
+      confirmLabel: 'מחיקה',
+      loadingLabel: 'מוחק…',
+      successToast: 'האירוע נמחק',
+      failToast: 'מחיקת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
+      visible: (row, viewer) => Boolean(viewer.isAdmin && row.eventId),
+      async apply(row) {
+        if (!row.eventId) throw new Error('missing event')
+        const result = await deleteEvent(row.eventId)
+        if (!result.ok) throw new Error(result.error)
+      },
+    },
+  ],
 }
 
 export const REPORT_KINDS: ReportKind[] = [

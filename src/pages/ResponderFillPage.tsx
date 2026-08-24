@@ -43,6 +43,19 @@ import { EventListSkeleton } from '../components/ui/Skeleton'
 import { captureEvent } from '../lib/posthog'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
+import { useRevealFirstError } from '../lib/revealFirstError'
+import {
+  clearFillDraft,
+  fillDraftSavedLabel,
+  readFillDraft,
+  stashFillDraft,
+} from '../lib/fillDraftStash'
+
+const FILL_STASH_SCOPE = 'responder'
+/** Long enough to not thrash on every keystroke, short enough to survive a kill. */
+const FILL_STASH_DEBOUNCE_MS = 600
+/** --duration-base is 180ms; hold long enough for the press to read, then leave. */
+const STAMP_PRESS_HOLD_MS = 700
 
 type ResponderFillPageProps = {
   eventId: string
@@ -67,7 +80,15 @@ export function ResponderFillPage({
   const [savingDraft, setSavingDraft] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
+  const [localSavedAt, setLocalSavedAt] = useState<number | null>(null)
+  const [restoredFromDevice, setRestoredFromDevice] = useState(false)
+  /** Bumped on every failed submit so an identical second failure still re-focuses. */
+  const [submitAttempt, setSubmitAttempt] = useState(0)
+  /** Holds the screen just long enough to show the stamp land — 07-motion.md. */
+  const [justCompleted, setJustCompleted] = useState(false)
   const plateLookupTail = useRef(Promise.resolve())
+  const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stashLatest = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     let active = true
@@ -82,7 +103,7 @@ export function ResponderFillPage({
             return
           }
           setCtx(result.context)
-          setDraft(result.context.draft)
+          setDraft(restoreDraft(result.context.assignmentId, result.context.draft))
           setLoadState('ready')
         })
         .catch(() => {
@@ -106,7 +127,7 @@ export function ResponderFillPage({
           return
         }
         setCtx(next)
-        setDraft(next.draft)
+        setDraft(restoreDraft(next.assignmentId, next.draft))
         setLoadState('ready')
       })
       .catch(() => {
@@ -123,6 +144,63 @@ export function ResponderFillPage({
   const eventClosedWhileOpen =
     ctx?.eventStatus === 'done' && ctx.participationStatus !== 'done'
 
+  /**
+   * Prefer the device copy when it differs from the server row. It can only differ
+   * if it was written after the last successful save, so it is the newer of the two.
+   */
+  function restoreDraft(
+    assignmentId: string,
+    serverDraft: ResponderFillDraft,
+  ): ResponderFillDraft {
+    const stashed = readFillDraft<ResponderFillDraft>(
+      FILL_STASH_SCOPE,
+      assignmentId,
+      Date.now(),
+    )
+    if (!stashed) return serverDraft
+    if (JSON.stringify(stashed.draft) === JSON.stringify(serverDraft)) {
+      return serverDraft
+    }
+    setLocalSavedAt(stashed.savedAt)
+    setRestoredFromDevice(true)
+    return stashed.draft
+  }
+
+  // Device-local mirror. PRODUCT.md records no offline sync, so without this the
+  // narrative in פירוט הטיפול exists only in RAM until an explicit tap.
+  useEffect(() => {
+    if (!ctx || !draft || readOnly) return
+
+    const flush = () => {
+      stashFillDraft(FILL_STASH_SCOPE, ctx.assignmentId, draft, Date.now())
+      setLocalSavedAt(Date.now())
+    }
+    stashLatest.current = flush
+
+    if (stashTimer.current) clearTimeout(stashTimer.current)
+    stashTimer.current = setTimeout(flush, FILL_STASH_DEBOUNCE_MS)
+
+    return () => {
+      if (stashTimer.current) clearTimeout(stashTimer.current)
+    }
+  }, [ctx, draft, readOnly])
+
+  // A backgrounded WebView may never run another timer, so flush immediately.
+  useEffect(() => {
+    function flushNow() {
+      if (document.visibilityState === 'hidden') stashLatest.current?.()
+    }
+    function flushOnHide() {
+      stashLatest.current?.()
+    }
+    document.addEventListener('visibilitychange', flushNow)
+    window.addEventListener('pagehide', flushOnHide)
+    return () => {
+      document.removeEventListener('visibilitychange', flushNow)
+      window.removeEventListener('pagehide', flushOnHide)
+    }
+  }, [])
+
   function patchDraft(patch: Partial<ResponderFillDraft>) {
     setDraft((current) => (current ? { ...current, ...patch } : current))
   }
@@ -130,22 +208,25 @@ export function ResponderFillPage({
   function patchOdometerStart(value: string) {
     if (!draft) return
     patchDraft({ odometer_start: value })
-    const rangeError = odometerRangeError(value, draft.odometer_end)
+    // Clear as they type; judge on blur. A half-typed number is not a wrong number.
     setErrors((current) => ({
       ...current,
       odometer_start: undefined,
-      odometer_end: rangeError,
+      odometer_end: undefined,
     }))
   }
 
   function patchOdometerEnd(value: string) {
     if (!draft) return
     patchDraft({ odometer_end: value })
-    const rangeError = odometerRangeError(draft.odometer_start, value)
-    setErrors((current) => ({
-      ...current,
-      odometer_end: rangeError,
-    }))
+    setErrors((current) => ({ ...current, odometer_end: undefined }))
+  }
+
+  /** Range check once the number is finished, so the field cannot flash red mid-entry. */
+  function checkOdometerRange() {
+    if (!draft) return
+    const rangeError = odometerRangeError(draft.odometer_start, draft.odometer_end)
+    setErrors((current) => ({ ...current, odometer_end: rangeError }))
   }
 
   function enqueuePlateLookup(plateNumber: string) {
@@ -244,17 +325,31 @@ export function ResponderFillPage({
     if (!result.ok) {
       if (result.fieldErrors) setErrors(result.fieldErrors)
       show(result.error, 'alert')
-      const first = document.querySelector('[aria-invalid="true"]')
-      first?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setSubmitAttempt((n) => n + 1)
       return
     }
     captureEvent('responder_fill_completed', {
       event_id: ctx.eventId,
       via_token: Boolean(fillToken),
     })
+    if (ctx) clearFillDraft(FILL_STASH_SCOPE, ctx.assignmentId)
     show('הדיווח הושלם', 'done')
-    onCompleted()
+
+    // The one choreographed moment in the design system: the responder watches their
+    // own stamp land on הושלם before leaving. Without this the record is stamped in
+    // the database and never on screen, and the flow ends in disappearance.
+    const reduceMotion =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduceMotion) {
+      onCompleted()
+      return
+    }
+    setJustCompleted(true)
+    setTimeout(onCompleted, STAMP_PRESS_HOLD_MS)
   }
+
+  useRevealFirstError(submitAttempt)
 
   useDesktopFormSubmit(() => void onComplete(), {
     enabled:
@@ -303,11 +398,29 @@ export function ResponderFillPage({
                     : 'הדיווח הושלם. '}
                   רק אחמ״ש יכול לערוך לאחר סיום.
                 </p>
-              ) : null}
+              ) : localSavedAt ? (
+                <p className="t-caption text-muted" aria-live="polite">
+                  {`נשמר במכשיר ${fillDraftSavedLabel(localSavedAt)}`}
+                </p>
+              ) : (
+                <p className="t-caption text-muted">
+                  הפרטים נשמרים במכשיר עד לשליחה.
+                </p>
+              )}
             </div>
-            <StampChip {...stamp} />
+            {justCompleted ? (
+              <StampChip label="הושלם" tone="done" press />
+            ) : (
+              <StampChip {...stamp} />
+            )}
           </div>
         </div>
+
+        {restoredFromDevice && !readOnly ? (
+          <p className="banner banner--info t-body" role="status">
+            שוחזרו פרטים שנשמרו במכשיר ולא נשלחו. בדקו אותם ולחצו על סיום דיווח.
+          </p>
+        ) : null}
 
         {eventClosedWhileOpen ? (
           <p className="banner banner--info t-body" role="status">
@@ -425,6 +538,7 @@ export function ResponderFillPage({
                   onChange={(event) =>
                     patchOdometerStart(digitsOnly(event.target.value))
                   }
+                  onBlur={checkOdometerRange}
                 />
                 <TextField
                   label='מד אוץ סיום'
@@ -436,6 +550,7 @@ export function ResponderFillPage({
                   onChange={(event) =>
                     patchOdometerEnd(digitsOnly(event.target.value))
                   }
+                  onBlur={checkOdometerRange}
                 />
                 <TextField
                   label="נתיב נסיעה"
@@ -453,7 +568,7 @@ export function ResponderFillPage({
                   required
                   value={draft.treatment_detail}
                   error={errors.treatment_detail}
-                  style={{ minHeight: 120 }}
+                  rows={5}
                   onChange={(event) => {
                     patchDraft({ treatment_detail: event.target.value })
                     setErrors((current) => ({ ...current, treatment_detail: undefined }))

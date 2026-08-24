@@ -28,7 +28,12 @@ import {
 import type { CockpitEventPin } from '../../lib/cockpit'
 import { fetchLiveMapPins, subscribeLiveMapPins, type LiveMapPin } from '../../lib/liveMapPins'
 import { freshLivePins, LIVE_PIN_STALE_CHECK_MS, planLivePinSync } from '../../lib/liveTrack'
-import { opsMapViewTrigger, shouldRefitOpsMapView } from '../../lib/opsMapView'
+import {
+  OPS_MAP_FOCUS_ZOOM,
+  opsMapEventFocusTarget,
+  opsMapViewTrigger,
+  shouldRefitOpsMapView,
+} from '../../lib/opsMapView'
 
 export type SearchOrigin = {
   location: string
@@ -46,6 +51,8 @@ const EMPTY_EVENT_PINS: CockpitEventPin[] = []
 
 type OpsMapPanelProps = {
   eventPins?: CockpitEventPin[]
+  focusEventId?: string
+  focusEventRequestId?: number
   onEventSelect?: (eventId: string) => void
   fill?: boolean
   requirePins?: boolean
@@ -53,6 +60,8 @@ type OpsMapPanelProps = {
 
 export function OpsMapPanel({
   eventPins = EMPTY_EVENT_PINS,
+  focusEventId,
+  focusEventRequestId,
   onEventSelect,
   fill = false,
   requirePins = true,
@@ -65,6 +74,11 @@ export function OpsMapPanel({
   const [search, setSearch] = useState(emptyLocationPlaceFields())
   const [origin, setOrigin] = useState<SearchOrigin | null>(null)
   const [focusUserId, setFocusUserId] = useState<string | null>(null)
+  const [ignoreEventFocus, setIgnoreEventFocus] = useState(false)
+
+  useEffect(() => {
+    setIgnoreEventFocus(false)
+  }, [focusEventRequestId])
 
   useEffect(() => {
     let active = true
@@ -114,6 +128,7 @@ export function OpsMapPanel({
   function handleSearchChange(next: typeof search) {
     setSearch(next)
     if (next.location_place_id && next.location_lat != null && next.location_lng != null) {
+      setIgnoreEventFocus(true)
       setOrigin({
         location: next.location,
         lat: next.location_lat,
@@ -127,6 +142,13 @@ export function OpsMapPanel({
       setFocusUserId(null)
     }
   }
+
+  function handleNearbyFocus(userId: string) {
+    setIgnoreEventFocus(true)
+    setFocusUserId(userId)
+  }
+
+  const activeFocusEventId = ignoreEventFocus ? undefined : focusEventId
 
   const hasPins = (pins?.length ?? 0) > 0 || eventPins.length > 0 || visibleLivePins.length > 0
   const showMap = !requirePins || hasPins || Boolean(origin)
@@ -163,7 +185,7 @@ export function OpsMapPanel({
               rows={nearby}
               hasPins={pins.length > 0}
               focusUserId={focusUserId}
-              onFocus={setFocusUserId}
+              onFocus={handleNearbyFocus}
             />
           ) : null}
           {!showMap ? (
@@ -179,6 +201,8 @@ export function OpsMapPanel({
               livePins={visibleLivePins}
               origin={origin}
               focusUserId={focusUserId}
+              focusEventId={activeFocusEventId}
+              focusEventRequestId={focusEventRequestId}
               onEventSelect={onEventSelect}
               fill={fill}
             />
@@ -254,6 +278,7 @@ function applyMapView(
   eventPins: CockpitEventPin[],
   origin: SearchOrigin | null,
   focusUserId: string | null,
+  focusEventId?: string | null,
 ): boolean {
   session.searchOverlay?.setMap(null)
   session.searchOverlay = null
@@ -277,6 +302,13 @@ function applyMapView(
     for (const pin of eventPins) bounds.extend({ lat: pin.lat, lng: pin.lng })
   }
 
+  const eventFocus = opsMapEventFocusTarget(eventPins, focusEventId)
+  if (eventFocus) {
+    session.map.panTo(eventFocus)
+    session.map.setZoom(OPS_MAP_FOCUS_ZOOM)
+    return true
+  }
+
   const focus = focusUserId
     ? (origin
         ? nearbyResponders(pins, origin, SEARCH_VIEW_RADIUS_KM).find((row) => row.userId === focusUserId)
@@ -285,7 +317,7 @@ function applyMapView(
 
   if (focus) {
     session.map.panTo({ lat: focus.lat, lng: focus.lng })
-    session.map.setZoom(14)
+    session.map.setZoom(OPS_MAP_FOCUS_ZOOM)
     return true
   }
 
@@ -302,6 +334,8 @@ function OpsMapCanvas({
   livePins,
   origin,
   focusUserId,
+  focusEventId,
+  focusEventRequestId,
   onEventSelect,
   fill,
 }: {
@@ -310,6 +344,8 @@ function OpsMapCanvas({
   livePins: LiveMapPin[]
   origin: SearchOrigin | null
   focusUserId: string | null
+  focusEventId?: string
+  focusEventRequestId?: number
   onEventSelect?: (eventId: string) => void
   fill: boolean
 }) {
@@ -324,6 +360,9 @@ function OpsMapCanvas({
   const viewInitializedRef = useRef(false)
   const prevOriginRef = useRef(origin)
   const prevFocusUserIdRef = useRef(focusUserId)
+  const prevFocusEventIdRef = useRef(focusEventId)
+  const prevFocusEventRequestIdRef = useRef(focusEventRequestId)
+  const eventFocusAppliedKeyRef = useRef<string | null>(null)
   const mapListenersRef = useRef<{ remove: () => void }[]>([])
   const [mapError, setMapError] = useState<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
@@ -420,19 +459,43 @@ function OpsMapCanvas({
   useEffect(() => {
     const session = sessionRef.current
     if (!session || !mapReady) return
+    const eventFocusKey =
+      focusEventId != null && focusEventRequestId != null
+        ? `${focusEventId}:${focusEventRequestId}`
+        : null
+    const eventTarget = opsMapEventFocusTarget(eventPins, focusEventId)
+    const eventFocusReady =
+      Boolean(eventFocusKey && eventTarget) &&
+      eventFocusAppliedKeyRef.current !== eventFocusKey
     const trigger = opsMapViewTrigger({
       initialized: viewInitializedRef.current,
       originChanged: origin !== prevOriginRef.current,
-      focusChanged: focusUserId !== prevFocusUserIdRef.current,
+      focusChanged:
+        focusUserId !== prevFocusUserIdRef.current ||
+        focusEventId !== prevFocusEventIdRef.current ||
+        focusEventRequestId !== prevFocusEventRequestIdRef.current ||
+        eventFocusReady,
     })
     prevOriginRef.current = origin
     prevFocusUserIdRef.current = focusUserId
+    prevFocusEventIdRef.current = focusEventId
+    prevFocusEventRequestIdRef.current = focusEventRequestId
     if (!shouldRefitOpsMapView(trigger, userHasMovedMapRef.current)) return
     applyingViewRef.current = true
-    const moved = applyMapView(session, pins, eventPins, origin, focusUserId)
+    const moved = applyMapView(
+      session,
+      pins,
+      eventPins,
+      origin,
+      focusUserId,
+      focusEventId,
+    )
     viewInitializedRef.current = true
+    if (moved && eventFocusKey && eventTarget) {
+      eventFocusAppliedKeyRef.current = eventFocusKey
+    }
     if (!moved) applyingViewRef.current = false
-  }, [mapReady, origin, focusUserId, pins, eventPins])
+  }, [mapReady, origin, focusUserId, focusEventId, focusEventRequestId, pins, eventPins])
 
   useEffect(() => {
     const session = sessionRef.current

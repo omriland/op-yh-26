@@ -20,6 +20,7 @@ import {
 } from '../lib/format'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
+import { EventFrozenMark } from '../components/events/EventFrozenMark'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -179,7 +180,12 @@ export function EventDetailPage({
 
       <div className="detail__title-row">
         <div>
-          <h1 className="t-title">{eventLabel}</h1>
+          <h1 className="t-title">
+            <span className="event-card__type">
+              <EventFrozenMark flags={event} />
+              {eventLabel}
+            </span>
+          </h1>
           <p className="t-caption text-muted">{subLine.join(' · ')}</p>
         </div>
         <span className="event-stamps">

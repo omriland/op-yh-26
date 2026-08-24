@@ -47,10 +47,14 @@ export function partitionMineList<T>(
       continue
     }
 
+    // The window is a lower bound only. An event dated after today is routine
+    // (a night shift crossing midnight), and it is already documented, so it
+    // belongs in the archive rather than nowhere. Every logged item is either
+    // shown or accounted for by `hasMoreLogged` — none is silently dropped.
     const date = opts.dateOf(item)
-    if (date >= start && date <= opts.today) {
+    if (date >= start) {
       logged.push(item)
-    } else if (date < start) {
+    } else {
       hasMoreLogged = true
     }
   }

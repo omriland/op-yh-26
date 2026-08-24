@@ -78,6 +78,46 @@ describe('partitionMineList', () => {
     expect(result.hasMoreLogged).toBe(false)
   })
 
+  it('keeps a logged item dated after today instead of dropping it', () => {
+    // A night shift that crosses midnight is routinely dated ahead of `today`.
+    // Such a record is documented, so it must stay reachable in תועדו.
+    const items = [
+      { id: 'tomorrow-logged', date: '2026-08-17', bucket: 'logged' as const },
+      { id: 'today-logged', date: today, bucket: 'logged' as const },
+    ]
+
+    const result = partitionMineList(items, {
+      dateOf: (item) => item.date,
+      bucket: (item) => item.bucket,
+      today,
+      windowsLoaded: 1,
+    })
+
+    expect(result.logged.map((item) => item.id)).toEqual([
+      'tomorrow-logged',
+      'today-logged',
+    ])
+    expect(result.hasMoreLogged).toBe(false)
+  })
+
+  it('never loses a logged item: every one is either shown or flagged as more', () => {
+    const items = [
+      { id: 'ahead', date: '2026-09-30', bucket: 'logged' as const },
+      { id: 'inside', date: '2026-08-10', bucket: 'logged' as const },
+      { id: 'behind', date: '2026-01-01', bucket: 'logged' as const },
+    ]
+
+    const result = partitionMineList(items, {
+      dateOf: (item) => item.date,
+      bucket: (item) => item.bucket,
+      today,
+      windowsLoaded: 1,
+    })
+
+    expect(result.logged.map((item) => item.id)).toEqual(['ahead', 'inside'])
+    expect(result.hasMoreLogged).toBe(true)
+  })
+
   it('returns empty pending without dropping the bucket', () => {
     const result = partitionMineList(
       [{ id: 'done', date: today, bucket: 'logged' as const }],

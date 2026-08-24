@@ -12,6 +12,8 @@ export type EventsByResponderEventSource = {
   is_cancelled: boolean
   police_event_id: string | null
   location: string | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   event_type: { name: string } | null
   district: { name: string } | null
   road: { name: string } | null
@@ -35,6 +37,8 @@ export type EventsByResponderRow = {
   responder_id: string
   responder_name: string | null
   responder_callsign: string | null
+  frozen_over_60km: boolean
+  frozen_suspicious_duplicate: boolean
 }
 
 function responderSortKey(row: EventsByResponderRow): string {
@@ -67,6 +71,8 @@ export function buildEventsByResponderRows(
         responder_id: responder.responder_id,
         responder_name: responder.profile?.full_name ?? null,
         responder_callsign: responder.profile?.callsign ?? null,
+        frozen_over_60km: Boolean(event.frozen_over_60km),
+        frozen_suspicious_duplicate: Boolean(event.frozen_suspicious_duplicate),
       })
     }
   }
@@ -86,6 +92,8 @@ const EVENTS_BY_RESPONDER_SELECT = `
   is_cancelled,
   police_event_id,
   location,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
   event_type:event_types(name),
   district:districts(name),
   road:roads(name),

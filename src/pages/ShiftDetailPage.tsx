@@ -15,6 +15,7 @@ import {
   type ShiftDetail,
 } from '../lib/shifts'
 import { deleteShift } from '../lib/shiftForm'
+import { shiftRecordLogStatus } from '../lib/shiftLogStatus'
 import { formatDate, formatNumber, formatPlate, monoClass } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
@@ -23,6 +24,8 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
+import { shiftStamp } from '../lib/status'
+import { EventFrozenMark } from '../components/events/EventFrozenMark'
 import { useToast } from '../components/ui/Toast'
 
 type ShiftDetailPageProps = {
@@ -188,6 +191,8 @@ export function ShiftDetailPage({
             {savedLabel ? ` · ${savedLabel}` : ''}
           </p>
         </div>
+        {/* The one rotated stamp in the system belongs on a record's own header. */}
+        <StampChip {...shiftStamp(shiftRecordLogStatus(shift))} header />
       </div>
 
       {canEdit || isAdmin ? (
@@ -297,8 +302,11 @@ export function ShiftDetailPage({
                         onClick={() => onOpenEvent?.(event.id)}
                       >
                         <span className="event-card__top">
-                          <span className="t-body-strong">
-                            {event.event_type?.name ?? 'אירוע'}
+                          <span className="event-card__type">
+                            <EventFrozenMark flags={event} />
+                            <span className="t-body-strong">
+                              {event.event_type?.name ?? 'אירוע'}
+                            </span>
                           </span>
                           <StampChip {...stamp} />
                         </span>

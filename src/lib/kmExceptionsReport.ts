@@ -15,6 +15,8 @@ export type KmExceptionEventSource = {
   is_cancelled: boolean
   police_event_id: string | null
   location: string | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   event_type: { name: string } | null
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
@@ -34,6 +36,8 @@ export type KmExceptionRow = {
   responder_name: string | null
   responder_callsign: string | null
   total_km: number
+  frozen_over_60km: boolean
+  frozen_suspicious_duplicate: boolean
 }
 
 /** Flatten events → exceptional responder rows; sort date desc, then km desc. */
@@ -45,6 +49,10 @@ export function buildKmExceptionRows(
 
   for (const event of events) {
     if (range && (event.event_date < range.from || event.event_date > range.to)) continue
+    // Approved over-60km events leave the list (frozen_over_60km = false).
+    // Missing flag keeps legacy fixtures on the list. A later responder >60km
+    // re-freezes the event and it reappears.
+    if (event.frozen_over_60km === false) continue
     for (const responder of event.responders) {
       // Lead-entered km only (`event_responders.total_km`). Participation
       // status does not matter — odometer fields are never used here.
@@ -63,6 +71,8 @@ export function buildKmExceptionRows(
         responder_name: responder.profile?.full_name ?? null,
         responder_callsign: responder.profile?.callsign ?? null,
         total_km: responder.total_km,
+        frozen_over_60km: Boolean(event.frozen_over_60km),
+        frozen_suspicious_duplicate: Boolean(event.frozen_suspicious_duplicate),
       })
     }
   }
@@ -82,6 +92,8 @@ const KM_EXCEPTION_SELECT = `
   is_cancelled,
   police_event_id,
   location,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),

@@ -1,4 +1,4 @@
-import type { ParticipationStatus } from './status'
+import type { ParticipationStatus, ShiftStatus } from './status'
 import { isShiftPendingLog, jerusalemToday } from './shifts'
 import { supabase } from './supabase'
 
@@ -11,8 +11,9 @@ type ParticipationRow = { status: ParticipationStatus }
 
 type ShiftAttentionRow = {
   shift_date: string
-  odometer_start: number | null
-  odometer_end: number | null
+  status?: ShiftStatus
+  odometer_start?: number | null
+  odometer_end?: number | null
 }
 
 /** True when the viewer still has event participations to complete. */
@@ -20,7 +21,7 @@ export function hasOpenMineEvents(participations: ParticipationRow[]): boolean {
   return participations.some((row) => row.status !== 'done')
 }
 
-/** True when an assigned, editable shift is missing odometer start or end. */
+/** True when an assigned, editable shift is not fully logged. */
 export function hasOpenMineShifts(
   shifts: ShiftAttentionRow[],
   today: string = jerusalemToday(),
@@ -39,7 +40,7 @@ export async function fetchNavAttention(userId: string): Promise<NavAttention> {
     supabase.from('event_responders').select('status').eq('responder_id', userId),
     supabase
       .from('shift_responders')
-      .select('shift:shifts(shift_date, odometer_start, odometer_end)')
+      .select('shift:shifts(shift_date, status, odometer_start, odometer_end)')
       .eq('responder_id', userId),
   ])
 

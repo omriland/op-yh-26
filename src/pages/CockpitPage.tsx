@@ -33,6 +33,7 @@ import { StampChip } from '../components/ui/StampChip'
 import { useToast } from '../components/ui/Toast'
 import { OpsMapPanel } from '../components/map/OpsMapPanel'
 import { EventFormPage } from './EventFormPage'
+import { EventFrozenMark } from '../components/events/EventFrozenMark'
 
 type CockpitPageProps = {
   selectedEventId?: string
@@ -53,6 +54,10 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [mapOpen, setMapOpen] = useState(false)
+  const [mapEventFocus, setMapEventFocus] = useState<{
+    eventId: string
+    requestId: number
+  } | null>(null)
   const [introOpen, setIntroOpen] = useState(false)
   const knownEventPins = useMemo(() => cockpitEventMapPins(reel), [reel])
   const [geocodedEventPins, setGeocodedEventPins] = useState<CockpitEventPin[]>([])
@@ -79,6 +84,29 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   function clearDeletePrompt() {
     setArmedDeleteId(null)
     setDeleteHint(null)
+  }
+
+  function requestMapEventFocus(eventId: string) {
+    setMapEventFocus((prev) => ({
+      eventId,
+      requestId: (prev?.requestId ?? 0) + 1,
+    }))
+  }
+
+  function openMap() {
+    setMapOpen(true)
+    if (selectedEventId) requestMapEventFocus(selectedEventId)
+  }
+
+  function closeMap() {
+    setMapOpen(false)
+    setMapEventFocus(null)
+  }
+
+  function selectEvent(eventId: string) {
+    clearDeletePrompt()
+    onSelectEvent(eventId)
+    if (mapOpen) requestMapEventFocus(eventId)
   }
 
   async function reloadReel() {
@@ -138,7 +166,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
       show(result.error, 'alert')
       return
     }
-    onSelectEvent(result.eventId)
+    selectEvent(result.eventId)
     void reloadReel().catch(() => {})
   }
 
@@ -188,7 +216,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
       }
       if (mapOpen && event.key === 'Escape' && !isCockpitTypingTarget(event.target)) {
         event.preventDefault()
-        setMapOpen(false)
+        closeMap()
         return
       }
       const action = cockpitShortcut(event, isCockpitTypingTarget(event.target))
@@ -205,8 +233,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
           action.direction,
         )
         if (next && next !== selectedEventId) {
-          clearDeletePrompt()
-          onSelectEvent(next)
+          selectEvent(next)
         }
         return
       }
@@ -290,10 +317,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                     type="button"
                     className="cockpit__item"
                     aria-current={current ? 'true' : undefined}
-                    onClick={() => {
-                      clearDeletePrompt()
-                      onSelectEvent(event.id)
-                    }}
+                    onClick={() => selectEvent(event.id)}
                   >
                     <span
                       className={
@@ -302,7 +326,10 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                           : 't-body-strong cockpit__item-title is-draft'
                       }
                     >
-                      {cockpitReelTitle(event)}
+                      <span className="event-card__type">
+                        <EventFrozenMark flags={event} theme="command" />
+                        {cockpitReelTitle(event)}
+                      </span>
                     </span>
                     {detail ? (
                       <span className="t-body text-secondary cockpit__item-detail">{detail}</span>
@@ -413,7 +440,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
           className="cockpit-map-tab"
           aria-expanded={false}
           aria-controls="cockpit-map-drawer"
-          onClick={() => setMapOpen(true)}
+          onClick={openMap}
         >
           <MapPinned size={20} strokeWidth={1.75} aria-hidden="true" />
           מפה
@@ -424,14 +451,14 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
           id="cockpit-map-drawer"
           className="cockpit-map-drawer"
           role="dialog"
-          aria-modal="true"
+          aria-modal="false"
           aria-labelledby="cockpit-map-title"
         >
           <header className="cockpit-map-drawer__head">
             <h2 id="cockpit-map-title" className="t-section">
               מפה
             </h2>
-            <IconButton label="סגירת המפה" onClick={() => setMapOpen(false)}>
+            <IconButton label="סגירת המפה" onClick={closeMap}>
               <X size={20} strokeWidth={1.75} aria-hidden="true" />
             </IconButton>
           </header>
@@ -439,7 +466,9 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             fill
             requirePins={false}
             eventPins={eventPins}
-            onEventSelect={onSelectEvent}
+            focusEventId={mapEventFocus?.eventId}
+            focusEventRequestId={mapEventFocus?.requestId}
+            onEventSelect={selectEvent}
           />
         </div>
       ) : null}

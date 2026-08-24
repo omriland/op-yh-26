@@ -173,4 +173,17 @@ describe('EventCard default (unit list)', () => {
     expect(html).not.toContain('פרטי האירוע')
     expect(html).not.toContain('event-card-shell--manual')
   })
+
+  it('shows a snowflake on frozen unit-list cards', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({ frozen_over_60km: true }),
+        stamp,
+        onOpen: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('event-frozen-mark')
+    expect(html).toContain('האירוע מוקפא בגלל חריגת קילומטרים (מעל 60 ק״מ) וממתין לאישור מנהל.')
+  })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   includeEventInFuelAllocation,
+  INCOMPLETE_FUEL_REFUND_NOTICE,
   shouldShowIncompleteFuelNotice,
 } from './fuelAllocationPolicy'
 
@@ -14,9 +15,15 @@ describe('includeEventInFuelAllocation', () => {
 })
 
 describe('shouldShowIncompleteFuelNotice', () => {
-  it('shows from three open assignments', () => {
-    expect(shouldShowIncompleteFuelNotice(2)).toBe(false)
-    expect(shouldShowIncompleteFuelNotice(3)).toBe(true)
+  it('warns from the first open event, not the third', () => {
+    expect(shouldShowIncompleteFuelNotice(0)).toBe(false)
+    expect(shouldShowIncompleteFuelNotice(1)).toBe(true)
+    expect(shouldShowIncompleteFuelNotice(2)).toBe(true)
     expect(shouldShowIncompleteFuelNotice(4)).toBe(true)
+  })
+
+  it('states the consequence without shouting', () => {
+    expect(INCOMPLETE_FUEL_REFUND_NOTICE).not.toContain('!')
+    expect(INCOMPLETE_FUEL_REFUND_NOTICE).toContain('החזר הדלק הרבעוני')
   })
 })

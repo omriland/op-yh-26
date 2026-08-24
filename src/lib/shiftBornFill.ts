@@ -1,5 +1,6 @@
 import { fetchEventLookups, type LookupOption } from './eventForm'
 import { fetchEventDetail, type EventDetail } from './events'
+import { refreshShiftLogStatus } from './shiftForm'
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import type { EventStatus } from './status'
 import { supabase } from './supabase'
@@ -21,6 +22,30 @@ export type ShiftBornFillContext = {
   roads: LookupOption[]
   draft: ShiftBornFillDraft
   expected_updated_at: string
+}
+
+export type ShiftBornFillErrors = Partial<
+  Record<'road_id' | 'location' | 'treatment_detail', string>
+>
+
+/**
+ * Completion bar for a shift-born treatment record.
+ *
+ * This door into the record previously validated nothing, so the same treatment a
+ * responder must fill in five fields could be completed empty from here. The bar is
+ * the subset of the responder rule that a shift-born event can actually answer:
+ * where it happened and what was done. Draft saves are never blocked.
+ */
+export function shiftBornCompleteErrors(
+  draft: ShiftBornFillDraft,
+): ShiftBornFillErrors {
+  const errors: ShiftBornFillErrors = {}
+  if (!draft.road_id) errors.road_id = 'יש לבחור כביש'
+  if (!draft.location.trim()) errors.location = 'יש להזין מיקום'
+  if (!draft.treatment_detail.trim()) {
+    errors.treatment_detail = 'יש להזין פירוט טיפול'
+  }
+  return errors
 }
 
 export function emptyShiftBornFillDraft(): ShiftBornFillDraft {
@@ -159,5 +184,15 @@ export async function saveShiftBornEventFill(input: {
   if (error) {
     return { ok: false, error: mapFillError(error.message) }
   }
+
+  const { data: parent } = await supabase
+    .from('events')
+    .select('shift_id')
+    .eq('id', input.eventId)
+    .maybeSingle()
+  if (parent?.shift_id) {
+    await refreshShiftLogStatus(parent.shift_id as string)
+  }
+
   return { ok: true, updated_at: data as string }
 }

@@ -21,6 +21,14 @@ function source(overrides: Partial<FuelDetailSource> = {}): FuelDetailSource {
 }
 
 describe('buildFuelDetailRows', () => {
+  it('excludes frozen events even when lead km is present', () => {
+    const rows = buildFuelDetailRows([
+      source({ event_id: 'e-ok', total_km: 12, frozen: false }),
+      source({ event_id: 'e-frozen', total_km: 80, frozen: true }),
+    ])
+    expect(rows.map((r) => r.event_id)).toEqual(['e-ok'])
+  })
+
   it('excludes null total_km and includes zero', () => {
     const rows = buildFuelDetailRows([
       source({ event_id: 'e1', total_km: null }),
