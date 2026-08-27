@@ -53,10 +53,10 @@ describe('shiftBornFillStamp', () => {
     })
   })
 
-  it('marks non-empty open events as in progress', () => {
+  it('marks non-empty open events as draft saved, like a regular event', () => {
     expect(shiftBornFillStamp(snapshot({ treatment_detail: 'טיפול' }))).toEqual({
-      label: 'בתהליך',
-      tone: 'partial',
+      label: 'טיוטה נשמרה',
+      tone: 'draft',
     })
   })
 })

@@ -24,7 +24,7 @@ import {
   withImpliedAssignableRoles,
   type AssignableRole,
 } from '../lib/appRoles'
-import { isInvitePending } from '../lib/adminUserStatus'
+import { hasAvailability, isInvitePending } from '../lib/adminUserStatus'
 import { UserPresenceDot } from '../components/admin/UserPresenceDot'
 import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../components/availability/AvailabilityControl'
 import { availabilitySearchLabel } from '../lib/availability'
@@ -406,7 +406,9 @@ export function AdminUsersPage() {
           user.callsign,
           user.email,
           volunteerStatusLabel(user.volunteer_status),
-          availabilitySearchLabel(user.availability, user.available_from),
+          hasAvailability(user)
+            ? availabilitySearchLabel(user.availability, user.available_from)
+            : '',
         ],
         q,
       ),
@@ -1043,15 +1045,19 @@ export function AdminUsersPage() {
                   </td>
                   <td>{volunteerStatusLabel(user.volunteer_status)}</td>
                   <td onClick={(event) => event.stopPropagation()}>
-                    <AvailabilityPopoverTrigger
-                      target={{
-                        id: user.id,
-                        availability: user.availability,
-                        available_from: user.available_from,
-                      }}
-                      disabled={!canMutate}
-                      onSaved={patchUserAvailability}
-                    />
+                    {hasAvailability(user) ? (
+                      <AvailabilityPopoverTrigger
+                        target={{
+                          id: user.id,
+                          availability: user.availability,
+                          available_from: user.available_from,
+                        }}
+                        disabled={!canMutate}
+                        onSaved={patchUserAvailability}
+                      />
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
                   <td className="table-col--otp table-cell--nowrap">
                     {otpLabel ? (
@@ -1148,16 +1154,18 @@ export function AdminUsersPage() {
                     <div className="tags">
                       <RoleTag roles={user.roles} />
                       <span className="tag">{volunteerStatusLabel(user.volunteer_status)}</span>
-                      <AvailabilityTrigger
-                        compact
-                        target={{
-                          id: user.id,
-                          availability: user.availability,
-                          available_from: user.available_from,
-                        }}
-                        disabled={!canMutate}
-                        onSaved={patchUserAvailability}
-                      />
+                      {hasAvailability(user) ? (
+                        <AvailabilityTrigger
+                          compact
+                          target={{
+                            id: user.id,
+                            availability: user.availability,
+                            available_from: user.available_from,
+                          }}
+                          disabled={!canMutate}
+                          onSaved={patchUserAvailability}
+                        />
+                      ) : null}
                       {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
                       {isInvitePending(user) ? (
                         <span className="tag tag--pending">ממתין להרשמה</span>
@@ -1175,16 +1183,18 @@ export function AdminUsersPage() {
                     <div className="tags">
                       <RoleTag roles={user.roles} />
                       <span className="tag">{volunteerStatusLabel(user.volunteer_status)}</span>
-                      <AvailabilityTrigger
-                        compact
-                        target={{
-                          id: user.id,
-                          availability: user.availability,
-                          available_from: user.available_from,
-                        }}
-                        disabled
-                        onSaved={patchUserAvailability}
-                      />
+                      {hasAvailability(user) ? (
+                        <AvailabilityTrigger
+                          compact
+                          target={{
+                            id: user.id,
+                            availability: user.availability,
+                            available_from: user.available_from,
+                          }}
+                          disabled
+                          onSaved={patchUserAvailability}
+                        />
+                      ) : null}
                       {otpLabel ? <span className="tag">OTP · {otpLabel}</span> : null}
                       {isInvitePending(user) ? (
                         <span className="tag tag--pending">ממתין להרשמה</span>

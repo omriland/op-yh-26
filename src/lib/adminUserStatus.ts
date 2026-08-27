@@ -6,6 +6,14 @@ export function isInvitePending(user: {
   return user.active && user.invite_pending
 }
 
+/** Invitees who have not registered yet have no duty availability. */
+export function hasAvailability(user: {
+  active: boolean
+  invite_pending: boolean
+}): boolean {
+  return !isInvitePending(user)
+}
+
 /**
  * Sort: pending invitees → active confirmed → inactive.
  * Stable name order within each group (caller should pre-sort by name).

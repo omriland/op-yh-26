@@ -41,7 +41,7 @@ export function isShiftBornEventEmpty(event: ShiftBornEventSnapshot): boolean {
 export function shiftBornFillStamp(event: ShiftBornEventSnapshot): StampDescriptor {
   if (event.status === 'done') return { label: 'הושלם', tone: 'done' }
   if (isShiftBornEventEmpty(event)) return { label: 'ממתין למילוי פרטים', tone: 'draft' }
-  return { label: 'בתהליך', tone: 'partial' }
+  return { label: 'טיוטה נשמרה', tone: 'draft' }
 }
 
 export function lastSavedByLabel(name: string | null | undefined): string | null {

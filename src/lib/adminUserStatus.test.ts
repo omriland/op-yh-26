@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareAdminUsers, isInvitePending } from './adminUserStatus'
+import { compareAdminUsers, hasAvailability, isInvitePending } from './adminUserStatus'
 
 describe('isInvitePending', () => {
   it('is true for active invite_pending users', () => {
@@ -12,6 +12,17 @@ describe('isInvitePending', () => {
 
   it('is false for inactive users even if invite_pending', () => {
     expect(isInvitePending({ active: false, invite_pending: true })).toBe(false)
+  })
+})
+
+describe('hasAvailability', () => {
+  it('is false while registration is pending', () => {
+    expect(hasAvailability({ active: true, invite_pending: true })).toBe(false)
+  })
+
+  it('is true for registered users, including inactive', () => {
+    expect(hasAvailability({ active: true, invite_pending: false })).toBe(true)
+    expect(hasAvailability({ active: false, invite_pending: false })).toBe(true)
   })
 })
 

@@ -11,6 +11,11 @@ import {
   type AvailabilityStatus,
 } from '../../lib/availability'
 import { saveAvailability } from '../../lib/availabilityApi'
+import {
+  AVAILABILITY_POPOVER_FALLBACK_HEIGHT,
+  AVAILABILITY_POPOVER_FALLBACK_WIDTH,
+  placeAvailabilityPopover,
+} from '../../lib/availabilityPopoverPlacement'
 import { Dialog } from '../ui/Dialog'
 import { useToast } from '../ui/Toast'
 import { AvailabilityEditor } from './AvailabilityEditor'
@@ -124,7 +129,9 @@ export function AvailabilityPopoverTrigger({
   const [saving, setSaving] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [coords, setCoords] = useState<{ top: number; insetInlineEnd: number } | null>(null)
+  const [coords, setCoords] = useState<{ top: number; left: number; maxHeight: number } | null>(
+    null,
+  )
   const today = israelToday()
   const status = effectiveAvailability(
     parseAvailabilityStatus(target.availability),
@@ -144,19 +151,34 @@ export function AvailabilityPopoverTrigger({
       const trigger = triggerRef.current
       if (!trigger) return
       const rect = trigger.getBoundingClientRect()
-      const pad = 8
-      const gap = 4
-      const rtl = document.documentElement.dir === 'rtl'
-      setCoords({
-        top: Math.max(pad, rect.bottom + gap),
-        insetInlineEnd: Math.max(pad, rtl ? rect.left : window.innerWidth - rect.right),
+      const panel = panelRef.current
+      const next = placeAvailabilityPopover({
+        trigger: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        panel: {
+          width: panel?.offsetWidth || AVAILABILITY_POPOVER_FALLBACK_WIDTH,
+          height: panel?.scrollHeight || AVAILABILITY_POPOVER_FALLBACK_HEIGHT,
+        },
+        rtl: document.documentElement.dir === 'rtl',
       })
+      setCoords((current) =>
+        current &&
+        current.top === next.top &&
+        current.left === next.left &&
+        current.maxHeight === next.maxHeight
+          ? current
+          : next,
+      )
     }
 
     place()
+    const panel = panelRef.current
+    const observer = panel ? new ResizeObserver(place) : null
+    if (panel) observer?.observe(panel)
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
     return () => {
+      observer?.disconnect()
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
     }
@@ -224,7 +246,7 @@ export function AvailabilityPopoverTrigger({
       >
         <AvailabilityStatusMark status={status} caption={caption} />
       </button>
-      {open && coords
+      {open
         ? createPortal(
             <div
               ref={panelRef}
@@ -232,7 +254,11 @@ export function AvailabilityPopoverTrigger({
               data-theme="command"
               role="dialog"
               aria-label="זמינות"
-              style={{ top: coords.top, insetInlineEnd: coords.insetInlineEnd }}
+              style={
+                coords
+                  ? { top: coords.top, left: coords.left, maxHeight: coords.maxHeight }
+                  : { visibility: 'hidden', top: 0, left: 0 }
+              }
             >
               <AvailabilityEditor
                 initialStatus={parseAvailabilityStatus(target.availability)}
