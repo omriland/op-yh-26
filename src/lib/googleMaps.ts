@@ -11,6 +11,13 @@ export type MapsApi = {
       fullscreenControl?: boolean
       fullscreenControlOptions?: { position?: number }
       gestureHandling?: string
+      clickableIcons?: boolean
+      renderingType?: string
+      styles?: Array<{
+        featureType?: string
+        elementType?: string
+        stylers: Array<Record<string, string | number>>
+      }>
     },
   ) => GoogleMap
   ControlPosition?: { RIGHT_BOTTOM: number }
@@ -78,6 +85,15 @@ export type GoogleMap = {
   addListener: (eventName: string, handler: () => void) => MapsEventListener
   getDiv: () => HTMLElement
   data: GoogleMapData
+  setOptions: (opts: {
+    styles?: Array<{
+      featureType?: string
+      elementType?: string
+      stylers: Array<Record<string, string | number>>
+    }>
+    clickableIcons?: boolean
+    renderingType?: string
+  }) => void
 }
 
 type GoogleBounds = {
@@ -106,6 +122,14 @@ declare global {
 let loadPromise: Promise<MapsApi> | null = null
 
 export const ISRAEL_CENTER = { lat: 31.5, lng: 34.85 }
+
+/** Same quiet base as Static Maps: no Google shops, attractions, or transit icons. */
+export const OPS_MAP_BASE_STYLES = [
+  { featureType: 'poi', stylers: [{ visibility: 'off' as const }] },
+  { featureType: 'poi.business', stylers: [{ visibility: 'off' as const }] },
+  { featureType: 'poi.attraction', stylers: [{ visibility: 'off' as const }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' as const }] },
+]
 
 export function loadGoogleMaps(): Promise<MapsApi> {
   if (window.google?.maps) return Promise.resolve(window.google.maps)

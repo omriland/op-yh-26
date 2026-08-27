@@ -7,6 +7,7 @@ import { EmptyState } from '../ui/EmptyState'
 import { EventListSkeleton } from '../ui/Skeleton'
 import { useToast } from '../ui/Toast'
 import {
+  OPS_MAP_BASE_STYLES,
   createLabeledPin,
   ISRAEL_CENTER,
   loadGoogleMaps,
@@ -436,6 +437,13 @@ function OpsMapCanvas({
             ? { position: maps.ControlPosition.RIGHT_BOTTOM }
             : undefined,
           gestureHandling: 'greedy',
+          clickableIcons: false,
+          renderingType: 'RASTER',
+        })
+        map.setOptions({
+          renderingType: 'RASTER',
+          styles: OPS_MAP_BASE_STYLES,
+          clickableIcons: false,
         })
         policeLayerRef.current = attachPoliceStationLayer(maps, map)
         function markUserMoved() {

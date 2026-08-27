@@ -5982,21 +5982,6 @@ textarea.field__input {
 
 .user-map-legend__swatch--unavailable {
   background: var(--status-draft);
-  border-color: var(--surface-raised);
-}
-
-.user-map-legend__swatch--live {
-  width: var(--space-4);
-  height: var(--space-4);
-  background: var(--status-done);
-  border-color: var(--surface-raised);
-}
-
-.user-map-legend__swatch--cluster {
-  width: var(--space-4);
-  height: var(--space-4);
-  background: var(--accent);
-  border-color: var(--surface-raised);
 }
 
 .user-map__layers-btn {

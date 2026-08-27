@@ -14,14 +14,6 @@ export function MapPinLegend() {
           <span className="user-map-legend__swatch user-map-legend__swatch--unavailable" aria-hidden="true" />
           <span>לא זמין</span>
         </li>
-        <li className="user-map-legend__row">
-          <span className="user-map-legend__swatch user-map-legend__swatch--live" aria-hidden="true" />
-          <span>בדרך</span>
-        </li>
-        <li className="user-map-legend__row">
-          <span className="user-map-legend__swatch user-map-legend__swatch--cluster" aria-hidden="true" />
-          <span>קבוצת כתובות</span>
-        </li>
       </ul>
     </div>
   )
