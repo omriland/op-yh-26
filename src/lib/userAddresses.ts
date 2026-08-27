@@ -170,6 +170,7 @@ export function toMapPins(
     full_name: string
     callsign: string
     active: boolean
+    invite_pending?: boolean
     volunteer_status?: string | null
     availability?: string | null
     available_from?: string | null
@@ -179,6 +180,7 @@ export function toMapPins(
   const pins: MapPin[] = []
   for (const user of users) {
     if (!user.active) continue
+    if (user.invite_pending) continue
     if (!isMapVisibleVolunteerStatus(user.volunteer_status)) continue
     for (const address of user.addresses) {
       const name = addressKindLabel(address.kind, address.label)
@@ -201,19 +203,28 @@ export function toMapPins(
   return pins
 }
 
+export type MapUserPinTone = 'volunteer' | 'phone'
+
 export function mapUserPinChrome(
   pin: MapPin,
   today = israelToday(),
-): { unavailable: boolean; tooltip: { text: string; alert: boolean } } {
+): {
+  unavailable: boolean
+  tone: MapUserPinTone
+  tooltip: { text: string; alert: boolean }
+} {
+  const tone: MapUserPinTone =
+    pin.volunteerStatus === 'phone_training' ? 'phone' : 'volunteer'
   const hover = mapAvailabilityHoverLabel(pin.availability, pin.availableFrom, today)
   if (hover) {
-    return { unavailable: true, tooltip: { text: hover, alert: false } }
+    return { unavailable: true, tone, tooltip: { text: hover, alert: false } }
   }
   return {
     unavailable: false,
+    tone,
     tooltip: {
       text: volunteerStatusLabel(pin.volunteerStatus),
-      alert: pin.volunteerStatus === 'personal_vehicle_training',
+      alert: false,
     },
   }
 }

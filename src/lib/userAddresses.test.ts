@@ -304,6 +304,76 @@ describe('toMapPins', () => {
     expect(pins.map((pin) => pin.userId)).toEqual(['active'])
   })
 
+  it('keeps חניכה טלפונית and חניכה ברכב פרטי on the map', () => {
+    const address = {
+      id: 'h1',
+      kind: 'home' as const,
+      label: null,
+      formatted_address: homePlace.location,
+      place_id: homePlace.location_place_id,
+      lat: homePlace.location_lat,
+      lng: homePlace.location_lng,
+    }
+    const pins = toMapPins([
+      {
+        id: 'phone',
+        full_name: 'טלפון',
+        callsign: '5',
+        active: true,
+        volunteer_status: 'phone_training',
+        addresses: [address],
+      },
+      {
+        id: 'car',
+        full_name: 'רכב',
+        callsign: '6',
+        active: true,
+        volunteer_status: 'personal_vehicle_training',
+        addresses: [address],
+      },
+    ])
+
+    expect(pins.map((pin) => [pin.userId, pin.volunteerStatus])).toEqual([
+      ['phone', 'phone_training'],
+      ['car', 'personal_vehicle_training'],
+    ])
+  })
+
+  it('hides users still pending registration', () => {
+    const address = {
+      id: 'h1',
+      kind: 'home' as const,
+      label: null,
+      formatted_address: homePlace.location,
+      place_id: homePlace.location_place_id,
+      lat: homePlace.location_lat,
+      lng: homePlace.location_lng,
+    }
+    const pins = toMapPins([
+      {
+        id: 'pending',
+        full_name: 'ממתין',
+        callsign: '9',
+        active: true,
+        invite_pending: true,
+        volunteer_status: 'active_volunteer',
+        availability: 'available',
+        addresses: [address],
+      },
+      {
+        id: 'active',
+        full_name: 'דנה',
+        callsign: '4',
+        active: true,
+        invite_pending: false,
+        volunteer_status: 'active_volunteer',
+        addresses: [address],
+      },
+    ])
+
+    expect(pins.map((pin) => pin.userId)).toEqual(['active'])
+  })
+
   it('carries availability onto each pin', () => {
     const address = {
       id: 'h1',
@@ -384,10 +454,28 @@ describe('mapUserPinChrome', () => {
     availableFrom: null as string | null,
   }
 
-  it('keeps available pins blue with volunteer-status hover', () => {
+  it('uses volunteer tone for מתנדב פעיל and חניכה ברכב פרטי', () => {
     expect(mapUserPinChrome(base, today)).toEqual({
       unavailable: false,
+      tone: 'volunteer',
       tooltip: { text: 'מתנדב פעיל', alert: false },
+    })
+    expect(
+      mapUserPinChrome({ ...base, volunteerStatus: 'personal_vehicle_training' }, today),
+    ).toEqual({
+      unavailable: false,
+      tone: 'volunteer',
+      tooltip: { text: 'חניכה ברכב פרטי', alert: false },
+    })
+  })
+
+  it('uses phone tone for חניכה טלפונית', () => {
+    expect(
+      mapUserPinChrome({ ...base, volunteerStatus: 'phone_training' }, today),
+    ).toEqual({
+      unavailable: false,
+      tone: 'phone',
+      tooltip: { text: 'חניכה טלפונית', alert: false },
     })
   })
 
@@ -396,6 +484,7 @@ describe('mapUserPinChrome', () => {
       mapUserPinChrome({ ...base, availability: 'unavailable', availableFrom: null }, today),
     ).toEqual({
       unavailable: true,
+      tone: 'volunteer',
       tooltip: { text: 'לא זמין', alert: false },
     })
   })
@@ -408,6 +497,7 @@ describe('mapUserPinChrome', () => {
       ),
     ).toEqual({
       unavailable: true,
+      tone: 'volunteer',
       tooltip: { text: 'לא זמין עד 20.08.2026', alert: false },
     })
   })

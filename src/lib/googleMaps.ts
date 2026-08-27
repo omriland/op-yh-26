@@ -70,6 +70,11 @@ export type GoogleMap = {
   fitBounds: (bounds: GoogleBounds, padding?: number) => void
   panTo: (center: { lat: number; lng: number }) => void
   setZoom: (zoom: number) => void
+  getZoom: () => number
+  getBounds: () => {
+    getSouthWest: () => GoogleLatLng
+    getNorthEast: () => GoogleLatLng
+  } | undefined
   addListener: (eventName: string, handler: () => void) => MapsEventListener
   getDiv: () => HTMLElement
   data: GoogleMapData
@@ -182,6 +187,7 @@ export function createLabeledPin(
   tooltip?: { text: string; alert?: boolean; live?: boolean },
   unavailable = false,
   onDragEnd?: (next: { lat: number; lng: number }) => void,
+  extraClass?: string,
 ): MapPinOverlay {
   class LabeledPin extends maps.OverlayView {
     private el: HTMLDivElement | null = null
@@ -202,6 +208,7 @@ export function createLabeledPin(
         unavailable ? 'user-map-pin--unavailable' : '',
         onClick || onDragEnd ? 'user-map-pin--hit' : '',
         onDragEnd ? 'user-map-pin--draggable' : '',
+        extraClass ?? '',
       ]
         .filter(Boolean)
         .join(' ')
@@ -279,6 +286,7 @@ export function createLabeledPin(
         tip.className = [
           'user-map-pin__tip',
           tooltip.alert ? 'user-map-pin__tip--alert' : '',
+          extraClass === 'user-map-pin--phone' ? 'user-map-pin__tip--phone' : '',
           tooltip.live ? 'user-map-pin__tip--live' : '',
         ]
           .filter(Boolean)

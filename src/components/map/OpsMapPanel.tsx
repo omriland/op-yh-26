@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapPinned } from 'lucide-react'
 import { MapLayersControl } from './MapLayersControl'
+import { MapPinLegend } from './MapPinLegend'
 import { LocationPlacesField } from '../events/LocationPlacesField'
 import { EmptyState } from '../ui/EmptyState'
 import { EventListSkeleton } from '../ui/Skeleton'
@@ -15,7 +16,22 @@ import {
 } from '../../lib/googleMaps'
 import { hasGoogleMapsApiKey } from '../../lib/googlePlaces'
 import { emptyLocationPlaceFields } from '../../lib/systemDistricts'
-import { monoClass } from '../../lib/format'
+import { formatNumber, monoClass } from '../../lib/format'
+import {
+  applyLiveDelta,
+  cullLivePinsToBbox,
+  liveDeltaFromChange,
+  liveMotionPosition,
+  pushLiveMotion,
+  type LiveMotion,
+} from '../../lib/liveMapChannel'
+import {
+  bboxFromGoogleMap,
+  catalogViewForViewport,
+  ISRAEL_VIEW_BBOX,
+  sameViewport,
+  zoomAfterCatalogClusterClick,
+} from '../../lib/mapCatalogView'
 import {
   fetchActiveUserMapPins,
   formatMapDistanceKm,
@@ -111,7 +127,18 @@ export function OpsMapPanel({
         })
     }
     loadLive()
-    const unsubscribe = subscribeLiveMapPins(loadLive)
+    const unsubscribe = subscribeLiveMapPins((change) => {
+      const delta = liveDeltaFromChange(change)
+      if (!delta) {
+        loadLive()
+        return
+      }
+      setLivePins((current) => {
+        const next = applyLiveDelta(current, delta)
+        if (next.needsSnapshot) loadLive()
+        return next.pins
+      })
+    })
     return () => {
       active = false
       unsubscribe()
@@ -378,6 +405,18 @@ function OpsMapCanvas({
   const [mapReady, setMapReady] = useState(false)
   const [layers, setLayers] = useState<OpsMapLayers>(defaultOpsMapLayers)
   const policeLayerRef = useRef<ReturnType<typeof attachPoliceStationLayer> | null>(null)
+  const [viewport, setViewport] = useState({ bbox: ISRAEL_VIEW_BBOX, zoom: 8 })
+  const motionsRef = useRef(new Map<string, LiveMotion>())
+  const displayRef = useRef(new Map<string, { lat: number; lng: number }>())
+
+  const catalogView = useMemo(
+    () => catalogViewForViewport(pins, viewport.bbox, viewport.zoom),
+    [pins, viewport],
+  )
+  const liveInView = useMemo(
+    () => cullLivePinsToBbox(livePins, viewport.bbox),
+    [livePins, viewport],
+  )
 
   useEffect(() => {
     const host = hostRef.current
@@ -408,6 +447,10 @@ function OpsMapCanvas({
           map.addListener('zoom_changed', markUserMoved),
           map.addListener('idle', () => {
             applyingViewRef.current = false
+            const next = bboxFromGoogleMap(map)
+            if (next) {
+              setViewport((current) => (sameViewport(current, next) ? current : next))
+            }
           }),
         ]
         sessionRef.current = { maps, map, searchOverlay: null }
@@ -442,7 +485,7 @@ function OpsMapCanvas({
     for (const overlay of staticOverlaysRef.current) overlay.setMap(null)
     staticOverlaysRef.current = []
     const overlays: MapPinOverlay[] = []
-    for (const pin of pins) {
+    for (const pin of catalogView.points) {
       const chrome = mapUserPinChrome(pin)
       const overlay = createLabeledPin(
         session.maps,
@@ -453,6 +496,30 @@ function OpsMapCanvas({
         undefined,
         chrome.tooltip,
         chrome.unavailable,
+        undefined,
+        chrome.tone === 'phone' ? 'user-map-pin--phone' : undefined,
+      )
+      overlay.setMap(session.map)
+      overlays.push(overlay)
+    }
+    for (const cluster of catalogView.clusters) {
+      const count = formatNumber(cluster.count)
+      const overlay = createLabeledPin(
+        session.maps,
+        { lat: cluster.lat, lng: cluster.lng },
+        count,
+        `${count} כתובות`,
+        'user',
+        () => {
+          const map = sessionRef.current?.map
+          if (!map) return
+          map.panTo({ lat: cluster.lat, lng: cluster.lng })
+          map.setZoom(Math.min(16, zoomAfterCatalogClusterClick(map.getZoom() ?? 8)))
+        },
+        { text: `${count} כתובות` },
+        false,
+        undefined,
+        'user-map-pin--cluster',
       )
       overlay.setMap(session.map)
       overlays.push(overlay)
@@ -475,7 +542,7 @@ function OpsMapCanvas({
       overlays.push(overlay)
     }
     staticOverlaysRef.current = overlays
-  }, [mapReady, pins, eventPins])
+  }, [mapReady, catalogView, eventPins])
 
   useEffect(() => {
     const session = sessionRef.current
@@ -521,17 +588,23 @@ function OpsMapCanvas({
   useEffect(() => {
     const session = sessionRef.current
     if (!session || !mapReady) return
-    const plan = planLivePinSync(liveOverlaysRef.current.keys(), livePins)
+    const plan = planLivePinSync(liveOverlaysRef.current.keys(), liveInView)
+    const now = Date.now()
     for (const id of plan.remove) {
       liveOverlaysRef.current.get(id)?.setMap(null)
       liveOverlaysRef.current.delete(id)
+      motionsRef.current.delete(id)
+      displayRef.current.delete(id)
     }
     for (const pin of plan.update) {
       const overlay = liveOverlaysRef.current.get(pin.assignmentId)
-      overlay?.setPosition({ lat: pin.lat, lng: pin.lng })
+      const shown = displayRef.current.get(pin.assignmentId) ?? { lat: pin.lat, lng: pin.lng }
+      motionsRef.current.set(pin.assignmentId, pushLiveMotion(shown, { lat: pin.lat, lng: pin.lng }, now))
       overlay?.setCopy(pin.label, pin.tooltip)
     }
     for (const pin of plan.add) {
+      displayRef.current.set(pin.assignmentId, { lat: pin.lat, lng: pin.lng })
+      motionsRef.current.delete(pin.assignmentId)
       const overlay = createLabeledPin(
         session.maps,
         { lat: pin.lat, lng: pin.lng },
@@ -544,7 +617,27 @@ function OpsMapCanvas({
       overlay.setMap(session.map)
       liveOverlaysRef.current.set(pin.assignmentId, overlay)
     }
-  }, [mapReady, livePins])
+  }, [mapReady, liveInView])
+
+  useEffect(() => {
+    if (!mapReady) return
+    let raf = 0
+    const tick = () => {
+      if (!document.hidden) {
+        const now = Date.now()
+        for (const [id, overlay] of liveOverlaysRef.current) {
+          const motion = motionsRef.current.get(id)
+          if (!motion) continue
+          const pos = liveMotionPosition(motion, now)
+          displayRef.current.set(id, pos)
+          overlay.setPosition(pos)
+        }
+      }
+      raf = window.requestAnimationFrame(tick)
+    }
+    raf = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(raf)
+  }, [mapReady])
 
   useEffect(() => {
     const session = sessionRef.current
@@ -567,6 +660,7 @@ function OpsMapCanvas({
       aria-label="מפת כתובות ואירועים"
     >
       <div ref={hostRef} className="user-map__canvas" />
+      <MapPinLegend />
       <MapLayersControl layers={layers} onChange={setLayers} />
     </div>
   )

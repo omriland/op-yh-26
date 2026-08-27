@@ -1811,6 +1811,7 @@ textarea.field__input {
   min-width: 260px;
   max-width: min(320px, calc(100vw - (var(--space-4) * 2)));
   padding: var(--space-3);
+  overflow: auto;
 }
 
 .menu--rise {
@@ -5840,6 +5841,42 @@ textarea.field__input {
   border-color: var(--status-draft);
 }
 
+.user-map-pin--cluster .user-map-pin__dot {
+  width: var(--space-4);
+  height: var(--space-4);
+  background: var(--accent);
+  border-color: var(--surface-raised);
+}
+
+.user-map-pin--cluster .user-map-pin__label {
+  font: 500 12px/16px var(--font-ui);
+}
+
+.user-map-pin--phone .user-map-pin__dot {
+  background: var(--status-done-tint);
+  border-color: var(--status-done);
+}
+
+.user-map-pin--phone .user-map-pin__label {
+  background: var(--status-done-tint);
+  border-color: var(--status-done);
+  color: var(--status-done-on-tint);
+}
+
+.user-map-pin__tip--phone {
+  border-color: var(--status-done);
+}
+
+.user-map-pin--unavailable .user-map-pin__dot {
+  background: var(--status-draft);
+}
+
+.user-map-pin--unavailable .user-map-pin__label {
+  background: color-mix(in srgb, var(--status-draft) 28%, var(--text-on-accent));
+  border-color: var(--stroke-hairline);
+  color: var(--status-draft);
+}
+
 .user-map-pin--hit {
   cursor: pointer;
 }
@@ -5894,6 +5931,72 @@ textarea.field__input {
   top: var(--space-4);
   right: var(--space-4);
   z-index: 5;
+}
+
+.user-map-legend {
+  position: absolute;
+  top: var(--space-4);
+  inset-inline-end: var(--space-4);
+  z-index: 5;
+  max-inline-size: 22ch;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
+  pointer-events: none;
+}
+
+.user-map-legend__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.user-map-legend__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: 400 12px/16px var(--font-ui);
+  color: var(--text-secondary);
+}
+
+.user-map-legend__swatch {
+  width: var(--space-3);
+  height: var(--space-3);
+  flex: none;
+  border-radius: var(--radius-full);
+  border: 2px solid var(--stroke-strong);
+  background: var(--text-on-accent);
+  box-shadow: var(--shadow-overlay);
+}
+
+.user-map-legend__swatch--phone {
+  background: var(--status-done-tint);
+  border-color: var(--status-done);
+}
+
+.user-map-legend__swatch--unavailable {
+  background: var(--status-draft);
+  border-color: var(--surface-raised);
+}
+
+.user-map-legend__swatch--live {
+  width: var(--space-4);
+  height: var(--space-4);
+  background: var(--status-done);
+  border-color: var(--surface-raised);
+}
+
+.user-map-legend__swatch--cluster {
+  width: var(--space-4);
+  height: var(--space-4);
+  background: var(--accent);
+  border-color: var(--surface-raised);
 }
 
 .user-map__layers-btn {
@@ -5992,9 +6095,16 @@ textarea.field__input {
   width: var(--space-3);
   height: var(--space-3);
   border-radius: var(--radius-full);
-  background: var(--accent);
-  border: 2px solid var(--surface-raised);
+  background: var(--text-on-accent);
+  border: 2px solid var(--stroke-strong);
   box-shadow: var(--shadow-overlay);
+}
+
+.user-map-pin--search .user-map-pin__dot,
+.user-map-pin--event .user-map-pin__dot,
+.user-map-pin--live .user-map-pin__dot,
+.user-map-pin--unavailable .user-map-pin__dot {
+  border-color: var(--surface-raised);
 }
 
 .user-map-pin__label {

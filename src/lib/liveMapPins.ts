@@ -86,14 +86,24 @@ export async function fetchLiveMapPins(): Promise<LiveMapPin[]> {
   })
 }
 
-export function subscribeLiveMapPins(onChange: () => void): () => void {
+export function subscribeLiveMapPins(
+  onChange: (change: {
+    eventType: string
+    new: Record<string, unknown>
+    old: Record<string, unknown>
+  }) => void,
+): () => void {
   const channel = supabase
     .channel('event_responder_live_locations')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'event_responder_live_locations' },
-      () => {
-        onChange()
+      (payload) => {
+        onChange({
+          eventType: payload.eventType,
+          new: (payload.new ?? {}) as Record<string, unknown>,
+          old: (payload.old ?? {}) as Record<string, unknown>,
+        })
       },
     )
     .subscribe()
