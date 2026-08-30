@@ -1,6 +1,6 @@
 # Screen — OAuth authorize (אישור גישה)
 
-Partner-app consent after login. Same portal as login: Command stage, Field document card. No app shell / tab bar.
+Partner-app consent after login. Same portal as login: Command stage, Field document card. No app shell / tab bar. Framed as an MCP-style one-time connection.
 
 ## Theme
 
@@ -10,8 +10,9 @@ Partner-app consent after login. Same portal as login: Command stage, Field docu
 
 ## Entry
 
-`https://yahpz.com/oauth/authorize?client_id=&redirect_uri=&state=&scope=responder:fill`  
-Logged-in volunteers connect from **פרופיל → חבר לטלגרם** (no extra login). This URL is for when Telegram sent them here while logged out, then this screen after OTP / password setup.
+`https://yahpz.com/oauth/authorize?client_id=&state=`  
+Optional legacy query: `redirect_uri`, `scope=responder:fill` (still accepted when valid).  
+Volunteers reach this only from the Telegram bot’s link (not from the profile). Logged-out visitors go through existing login / OTP, then this screen.
 
 ## Layout
 

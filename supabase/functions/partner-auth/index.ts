@@ -238,12 +238,13 @@ async function handleAuthorize(
   if (!active.ok) return active.response;
 
   const clientId = trim(body.client_id);
-  const redirectUri = trim(body.redirect_uri);
   const state = trim(body.state);
   const client = await findClientByPublicId(admin, clientId);
   if (!client?.is_active) {
     return json(400, { error: "היישום אינו מוכר או אינו פעיל." });
   }
+  const redirectUri =
+    trim(body.redirect_uri) || redirectUriForBot(client.telegram_bot_username);
   if (!redirectUriMatchesClient(redirectUri, client.telegram_bot_username)) {
     return json(400, { error: "כתובת החזרה אינה מאושרת." });
   }
@@ -493,7 +494,7 @@ async function handleAdminCreate(
     client_id: clientId,
     client_secret: secret,
     redirect_uri: redirectUriForBot(bot),
-    authorize_url: `https://yahpz.com/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUriForBot(bot))}&state=STATE&scope=${encodeURIComponent(SCOPE)}`,
+    authorize_url: `https://yahpz.com/oauth/authorize?client_id=${encodeURIComponent(clientId)}&state=STATE`,
   });
 }
 

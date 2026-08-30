@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Yahpaz Partner API
-  version: "1.0.0"
+  version: "1.1.0"
   license:
     name: Proprietary
     url: https://yahpz.com/partner-api/
@@ -10,8 +10,9 @@ info:
     name: Yahpaz
     url: https://yahpz.com
   description: |
-    Volunteers connect in the product: **Profile → Connect to Telegram**. This spec is only for
-    the trusted server that runs the Telegram bot.
+    Volunteers connect from your Telegram bot (MCP-style: authorize once, then call
+    the HTTP actions below as tools). This spec is only for the trusted server that
+    runs the bot — not for volunteers. Revoke later: Profile → חיבורים on yahpz.com.
 
     After `/start yp_…`, exchange the code (`partner-auth` `token`) and call
     `responder-api` with the `ypat_` bearer. Pick an **Example** on each operation
@@ -35,7 +36,8 @@ paths:
       summary: Open volunteer consent
       description: |
         Open this URL in the volunteer’s browser (or as a Telegram link).
-        Not an Edge function. `redirect_uri` must match the registered bot.
+        Not an Edge function. Required: `client_id` + `state`. Optional:
+        `redirect_uri` / `scope` (defaults to the registered bot + `responder:fill`).
       security: []
       servers:
         - url: https://yahpz.com
@@ -47,23 +49,24 @@ paths:
           schema:
             type: string
             example: ypb_…
-        - name: redirect_uri
-          in: query
-          required: true
-          description: Exact `https://t.me/{bot_username}` (optional trailing slash)
-          schema:
-            type: string
-            format: uri
-            example: https://t.me/YourBot
         - name: state
           in: query
           required: true
           description: Partner CSRF. Bind to the Telegram user before sending the link.
           schema:
             type: string
+        - name: redirect_uri
+          in: query
+          required: false
+          description: Optional. Defaults to `https://t.me/{bot_username}` for the registered client.
+          schema:
+            type: string
+            format: uri
+            example: https://t.me/YourBot
         - name: scope
           in: query
-          required: true
+          required: false
+          description: Optional. Defaults to `responder:fill`.
           schema:
             type: string
             enum: [responder:fill]
@@ -73,7 +76,7 @@ paths:
         "200":
           description: Consent HTML (volunteer is sent through login first if needed)
         "400":
-          description: Missing or invalid query parameters (`client_id`, `redirect_uri`, `state`, `scope`)
+          description: Missing or invalid query parameters (`client_id`, `state`; optional `redirect_uri` / `scope`)
 
   /partner-auth:
     post:

@@ -13,14 +13,14 @@ A trusted partner wants to build a **Telegram bot** so volunteers can complete t
 ## Goals
 
 - One registered partner app; volunteer **authorizes** it on yahpz.com
-- Telegram starts the link; **חיבורים** on the profile revokes it
+- Telegram starts the link; **חיבורים** on the profile revokes it (no profile connect button)
 - 60-day opaque access token, **no refresh**; `/unlink` or revoke or expiry ends access
 - Full standalone fill parity: plate, odometers, route, treatment, notes, treated plates, media
 - Structured validation errors the bot can show in chat
 
 ## Non-goals (v1)
 
-- MCP (same functions later, same tokens)
+- Real MCP wire protocol (JSON-RPC tools) — MCP-style **connect framing** only; see `2026-08-30-yahpaz-telegram-mcp-style-connect-design.md`
 - Shifts / shift-born events (`origin = shift`)
 - Creating or editing events, lead `total_km`, admin, tracking SMS
 - Email fill-link photos (unchanged)
@@ -33,7 +33,7 @@ A trusted partner wants to build a **Telegram bot** so volunteers can complete t
 |---|---|
 | Client | One trusted partner; `client_id` + hashed `client_secret` |
 | Transport | HTTP Edge API, not PostgREST |
-| Linking | Profile **חבר לטלגרם** (logged in) or `/oauth/authorize` from Telegram; **חיבורים** revoke |
+| Linking | Telegram bot short `/oauth/authorize?client_id&state` only; profile **חיבורים** revoke (no **חבר לטלגרם**). Spec revise: `2026-08-30-yahpaz-telegram-mcp-style-connect-design.md` |
 | Completion | `https://t.me/<bot>?start=<one_time_code>` (Telegram 64-char start limit) |
 | Token | Opaque bearer, 60 days, no refresh; re-link replaces the grant |
 | Writes | Same rules as `validateResponderFillDraft` + plates + media |

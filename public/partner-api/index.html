@@ -106,25 +106,26 @@
   <body>
     <header class="docs-header">
       <h1>Connect a Telegram bot</h1>
-      <p>Volunteers do not fill in a spec. They sign in and tap one button.</p>
+      <p>MCP-style: authorize once from the bot, then call the HTTP fill actions.</p>
     </header>
     <main>
       <section class="card">
         <h2>For volunteers</h2>
         <ol>
-          <li>Open <a href="https://yahpz.com">yahpz.com</a> and sign in.</li>
-          <li>Profile → <strong>Connect to Telegram</strong>.</li>
-          <li>Telegram opens. Done.</li>
+          <li>Open the connect link from the Telegram bot.</li>
+          <li>Sign in on <a href="https://yahpz.com">yahpz.com</a> if needed.</li>
+          <li>Tap <strong>Confirm and continue to Telegram</strong>. Done.</li>
         </ol>
         <p class="muted">
-          If the link came from the bot: sign in on the site, tap <strong>Confirm and continue to Telegram</strong>, then return to the chat.
-          Revoke in Profile → <strong>Revoke access</strong>.
+          Revoke later in Profile → <strong>Connections</strong> → <strong>Revoke access</strong>.
+          There is no connect button on the profile — start from the bot.
         </p>
       </section>
       <section class="card">
         <h2>For bot builders</h2>
         <ol>
           <li>An admin registers the bot once in Settings (Register bot) and sends you a client id and token.</li>
+          <li>Send a short authorize URL: <span dir="ltr">/oauth/authorize?client_id=…&amp;state=…</span></li>
           <li>When the volunteer finishes connecting, Telegram sends you <span dir="ltr">/start yp_…</span></li>
           <li>Exchange the code for a token and call the fill actions.</li>
         </ol>

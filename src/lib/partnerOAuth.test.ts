@@ -4,6 +4,7 @@ import {
   PARTNER_SCOPE,
   ACCESS_TOKEN_TTL_SEC,
   AUTHORIZATION_CODE_TTL_MS,
+  buildPartnerAuthorizeUrl,
   grantIsUsable,
   isOAuthAuthorizePath,
   isOpenStandaloneParticipation,
@@ -30,7 +31,23 @@ describe('isOAuthAuthorizePath', () => {
 })
 
 describe('parseOAuthAuthorizeRequest', () => {
-  it('reads client_id, redirect_uri, state, and default scope', () => {
+  it('accepts short MCP-style link with client_id and state only', () => {
+    const parsed = parseOAuthAuthorizeRequest({
+      pathname: '/oauth/authorize',
+      search: '?client_id=ypb_abc&state=csrf-1',
+    })
+    expect(parsed).toEqual({
+      ok: true,
+      request: {
+        clientId: 'ypb_abc',
+        redirectUri: null,
+        state: 'csrf-1',
+        scope: PARTNER_SCOPE,
+      },
+    })
+  })
+
+  it('reads optional redirect_uri and default scope', () => {
     const parsed = parseOAuthAuthorizeRequest({
       pathname: '/oauth/authorize',
       search:
@@ -54,15 +71,23 @@ describe('parseOAuthAuthorizeRequest', () => {
     expect(
       parseOAuthAuthorizeRequest({
         pathname: '/oauth/authorize',
-        search: '?client_id=x&redirect_uri=https://t.me/Bot',
+        search: '?client_id=x',
       }).ok,
     ).toBe(false)
     expect(
       parseOAuthAuthorizeRequest({
         pathname: '/oauth/authorize',
-        search: '?client_id=x&redirect_uri=https://t.me/Bot&state=s&scope=admin',
+        search: '?client_id=x&state=s&scope=admin',
       }).ok,
     ).toBe(false)
+  })
+})
+
+describe('buildPartnerAuthorizeUrl', () => {
+  it('builds a short authorize URL', () => {
+    expect(
+      buildPartnerAuthorizeUrl({ clientId: 'ypb_abc', state: 'csrf-1' }),
+    ).toBe('https://yahpz.com/oauth/authorize?client_id=ypb_abc&state=csrf-1')
   })
 })
 

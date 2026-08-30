@@ -2,12 +2,12 @@
 
 **Share this:** [https://yahpz.com/partner-api/](https://yahpz.com/partner-api/)
 
-**Volunteers do not use this page.** They open [yahpz.com](https://yahpz.com), go to **פרופיל**, and tap **חבר לטלגרם**.
+**Volunteers do not use this page.** They open a **connect link from your Telegram bot**, approve once on [yahpz.com](https://yahpz.com), then you call the HTTP actions below (MCP-style: connect once, then use tools). To revoke later they use **פרופיל → חיבורים**.
 
 **Product:** אבן דרך (Yahpaz)  
 **Audience:** The trusted server that runs the Telegram bot  
-**Version:** 1.0  
-**Date:** 2026-08-24
+**Version:** 1.1  
+**Date:** 2026-08-30
 
 ---
 
@@ -56,9 +56,9 @@ All calls are `POST` with `Content-Type: application/json`.
 
 ---
 
-## 1. Link a volunteer (OAuth)
+## 1. Link a volunteer (MCP-style connection)
 
-You never collect אבן דרך passwords. The volunteer logs in on yahpz.com and taps **אשר גישה**.
+You never collect אבן דרך passwords. The volunteer logs in on yahpz.com and taps **אשר גישה**. There is **no** “connect” button on the profile — only your bot should send the link.
 
 ### 1.1 Open the consent page
 
@@ -67,16 +67,14 @@ Bind a random `state` to **this Telegram user (or session)** in your database *b
 ```
 https://yahpz.com/oauth/authorize
   ?client_id={client_id}
-  &redirect_uri=https://t.me/{bot_username}
   &state={your_csrf_state}
-  &scope=responder:fill
 ```
 
 Rules:
 
-- `redirect_uri` must be exactly `https://t.me/{your_bot_username}` (optional trailing slash; username case-insensitive). No query string on `redirect_uri`.
-- `scope` must be `responder:fill`.
-- `state` is required.
+- `client_id` and `state` are required.
+- `redirect_uri` and `scope` are **optional**. If omitted, we use `https://t.me/{your_bot_username}` and `responder:fill`. If you send them, they must still be valid (same bot URI; scope must be `responder:fill`).
+- Do not put a query string on `redirect_uri` when you do send it.
 
 After login (and SMS OTP if that account uses it), they see Hebrew consent: 60-day access to complete their event reports (kilometers, treatment, plates, media).
 
@@ -123,7 +121,7 @@ Content-Type: application/json
 }
 ```
 
-`expires_in` is **60 days** (5184000 seconds). There is **no refresh token**. After expiry, revoke, or unlink on yahpz.com (**חיבורים**), send them through authorize again.
+`expires_in` is **60 days** (5184000 seconds). There is **no refresh token**. After expiry, revoke, or unlink on yahpz.com (**פרופיל → חיבורים**), send them through authorize again.
 
 Store `access_token` keyed by your Telegram user id. Treat it like a password.
 
@@ -572,7 +570,7 @@ Only own photos.
 
 ## Suggested bot flow
 
-1. `/start` without a `yp_` code → send the authorize URL (with a fresh `state`).
+1. `/start` without a `yp_` code → send the short authorize URL (`client_id` + fresh `state`).
 2. `/start yp_…` → `token` → save bearer → `whoami` → greet by `full_name`.
 3. “האירועים שלי” → `list_open_events` → user picks one → `get_event`.
 4. Collect fields (volunteer plate from `vehicles`, both odometers, route, treatment, notes).

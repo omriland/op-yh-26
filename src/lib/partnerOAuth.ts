@@ -14,7 +14,8 @@ const ACCESS_TOKEN = /^ypat_[A-Za-z0-9_-]{16,128}$/
 
 export type OAuthAuthorizeRequest = {
   clientId: string
-  redirectUri: string
+  /** When null, Edge derives https://t.me/<registered_bot>. */
+  redirectUri: string | null
   state: string
   scope: string
 }
@@ -28,6 +29,19 @@ function searchParams(search: string): URLSearchParams {
   return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
 }
 
+/** Short MCP-style connect URL: client_id + state only. */
+export function buildPartnerAuthorizeUrl(input: {
+  clientId: string
+  state: string
+  origin?: string
+}): string {
+  const origin = (input.origin ?? 'https://yahpz.com').replace(/\/+$/, '')
+  const url = new URL(`${origin}${OAUTH_AUTHORIZE_PATH}`)
+  url.searchParams.set('client_id', input.clientId)
+  url.searchParams.set('state', input.state)
+  return url.toString()
+}
+
 export function parseOAuthAuthorizeRequest(input: {
   pathname: string
   search: string
@@ -37,16 +51,24 @@ export function parseOAuthAuthorizeRequest(input: {
   }
   const params = searchParams(input.search)
   const clientId = params.get('client_id')?.trim() ?? ''
-  const redirectUri = params.get('redirect_uri')?.trim() ?? ''
+  const redirectRaw = params.get('redirect_uri')?.trim() ?? ''
   const state = params.get('state')?.trim() ?? ''
   const scope = params.get('scope')?.trim() || PARTNER_SCOPE
-  if (!clientId || !redirectUri || !state) {
+  if (!clientId || !state) {
     return { ok: false, error: 'חסרים פרטי היישום בקישור.' }
   }
   if (scope !== PARTNER_SCOPE) {
     return { ok: false, error: 'ההרשאה המבוקשת אינה נתמכת.' }
   }
-  return { ok: true, request: { clientId, redirectUri, state, scope } }
+  return {
+    ok: true,
+    request: {
+      clientId,
+      redirectUri: redirectRaw || null,
+      state,
+      scope,
+    },
+  }
 }
 
 export function normalizeTelegramBotUsername(raw: string): string {

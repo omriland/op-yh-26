@@ -1,20 +1,11 @@
 import { useEffect, useState } from 'react'
-import { LogOut, MessageSquare } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { formatDateTime, formatNumber, formatPhone, monoClass } from '../lib/format'
 import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
 import { addressKindLabel, fetchOwnAddresses, type UserAddressRow } from '../lib/userAddresses'
-import {
-  connectPartnerApp,
-  fetchPartnerApps,
-  fetchPartnerGrants,
-  revokePartnerGrant,
-  type PartnerApp,
-  type PartnerGrant,
-} from '../lib/partnerApi'
-import { liveGrantForBot } from '../lib/partnerOAuth'
-import { isImpersonating } from '../lib/impersonationStash'
+import { fetchPartnerGrants, revokePartnerGrant, type PartnerGrant } from '../lib/partnerApi'
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
@@ -42,9 +33,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null)
   const [addresses, setAddresses] = useState<UserAddressRow[] | null>(null)
   const [grants, setGrants] = useState<PartnerGrant[] | null>(null)
-  const [apps, setApps] = useState<PartnerApp[] | null>(null)
   const [grantError, setGrantError] = useState<string | null>(null)
-  const [connectingId, setConnectingId] = useState<string | null>(null)
   const [revokeId, setRevokeId] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
 
@@ -86,12 +75,6 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
       }
     })
 
-    fetchPartnerApps().then((result) => {
-      if (!active) return
-      if (result.ok) setApps(result.apps)
-      else setApps([])
-    })
-
     return () => {
       active = false
     }
@@ -109,21 +92,6 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
     setGrants((current) => (current ?? []).filter((row) => row.id !== revokeId))
     setRevokeId(null)
     show('הגישה בוטלה')
-  }
-
-  async function onConnectApp(app: PartnerApp) {
-    if (isImpersonating()) {
-      show('לא ניתן לחבר יישום בזמן התחזות.')
-      return
-    }
-    setConnectingId(app.client_id)
-    const result = await connectPartnerApp(app)
-    if (!result.ok) {
-      setConnectingId(null)
-      show(result.error)
-      return
-    }
-    window.location.assign(result.redirect)
   }
 
   if (!profile) {
@@ -191,28 +159,26 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
         </section>
 
         <section className="card">
-          <h2 className="t-section">חיבור לטלגרם</h2>
+          <h2 className="t-section">חיבורים</h2>
           <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
-            דיווח אירועים בצ׳אט, בלי להיכנס למפרט.
+            חיבור חד־פעמי לבוט בטלגרם. אחרי האישור אפשר לדווח אירועים בצ׳אט.
           </p>
           <div style={{ marginBlockStart: 'var(--space-4)' }}>
-            {grants === null || apps === null ? (
+            {grants === null ? (
               <Skeleton height={24} />
             ) : grantError ? (
               <p className="t-body text-muted">{grantError}</p>
-            ) : apps.length === 0 && grants.length === 0 ? (
+            ) : grants.length === 0 ? (
               <div className="stack-3">
                 <p className="t-body">עדיין לא מחוברים.</p>
                 <p className="t-caption text-muted">
-                  {isAdmin
-                    ? 'רשמו את הבוט בהגדרות.'
-                    : 'החיבור ייפתח כאן אחרי שהמנהל ירשום את הבוט.'}
+                  פתחו את הבוט בטלגרם ושלחו קישור חיבור. אחרי האישור יופיע כאן החיבור לביטול.
                 </p>
                 {isAdmin && onOpenBotSettings ? (
                   <Button onClick={onOpenBotSettings}>רישום בוט</Button>
                 ) : null}
               </div>
-            ) : apps.length === 0 ? (
+            ) : (
               <div className="stack-4">
                 {grants.map((grant) => (
                   <div key={grant.id} className="stack-3">
@@ -225,41 +191,6 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
                     </Button>
                   </div>
                 ))}
-              </div>
-            ) : (
-              <div className="stack-4">
-                {apps.map((app) => {
-                  const live = liveGrantForBot(grants, app.telegram_bot_username)
-                  const connectLabel = apps.length === 1 ? 'חבר לטלגרם' : `חבר את ${app.name}`
-                  return (
-                    <div key={app.client_id} className="stack-3">
-                      {live ? (
-                        <Ledger>
-                          <LedgerRow label="יישום" value={app.name} />
-                          <LedgerRow label="בתוקף עד" value={formatDateTime(live.expires_at)} />
-                        </Ledger>
-                      ) : null}
-                      {live ? (
-                        <Button variant="destructive" onClick={() => setRevokeId(live.id)}>
-                          בטל גישה
-                        </Button>
-                      ) : (
-                        <Button
-                          block
-                          disabled={Boolean(connectingId) || isImpersonating()}
-                          loading={connectingId === app.client_id}
-                          loadingLabel="מחבר…"
-                          icon={
-                            <MessageSquare size={20} strokeWidth={1.75} aria-hidden="true" />
-                          }
-                          onClick={() => void onConnectApp(app)}
-                        >
-                          {connectLabel}
-                        </Button>
-                      )}
-                    </div>
-                  )
-                })}
               </div>
             )}
           </div>
@@ -360,7 +291,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
           </>
         }
       >
-        <p className="t-body">הבוט לא יוכל להשלים דיווחים בשמך עד שתאשרו מחדש.</p>
+        <p className="t-body">הבוט לא יוכל להשלים דיווחים בשמך עד שתאשרו מחדש מטלגרם.</p>
       </Dialog>
     </div>
   )

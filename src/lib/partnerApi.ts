@@ -1,5 +1,4 @@
 import { supabase } from './supabase'
-import { randomOAuthState } from './partnerOAuth'
 
 export type PartnerGrant = {
   id: string
@@ -20,13 +19,6 @@ export type PartnerClient = {
 
 export type PartnerClientInfo = {
   name: string
-  telegram_bot_username: string
-  redirect_uri: string
-}
-
-export type PartnerApp = {
-  name: string
-  client_id: string
   telegram_bot_username: string
   redirect_uri: string
 }
@@ -75,15 +67,17 @@ export async function fetchPartnerClientInfo(
 
 export async function approvePartnerAuthorize(input: {
   clientId: string
-  redirectUri: string
   state: string
+  redirectUri?: string | null
 }): Promise<{ ok: true; redirect: string } | { ok: false; error: string }> {
-  const result = await invokePartnerAuth<{ redirect?: string }>({
+  const body: Record<string, unknown> = {
     action: 'authorize',
     client_id: input.clientId,
-    redirect_uri: input.redirectUri,
     state: input.state,
-  })
+  }
+  const redirectUri = input.redirectUri?.trim()
+  if (redirectUri) body.redirect_uri = redirectUri
+  const result = await invokePartnerAuth<{ redirect?: string }>(body)
   if (!result.ok) return result
   const redirect = result.data.redirect?.trim()
   if (!redirect) return { ok: false, error: 'לא ניתן להנפיק קוד אישור. נסו שוב.' }
@@ -98,26 +92,6 @@ export async function fetchPartnerGrants(): Promise<
   })
   if (!result.ok) return result
   return { ok: true, grants: result.data.grants ?? [] }
-}
-
-export async function fetchPartnerApps(): Promise<
-  { ok: true; apps: PartnerApp[] } | { ok: false; error: string }
-> {
-  const result = await invokePartnerAuth<{ apps?: PartnerApp[] }>({
-    action: 'list_apps',
-  })
-  if (!result.ok) return result
-  return { ok: true, apps: result.data.apps ?? [] }
-}
-
-export async function connectPartnerApp(app: PartnerApp): Promise<
-  { ok: true; redirect: string } | { ok: false; error: string }
-> {
-  return approvePartnerAuthorize({
-    clientId: app.client_id,
-    redirectUri: app.redirect_uri,
-    state: randomOAuthState(),
-  })
 }
 
 export async function revokePartnerGrant(
