@@ -300,22 +300,9 @@ export function EventsPage({
             <h1 className="t-title">אירועים</h1>
             <p className="t-caption text-muted">{unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}</p>
           </div>
-          <div className="page-head__actions">
-            <label className="field__control events-search">
-              <span className="visually-hidden">חיפוש אירועים</span>
-              <input
-                className="field__input field__input--with-affix"
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק"
-              />
-              <span className="field__affix" aria-hidden="true">
-                <Search size={20} strokeWidth={1.75} />
-              </span>
-            </label>
-            {canCreate && onCreate ? (
-              isDesktop ? (
+          {canCreate && onCreate ? (
+            <div className="page-head__actions">
+              {isDesktop ? (
                 <Button onClick={onCreate} icon={<Plus size={20} strokeWidth={1.75} />}>
                   אירוע חדש
                 </Button>
@@ -323,19 +310,34 @@ export function EventsPage({
                 <IconButton label="אירוע חדש" onClick={onCreate}>
                   <Plus size={20} strokeWidth={1.75} />
                 </IconButton>
-              )
-            ) : null}
-          </div>
+              )}
+            </div>
+          ) : null}
         </div>
       )}
 
       {scope === 'unit' ? (
-        <FilterChips
-          options={EVENT_FILTERS}
-          value={filter}
-          onChange={setFilter}
-          label="סינון לפי סטטוס תיעוד"
-        />
+        <>
+          <label className="field__control events-search">
+            <span className="visually-hidden">חיפוש אירועים</span>
+            <input
+              className="field__input field__input--with-affix"
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק"
+            />
+            <span className="field__affix" aria-hidden="true">
+              <Search size={20} strokeWidth={1.75} />
+            </span>
+          </label>
+          <FilterChips
+            options={EVENT_FILTERS}
+            value={filter}
+            onChange={setFilter}
+            label="סינון לפי סטטוס תיעוד"
+          />
+        </>
       ) : (
         <MineInboxTabs
           tab={mineTab}
