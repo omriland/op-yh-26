@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { LogOut } from 'lucide-react'
+import { LogOut, Star } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { formatDateTime, formatNumber, formatPhone, monoClass } from '../lib/format'
 import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
 import { addressKindLabel, fetchOwnAddresses, type UserAddressRow } from '../lib/userAddresses'
 import { fetchPartnerGrants, revokePartnerGrant, type PartnerGrant } from '../lib/partnerApi'
+import { canChooseDefaultVehicle } from '../lib/defaultVehicle'
+import { setDefaultVehicle } from '../lib/vehicles'
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
@@ -24,7 +26,21 @@ function visibleRoles(roles: AppRole[]): AppRole[] {
   return roles.filter((role) => role !== 'super_admin')
 }
 
-type Vehicle = { id: string; plate_number: string; model: string; archived: boolean }
+type Vehicle = {
+  id: string
+  plate_number: string
+  model: string
+  archived: boolean
+  is_default: boolean
+}
+
+function sortProfileVehicles(vehicles: Vehicle[]): Vehicle[] {
+  return [...vehicles].sort((a, b) => {
+    if (a.archived !== b.archived) return a.archived ? 1 : -1
+    if (a.is_default !== b.is_default) return a.is_default ? -1 : 1
+    return a.model.localeCompare(b.model, 'he')
+  })
+}
 
 export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => void }) {
   const { profile, roles, signOut } = useAuth()
@@ -36,6 +52,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
   const [grantError, setGrantError] = useState<string | null>(null)
   const [revokeId, setRevokeId] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
+  const [starringId, setStarringId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!profile) return
@@ -43,15 +60,18 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
 
     supabase
       .from('vehicles')
-      .select('id, plate_number, model, archived')
+      .select('id, plate_number, model, archived, is_default')
       .eq('user_id', profile.id)
       .then(({ data }) => {
         if (active) {
           setVehicles(
-            ((data as Vehicle[] | null) ?? []).map((vehicle) => ({
-              ...vehicle,
-              archived: Boolean(vehicle.archived),
-            })),
+            sortProfileVehicles(
+              ((data as Vehicle[] | null) ?? []).map((vehicle) => ({
+                ...vehicle,
+                archived: Boolean(vehicle.archived),
+                is_default: Boolean(vehicle.is_default),
+              })),
+            ),
           )
         }
       })
@@ -92,6 +112,26 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
     setGrants((current) => (current ?? []).filter((row) => row.id !== revokeId))
     setRevokeId(null)
     show('הגישה בוטלה')
+  }
+
+  async function onStarVehicle(vehicle: Vehicle) {
+    if (vehicle.archived || vehicle.is_default || starringId) return
+    setStarringId(vehicle.id)
+    const result = await setDefaultVehicle(vehicle.id)
+    setStarringId(null)
+    if (result.error) {
+      show(result.error)
+      return
+    }
+    setVehicles((current) =>
+      sortProfileVehicles(
+        (current ?? []).map((row) => ({
+          ...row,
+          is_default: !row.archived && row.id === vehicle.id,
+        })),
+      ),
+    )
+    show('הרכב הראשי עודכן.')
   }
 
   if (!profile) {
@@ -240,6 +280,11 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
 
         <section className="card">
           <h2 className="t-section">רכבים</h2>
+          {vehicles && canChooseDefaultVehicle(vehicles) ? (
+            <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
+              לחצו על הכוכב כדי לבחור רכב ראשי לאירועים ולמשמרות.
+            </p>
+          ) : null}
           <div style={{ marginBlockStart: 'var(--space-4)' }}>
             {vehicles === null ? (
               <Skeleton height={24} />
@@ -253,7 +298,28 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
                     label={
                       vehicle.archived ? `${vehicle.model} (בארכיון)` : vehicle.model
                     }
-                    value={<LicensePlate plate={vehicle.plate_number} />}
+                    value={
+                      <span className="profile-vehicle">
+                        <LicensePlate plate={vehicle.plate_number} />
+                        {!vehicle.archived && canChooseDefaultVehicle(vehicles) ? (
+                          <button
+                            type="button"
+                            className="icon-btn profile-vehicle__star"
+                            aria-label={vehicle.is_default ? 'רכב ראשי' : 'הגדר כרכב ראשי'}
+                            aria-pressed={vehicle.is_default}
+                            title={vehicle.is_default ? 'רכב ראשי' : 'הגדר כרכב ראשי'}
+                            disabled={starringId !== null}
+                            onClick={() => void onStarVehicle(vehicle)}
+                          >
+                            <Star
+                              size={20}
+                              strokeWidth={1.75}
+                              fill={vehicle.is_default ? 'currentColor' : 'none'}
+                            />
+                          </button>
+                        ) : null}
+                      </span>
+                    }
                     isolate
                   />
                 ))}

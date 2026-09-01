@@ -69,6 +69,20 @@ function plateDigits(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
+function pickDefaultVehiclePlate(
+  vehicles: { plate: string; isDefault?: boolean }[],
+  existingPlate?: string | null,
+): string {
+  const existing = plateDigits(existingPlate ?? "");
+  if (existing && vehicles.some((vehicle) => vehicle.plate === existing)) {
+    return existing;
+  }
+  const starred = vehicles.find((vehicle) => vehicle.isDefault)?.plate;
+  if (starred) return starred;
+  if (vehicles.length === 1) return vehicles[0]!.plate;
+  return "";
+}
+
 function formatPlate(raw: string): string {
   const digits = plateDigits(raw);
   if (digits.length === 7) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
@@ -321,7 +335,7 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
       .maybeSingle(),
     adminClient
       .from("vehicles")
-      .select("plate_number, model, archived")
+      .select("plate_number, model, archived, is_default")
       .eq("user_id", assignment.responder_id),
     adminClient
       .from("event_treated_plates")
@@ -351,23 +365,21 @@ async function buildFillContext(adminClient: SupabaseClient, assignment: Assignm
   const odometerEnd =
     assignment.odometer_end != null ? String(assignment.odometer_end) : "";
 
-  const vehicleOptions = (vehicles ?? [])
+  const vehicleMapped = (vehicles ?? [])
     .map((vehicle) => ({
       plate: plateDigits(String(vehicle.plate_number ?? "")),
       model: String(vehicle.model ?? "").trim(),
       archived: Boolean(vehicle.archived),
+      isDefault: Boolean(vehicle.is_default) && !vehicle.archived,
     }))
     .filter((vehicle) => vehicle.plate)
-    .filter((vehicle) => !vehicle.archived || vehicle.plate === existingPlate)
-    .map(({ plate, model }) => ({ plate, model }));
+    .filter((vehicle) => !vehicle.archived || vehicle.plate === existingPlate);
 
-  const allowed = new Set(vehicleOptions.map((v) => v.plate));
-  const selectedPlate =
-    existingPlate && allowed.has(existingPlate)
-      ? existingPlate
-      : vehicleOptions.length === 1
-        ? vehicleOptions[0]!.plate
-        : "";
+  const vehicleOptions = vehicleMapped.map(({ plate, model }) => ({ plate, model }));
+  const selectedPlate = pickDefaultVehiclePlate(
+    vehicleMapped.map(({ plate, isDefault }) => ({ plate, isDefault })),
+    existingPlate,
+  );
 
   const shiftLead = row.shift_lead;
   const treated_plates = (treatedPlateRows ?? []).flatMap((plateRow) => {

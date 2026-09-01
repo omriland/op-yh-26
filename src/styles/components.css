@@ -5407,6 +5407,40 @@ textarea.field__input {
   margin-block-start: var(--space-4);
 }
 
+.profile-vehicle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ledger__value:has(.profile-vehicle) {
+  max-width: none;
+}
+
+.profile-vehicle__star {
+  flex: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.profile-vehicle__star[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.profile-vehicle__star:hover:not(:disabled) {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.profile-vehicle__star:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.profile-vehicle__star:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 /* ============================================================
    Shift-lead cockpit (קוקפיט)
    ============================================================ */

@@ -1,6 +1,7 @@
 import { plateDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
+import { pickDefaultVehiclePlate } from './defaultVehicle'
 import { leftoverEventMediaError } from './eventMedia'
 import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
 
@@ -175,7 +176,7 @@ export async function fetchResponderFillContext(
         .maybeSingle(),
       supabase
         .from('vehicles')
-        .select('plate_number, model, archived')
+        .select('plate_number, model, archived, is_default')
         .eq('user_id', userId),
     ])
 
@@ -253,7 +254,7 @@ async function fetchResponderFillContextWithPlateQuery(
         .maybeSingle(),
       supabase
         .from('vehicles')
-        .select('plate_number, model, archived')
+        .select('plate_number, model, archived, is_default')
         .eq('user_id', userId),
     ])
 
@@ -324,7 +325,12 @@ function buildResponderFillContext(
     status: ParticipationStatus
     updated_at: string | null
   },
-  vehicles: { plate_number?: string | null; model?: string | null; archived?: boolean | null }[],
+  vehicles: {
+    plate_number?: string | null
+    model?: string | null
+    archived?: boolean | null
+    is_default?: boolean | null
+  }[],
   treatedPlates: TreatedPlate[],
 ): ResponderFillContext {
   const existingPlate = mine.vehicle_plate ? plateDigits(mine.vehicle_plate) : ''
@@ -335,23 +341,24 @@ function buildResponderFillContext(
     mine.odometer_end != null ? String(mine.odometer_end) : ''
 
   // Active vehicles only for new assignment; keep a currently saved plate even if archived.
-  const vehicleOptions: ResponderVehicleOption[] = vehicles
+  const mapped = vehicles
     .map((vehicle) => ({
       plate: plateDigits(String(vehicle.plate_number ?? '')),
       model: String(vehicle.model ?? '').trim(),
       archived: Boolean(vehicle.archived),
+      isDefault: Boolean(vehicle.is_default) && !vehicle.archived,
     }))
     .filter((vehicle) => vehicle.plate)
     .filter((vehicle) => !vehicle.archived || vehicle.plate === existingPlate)
-    .map(({ plate, model }) => ({ plate, model }))
 
-  const allowed = new Set(vehicleOptions.map((vehicle) => vehicle.plate))
-  const selectedPlate =
-    existingPlate && allowed.has(existingPlate)
-      ? existingPlate
-      : vehicleOptions.length === 1
-        ? vehicleOptions[0]!.plate
-        : ''
+  const vehicleOptions: ResponderVehicleOption[] = mapped.map(({ plate, model }) => ({
+    plate,
+    model,
+  }))
+  const selectedPlate = pickDefaultVehiclePlate(
+    mapped.map(({ plate, isDefault }) => ({ plate, isDefault })),
+    existingPlate,
+  )
 
   return {
     eventId: row.id,

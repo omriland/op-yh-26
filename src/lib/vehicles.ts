@@ -6,6 +6,17 @@ export type VehicleRow = {
   plate_number: string
   model: string
   archived: boolean
+  is_default: boolean
+}
+
+/** Mark this active vehicle as רכב ראשי. Clears any previous default for the same user. */
+export async function setDefaultVehicle(vehicleId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc('set_default_vehicle', { p_vehicle_id: vehicleId })
+  if (error) {
+    const message = error.message?.trim()
+    return { error: message || 'עדכון הרכב הראשי נכשל.' }
+  }
+  return { error: null }
 }
 
 /** True when this plate/user appears on an event participation or a shift personal vehicle. */
