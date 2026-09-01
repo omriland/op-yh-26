@@ -8,6 +8,10 @@ import {
   type EventResponderDetail,
 } from '../lib/events'
 import { responderCardShowsOdometers, responderCardStartsOpen } from '../lib/responderCard'
+import { eventGeocodeQuery, eventNeedsPersistedGeocode } from '../lib/eventGeocode'
+import { geocodePlaceQuery } from '../lib/googlePlaces'
+import { saveEventGeocodePin } from '../lib/cockpit'
+import { SYSTEM_DISTRICT_NAMES, isUrbanRoadName } from '../lib/systemDistricts'
 import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
 import { mineFillCtaLabel, cancelledStamp, participationStamp, viewerStamp } from '../lib/status'
 import {
@@ -58,11 +62,13 @@ export function EventDetailPage({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [mapFailed, setMapFailed] = useState(false)
+  const [geocodeCoords, setGeocodeCoords] = useState<{ lat: number; lng: number } | null>(null)
 
   useEffect(() => {
     let active = true
     setState('loading')
     setMapFailed(false)
+    setGeocodeCoords(null)
 
     fetchEventDetail(eventId)
       .then((row) => {
@@ -82,6 +88,52 @@ export function EventDetailPage({
       active = false
     }
   }, [eventId])
+
+  useEffect(() => {
+    if (state !== 'ready' || !event || event.id !== eventId || geocodeCoords) return
+    const placesAssisted =
+      isUrbanRoadName(event.road?.name) ||
+      event.district?.name === SYSTEM_DISTRICT_NAMES.station_other_duplicated
+    if (
+      !eventNeedsPersistedGeocode({
+        location: event.location,
+        location_lat: event.location_lat,
+        location_lng: event.location_lng,
+        location_pin_source: event.location_pin_source,
+        roadName: event.road?.name,
+        placesAssisted,
+      })
+    ) {
+      return
+    }
+    const query = eventGeocodeQuery(event.road?.name, event.location)
+    if (!query) return
+    let active = true
+    void geocodePlaceQuery(query).then((coords) => {
+      if (!active || !coords) return
+      setGeocodeCoords(coords)
+      if (canEdit) {
+        void saveEventGeocodePin({ eventId: event.id, lat: coords.lat, lng: coords.lng }).then(
+          (result) => {
+            if (!active || !result.ok) return
+            setEvent((current) =>
+              current && current.id === event.id
+                ? {
+                    ...current,
+                    location_lat: coords.lat,
+                    location_lng: coords.lng,
+                    location_pin_source: 'geocode',
+                  }
+                : current,
+            )
+          },
+        )
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [canEdit, event, eventId, geocodeCoords, state])
 
   const backButton = (
     <div className="detail__back">
@@ -148,7 +200,8 @@ export function EventDetailPage({
     event.location,
   ].filter(Boolean)
 
-  const coords = eventMapCoords(event.location_lat, event.location_lng)
+  const coords =
+    eventMapCoords(event.location_lat, event.location_lng) ?? geocodeCoords
   const mapUrl = coords
     ? buildStaticMapUrl({
         lat: coords.lat,

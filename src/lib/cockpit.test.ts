@@ -11,6 +11,7 @@ import {
   eventGeocodeQuery,
   geocodeCockpitEventPins,
   mergeCockpitEventPins,
+  cockpitPinsMissingStoredCoords,
   cockpitNeighborId,
   cockpitReelDetail,
   cockpitReelLead,
@@ -368,6 +369,42 @@ describe('mergeCockpitEventPins', () => {
       lng: 34.8,
     }
     expect(mergeCockpitEventPins([stored], [])).toEqual([stored])
+  })
+})
+
+describe('cockpitPinsMissingStoredCoords', () => {
+  it('returns highway events Google placed that still have no stored pin', () => {
+    expect(
+      cockpitPinsMissingStoredCoords(
+        [
+          {
+            id: 'lookup',
+            location: 'מחלף השלום',
+            location_lat: null,
+            location_lng: null,
+            road: { name: 'כביש 20' },
+          },
+          {
+            id: 'urban',
+            location: 'דיזנגוף',
+            location_lat: null,
+            location_lng: null,
+            road: { name: 'עירוני' },
+          },
+          {
+            id: 'known',
+            location: 'מחלף',
+            location_lat: 32.1,
+            location_lng: 34.8,
+            road: { name: 'כביש 4' },
+          },
+        ],
+        [
+          { eventId: 'lookup', label: 'a', title: 'a', lat: 32.07, lng: 34.79 },
+          { eventId: 'urban', label: 'b', title: 'b', lat: 32.08, lng: 34.78 },
+        ],
+      ),
+    ).toEqual([{ eventId: 'lookup', lat: 32.07, lng: 34.79 }])
   })
 })
 

@@ -442,12 +442,24 @@ export function EventFormPage({
         ...current,
         id: result.eventId,
         status: result.status,
+        location_lat: result.location_lat,
+        location_lng: result.location_lng,
+        location_pin_source: result.location_pin_source,
         responders: mergeAssignmentIds(current.responders, result.assignmentIds),
       }
       const nextDraft: EventFormDraft = {
         ...latest,
         id: result.eventId,
         status: result.status,
+        location_lat:
+          latest.location_lat ??
+          (latest.location === current.location ? result.location_lat : null),
+        location_lng:
+          latest.location_lng ??
+          (latest.location === current.location ? result.location_lng : null),
+        location_pin_source:
+          latest.location_pin_source ??
+          (latest.location === current.location ? result.location_pin_source : null),
         responders: mergeAssignmentIds(latest.responders, result.assignmentIds),
       }
 

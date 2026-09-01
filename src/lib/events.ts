@@ -276,6 +276,7 @@ export type EventDetail = Omit<EventListItem, 'responders'> & {
   road_id: string | null
   location_lat: number | null
   location_lng: number | null
+  location_pin_source: string | null
   updated_at: string
   responders: EventResponderDetail[]
   /** Event-keyed plates (shift-born). Alias from PostgREST `shared_plates`. */
@@ -292,6 +293,7 @@ const EVENT_DETAIL_SELECT = `
   road_id,
   location_lat,
   location_lng,
+  location_pin_source,
   notes,
   status,
   is_cancelled,
@@ -335,6 +337,7 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
   road_id,
   location_lat,
   location_lng,
+  location_pin_source,
   notes,
   status,
   is_cancelled,

@@ -6,6 +6,12 @@ import { notifyFillReady } from './responderFillToken'
 import { planTrackingSync } from './liveTrack'
 import { startResponderTracking, stopResponderTracking } from './liveTrackApi'
 import {
+  applyAutoGeocodeToLocationPayload,
+  eventGeocodeQuery,
+  eventNeedsPersistedGeocode,
+} from './eventGeocode'
+import { geocodePlaceQuery } from './googlePlaces'
+import {
   LOCATION_REQUIRED_ERROR,
   needsPlacesLocation,
 } from './systemDistricts'
@@ -509,16 +515,37 @@ export function buildLocationPayload(draft: EventFormDraft): {
     }
   }
 
-  const hasPlace =
-    Boolean(draft.location_place_id) && hasCoords
+  const hasPlace = Boolean(draft.location_place_id) && hasCoords
+  if (hasPlace) {
+    return {
+      location,
+      location_place_id: draft.location_place_id,
+      location_lat: draft.location_lat,
+      location_lng: draft.location_lng,
+      location_pin_source: 'places',
+      location_pinned_at: null,
+      location_pinned_by: null,
+    }
+  }
+
+  if (draft.location_pin_source === 'geocode' && hasCoords) {
+    return {
+      location,
+      location_place_id: null,
+      location_lat: draft.location_lat,
+      location_lng: draft.location_lng,
+      location_pin_source: 'geocode',
+      location_pinned_at: null,
+      location_pinned_by: null,
+    }
+  }
+
   return {
     location,
-    location_place_id: hasPlace ? draft.location_place_id : null,
-    location_lat: hasPlace ? draft.location_lat : null,
-    location_lng: hasPlace ? draft.location_lng : null,
-    location_pin_source: hasPlace ? 'places' : null,
-    location_pinned_at: null,
-    location_pinned_by: null,
+    location_place_id: null,
+    location_lat: null,
+    location_lng: null,
+    ...emptyLocationPinMeta(),
   }
 }
 
@@ -562,6 +589,9 @@ export async function saveEventForm(input: {
       assignmentIds: Record<string, string>
       trackingStartFailed: boolean
       trackingStopFailed: boolean
+      location_lat: number | null
+      location_lng: number | null
+      location_pin_source: LocationPinSource | null
     }
   | { ok: false; error: string; fieldErrors?: EventFormErrors }
 > {
@@ -599,7 +629,28 @@ export async function saveEventForm(input: {
 
   const nextStatus = deriveEventStatus(draft)
 
-  const locationPayload = buildLocationPayload(draft)
+  let locationPayload = buildLocationPayload(draft)
+  const roadName = input.roads?.find((row) => row.id === draft.road_id)?.name ?? null
+  const placesAssisted = needsPlacesLocation(
+    districts,
+    draft.district_id,
+    input.roads ?? [],
+    draft.road_id,
+  )
+  if (
+    eventNeedsPersistedGeocode({
+      location: draft.location,
+      location_lat: locationPayload.location_lat,
+      location_lng: locationPayload.location_lng,
+      location_pin_source: locationPayload.location_pin_source,
+      roadName,
+      placesAssisted,
+    })
+  ) {
+    const query = eventGeocodeQuery(roadName, draft.location)
+    const coords = query ? await geocodePlaceQuery(query) : null
+    locationPayload = applyAutoGeocodeToLocationPayload(locationPayload, coords)
+  }
   const foreignIds = eventForeignIds(draft, { allowPartial })
   const eventPayload = {
     event_date: draft.event_date,
@@ -690,6 +741,9 @@ export async function saveEventForm(input: {
     assignmentIds: sync.assignmentIds,
     trackingStartFailed,
     trackingStopFailed,
+    location_lat: locationPayload.location_lat,
+    location_lng: locationPayload.location_lng,
+    location_pin_source: locationPayload.location_pin_source,
   }
 }
 

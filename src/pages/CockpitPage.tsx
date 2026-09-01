@@ -7,6 +7,8 @@ import {
   cockpitEventMapPins,
   geocodeCockpitEventPins,
   mergeCockpitEventPins,
+  cockpitPinsMissingStoredCoords,
+  saveEventGeocodePin,
   cockpitNeighborId,
   cockpitReelDetail,
   cockpitReelLead,
@@ -86,7 +88,11 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     if (!mapOpen) return
     let active = true
     void geocodeCockpitEventPins(reel).then((pins) => {
-      if (active) setGeocodedEventPins(pins)
+      if (!active) return
+      setGeocodedEventPins(pins)
+      for (const pin of cockpitPinsMissingStoredCoords(reel, pins)) {
+        void saveEventGeocodePin(pin)
+      }
     })
     return () => {
       active = false

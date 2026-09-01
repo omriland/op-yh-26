@@ -1,5 +1,6 @@
 import { todayJerusalem } from './eventForm'
-import { eventGeocodeQuery, roadNumberForGeocode } from './eventGeocode'
+import { eventGeocodeQuery, eventNeedsPersistedGeocode, roadNumberForGeocode } from './eventGeocode'
+import { isUrbanRoadName } from './systemDistricts'
 import { locationPinIsLocked, type LocationPinSource } from './locationPin'
 import { geocodePlaceQuery } from './googlePlaces'
 import { supabase } from './supabase'
@@ -392,6 +393,39 @@ export function isAbandonedEmptyCockpitItem(event: {
   return true
 }
 
+export function cockpitPinsMissingStoredCoords(
+  events: Array<{
+    id: string
+    location: string | null
+    location_lat: number | null
+    location_lng: number | null
+    location_pin_source?: string | null
+    road: { name: string } | null
+  }>,
+  pins: CockpitEventPin[],
+): Array<{ eventId: string; lat: number; lng: number }> {
+  const byId = new Map(pins.map((pin) => [pin.eventId, pin]))
+  const missing: Array<{ eventId: string; lat: number; lng: number }> = []
+  for (const event of events) {
+    if (
+      !eventNeedsPersistedGeocode({
+        location: event.location,
+        location_lat: event.location_lat,
+        location_lng: event.location_lng,
+        location_pin_source: event.location_pin_source,
+        roadName: event.road?.name,
+        placesAssisted: isUrbanRoadName(event.road?.name),
+      })
+    ) {
+      continue
+    }
+    const pin = byId.get(event.id)
+    if (!pin) continue
+    missing.push({ eventId: event.id, lat: pin.lat, lng: pin.lng })
+  }
+  return missing
+}
+
 export async function saveEventLocationPin(input: {
   eventId: string
   lat: number
@@ -407,6 +441,27 @@ export async function saveEventLocationPin(input: {
       location_pin_source: 'shift_lead',
       location_pinned_at: new Date().toISOString(),
       location_pinned_by: input.userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.eventId)
+  if (error) return { ok: false, error: 'שמירת המיקום נכשלה. בדקו את החיבור ונסו שוב.' }
+  return { ok: true }
+}
+
+export async function saveEventGeocodePin(input: {
+  eventId: string
+  lat: number
+  lng: number
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('events')
+    .update({
+      location_lat: input.lat,
+      location_lng: input.lng,
+      location_place_id: null,
+      location_pin_source: 'geocode',
+      location_pinned_at: null,
+      location_pinned_by: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.eventId)

@@ -101,6 +101,28 @@ describe('buildLocationPayload', () => {
     })
   })
 
+  it('keeps an automatic geocode pin without a place id', () => {
+    expect(
+      buildLocationPayload(
+        draft({
+          location: 'מחלף השלום',
+          location_place_id: null,
+          location_lat: 32.07,
+          location_lng: 34.79,
+          location_pin_source: 'geocode',
+        }),
+      ),
+    ).toEqual({
+      location: 'מחלף השלום',
+      location_place_id: null,
+      location_lat: 32.07,
+      location_lng: 34.79,
+      location_pin_source: 'geocode',
+      location_pinned_at: null,
+      location_pinned_by: null,
+    })
+  })
+
   it('clears place fields for free-text', () => {
     expect(
       buildLocationPayload(
