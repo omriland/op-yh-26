@@ -36,6 +36,7 @@ import {
 import { digitsOnly, formatPlate, monoClass } from '../lib/format'
 import { captureEvent } from '../lib/posthog'
 import { supabase } from '../lib/supabase'
+import { pickDefaultPersonalVehicleId } from '../lib/defaultVehicle'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
@@ -67,6 +68,7 @@ type PersonalVehicleOption = {
   user_id: string
   plate_number: string
   model: string
+  is_default: boolean
 }
 
 type FieldErrors = Partial<Record<ShiftSaveError['field'], string>> & { form?: string }
@@ -125,12 +127,15 @@ async function fetchVehiclesForResponders(
   if (responderIds.length === 0) return []
   const { data, error } = await supabase
     .from('vehicles')
-    .select('id, user_id, plate_number, model')
+    .select('id, user_id, plate_number, model, is_default')
     .in('user_id', responderIds)
     .eq('archived', false)
     .order('plate_number', { ascending: true })
   if (error) throw new Error(error.message)
-  return (data ?? []) as PersonalVehicleOption[]
+  return ((data ?? []) as PersonalVehicleOption[]).map((row) => ({
+    ...row,
+    is_default: Boolean(row.is_default),
+  }))
 }
 
 export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) {
@@ -296,12 +301,22 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
         if (!active) return
         setPersonalVehicles(rows)
         const keep = new Set(rows.map((row) => row.id))
-        if (
-          draft.personal_vehicle_id &&
-          draft.vehicle_type === 'personal' &&
-          !keep.has(draft.personal_vehicle_id)
-        ) {
-          updateDraft({ personal_vehicle_id: null })
+        const current = draftRef.current
+        if (!current) return
+        let nextId = current.personal_vehicle_id
+        if (nextId && !keep.has(nextId)) nextId = null
+        if (!nextId && current.vehicle_type === 'personal') {
+          nextId = pickDefaultPersonalVehicleId(
+            rows.map((row) => ({
+              id: row.id,
+              userId: row.user_id,
+              isDefault: row.is_default,
+            })),
+            current.responder_ids,
+          )
+        }
+        if (nextId !== current.personal_vehicle_id) {
+          updateDraft({ personal_vehicle_id: nextId })
         }
       })
       .catch(() => {
@@ -667,10 +682,21 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   options={VEHICLE_OPTIONS}
                   onChange={(event) => {
                     const vehicle_type = event.target.value as ShiftVehicleType
+                    const personal_vehicle_id =
+                      vehicle_type === 'personal'
+                        ? draft.personal_vehicle_id ??
+                          pickDefaultPersonalVehicleId(
+                            personalVehicles.map((row) => ({
+                              id: row.id,
+                              userId: row.user_id,
+                              isDefault: row.is_default,
+                            })),
+                            draft.responder_ids,
+                          )
+                        : null
                     updateDraft({
                       vehicle_type,
-                      personal_vehicle_id:
-                        vehicle_type === 'personal' ? draft.personal_vehicle_id : null,
+                      personal_vehicle_id,
                     })
                     setErrors((current) => ({
                       ...current,
@@ -696,7 +722,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                     }
                     options={personalVehicles.map((row) => ({
                       value: row.id,
-                      label: `${formatPlate(row.plate_number)}${row.model ? ` · ${row.model}` : ''}`,
+                      label: `${formatPlate(row.plate_number)}${row.model ? ` · ${row.model}` : ''}${
+                        row.is_default ? ' · ראשי' : ''
+                      }`,
                     }))}
                     onChange={(event) => {
                       updateDraft({ personal_vehicle_id: event.target.value || null })

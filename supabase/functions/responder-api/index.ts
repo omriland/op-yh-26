@@ -26,6 +26,20 @@ function plateDigits(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
+function pickDefaultVehiclePlate(
+  vehicles: { plate: string; isDefault?: boolean }[],
+  existingPlate?: string | null,
+): string {
+  const existing = plateDigits(existingPlate ?? "");
+  if (existing && vehicles.some((vehicle) => vehicle.plate === existing)) {
+    return existing;
+  }
+  const starred = vehicles.find((vehicle) => vehicle.isDefault)?.plate;
+  if (starred) return starred;
+  if (vehicles.length === 1) return vehicles[0]!.plate;
+  return "";
+}
+
 function formatPlate(raw: string): string {
   const digits = plateDigits(raw);
   if (digits.length === 7) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
@@ -456,17 +470,18 @@ async function eventPayload(admin: SupabaseClient, assignment: Assignment, userI
   const platesAllowed = await allowedPlates(admin, userId, assignment.vehicle_plate);
   const { data: vehicles } = await admin
     .from("vehicles")
-    .select("plate_number, model, archived")
+    .select("plate_number, model, archived, is_default")
     .eq("user_id", userId);
   const existing = assignment.vehicle_plate ? plateDigits(assignment.vehicle_plate) : "";
-  const vehicleOptions = (vehicles ?? [])
+  const vehicleMapped = (vehicles ?? [])
     .map((v) => ({
       plate: plateDigits(String(v.plate_number ?? "")),
       model: String(v.model ?? "").trim(),
       archived: Boolean(v.archived),
+      isDefault: Boolean(v.is_default) && !v.archived,
     }))
-    .filter((v) => v.plate && (!v.archived || v.plate === existing))
-    .map(({ plate, model }) => ({ plate, model }));
+    .filter((v) => v.plate && (!v.archived || v.plate === existing));
+  const vehicleOptions = vehicleMapped.map(({ plate, model }) => ({ plate, model }));
 
   const { data: plates } = await admin
     .from("event_treated_plates")
@@ -492,11 +507,10 @@ async function eventPayload(admin: SupabaseClient, assignment: Assignment, userI
     vehicles: vehicleOptions,
     allowed_plates: platesAllowed,
     draft: {
-      vehicle_plate: existing && platesAllowed.includes(existing)
-        ? existing
-        : vehicleOptions.length === 1
-        ? vehicleOptions[0]!.plate
-        : existing,
+      vehicle_plate: pickDefaultVehiclePlate(
+        vehicleMapped.map(({ plate, isDefault }) => ({ plate, isDefault })),
+        existing,
+      ),
       odometer_start: assignment.odometer_start != null ? String(assignment.odometer_start) : "",
       odometer_end: assignment.odometer_end != null ? String(assignment.odometer_end) : "",
       route: assignment.route ?? "",
