@@ -4,7 +4,7 @@ import {
   readAuthTokenFromUrl,
   readInviteTokenFromUrl,
   readStashedAuthToken,
-  readStashedInviteToken,
+  resolveInviteToken,
   stashAuthToken,
   stashInviteToken,
   clearStashedAuthToken,
@@ -38,7 +38,7 @@ export function stashAuthTokenFromUrl(): boolean {
 }
 
 export function hasRedeemableInvite(): boolean {
-  return Boolean(readStashedInviteToken() || readStashedAuthToken())
+  return Boolean(resolveInviteToken() || readStashedAuthToken())
 }
 
 /**
@@ -48,7 +48,7 @@ export function hasRedeemableInvite(): boolean {
  * until password is set). Legacy token_hash → one-shot verifyOtp.
  */
 export async function redeemStashedAuthToken(): Promise<{ error: string | null }> {
-  const inviteToken = readStashedInviteToken()
+  const inviteToken = resolveInviteToken()
   if (inviteToken) {
     return redeemDurableInviteToken(inviteToken)
   }
@@ -126,21 +126,19 @@ async function redeemDurableInviteToken(inviteToken: string): Promise<{ error: s
 }
 
 async function verifyToken(token: AuthTokenFromUrl) {
-  let error = (
-    await supabase.auth.verifyOtp({
-      token_hash: token.token_hash,
-      type: token.type as EmailOtpType,
-    })
-  ).error
+  const types: AuthTokenFromUrl['type'][] = [token.type]
+  if (token.type === 'invite') types.push('signup')
+  if (token.type === 'magiclink') types.push('email', 'signup')
 
-  if (error && token.type === 'invite') {
+  let error: Awaited<ReturnType<typeof supabase.auth.verifyOtp>>['error'] = null
+  for (const type of types) {
     error = (
       await supabase.auth.verifyOtp({
         token_hash: token.token_hash,
-        type: 'signup',
+        type: type as EmailOtpType,
       })
     ).error
+    if (!error) return null
   }
-
   return error
 }

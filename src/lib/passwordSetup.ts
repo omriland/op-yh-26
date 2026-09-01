@@ -43,12 +43,12 @@ export function capturePasswordSetupIntent(hash: string, search: string): void {
     queryParams.has('token_hash') ||
     queryParams.has('invite_token')
 
-  if (type === 'recovery') {
+  if (type === 'recovery' && hasAuthPayload) {
     sessionStorage.setItem(STORAGE_KEY, 'recovery')
     return
   }
 
-  if (type === 'invite' || type === 'signup') {
+  if ((type === 'invite' || type === 'signup') && hasAuthPayload) {
     sessionStorage.setItem(STORAGE_KEY, 'invite')
     return
   }
@@ -127,34 +127,67 @@ export function clearStashedAuthToken(): void {
 
 export function stashInviteToken(token: string): void {
   sessionStorage.setItem(INVITE_TOKEN_STASH_KEY, token)
+  writeLocalInviteToken(token)
 }
 
 export function readStashedInviteToken(): string | null {
-  return sessionStorage.getItem(INVITE_TOKEN_STASH_KEY)
+  return sessionStorage.getItem(INVITE_TOKEN_STASH_KEY) ?? readLocalInviteToken()
 }
 
 export function clearStashedInviteToken(): void {
   sessionStorage.removeItem(INVITE_TOKEN_STASH_KEY)
+  writeLocalInviteToken(null)
 }
 
-/** Drop invite/reset query markers so refresh cannot reopen the gate. */
+/**
+ * Durable invite_token stays in the URL until password is set. One-time
+ * token_hash is stripped after stash so email scanners cannot replay it.
+ */
 export function stripPasswordSetupFromUrl(): void {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
-  if (
-    !url.searchParams.has('set_password') &&
-    !url.searchParams.has('type') &&
-    !url.searchParams.has('token_hash') &&
-    !url.searchParams.has('invite_token')
-  ) {
-    return
-  }
-  url.searchParams.delete('set_password')
-  url.searchParams.delete('type')
+  const before = url.href
   url.searchParams.delete('token_hash')
-  url.searchParams.delete('invite_token')
+  if (!url.searchParams.has('invite_token')) {
+    url.searchParams.delete('set_password')
+    url.searchParams.delete('type')
+    url.searchParams.delete('invite_token')
+  }
+  if (url.href === before) return
   const next = `${url.pathname}${url.search}${url.hash}`
   window.history.replaceState(window.history.state, '', next || '/')
+}
+
+/** URL first (survives in-app browser hops), then session/local stash. */
+export function resolveInviteToken(search?: string): string | null {
+  const fromUrl =
+    search !== undefined
+      ? readInviteTokenFromSearch(search)
+      : readInviteTokenFromUrl()
+  if (fromUrl) {
+    stashInviteToken(fromUrl)
+    return fromUrl
+  }
+  return readStashedInviteToken()
+}
+
+function readLocalInviteToken(): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null
+    return localStorage.getItem(INVITE_TOKEN_STASH_KEY)
+  } catch {
+    return null
+  }
+}
+
+function writeLocalInviteToken(token: string | null): void {
+  try {
+    if (typeof localStorage === 'undefined') return
+    if (token) localStorage.setItem(INVITE_TOKEN_STASH_KEY, token)
+    else localStorage.removeItem(INVITE_TOKEN_STASH_KEY)
+  } catch {
+    /* private mode / blocked storage */
+  }
 }
 
 export function getPasswordSetupReason(): PasswordSetupReason | null {

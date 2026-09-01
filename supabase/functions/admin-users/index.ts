@@ -5,6 +5,7 @@ import {
   jsonResponse as json,
   runWithCors,
 } from "../_shared/cors.ts";
+import { inviteExpiresAt, isInviteExpired } from "../_shared/inviteTtl.ts";
 
 type AppRole = "admin" | "shift_lead" | "responder";
 
@@ -93,9 +94,6 @@ type RequestBody =
   | SetEmailBody
   | ImpersonateBody
   | StopImpersonationBody;
-
-/** Durable invite URL TTL. Resend / copy-link mints a fresh token. */
-const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const ALLOWED_ROLES: AppRole[] = ["admin", "shift_lead", "responder"];
 
@@ -734,70 +732,43 @@ function buildDurableInviteLink(inviteToken: string, redirectBase: string): stri
 
 function newInviteTokenRow() {
   const inviteToken = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + INVITE_TTL_MS).toISOString();
+  const expiresAt = inviteExpiresAt();
   return { inviteToken, expiresAt };
 }
 
 async function mintFreshAuthOtp(
   adminClient: ReturnType<typeof createClient>,
   email: string,
-  fullName: string,
-  callsign: string,
-  phone: string,
   redirectBase: string,
 ) {
-  const inviteAttempt = await adminClient.auth.admin.generateLink({
-    type: "invite",
-    email,
-    options: {
-      data: { full_name: fullName, callsign, phone },
-      redirectTo: redirectBase,
-    },
-  });
-
-  if (!inviteAttempt.error && inviteAttempt.data?.properties?.hashed_token) {
-    return {
-      token_hash: inviteAttempt.data.properties.hashed_token as string,
-      type: (inviteAttempt.data.properties.verification_type || "invite") as string,
-      error: null as string | null,
-    };
-  }
-
-  const message = inviteAttempt.error?.message?.toLowerCase() ?? "";
-  if (message.includes("rate limit")) {
-    return { token_hash: null, type: null, error: "rate_limit" as const };
-  }
-
-  const alreadyRegistered =
-    message.includes("already") ||
-    message.includes("registered") ||
-    message.includes("exists");
-
-  if (!alreadyRegistered && inviteAttempt.error) {
-    return {
-      token_hash: null,
-      type: null,
-      error: inviteAttempt.error.message,
-    };
-  }
-
-  const recovery = await adminClient.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: { redirectTo: redirectBase },
-  });
-  if (recovery.error || !recovery.data?.properties?.hashed_token) {
-    return {
-      token_hash: null,
-      type: null,
-      error: recovery.error?.message ?? "recovery_failed",
-    };
+  // `type: "invite"` reuses the confirmation token from user creation.
+  // Auth then treats that original OTP as expired (often within an hour),
+  // so a still-valid 24h durable link looks dead. Magiclink/recovery mint
+  // a new one-time token on every click.
+  for (const type of ["magiclink", "recovery"] as const) {
+    const attempt = await adminClient.auth.admin.generateLink({
+      type,
+      email,
+      options: { redirectTo: redirectBase },
+    });
+    const message = attempt.error?.message?.toLowerCase() ?? "";
+    if (message.includes("rate limit")) {
+      return { token_hash: null, type: null, error: "rate_limit" as const };
+    }
+    const hashed = attempt.data?.properties?.hashed_token;
+    if (!attempt.error && hashed) {
+      return {
+        token_hash: hashed as string,
+        type: (attempt.data.properties.verification_type || type) as string,
+        error: null as string | null,
+      };
+    }
   }
 
   return {
-    token_hash: recovery.data.properties.hashed_token as string,
-    type: (recovery.data.properties.verification_type || "recovery") as string,
-    error: null as string | null,
+    token_hash: null,
+    type: null,
+    error: "mint_failed",
   };
 }
 
@@ -830,10 +801,7 @@ async function handleRedeemInvite(
     return json(400, { error: "ההרשמה כבר הושלמה. אפשר להתחבר עם הסיסמה שנבחרה." });
   }
 
-  if (
-    profile.invite_token_expires_at &&
-    new Date(profile.invite_token_expires_at).getTime() < Date.now()
-  ) {
+  if (isInviteExpired(profile.invite_token_expires_at)) {
     return json(400, { error: "קישור ההזמנה פג תוקף. בקשו הזמנה חדשה." });
   }
 
@@ -843,14 +811,7 @@ async function handleRedeemInvite(
   }
 
   const redirectBase = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
-  const minted = await mintFreshAuthOtp(
-    adminClient,
-    email,
-    trim(profile.full_name) || email,
-    trim(profile.callsign),
-    trim(profile.phone ?? "") || "",
-    redirectBase,
-  );
+  const minted = await mintFreshAuthOtp(adminClient, email, redirectBase);
 
   if (minted.error === "rate_limit") {
     return json(429, { error: "נשלחו יותר מדי בקשות. נסו שוב בעוד כמה דקות." });

@@ -6,6 +6,10 @@ import {
   markPasswordSetupRequired,
   readAuthTokenFromSearch,
   readInviteTokenFromSearch,
+  readStashedInviteToken,
+  resolveInviteToken,
+  stashInviteToken,
+  stripPasswordSetupFromUrl,
 } from './passwordSetup'
 
 const store = new Map<string, string>()
@@ -48,6 +52,12 @@ describe('capturePasswordSetupIntent', () => {
     capturePasswordSetupIntent('', '?type=recovery&token_hash=abc')
     expect(getPasswordSetupReason()).toBe('recovery')
   })
+
+  it('does not arm invite from type=invite without a token', () => {
+    stubSessionStorage()
+    capturePasswordSetupIntent('', '?set_password=1&type=invite')
+    expect(getPasswordSetupReason()).toBeNull()
+  })
 })
 
 describe('readAuthTokenFromSearch', () => {
@@ -70,6 +80,41 @@ describe('readInviteTokenFromSearch', () => {
         '?set_password=1&type=invite&invite_token=11111111-1111-1111-1111-111111111111',
       ),
     ).toBe('11111111-1111-1111-1111-111111111111')
+  })
+})
+
+describe('durable invite_token persistence', () => {
+  const token = '11111111-1111-1111-1111-111111111111'
+
+  it('keeps invite_token in the URL so a lost sessionStorage still redeems', () => {
+    stubSessionStorage()
+    const href = `https://yahpz.com/?set_password=1&type=invite&invite_token=${token}`
+    const replaced: string[] = []
+    vi.stubGlobal('window', {
+      location: { href, search: `?set_password=1&type=invite&invite_token=${token}` },
+      history: {
+        state: null,
+        replaceState: (_state: unknown, _title: string, next: string) => {
+          replaced.push(next)
+        },
+      },
+    })
+    stripPasswordSetupFromUrl()
+    expect(replaced).toHaveLength(0)
+  })
+
+  it('resolves invite_token from the URL when stash is empty', () => {
+    stubSessionStorage()
+    expect(
+      resolveInviteToken(`?set_password=1&type=invite&invite_token=${token}`),
+    ).toBe(token)
+    expect(readStashedInviteToken()).toBe(token)
+  })
+
+  it('resolves a stashed invite_token when the URL was already cleaned', () => {
+    stubSessionStorage()
+    stashInviteToken(token)
+    expect(resolveInviteToken('')).toBe(token)
   })
 })
 
