@@ -2,7 +2,7 @@
 
 **Share this:** [https://yahpz.com/partner-api/](https://yahpz.com/partner-api/)
 
-**Volunteers do not use this page.** They open a **connect link from your Telegram bot**, approve once on [yahpz.com](https://yahpz.com), then you call the HTTP actions below (MCP-style: connect once, then use tools). To revoke later they use **פרופיל → חיבורים**.
+**Volunteers do not use this page.** They open a **connect link from your Telegram bot**, approve once on [yahpz.com](https://yahpz.com), then you call the HTTP actions below (MCP-style: connect once, then use tools). To revoke later they use **פרופיל → חיבור לטלגרם**.
 
 **Product:** אבן דרך (Yahpaz)  
 **Audience:** The trusted server that runs the Telegram bot  
@@ -121,7 +121,7 @@ Content-Type: application/json
 }
 ```
 
-`expires_in` is **60 days** (5184000 seconds). There is **no refresh token**. After expiry, revoke, or unlink on yahpz.com (**פרופיל → חיבורים**), send them through authorize again.
+`expires_in` is **60 days** (5184000 seconds). There is **no refresh token**. After expiry, revoke, or unlink on yahpz.com (**פרופיל → חיבור לטלגרם**), send them through authorize again.
 
 Store `access_token` keyed by your Telegram user id. Treat it like a password.
 

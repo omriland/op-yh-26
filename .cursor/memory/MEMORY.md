@@ -66,7 +66,8 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
 - Core flows: auth, events, responder fill, admin users + closed lists
-- **Partner Telegram bot (2026-08-30 revise):** MCP-style connect — bot sends short `/oauth/authorize?client_id&state`; profile **חיבורים** is revoke-only (no **חבר לטלגרם**). Fill API unchanged (`responder:fill`, 60-day token). Spec: `2026-08-30-yahpaz-telegram-mcp-style-connect-design.md`; contract `/partner-api/` v1.1. **Merged to `infra/bootstrap` + Netlify prod** (deploy `6a93b72f085722000888eda6`, commit `e2bc6c3`). Edge `partner-auth` / `responder-api` added to deploy workflow but **not live** — GitHub secret `SUPABASE_ACCESS_TOKEN` missing (workflow skipped).
+- **Partner Telegram bot (2026-08-30 revise):** MCP-style connect — bot sends short `/oauth/authorize?client_id&state`; Fill API unchanged (`responder:fill`, 60-day token). Spec: `2026-08-30-yahpaz-telegram-mcp-style-connect-design.md`; contract `/partner-api/` v1.1. **Merged to `infra/bootstrap` + Netlify prod** (deploy `6a93b72f085722000888eda6`, commit `e2bc6c3`). Edge `partner-auth` / `responder-api` added to deploy workflow but **not live** — GitHub secret `SUPABASE_ACCESS_TOKEN` missing (workflow skipped).
+- **Profile Telegram CTA (2026-09-01):** section heading **חיבור לטלגרם**, caption **תיעוד אירועים בקלות בצאט דרך הטלגרם**, connect button **disabled**. Existing grants can still revoke. Admin **רישום בוט** unchanged.
 - Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs
 - Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
 - Toasts: mobile top-center via flex (RTL-safe; no `translateX` centering); desktop bottom-inline-start. Spec: `docs/superpowers/specs/2026-08-11-mobile-toast-design.md`

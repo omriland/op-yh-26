@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LogOut, Star } from 'lucide-react'
+import { LogOut, MessageSquare, Star } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { formatDateTime, formatNumber, formatPhone, monoClass } from '../lib/format'
 import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
@@ -49,7 +49,6 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
   const [vehicleError, setVehicleError] = useState<string | null>(null)
   const [addresses, setAddresses] = useState<UserAddressRow[] | null>(null)
   const [grants, setGrants] = useState<PartnerGrant[] | null>(null)
-  const [grantError, setGrantError] = useState<string | null>(null)
   const [revokeId, setRevokeId] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
   const [starringId, setStarringId] = useState<string | null>(null)
@@ -88,13 +87,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
 
     fetchPartnerGrants().then((result) => {
       if (!active) return
-      if (result.ok) {
-        setGrants(result.grants)
-        setGrantError(null)
-      } else {
-        setGrants([])
-        setGrantError(result.error)
-      }
+      setGrants(result.ok ? result.grants : [])
     })
 
     return () => {
@@ -201,21 +194,22 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
         </section>
 
         <section className="card">
-          <h2 className="t-section">חיבורים</h2>
+          <h2 className="t-section">חיבור לטלגרם</h2>
           <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
-            חיבור חד־פעמי לבוט בטלגרם. אחרי האישור אפשר לדווח אירועים בצ׳אט.
+            תיעוד אירועים בקלות בצאט דרך הטלגרם
           </p>
           <div style={{ marginBlockStart: 'var(--space-4)' }}>
             {grants === null ? (
               <Skeleton height={24} />
-            ) : grantError ? (
-              <p className="t-body text-muted">{grantError}</p>
             ) : grants.length === 0 ? (
               <div className="stack-3">
-                <p className="t-body">עדיין לא מחוברים.</p>
-                <p className="t-caption text-muted">
-                  פתחו את הבוט בטלגרם ושלחו קישור חיבור. אחרי האישור יופיע כאן החיבור לביטול.
-                </p>
+                <Button
+                  block
+                  disabled
+                  icon={<MessageSquare size={20} strokeWidth={1.75} aria-hidden="true" />}
+                >
+                  חיבור לטלגרם
+                </Button>
                 {isAdmin && onOpenBotSettings ? (
                   <Button onClick={onOpenBotSettings}>רישום בוט</Button>
                 ) : null}
