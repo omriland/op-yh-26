@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   canChooseDefaultVehicle,
+  isMissingDefaultVehicleColumn,
   pickDefaultPersonalVehicleId,
   pickDefaultVehiclePlate,
+  queryVehiclesWithDefaultFallback,
 } from './defaultVehicle'
 
 describe('pickDefaultVehiclePlate', () => {
@@ -88,5 +90,67 @@ describe('canChooseDefaultVehicle', () => {
         { archived: false },
       ]),
     ).toBe(true)
+  })
+})
+
+describe('isMissingDefaultVehicleColumn', () => {
+  it('matches the PostgREST missing-column error from production', () => {
+    expect(
+      isMissingDefaultVehicleColumn({
+        code: '42703',
+        message: 'column vehicles.is_default does not exist',
+      }),
+    ).toBe(true)
+  })
+
+  it('is false for other failures', () => {
+    expect(isMissingDefaultVehicleColumn(null)).toBe(false)
+    expect(
+      isMissingDefaultVehicleColumn({ code: '42501', message: 'permission denied' }),
+    ).toBe(false)
+    expect(
+      isMissingDefaultVehicleColumn({
+        code: '42703',
+        message: 'column vehicles.archived does not exist',
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('queryVehiclesWithDefaultFallback', () => {
+  it('retries without is_default when that column is missing', async () => {
+    const calls: string[] = []
+    const rows = await queryVehiclesWithDefaultFallback(
+      'id, plate_number, model, archived, is_default',
+      async (select) => {
+        calls.push(select)
+        if (select.includes('is_default')) {
+          return {
+            data: null,
+            error: {
+              code: '42703',
+              message: 'column vehicles.is_default does not exist',
+            },
+          }
+        }
+        return {
+          data: [{ id: 'v1', plate_number: '12-345-67', model: 'קורולה', archived: false }],
+          error: null,
+        }
+      },
+    )
+    expect(calls).toEqual([
+      'id, plate_number, model, archived, is_default',
+      'id, plate_number, model, archived',
+    ])
+    expect(rows).toEqual([
+      {
+        id: 'v1',
+        plate_number: '12-345-67',
+        model: 'קורולה',
+        archived: false,
+        is_default: false,
+      },
+    ])
   })
 })

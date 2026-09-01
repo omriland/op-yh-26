@@ -1,4 +1,5 @@
 import { plateDigits } from './format'
+import { queryVehiclesWithDefaultFallback } from './defaultVehicle'
 import { supabase } from './supabase'
 
 export type VehicleRow = {
@@ -7,6 +8,19 @@ export type VehicleRow = {
   model: string
   archived: boolean
   is_default: boolean
+}
+
+export async function fetchOwnVehicles(userId: string): Promise<VehicleRow[]> {
+  return queryVehiclesWithDefaultFallback(
+    'id, plate_number, model, archived, is_default',
+    async (select) => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select(select)
+        .eq('user_id', userId)
+      return { data: (data as VehicleRow[] | null) ?? null, error }
+    },
+  )
 }
 
 /** Mark this active vehicle as רכב ראשי. Clears any previous default for the same user. */

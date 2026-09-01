@@ -36,7 +36,7 @@ import {
 import { digitsOnly, formatPlate, monoClass } from '../lib/format'
 import { captureEvent } from '../lib/posthog'
 import { supabase } from '../lib/supabase'
-import { pickDefaultPersonalVehicleId } from '../lib/defaultVehicle'
+import { pickDefaultPersonalVehicleId, queryVehiclesWithDefaultFallback } from '../lib/defaultVehicle'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
@@ -125,15 +125,23 @@ async function fetchVehiclesForResponders(
   responderIds: string[],
 ): Promise<PersonalVehicleOption[]> {
   if (responderIds.length === 0) return []
-  const { data, error } = await supabase
-    .from('vehicles')
-    .select('id, user_id, plate_number, model, is_default')
-    .in('user_id', responderIds)
-    .eq('archived', false)
-    .order('plate_number', { ascending: true })
-  if (error) throw new Error(error.message)
-  return ((data ?? []) as PersonalVehicleOption[]).map((row) => ({
-    ...row,
+  const rows = await queryVehiclesWithDefaultFallback<PersonalVehicleOption>(
+    'id, user_id, plate_number, model, is_default',
+    async (select) => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select(select)
+        .in('user_id', responderIds)
+        .eq('archived', false)
+        .order('plate_number', { ascending: true })
+      return { data, error }
+    },
+  )
+  return rows.map((row) => ({
+    id: String(row.id),
+    user_id: String(row.user_id),
+    plate_number: String(row.plate_number),
+    model: String(row.model ?? ''),
     is_default: Boolean(row.is_default),
   }))
 }
