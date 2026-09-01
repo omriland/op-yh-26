@@ -31,6 +31,9 @@ export type AdminUserRow = {
   volunteer_status: VolunteerStatus
   availability: AvailabilityStatus
   available_from: string | null
+  last_android_seen_at: string | null
+  last_android_version_code: number | null
+  last_android_version_name: string | null
   roles: AppRole[]
   vehicles: AdminVehicle[]
   addresses: UserAddressRow[]
@@ -104,7 +107,7 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   const { data: profiles, error } = await supabase
     .from('profiles')
     .select(
-      'id, full_name, email, callsign, phone, active, invite_pending, otp_login_enabled, otp_users_page_enabled, volunteer_status, availability, available_from',
+      'id, full_name, email, callsign, phone, active, invite_pending, otp_login_enabled, otp_users_page_enabled, volunteer_status, availability, available_from, last_android_seen_at, last_android_version_code, last_android_version_name',
     )
     .order('full_name')
 
@@ -151,6 +154,18 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     available_from:
       typeof profile.available_from === 'string' && profile.available_from
         ? profile.available_from
+        : null,
+    last_android_seen_at:
+      typeof profile.last_android_seen_at === 'string' && profile.last_android_seen_at
+        ? profile.last_android_seen_at
+        : null,
+    last_android_version_code:
+      typeof profile.last_android_version_code === 'number'
+        ? profile.last_android_version_code
+        : null,
+    last_android_version_name:
+      typeof profile.last_android_version_name === 'string' && profile.last_android_version_name
+        ? profile.last_android_version_name
         : null,
     roles: (roleRows ?? [])
       .filter((row) => row.user_id === profile.id)

@@ -1,7 +1,7 @@
 # Super Admin — Android install + version on משתמשים
 
 **Date:** 2026-09-01  
-**Status:** Approved  
+**Status:** Implemented  
 **Repos:** `op-yh-26` (schema + web), `yahpaz-android` (heartbeat)
 
 ## Problem

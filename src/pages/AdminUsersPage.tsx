@@ -33,7 +33,13 @@ import {
   type AssignableRole,
 } from '../lib/appRoles'
 import { hasAvailability, isInvitePending } from '../lib/adminUserStatus'
+import { AndroidInstallMark } from '../components/admin/AndroidInstallMark'
 import { UserPresenceDot } from '../components/admin/UserPresenceDot'
+import {
+  androidInstallHoverTip,
+  canShowAndroidInstallMark,
+  fetchAndroidLatestVersionCode,
+} from '../lib/androidInstall'
 import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../components/availability/AvailabilityControl'
 import { availabilitySearchLabel } from '../lib/availability'
 import {
@@ -231,6 +237,37 @@ function buildUserMenuItems(
   ]
 }
 
+function UserAndroidInstallMark({
+  user,
+  roles,
+  impersonating,
+  latestVersionCode,
+}: {
+  user: AdminUserRow
+  roles: readonly AppRole[]
+  impersonating: boolean
+  latestVersionCode: number | null
+}) {
+  if (
+    !canShowAndroidInstallMark({
+      roles,
+      impersonating,
+      lastAndroidSeenAt: user.last_android_seen_at,
+    })
+  ) {
+    return null
+  }
+  return (
+    <AndroidInstallMark
+      tip={androidInstallHoverTip({
+        versionName: user.last_android_version_name,
+        versionCode: user.last_android_version_code,
+        latestVersionCode,
+      })}
+    />
+  )
+}
+
 export function AdminUsersPage() {
   const isDesktop = useIsDesktop()
   const { user: authUser, roles, profile: authProfile } = useAuth()
@@ -282,6 +319,7 @@ export function AdminUsersPage() {
   const [passwordForceChange, setPasswordForceChange] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSaving, setPasswordSaving] = useState(false)
+  const [latestAndroidVersionCode, setLatestAndroidVersionCode] = useState<number | null>(null)
   const [menuUserId, setMenuUserId] = useState<string | null>(null)
   const [vehicleBusyKey, setVehicleBusyKey] = useState<string | null>(null)
   const [vehicleConfirm, setVehicleConfirm] = useState<
@@ -358,6 +396,20 @@ export function AdminUsersPage() {
       active = false
     }
   }, [reloadKey])
+
+  useEffect(() => {
+    if (!isSuperAdmin || viewingAsOther) {
+      setLatestAndroidVersionCode(null)
+      return
+    }
+    let active = true
+    fetchAndroidLatestVersionCode().then((code) => {
+      if (active) setLatestAndroidVersionCode(code)
+    })
+    return () => {
+      active = false
+    }
+  }, [isSuperAdmin, viewingAsOther, reloadKey])
 
   async function refreshUsers() {
     if (refreshing) return
@@ -1047,6 +1099,12 @@ export function AdminUsersPage() {
                   <td>
                     <span className="user-name-with-presence">
                       {presence ? <UserPresenceDot status={presence} /> : null}
+                      <UserAndroidInstallMark
+                        user={user}
+                        roles={roles}
+                        impersonating={viewingAsOther}
+                        latestVersionCode={latestAndroidVersionCode}
+                      />
                       {user.full_name}
                     </span>
                   </td>
@@ -1140,9 +1198,16 @@ export function AdminUsersPage() {
             )
             const showMenu = menuItems.length > 0
             const presence = presenceFromLastActive(user.last_active_at, Date.now(), user)
+            const androidMark = (
+              <UserAndroidInstallMark
+                user={user}
+                roles={roles}
+                impersonating={viewingAsOther}
+                latestVersionCode={latestAndroidVersionCode}
+              />
+            )
             const identity = (
               <>
-                {presence ? <UserPresenceDot status={presence} /> : null}
                 <Avatar name={user.full_name} size="lg" />
                     <span className="user-card__identity">
                       <span className="t-section">{user.full_name}</span>
@@ -1158,15 +1223,19 @@ export function AdminUsersPage() {
                 className={['card', 'user-card', !user.active ? 'is-muted' : ''].join(' ')}
               >
                 <div className="user-card__head">
-                  {canMutate ? (
-                    <button type="button" className="user-card__identity-btn" onClick={openEdit}>
-                      {identity}
-                    </button>
-                  ) : (
-                    <div className="user-card__identity-btn user-card__identity-btn--static">
-                      {identity}
-                    </div>
-                  )}
+                  <div className="user-card__identity-btn">
+                    {presence ? <UserPresenceDot status={presence} /> : null}
+                    {androidMark}
+                    {canMutate ? (
+                      <button type="button" className="user-card__identity-btn" onClick={openEdit}>
+                        {identity}
+                      </button>
+                    ) : (
+                      <div className="user-card__identity-btn user-card__identity-btn--static">
+                        {identity}
+                      </div>
+                    )}
+                  </div>
                   {showMenu ? (
                     <OverflowMenu
                       open={menuUserId === user.id}

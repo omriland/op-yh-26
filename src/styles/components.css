@@ -1666,6 +1666,23 @@ textarea.field__input {
   min-width: 0;
 }
 
+.android-install-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.android-install-mark__hit {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.android-install-mark__hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    Application shell
    ============================================================ */
