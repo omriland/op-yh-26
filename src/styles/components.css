@@ -271,6 +271,11 @@ textarea.field__input {
 
 .select-field__search .search-field {
   width: 100%;
+  min-width: 0;
+}
+
+.select-field__search .search-field input {
+  min-width: 0;
 }
 
 .select-field__empty {
@@ -5153,7 +5158,8 @@ textarea.field__input {
     'date date'
     'police patrol'
     'type district'
-    'road loc'
+    'road road'
+    'loc loc'
     'places places'
     'coords coords';
 }

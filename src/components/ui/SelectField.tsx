@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Search } from 'lucide-react'
 import { isSelectSearchNavKey, nextActiveIndex } from '../../lib/selectFieldNav'
 import { filterSelectOptions } from '../../lib/searchQuery'
+import { placeSelectMenu, readSelectMenuViewport } from '../../lib/selectMenuPlacement'
 
 type Option = { value: string; label: string; content?: ReactNode }
 
@@ -96,25 +97,32 @@ export function SelectField({
       const trigger = triggerRef.current
       if (!trigger) return
       const rect = trigger.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - rect.bottom - 8
-      const spaceAbove = rect.top - 8
-      const openUp = spaceBelow < 160 && spaceAbove > spaceBelow
-      const maxHeight = Math.min(searchable ? 360 : 280, Math.max(120, openUp ? spaceAbove : spaceBelow))
-      const top = openUp ? Math.max(8, rect.top - maxHeight - 4) : rect.bottom + 4
-      setCoords({
-        top,
-        left: rect.left,
-        width: rect.width,
-        maxHeight,
-      })
+      setCoords(
+        placeSelectMenu({
+          trigger: {
+            top: rect.top,
+            bottom: rect.bottom,
+            left: rect.left,
+            right: rect.right,
+          },
+          viewport: readSelectMenuViewport(),
+          searchable,
+          rtl: document.documentElement.dir === 'rtl',
+        }),
+      )
     }
 
     place()
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', place)
+    vv?.addEventListener('scroll', place)
     return () => {
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
+      vv?.removeEventListener('resize', place)
+      vv?.removeEventListener('scroll', place)
     }
   }, [open, options.length, searchable, visibleOptions.length])
 
@@ -127,7 +135,8 @@ export function SelectField({
     const selectedIndex = options.findIndex((option) => option.value === selectedValue)
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : options.length > 0 ? 0 : -1)
     queueMicrotask(() => {
-      if (searchable) searchRef.current?.focus()
+      const desktop = window.matchMedia('(min-width: 1025px)').matches
+      if (searchable && desktop) searchRef.current?.focus()
       else listRef.current?.focus()
     })
 
