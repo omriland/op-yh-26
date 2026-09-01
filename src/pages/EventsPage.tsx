@@ -4,6 +4,9 @@ import { useAuth } from '../lib/auth'
 import { textIncludesQuery } from '../lib/searchQuery'
 import {
   UNIT_EVENTS_LIST_LIMIT,
+  UNIT_EVENTS_LOAD_MORE_LABEL,
+  UNIT_EVENTS_RECENT_EMPTY_TITLE,
+  UNIT_EVENTS_WINDOW_DAYS,
   fetchEvents,
   fetchEventsByIds,
   fetchMyEvents,
@@ -13,6 +16,7 @@ import {
   missingSearchEventIds,
   ownFillCompletableAt,
   ownParticipation,
+  partitionUnitEventsByWindow,
   searchUnitEventIds,
   unitEventsListHint,
   type EventListItem,
@@ -90,6 +94,7 @@ export function EventsPage({
   const [reloadKey, setReloadKey] = useState(0)
   const [searching, setSearching] = useState(false)
   const [loggedWindows, setLoggedWindows] = useState(1)
+  const [unitWindows, setUnitWindows] = useState(1)
   const [mineTab, setMineTab] = useState<MineInboxTab>('pending')
   const [loggedQuery, setLoggedQuery] = useState('')
 
@@ -121,6 +126,7 @@ export function EventsPage({
 
   useEffect(() => {
     setLoggedWindows(1)
+    setUnitWindows(1)
     setMineTab('pending')
     setLoggedQuery('')
   }, [reloadKey, scope])
@@ -206,12 +212,26 @@ export function EventsPage({
     [scope, user?.id],
   )
 
+  const unitWindow = useMemo(() => {
+    if (scope !== 'unit' || !events) return null
+    const source = searchIds === null ? events : mergeEventLists(events, searchExtras)
+    if (searchIds !== null) {
+      return { inWindow: source, hasMore: false }
+    }
+    const partitioned = partitionUnitEventsByWindow(source, {
+      dateOf: (event) => event.event_date,
+      today: jerusalemToday(),
+      windowsLoaded: unitWindows,
+    })
+    return { inWindow: partitioned.visible, hasMore: partitioned.hasMore }
+  }, [events, scope, searchExtras, searchIds, unitWindows])
+
   const visible = useMemo(() => {
     if (!events) return []
 
     if (scope === 'unit') {
-      const source = searchIds === null ? events : mergeEventLists(events, searchExtras)
-      return filterUnitEventsForList(source, { status: filter, searchIds })
+      if (!unitWindow) return []
+      return filterUnitEventsForList(unitWindow.inWindow, { status: filter, searchIds })
     }
 
     const needle = query.trim()
@@ -229,7 +249,7 @@ export function EventsPage({
       const bOpen = ownParticipation(b, user?.id) !== 'done' ? 0 : 1
       return aOpen - bOpen
     })
-  }, [events, filter, query, scope, user?.id, searchIds, searchExtras])
+  }, [events, filter, query, scope, user?.id, searchIds, unitWindow])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
   const mineSections = useMemo(() => {
@@ -278,7 +298,7 @@ export function EventsPage({
         <div className="page-head">
           <div className="page-head__intro">
             <h1 className="t-title">אירועים</h1>
-            <p className="t-caption text-muted">{unitEventsListHint(UNIT_EVENTS_LIST_LIMIT)}</p>
+            <p className="t-caption text-muted">{unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}</p>
           </div>
           <div className="page-head__actions">
             <label className="field__control events-search">
@@ -385,23 +405,44 @@ export function EventsPage({
       ) : visible.length === 0 ? (
         <ListEmptyState
           filtered={filter !== 'all' || query.trim() !== ''}
+          recentWindowEmpty={
+            scope === 'unit' &&
+            unitWindow != null &&
+            unitWindow.inWindow.length === 0 &&
+            unitWindow.hasMore
+          }
           canCreate={canCreate && Boolean(onCreate)}
           onCreate={onCreate}
           onClear={() => {
             setFilter('all')
             setQuery('')
           }}
+          onLoadMore={() => setUnitWindows((windows) => windows + 1)}
         />
       ) : asTable ? (
-        <EventsTable events={visible} onOpen={onOpen} />
+        <div className="stack-4">
+          <EventsTable events={visible} onOpen={onOpen} />
+          {scope === 'unit' && unitWindow?.hasMore ? (
+            <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>
+              {UNIT_EVENTS_LOAD_MORE_LABEL}
+            </Button>
+          ) : null}
+        </div>
       ) : (
-        <DateGroups>
-          {grouped.map(([day, items]) => (
-            <DateGroup key={day} heading={formatDayHeading(day)}>
-              <EventCards events={items} stampFor={stampFor} onOpen={onOpen} />
-            </DateGroup>
-          ))}
-        </DateGroups>
+        <div className="stack-4">
+          <DateGroups>
+            {grouped.map(([day, items]) => (
+              <DateGroup key={day} heading={formatDayHeading(day)}>
+                <EventCards events={items} stampFor={stampFor} onOpen={onOpen} />
+              </DateGroup>
+            ))}
+          </DateGroups>
+          {scope === 'unit' && unitWindow?.hasMore ? (
+            <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>
+              {UNIT_EVENTS_LOAD_MORE_LABEL}
+            </Button>
+          ) : null}
+        </div>
       )}
     </div>
   )
@@ -420,15 +461,35 @@ function SearchLoadingState() {
 
 function ListEmptyState({
   filtered,
+  recentWindowEmpty = false,
   canCreate,
   onCreate,
   onClear,
+  onLoadMore,
 }: {
   filtered: boolean
+  recentWindowEmpty?: boolean
   canCreate: boolean
   onCreate?: () => void
   onClear: () => void
+  onLoadMore?: () => void
 }) {
+  if (recentWindowEmpty) {
+    return (
+      <EmptyState
+        icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+        title={UNIT_EVENTS_RECENT_EMPTY_TITLE}
+        action={
+          onLoadMore ? (
+            <Button variant="secondary" onClick={onLoadMore}>
+              {UNIT_EVENTS_LOAD_MORE_LABEL}
+            </Button>
+          ) : undefined
+        }
+      />
+    )
+  }
+
   if (filtered) {
     return (
       <EmptyState
@@ -630,5 +691,5 @@ function groupByDate(events: EventListItem[]): [string, EventListItem[]][] {
     bucket.push(event)
     groups.set(event.event_date, bucket)
   }
-  return [...groups.entries()]
+  return [...groups.entries()].sort(([a], [b]) => b.localeCompare(a))
 }

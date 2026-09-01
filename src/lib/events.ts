@@ -1,3 +1,4 @@
+import { addCalendarDays } from './mineListSections'
 import { searchQueryVariants } from './searchQuery'
 import type { EventOrigin } from './shiftBornEvents'
 import { supabase } from './supabase'
@@ -85,11 +86,55 @@ export const EVENT_LIST_SELECT = `
   )
 `
 
-/** Default window for the unit events table. Search can hydrate older rows. */
+/** Fetch cap for the unit events table. Search can hydrate older rows. */
 export const UNIT_EVENTS_LIST_LIMIT = 200
 
-export function unitEventsListHint(limit: number): string {
-  return `מציג את ${limit} האירועים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר`
+/** Default visible window on אירועים. Load-more expands by this many days. */
+export const UNIT_EVENTS_WINDOW_DAYS = 30
+
+export const UNIT_EVENTS_RECENT_EMPTY_TITLE = 'לא נמצאו אירועים מ-30 הימים האחרונים'
+
+export const UNIT_EVENTS_LOAD_MORE_LABEL = 'טען עוד'
+
+export function unitEventsListHint(days: number): string {
+  return `מציג אירועים מ-${days} הימים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר`
+}
+
+export function compareEventsByDateDesc(
+  a: { event_date: string; id: string },
+  b: { event_date: string; id: string },
+): number {
+  if (a.event_date !== b.event_date) return a.event_date < b.event_date ? 1 : -1
+  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0
+}
+
+export function sortEventsByDateDesc<T extends { event_date: string; id: string }>(events: T[]): T[] {
+  return [...events].sort(compareEventsByDateDesc)
+}
+
+export function unitEventsWindowStart(today: string, windowsLoaded: number): string {
+  const windows = Math.max(1, windowsLoaded)
+  return addCalendarDays(today, -(windows * UNIT_EVENTS_WINDOW_DAYS))
+}
+
+export function partitionUnitEventsByWindow<T>(
+  events: T[],
+  opts: { dateOf: (event: T) => string; today: string; windowsLoaded: number },
+): { visible: T[]; hasMore: boolean } {
+  const start = unitEventsWindowStart(opts.today, opts.windowsLoaded)
+  const visible: T[] = []
+  let hasMore = false
+  for (const event of events) {
+    if (opts.dateOf(event) >= start) visible.push(event)
+    else hasMore = true
+  }
+  visible.sort((a, b) => {
+    const left = opts.dateOf(a)
+    const right = opts.dateOf(b)
+    if (left !== right) return left < right ? 1 : -1
+    return 0
+  })
+  return { visible, hasMore }
 }
 
 export function missingSearchEventIds(
@@ -109,10 +154,7 @@ export function mergeEventLists(
   for (const event of extras) {
     if (!byId.has(event.id)) byId.set(event.id, event)
   }
-  return [...byId.values()].sort((a, b) => {
-    if (a.event_date !== b.event_date) return a.event_date < b.event_date ? 1 : -1
-    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0
-  })
+  return [...byId.values()].sort(compareEventsByDateDesc)
 }
 
 /** Unit-wide list for shift-leads and admins; RLS narrows it for everyone else. */
@@ -519,12 +561,14 @@ export function filterUnitEventsForList(
   events: EventListItem[],
   opts: { status: EventStatus | 'all'; searchIds: ReadonlySet<string> | null },
 ): EventListItem[] {
-  return events.filter((event) => {
-    const matchesStatus = opts.status === 'all' || event.status === opts.status
-    if (!matchesStatus) return false
-    if (opts.searchIds === null) return true
-    return opts.searchIds.has(event.id)
-  })
+  return sortEventsByDateDesc(
+    events.filter((event) => {
+      const matchesStatus = opts.status === 'all' || event.status === opts.status
+      if (!matchesStatus) return false
+      if (opts.searchIds === null) return true
+      return opts.searchIds.has(event.id)
+    }),
+  )
 }
 
 export type MineEventBlock =

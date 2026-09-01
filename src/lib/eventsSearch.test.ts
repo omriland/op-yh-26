@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   EVENT_LIST_SELECT,
   UNIT_EVENTS_LIST_LIMIT,
+  UNIT_EVENTS_RECENT_EMPTY_TITLE,
+  UNIT_EVENTS_WINDOW_DAYS,
   filterUnitEventsForList,
   mergeEventLists,
   missingSearchEventIds,
+  partitionUnitEventsByWindow,
   unitEventsListHint,
+  unitEventsWindowStart,
   type EventListItem,
 } from './events'
 
@@ -52,8 +56,8 @@ describe('filterUnitEventsForList', () => {
 
   it('status only when searchIds is null', () => {
     expect(filterUnitEventsForList(events, { status: 'done', searchIds: null }).map((e) => e.id)).toEqual([
-      'a',
       'c',
+      'a',
     ])
   })
 
@@ -63,20 +67,75 @@ describe('filterUnitEventsForList', () => {
     ).toEqual(['a'])
   })
 
+  it('sorts matching rows by event_date descending', () => {
+    const shuffled = [
+      row({ id: 'old', status: 'done', event_date: '2026-07-15' }),
+      row({ id: 'new', status: 'done', event_date: '2026-09-01' }),
+      row({ id: 'mid', status: 'done', event_date: '2026-08-10' }),
+    ]
+    expect(filterUnitEventsForList(shuffled, { status: 'all', searchIds: null }).map((e) => e.id)).toEqual([
+      'new',
+      'mid',
+      'old',
+    ])
+  })
+
   it('empty searchIds yields no rows even if status would match', () => {
     expect(filterUnitEventsForList(events, { status: 'all', searchIds: new Set() })).toEqual([])
   })
 })
 
 describe('unit events list window', () => {
-  it('defaults the table to the last 200 events', () => {
+  it('keeps a fetch cap and defaults the visible list to 30 days', () => {
     expect(UNIT_EVENTS_LIST_LIMIT).toBe(200)
+    expect(UNIT_EVENTS_WINDOW_DAYS).toBe(30)
+    expect(UNIT_EVENTS_RECENT_EMPTY_TITLE).toBe('לא נמצאו אירועים מ-30 הימים האחרונים')
   })
 
   it('tells the user the window size and that search fetches older events', () => {
-    expect(unitEventsListHint(200)).toBe(
-      'מציג את 200 האירועים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר',
+    expect(unitEventsListHint(30)).toBe(
+      'מציג אירועים מ-30 הימים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר',
     )
+  })
+
+  it('looks back 30 days per loaded window', () => {
+    expect(unitEventsWindowStart('2026-09-01', 1)).toBe('2026-08-02')
+    expect(unitEventsWindowStart('2026-09-01', 2)).toBe('2026-07-03')
+  })
+
+  it('shows only the current window, newest event_date first, and flags older loaded rows', () => {
+    const events = [
+      row({ id: 'old', status: 'done', event_date: '2026-07-15' }),
+      row({ id: 'today', status: 'done', event_date: '2026-09-01' }),
+      row({ id: 'recent', status: 'done', event_date: '2026-08-10' }),
+    ]
+
+    const first = partitionUnitEventsByWindow(events, {
+      dateOf: (event) => event.event_date,
+      today: '2026-09-01',
+      windowsLoaded: 1,
+    })
+    expect(first.visible.map((event) => event.id)).toEqual(['today', 'recent'])
+    expect(first.hasMore).toBe(true)
+
+    const second = partitionUnitEventsByWindow(events, {
+      dateOf: (event) => event.event_date,
+      today: '2026-09-01',
+      windowsLoaded: 2,
+    })
+    expect(second.visible.map((event) => event.id)).toEqual(['today', 'recent', 'old'])
+    expect(second.hasMore).toBe(false)
+  })
+
+  it('keeps future-dated events in the default window', () => {
+    const events = [row({ id: 'tomorrow', status: 'draft', event_date: '2026-09-02' })]
+    const result = partitionUnitEventsByWindow(events, {
+      dateOf: (event) => event.event_date,
+      today: '2026-09-01',
+      windowsLoaded: 1,
+    })
+    expect(result.visible.map((event) => event.id)).toEqual(['tomorrow'])
+    expect(result.hasMore).toBe(false)
   })
 })
 

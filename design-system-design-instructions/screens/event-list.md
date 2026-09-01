@@ -21,7 +21,7 @@ The landing screen after login. Role-filtered: shift-leads/admins see unit event
 ### Desktop (Command chrome)
 
 - Sidebar: `אירועים` (active), `האירועים שלי` (if shift-lead and/or responder), section `ניהול` → `משתמשים` (admin only). `פרופיל` and admin `הגדרות` are pinned at the sidebar block-end. Desktop only: a separate icon-plus (`אירוע חדש` / `משמרת חדשה`) sits at the inline-end of the `אירועים` / `משמרות` rows — same 40 px height as the nav item, not part of the tab hit target. Hidden on the mobile tab bar.
-- Content: title row (title + caption `מציג את 200 האירועים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר` at `--type-caption` / `--text-muted`, then `אירוע חדש` primary) → filter chips + search input (width 280, icon magnifier, placeholder `חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק`) → **table** of the last 200 events by `event_date` (then `created_at`). Search queries the full database and hydrates matching rows that are outside that window.
+- Content: title row (title + caption `מציג אירועים מ-30 הימים האחרונים. ניתן להשתמש בחיפוש לשליפת אירועים ישנים יותר` at `--type-caption` / `--text-muted`, then `אירוע חדש` primary) → filter chips + search input (width 280, icon magnifier, placeholder `חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק`) → **table** of events from the last 30 days by `event_date` (then `created_at`). Fetch still caps at 200 rows. Search queries the full database and hydrates matching rows that are outside that window. `טען עוד` expands the visible window by another 30 days.
 
 | Column | Content | Notes |
 |---|---|---|
@@ -45,5 +45,6 @@ Row click → event detail. Sort default: `event_date` desc. Content max-width u
 
 - **Loading:** 5 card skeletons (mobile) / 6 row skeletons (desktop).
 - **Empty (no events at all):** empty state — icon clipboard-list, `אין אירועים להצגה`, caption `אירוע חדש יופיע כאן ברגע שייווצר.`, plus `אירוע חדש` primary if role permits.
+- **Empty (no events in the last 30 days, older rows loaded):** `לא נמצאו אירועים מ-30 הימים האחרונים` + secondary `טען עוד`.
 - **Empty (filter):** `אין אירועים במצב זה` + ghost `ניקוי סינון`.
 - **Load error:** empty-state pattern with `טעינת האירועים נכשלה. בדקו את החיבור ונסו שוב.` + secondary `רענון`.
