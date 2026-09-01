@@ -1,7 +1,7 @@
 {
-  "minVersionCode": 16,
-  "latestVersionCode": 16,
-  "latestVersionName": "0.3.5",
-  "apkUrl": "https://yahpz.com/android/yahpaz-0.3.5.apk",
-  "messageHe": "יש גרסה חדשה של האפליקציה. מדיניות הפרטיות נפתחת באפליקציה בלי התחברות נוספת. אם ההתקנה נכשלת — הסירו את הגרסה הישנה ואז התקינו מחדש."
+  "minVersionCode": 17,
+  "latestVersionCode": 17,
+  "latestVersionName": "0.3.6",
+  "apkUrl": "https://yahpz.com/android/yahpaz-0.3.6.apk",
+  "messageHe": "יש גרסה חדשה של האפליקציה (משוב באפליקציה ועריכת רכב בפרופיל). אם ההתקנה נכשלת — הסירו את הגרסה הישנה ואז התקינו מחדש."
 }
