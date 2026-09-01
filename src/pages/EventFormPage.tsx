@@ -998,6 +998,16 @@ export function EventFormPage({
                 />
                 </div>
 
+                <div className="event-form__f-patrol">
+                <TextField
+                  label="או״ק ניידת"
+                  numeric
+                  value={draft.patrol_callsign}
+                  onChange={(event) => updateDraft({ patrol_callsign: event.target.value })}
+                  onBlur={() => void persistLatest()}
+                />
+                </div>
+
                 <div className="event-form__f-district">
                 <SelectField
                   label="שלוחה"
@@ -1035,16 +1045,6 @@ export function EventFormPage({
                     }))
                     queueMicrotask(() => void persistLatest())
                   }}
-                />
-                </div>
-
-                <div className="event-form__f-patrol">
-                <TextField
-                  label="או״ק ניידת"
-                  numeric
-                  value={draft.patrol_callsign}
-                  onChange={(event) => updateDraft({ patrol_callsign: event.target.value })}
-                  onBlur={() => void persistLatest()}
                 />
                 </div>
 

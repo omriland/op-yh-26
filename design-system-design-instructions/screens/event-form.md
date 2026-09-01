@@ -13,14 +13,14 @@ Title: `אירוע חדש` / `אירוע 12345 — עריכה`. Beside/below tit
 
 ### חלק א׳ — פרטי האירוע
 
-Form section with counter `חלק א׳`. Fields (types per `06-components.md`; HE labels are canonical):
+Form section with counter `חלק א׳`. Fields (types per `06-components.md`; HE labels are canonical). Identity layout: **תאריך** is a full-width first row; **מספר אירוע** and **או״ק ניידת** share the next row (event id at inline-start / right in RTL, callsign at inline-end / left). Same pairing on desktop web, mobile web, and Android.
 
 | Field | Control | Notes |
 |---|---|---|
-| תאריך | date input | default today |
-| מספר אירוע | numeric text | mono |
+| תאריך | date input | default today; full row |
+| מספר אירוע | numeric text | mono; same row as או״ק ניידת, inline-start |
+| או״ק ניידת | text | mono; same row as מספר אירוע, inline-end |
 | שלוחה | select (districts) | |
-| או״ק ניידת | text | mono |
 | סוג אירוע | select (event_types) | |
 | כביש | select (roads) | When שלוחה is `תחנה / אחר / משוכפל`, default to the road whose name contains `101` (still editable). |
 | מיקום | text / Places combobox | Plain text for normal שלוחות. For system שלוחה `תחנה / אחר / משוכפל`: Google Places autocomplete (HE), free-text row always first, **required**. Spec: `2026-08-11-yahpaz-system-districts-places-location-design.md`. |

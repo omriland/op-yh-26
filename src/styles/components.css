@@ -5094,6 +5094,18 @@ textarea.field__input {
   gap: var(--space-4);
 }
 
+.event-form__identity {
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    'date date'
+    'police patrol'
+    'district type'
+    'road road'
+    'loc loc'
+    'places places'
+    'coords coords';
+}
+
 .event-form__f-date,
 .event-form__f-police,
 .event-form__f-district,
@@ -5105,6 +5117,16 @@ textarea.field__input {
 .event-form__f-coords {
   min-width: 0;
 }
+
+.event-form__identity > .event-form__f-date { grid-area: date; }
+.event-form__identity > .event-form__f-police { grid-area: police; }
+.event-form__identity > .event-form__f-type { grid-area: type; }
+.event-form__identity > .event-form__f-district { grid-area: district; }
+.event-form__identity > .event-form__f-patrol { grid-area: patrol; }
+.event-form__identity > .event-form__f-road { grid-area: road; }
+.event-form__identity > .event-form__f-location { grid-area: loc; }
+.event-form__identity > .event-form__f-places { grid-area: places; }
+.event-form__identity > .event-form__f-coords { grid-area: coords; }
 
 .event-form--phone .event-form__head {
   margin-block-end: var(--space-4);
@@ -5128,9 +5150,9 @@ textarea.field__input {
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
   grid-template-areas:
-    'date police'
+    'date date'
+    'police patrol'
     'type district'
-    'patrol patrol'
     'road loc'
     'places places'
     'coords coords';
@@ -5138,23 +5160,13 @@ textarea.field__input {
 
 .event-form--phone.event-form--places .event-form__identity {
   grid-template-areas:
-    'date police'
+    'date date'
+    'police patrol'
     'type district'
-    'patrol patrol'
     'road road'
     'places places'
     'coords coords';
 }
-
-.event-form--phone .event-form__f-date { grid-area: date; }
-.event-form--phone .event-form__f-police { grid-area: police; }
-.event-form--phone .event-form__f-type { grid-area: type; }
-.event-form--phone .event-form__f-district { grid-area: district; }
-.event-form--phone .event-form__f-patrol { grid-area: patrol; }
-.event-form--phone .event-form__f-road { grid-area: road; }
-.event-form--phone .event-form__f-location { grid-area: loc; }
-.event-form--phone .event-form__f-places { grid-area: places; }
-.event-form--phone .event-form__f-coords { grid-area: coords; }
 
 .event-form--phone .responder-assign__toolbar {
   flex-direction: column;
@@ -5531,12 +5543,6 @@ textarea.field__input {
 @media (min-width: 720px) {
   .event-form__grid {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .event-form:not(.event-form--phone) .event-form__identity > .event-form__f-location,
-  .event-form:not(.event-form--phone) .event-form__identity > .event-form__f-places,
-  .event-form:not(.event-form--phone) .event-form__identity > .event-form__f-coords {
-    grid-column: 1 / -1;
   }
 }
 
