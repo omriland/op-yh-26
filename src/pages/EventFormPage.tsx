@@ -1268,6 +1268,14 @@ export function EventFormPage({
                               }
                               onBlur={() => void persistLatest()}
                             />
+                            <Toggle
+                              label="אמצעים"
+                              checked={responder.emergency_means}
+                              onChange={(checked) => {
+                                updateResponder(responder.key, { emergency_means: checked })
+                                queueMicrotask(() => void persistLatest())
+                              }}
+                            />
                             <div className="assignment-card__treated">
                               <p className="t-label text-secondary">רכבים שטופלו</p>
                               <div className="assignment-card__steppers">
@@ -1292,14 +1300,6 @@ export function EventFormPage({
                                 </p>
                               ) : null}
                             </div>
-                            <Toggle
-                              label="אמצעים"
-                              checked={responder.emergency_means}
-                              onChange={(checked) => {
-                                updateResponder(responder.key, { emergency_means: checked })
-                                queueMicrotask(() => void persistLatest())
-                              }}
-                            />
                           </div>
                         ) : null}
                       </li>
