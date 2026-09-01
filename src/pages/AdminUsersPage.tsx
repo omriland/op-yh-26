@@ -10,12 +10,20 @@ import {
   resendAdminInvite,
   saveAdminUser,
   setAdminUserActive,
+  setAdminUserEmail,
   setAdminUserPassword,
   syncUserAddresses,
   unarchiveAdminVehicle,
   type AdminUserRow,
 } from '../lib/adminUsers'
-import { canSubmitCreateUser, createUserEmailError, isValidEmail } from '../lib/adminUserDraft'
+import {
+  canEditUserEmail,
+  canSubmitCreateUser,
+  createUserEmailError,
+  emailsDiffer,
+  isValidEmail,
+  userEmailFieldHint,
+} from '../lib/adminUserDraft'
 import { SUPER_ADMIN_LOCK_ERROR, canMutateAdminUser, canToggleUsersPageOtp } from '../lib/adminUserMenu'
 import {
   highestRoleLabel,
@@ -283,10 +291,14 @@ export function AdminUsersPage() {
   const draftRootRef = useRef<HTMLDivElement>(null)
   const passwordRootRef = useRef<HTMLDivElement>(null)
 
+  const emailEditable = Boolean(draft && canEditUserEmail(!draft.id, isSuperAdmin))
   const canSaveDraft =
-    draft !== null && (Boolean(draft.id) || canSubmitCreateUser(draft))
+    draft !== null &&
+    (draft.id
+      ? !isSuperAdmin || isValidEmail(draft.email)
+      : canSubmitCreateUser(draft))
   const createEmailError =
-    draft && !draft.id ? createUserEmailError(draft.email) : null
+    draft && emailEditable ? createUserEmailError(draft.email) : null
 
   useDesktopFormSubmit(() => void submitDraft(), {
     enabled:
@@ -423,7 +435,7 @@ export function AdminUsersPage() {
       setFormError('יש למלא שם מלא ואו״ק.')
       return
     }
-    if (!draft.id && !isValidEmail(draft.email)) {
+    if ((!draft.id || isSuperAdmin) && !isValidEmail(draft.email)) {
       setFormError(draft.email.trim() ? 'יש להזין כתובת דוא״ל תקינה.' : 'יש למלא דוא״ל.')
       return
     }
@@ -506,6 +518,21 @@ export function AdminUsersPage() {
           'done',
         )
       } else {
+        const original = users?.find((entry) => entry.id === draft.id)
+        if (
+          isSuperAdmin &&
+          original &&
+          emailsDiffer(original.email, draft.email)
+        ) {
+          const emailResult = await setAdminUserEmail({
+            userId: draft.id,
+            email: draft.email,
+          })
+          if (emailResult.error) {
+            setFormError(emailResult.error)
+            return
+          }
+        }
         const result = await saveAdminUser({
           id: draft.id,
           full_name: draft.full_name,
@@ -1258,20 +1285,18 @@ export function AdminUsersPage() {
               />
               <TextField
                 label="דוא״ל"
-                required={!draft.id}
+                required={emailEditable}
                 type="email"
                 autoComplete="email"
                 isolate
-                disabled={Boolean(draft.id)}
+                disabled={!emailEditable}
                 value={draft.email}
                 onChange={(event) => setDraft({ ...draft, email: event.target.value })}
                 error={createEmailError ?? undefined}
                 hint={
                   createEmailError
                     ? undefined
-                    : draft.id
-                      ? 'לא ניתן לשנות דוא״ל לאחר יצירה.'
-                      : 'נשלחת הזמנה לכתובת זו.'
+                    : userEmailFieldHint(!draft.id, isSuperAdmin)
                 }
               />
               <TextField

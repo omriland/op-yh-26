@@ -501,3 +501,15 @@ export async function setAdminUserPassword(input: {
   })
   return result.ok ? { error: null } : { error: result.error }
 }
+
+export async function setAdminUserEmail(input: {
+  userId: string
+  email: string
+}): Promise<{ error: string | null }> {
+  const result = await callAdminUsers({
+    action: 'set_email',
+    user_id: input.userId,
+    email: input.email,
+  })
+  return result.ok ? { error: null } : { error: result.error }
+}

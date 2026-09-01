@@ -67,6 +67,12 @@ type SetPasswordBody = {
   force_change?: boolean;
 };
 
+type SetEmailBody = {
+  action: "set_email";
+  user_id: string;
+  email: string;
+};
+
 type ImpersonateBody = {
   action: "impersonate";
   target_user_id: string;
@@ -84,6 +90,7 @@ type RequestBody =
   | ResendInviteBody
   | RedeemInviteBody
   | SetPasswordBody
+  | SetEmailBody
   | ImpersonateBody
   | StopImpersonationBody;
 
@@ -185,6 +192,17 @@ Deno.serve(async (req: Request) => {
       return json(403, { error: "אין הרשאה לביצוע פעולה זו." });
     }
     return handleSetPassword(adminClient, body);
+  }
+
+  if (body.action === "set_email") {
+    const { data: isSuperAdmin, error: superError } = await adminClient.rpc("has_role", {
+      uid: user.id,
+      r: "super_admin",
+    });
+    if (superError || !isSuperAdmin) {
+      return json(403, { error: "אין הרשאה לביצוע פעולה זו." });
+    }
+    return handleSetEmail(adminClient, body);
   }
 
   if (body.action === "impersonate") {
@@ -295,6 +313,108 @@ async function handleSetPassword(
   }
 
   return json(200, { ok: true, message: "הסיסמה עודכנה." });
+}
+
+function isValidEmailAddress(raw: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw);
+}
+
+function authEmailTaken(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("already") ||
+    lower.includes("registered") ||
+    lower.includes("exists") ||
+    lower.includes("unique") ||
+    lower.includes("duplicate")
+  );
+}
+
+async function handleSetEmail(
+  adminClient: ReturnType<typeof createClient>,
+  body: SetEmailBody,
+) {
+  const userId = trim(body.user_id);
+  const email = trim(body.email).toLowerCase();
+
+  if (!userId) {
+    return json(400, { error: "חסר מזהה משתמש." });
+  }
+  if (!email || !isValidEmailAddress(email)) {
+    return json(400, { error: "יש להזין כתובת דוא״ל תקינה." });
+  }
+
+  const { data: profile, error: profileReadError } = await adminClient
+    .from("profiles")
+    .select("id, email")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profileReadError || !profile) {
+    console.error("set_email profile read", profileReadError?.message);
+    return json(400, { error: "שינוי הדוא״ל נכשל." });
+  }
+
+  const previousEmail = trim(profile.email).toLowerCase();
+  if (previousEmail === email) {
+    return json(200, { ok: true, message: "הדוא״ל עודכן." });
+  }
+
+  const { data: taken, error: takenError } = await adminClient
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .neq("id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (takenError) {
+    console.error("set_email uniqueness", takenError.message);
+    return json(500, { error: "שינוי הדוא״ל נכשל." });
+  }
+  if (taken) {
+    return json(409, { error: "כתובת הדוא״ל כבר בשימוש." });
+  }
+
+  const { error: authError } = await adminClient.auth.admin.updateUserById(userId, {
+    email,
+    email_confirm: true,
+  });
+
+  if (authError) {
+    console.error("set_email updateUserById", authError.message);
+    if (authEmailTaken(authError.message)) {
+      return json(409, { error: "כתובת הדוא״ל כבר בשימוש." });
+    }
+    return json(400, { error: "שינוי הדוא״ל נכשל." });
+  }
+
+  const { error: profileError } = await adminClient
+    .from("profiles")
+    .update({
+      email,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  if (profileError) {
+    console.error("set_email profile update", profileError.message);
+    if (previousEmail) {
+      const { error: revertError } = await adminClient.auth.admin.updateUserById(userId, {
+        email: previousEmail,
+        email_confirm: true,
+      });
+      if (revertError) {
+        console.error("set_email revert auth", revertError.message);
+      }
+    }
+    if (profileError.code === "23505") {
+      return json(409, { error: "כתובת הדוא״ל כבר בשימוש." });
+    }
+    return json(500, { error: "שינוי הדוא״ל נכשל." });
+  }
+
+  return json(200, { ok: true, message: "הדוא״ל עודכן." });
 }
 
 async function writeImpersonationAudit(

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { canSubmitCreateUser, createUserEmailError } from './adminUserDraft'
+import {
+  canEditUserEmail,
+  canSubmitCreateUser,
+  createUserEmailError,
+  emailsDiffer,
+  userEmailFieldHint,
+} from './adminUserDraft'
 
 const complete = {
   full_name: 'דנה כהן',
@@ -48,5 +54,32 @@ describe('createUserEmailError', () => {
   it('is silent for a valid address', () => {
     expect(createUserEmailError('dana@example.com')).toBeNull()
     expect(createUserEmailError(' dana+tag@example.co.il ')).toBeNull()
+  })
+})
+
+describe('canEditUserEmail', () => {
+  it('is always true on create', () => {
+    expect(canEditUserEmail(true, false)).toBe(true)
+    expect(canEditUserEmail(true, true)).toBe(true)
+  })
+
+  it('is true for an existing user only when the actor is Super Admin', () => {
+    expect(canEditUserEmail(false, true)).toBe(true)
+    expect(canEditUserEmail(false, false)).toBe(false)
+  })
+})
+
+describe('userEmailFieldHint', () => {
+  it('explains invite on create and lock vs Super Admin change on edit', () => {
+    expect(userEmailFieldHint(true, false)).toBe('נשלחת הזמנה לכתובת זו.')
+    expect(userEmailFieldHint(false, false)).toBe('לא ניתן לשנות דוא״ל לאחר יצירה.')
+    expect(userEmailFieldHint(false, true)).toBe('שינוי דוא״ל מעדכן גם את פרטי ההתחברות.')
+  })
+})
+
+describe('emailsDiffer', () => {
+  it('ignores case and surrounding whitespace', () => {
+    expect(emailsDiffer('Dana@Example.com', ' dana@example.com ')).toBe(false)
+    expect(emailsDiffer('a@x.com', 'b@x.com')).toBe(true)
   })
 })
