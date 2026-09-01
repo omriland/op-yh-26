@@ -7,6 +7,8 @@ import {
   emptyLocationPlaceFields,
   isSystemClosedListItem,
   isSystemDistrictCode,
+  needsPlacesLocation,
+  roadNeedsPlacesLocation,
   shouldClearLocationOnDistrictChange,
 } from './systemDistricts'
 
@@ -86,6 +88,44 @@ describe('isSystemClosedListItem', () => {
   })
 })
 
+describe('roadNeedsPlacesLocation', () => {
+  const roads = [
+    { id: 'r1', name: '20' },
+    { id: 'r-urban', name: 'עירוני' },
+    { id: 'r-legacy', name: 'עירוני (101)' },
+  ]
+
+  it('is true for the live urban road name, even without 101', () => {
+    expect(roadNeedsPlacesLocation(roads, 'r-urban')).toBe(true)
+    expect(roadNeedsPlacesLocation(roads, 'r-legacy')).toBe(true)
+    expect(roadNeedsPlacesLocation(roads, 'r1')).toBe(false)
+    expect(roadNeedsPlacesLocation(roads, '')).toBe(false)
+  })
+})
+
+describe('needsPlacesLocation', () => {
+  const districts = [
+    { id: 'sys', code: 'station_other_duplicated' },
+    { id: 'tlv', code: null },
+  ]
+  const roads = [
+    { id: 'r20', name: '20' },
+    { id: 'r-urban', name: 'עירוני' },
+  ]
+
+  it('unlocks Places for עירוני on a normal שלוחה', () => {
+    expect(needsPlacesLocation(districts, 'tlv', roads, 'r-urban')).toBe(true)
+  })
+
+  it('still unlocks Places for the system שלוחה on a numbered road', () => {
+    expect(needsPlacesLocation(districts, 'sys', roads, 'r20')).toBe(true)
+  })
+
+  it('stays off for a numbered road on a normal שלוחה', () => {
+    expect(needsPlacesLocation(districts, 'tlv', roads, 'r20')).toBe(false)
+  })
+})
+
 describe('defaultRoadIdForSystemDistrict', () => {
   const roads = [
     { id: 'r1', name: 'כביש 1' },
@@ -95,6 +135,16 @@ describe('defaultRoadIdForSystemDistrict', () => {
 
   it('finds the road whose name contains 101', () => {
     expect(defaultRoadIdForSystemDistrict(roads)).toBe('r101')
+  })
+
+  it('finds the live urban road named עירוני when 101 is gone', () => {
+    expect(
+      defaultRoadIdForSystemDistrict([
+        { id: 'r1', name: '1' },
+        { id: 'r-urban', name: 'עירוני' },
+        { id: 'r20', name: '20' },
+      ]),
+    ).toBe('r-urban')
   })
 
   it('returns null when none match', () => {

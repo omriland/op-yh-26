@@ -51,6 +51,30 @@ export function districtNeedsPlacesLocation(
   return isSystemDistrictCode(districtCodeById(districts, districtId))
 }
 
+/** Urban street-address road — live name is `עירוני`; legacy was `עירוני (101)`. */
+export function isUrbanRoadName(name: string | null | undefined): boolean {
+  return Boolean(name?.includes('עירוני'))
+}
+
+export function roadNeedsPlacesLocation(
+  roads: { id: string; name: string }[],
+  roadId: string,
+): boolean {
+  if (!roadId) return false
+  return isUrbanRoadName(roads.find((row) => row.id === roadId)?.name)
+}
+
+export function needsPlacesLocation(
+  districts: { id: string; code?: string | null }[],
+  districtId: string,
+  roads: { id: string; name: string }[] = [],
+  roadId = '',
+): boolean {
+  return (
+    districtNeedsPlacesLocation(districts, districtId) || roadNeedsPlacesLocation(roads, roadId)
+  )
+}
+
 export function applyDistrictChangeLocation(
   previousCode: string | null | undefined,
   nextCode: string | null | undefined,
@@ -62,14 +86,18 @@ export function applyDistrictChangeLocation(
   return current
 }
 
-/** Road whose name contains `101` (e.g. עירוני (101)). */
+/** Urban road: `עירוני`, or the legacy `עירוני (101)` name. */
 export function defaultRoadIdForSystemDistrict(
   roads: { id: string; name: string }[],
 ): string | null {
-  return roads.find((road) => road.name.includes('101'))?.id ?? null
+  return (
+    roads.find((road) => isUrbanRoadName(road.name))?.id ??
+    roads.find((road) => road.name.includes('101'))?.id ??
+    null
+  )
 }
 
-/** When entering the system שלוחה, default כביש to the 101 road (still editable). */
+/** When entering the system שלוחה, default כביש to the urban road (still editable). */
 export function applyDistrictChangeRoad(
   previousCode: string | null | undefined,
   nextCode: string | null | undefined,

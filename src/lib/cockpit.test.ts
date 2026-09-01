@@ -237,6 +237,7 @@ describe('eventGeocodeQuery', () => {
   it('puts the road number before the location', () => {
     expect(eventGeocodeQuery('כביש 20', 'מחלף השלום')).toBe('כביש 20 מחלף השלום')
     expect(eventGeocodeQuery('עירוני (101)', 'דיזנגוף')).toBe('כביש 101 דיזנגוף')
+    expect(eventGeocodeQuery('עירוני', 'דיזנגוף')).toBe('עירוני דיזנגוף')
     expect(eventGeocodeQuery('כביש החוף', 'נתניה')).toBe('כביש החוף נתניה')
     expect(eventGeocodeQuery(null, 'הרצל 1 תל אביב')).toBe('הרצל 1 תל אביב')
     expect(eventGeocodeQuery('כביש 4', null)).toBe('כביש 4')

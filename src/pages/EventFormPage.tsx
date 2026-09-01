@@ -46,12 +46,21 @@ import { captureEvent } from '../lib/posthog'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 import { useRevealFirstError } from '../lib/revealFirstError'
+import { useIsDesktop } from '../lib/useMediaQuery'
 import { over60kmHint } from '../lib/eventFreeze'
+import {
+  EVENT_FORM_STASH_DEBOUNCE_MS,
+  applyStashedEventDraft,
+  clearEventFormStash,
+  isMobileWebViewport,
+  readEventFormStash,
+  stashEventFormDraft,
+} from '../lib/eventFormStash'
 import {
   applyDistrictChangeLocation,
   applyDistrictChangeRoad,
   districtCodeById,
-  districtNeedsPlacesLocation,
+  needsPlacesLocation,
   shouldClearLocationOnDistrictChange,
 } from '../lib/systemDistricts'
 import { COCKPIT_AUTOSAVE_MS } from '../lib/cockpit'
@@ -106,8 +115,10 @@ export function EventFormPage({
 }: EventFormPageProps) {
   const { user, profile, roles } = useAuth()
   const { show } = useToast()
+  const isDesktop = useIsDesktop()
   const isAdmin = roles.includes('admin')
   const canManage = isAdmin || roles.includes('shift_lead')
+  const phoneLayout = variant !== 'cockpit' && !isDesktop
   const assignSearchRef = useRef<HTMLInputElement>(null)
   const assignSectionRef = useRef<HTMLDivElement>(null)
 
@@ -129,6 +140,7 @@ export function EventFormPage({
   const [overnightPrompt, setOvernightPrompt] = useState<{
     options?: PersistOptions
   } | null>(null)
+  const [sheetResponderKey, setSheetResponderKey] = useState<string | null>(null)
 
   const draftRef = useRef<EventFormDraft | null>(null)
   const lookupsRef = useRef<EventLookups | null>(null)
@@ -138,6 +150,8 @@ export function EventFormPage({
   const skipReloadForId = useRef<string | null>(null)
   const overnightConfirmed = useRef(new Set<string>())
   const initialDateRef = useRef('')
+  const stashLatest = useRef<(() => void) | null>(null)
+  const stashTimer = useRef<number | null>(null)
 
   useEffect(() => {
     draftRef.current = draft
@@ -188,6 +202,18 @@ export function EventFormPage({
             full_name: profile.full_name,
             callsign: profile.callsign,
           })
+        const stashed = applyStashedEventDraft(
+          nextDraft,
+          readEventFormStash(user.id, eventId ?? null, Date.now()),
+        )
+        if (
+          stashed &&
+          JSON.stringify(stashed) !== JSON.stringify(nextDraft) &&
+          !isAbandonedEmptyEventDraft(stashed, nextDraft.event_date)
+        ) {
+          if (stashed.id && !eventId) skipReloadForId.current = stashed.id
+          nextDraft = stashed
+        }
         if (focusResponderId) {
           nextDraft = {
             ...nextDraft,
@@ -197,12 +223,18 @@ export function EventFormPage({
           }
         }
         draftRef.current = nextDraft
-        initialDateRef.current = nextDraft.event_date
+        initialDateRef.current = existing
+          ? nextDraft.event_date
+          : emptyEventDraft({
+              full_name: profile.full_name,
+              callsign: profile.callsign,
+            }).event_date
         seedOvernightConfirmed(nextDraft)
         setDraft(nextDraft)
         setPreviousIsCancelled(nextDraft.is_cancelled)
         setBaseline(JSON.stringify(nextDraft))
         setLoadState('ready')
+        if (!eventId && nextDraft.id) onEventId?.(nextDraft.id)
       })
       .catch(() => {
         if (active) setLoadState('denied')
@@ -217,11 +249,18 @@ export function EventFormPage({
 
   useEffect(() => {
     if (loadState !== 'ready' || !focusResponderId) return
+    if (phoneLayout) {
+      const row = draftRef.current?.responders.find(
+        (item) => item.responder_id === focusResponderId,
+      )
+      if (row) setSheetResponderKey(row.key)
+      return
+    }
     const node = document.querySelector(
       `[data-responder-id="${CSS.escape(focusResponderId)}"]`,
     )
     node?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [loadState, focusResponderId])
+  }, [loadState, focusResponderId, phoneLayout])
 
   const dirty = draft ? JSON.stringify(draft) !== baseline : false
 
@@ -244,6 +283,7 @@ export function EventFormPage({
 
   function resetToCreateForm() {
     if (!profile) return
+    if (user) clearEventFormStash(user.id, draftRef.current?.id)
     const fresh = emptyEventDraft({
       full_name: profile.full_name,
       callsign: profile.callsign,
@@ -269,6 +309,7 @@ export function EventFormPage({
     const eventId = current.id
     const result = await deleteEvent(eventId)
     if (!result.ok) return false
+    if (user) clearEventFormStash(user.id, eventId)
     const cleared = { ...current, id: undefined }
     draftRef.current = cleared
     setDraft(cleared)
@@ -276,6 +317,7 @@ export function EventFormPage({
   }
 
   function finishAfterSave(eventIdSaved: string, options?: PersistOptions) {
+    if (user) clearEventFormStash(user.id, eventIdSaved)
     captureEvent('event_saved', {
       event_id: eventIdSaved,
       action: options?.createNew ? 'save_and_new' : 'save',
@@ -322,6 +364,7 @@ export function EventFormPage({
       const allowPartial = variant === 'cockpit'
       const persistErrors = canPersistEventDraft(current, currentLookups.districts, {
         allowPartial,
+        roads: currentLookups.roads,
       })
       if (Object.keys(persistErrors).length > 0) {
         // Don't create a row until date + type + road are set; stay quiet on background autosave.
@@ -364,6 +407,7 @@ export function EventFormPage({
         shiftLeadId: user.id,
         vehicleKinds: currentLookups.vehicleKinds,
         districts: currentLookups.districts,
+        roads: currentLookups.roads,
         isAdmin,
         previousIsCancelled,
         allowPartial,
@@ -544,7 +588,7 @@ export function EventFormPage({
 
   function assignResponder(person: AssignableUser) {
     if (!lookups || !draft) return
-    if (variant !== 'cockpit' && !hasEventMinimum(draft, lookups.districts)) {
+    if (variant !== 'cockpit' && !hasEventMinimum(draft, lookups.districts, lookups.roads)) {
       void persistLatest({ revealErrors: true })
       return
     }
@@ -577,6 +621,7 @@ export function EventFormPage({
     setDraft(next)
     setPickerQuery('')
     setPickerOpen(false)
+    if (phoneLayout) setSheetResponderKey(next.responders[next.responders.length - 1]?.key ?? null)
     void persistLatest({ revealErrors: true }).then((ok) => {
       if (ok) show('הכונן נוסף לאירוע', 'done')
     })
@@ -595,6 +640,7 @@ export function EventFormPage({
   }
 
   function removeResponder(key: string) {
+    if (sheetResponderKey === key) setSheetResponderKey(null)
     setDraft((current) => {
       if (!current) return current
       const next = {
@@ -625,7 +671,11 @@ export function EventFormPage({
   }
 
   const dialogOpen =
-    leaveConfirm || removeTarget !== null || overnightPrompt !== null || pickerOpen
+    leaveConfirm ||
+    removeTarget !== null ||
+    overnightPrompt !== null ||
+    pickerOpen ||
+    sheetResponderKey !== null
 
   useRevealFirstError(submitAttempt)
 
@@ -646,6 +696,29 @@ export function EventFormPage({
     }, COCKPIT_AUTOSAVE_MS)
     return () => window.clearTimeout(timer)
   }, [variant, draft, baseline, loadState])
+
+  useEffect(() => {
+    if (!user || !draft || loadState !== 'ready' || variant === 'cockpit') return
+
+    const flush = () => {
+      if (!isMobileWebViewport()) return
+      const current = draftRef.current
+      if (!current) return
+      if (isAbandonedEmptyEventDraft(current, initialDateRef.current)) {
+        clearEventFormStash(user.id, current.id)
+        return
+      }
+      stashEventFormDraft(user.id, current, Date.now())
+    }
+    stashLatest.current = flush
+    if (stashTimer.current) window.clearTimeout(stashTimer.current)
+    if (!isMobileWebViewport()) return
+
+    stashTimer.current = window.setTimeout(flush, EVENT_FORM_STASH_DEBOUNCE_MS)
+    return () => {
+      if (stashTimer.current) window.clearTimeout(stashTimer.current)
+    }
+  }, [draft, loadState, user, variant])
 
   const pinDropNonceRef = useRef<number | null>(null)
   useEffect(() => {
@@ -717,11 +790,13 @@ export function EventFormPage({
   useEffect(() => {
     function onHidden() {
       if (document.visibilityState !== 'hidden') return
+      stashLatest.current?.()
       const current = draftRef.current
       if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current)) return
       void persistLatest()
     }
     function onPageHide() {
+      stashLatest.current?.()
       const current = draftRef.current
       if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current)) return
       void persistLatest()
@@ -755,16 +830,25 @@ export function EventFormPage({
 
   const displayStatus = deriveEventStatus(draft)
   const isEdit = Boolean(draft.id)
+  const sheetResponder =
+    sheetResponderKey == null
+      ? null
+      : (draft.responders.find((row) => row.key === sheetResponderKey) ?? null)
   const title = isEdit
     ? draft.police_event_id
       ? `אירוע ${draft.police_event_id} — עריכה`
       : 'עריכת אירוע'
     : 'אירוע חדש'
 
-  const placesLocation = districtNeedsPlacesLocation(lookups.districts, draft.district_id)
+  const placesLocation = needsPlacesLocation(
+    lookups.districts,
+    draft.district_id,
+    lookups.roads,
+    draft.road_id,
+  )
   const selectedRoadName =
     lookups.roads.find((row) => row.id === draft.road_id)?.name ?? null
-  const needsMinimum = !hasEventMinimum(draft, lookups.districts)
+  const needsMinimum = !hasEventMinimum(draft, lookups.districts, lookups.roads)
   const saveHint =
     savePulse === 'saving'
       ? 'שומר…'
@@ -789,7 +873,15 @@ export function EventFormPage({
                 : 'השינויים נשמרים אוטומטית.'
 
   return (
-    <div className="event-form">
+    <div
+      className={[
+        'event-form',
+        phoneLayout ? 'event-form--phone' : '',
+        phoneLayout && placesLocation ? 'event-form--places' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <div className="event-form__panel" data-theme="field">
         <header className="event-form__head">
           {variant === 'cockpit' ? null : (
@@ -803,6 +895,7 @@ export function EventFormPage({
             <div className="event-form__title-block">
               <div className="event-form__title-line">
                 <h1 className="t-title">{title}</h1>
+                {!phoneLayout || isEdit ? (
                 <div
                   className={[
                     'event-form__cancelled',
@@ -834,6 +927,7 @@ export function EventFormPage({
                     }}
                   />
                 </div>
+                ) : null}
               </div>
               <p
                 className={[
@@ -857,19 +951,22 @@ export function EventFormPage({
 
         <div className="event-form__sections">
           <section className="form-section">
-            <h2 className="form-section__heading">
+            <h2 className={phoneLayout ? 'visually-hidden' : 'form-section__heading'}>
               <span className="form-section__counter">חלק א׳</span>
               <span>פרטי האירוע</span>
             </h2>
             <div className="form-section__fields">
+              {phoneLayout ? null : (
               <Ledger>
                 <LedgerRow
                   label="אחמ״ש"
                   value={`${draft.shift_lead.full_name} · ${draft.shift_lead.callsign}`}
                 />
               </Ledger>
+              )}
 
-              <div className="event-form__grid">
+              <div className="event-form__grid event-form__identity">
+                <div className="event-form__f-date">
                 <TextField
                   label="תאריך"
                   type="date"
@@ -887,7 +984,9 @@ export function EventFormPage({
                     </span>
                   }
                 />
+                </div>
 
+                <div className="event-form__f-police">
                 <TextField
                   label="מספר אירוע"
                   numeric
@@ -897,7 +996,9 @@ export function EventFormPage({
                   onChange={(event) => updateDraft({ police_event_id: event.target.value })}
                   onBlur={() => void persistLatest()}
                 />
+                </div>
 
+                <div className="event-form__f-district">
                 <SelectField
                   label="שלוחה"
                   value={draft.district_id}
@@ -935,7 +1036,9 @@ export function EventFormPage({
                     queueMicrotask(() => void persistLatest())
                   }}
                 />
+                </div>
 
+                <div className="event-form__f-patrol">
                 <TextField
                   label="או״ק ניידת"
                   numeric
@@ -943,7 +1046,9 @@ export function EventFormPage({
                   onChange={(event) => updateDraft({ patrol_callsign: event.target.value })}
                   onBlur={() => void persistLatest()}
                 />
+                </div>
 
+                <div className="event-form__f-type">
                 <SelectField
                   label="סוג אירוע"
                   required
@@ -956,7 +1061,9 @@ export function EventFormPage({
                     queueMicrotask(() => void persistLatest())
                   }}
                 />
+                </div>
 
+                <div className="event-form__f-road">
                 <SelectField
                   label="כביש"
                   required
@@ -982,13 +1089,14 @@ export function EventFormPage({
                     queueMicrotask(() => void persistLatest())
                   }}
                 />
-              </div>
+                </div>
 
               {placesLocation ? (
+                <div className="event-form__f-places">
                 <LocationPlacesField
                   required
                   error={errors.location}
-                  roadName={variant === 'cockpit' ? selectedRoadName : null}
+                  roadName={selectedRoadName}
                   value={{
                     location: draft.location,
                     location_place_id: draft.location_place_id,
@@ -1017,10 +1125,12 @@ export function EventFormPage({
                     show('השלמת מיקום מגוגל אינה זמינה כרגע. אפשר להזין מיקום ידנית.', 'alert')
                   }
                 />
+                </div>
               ) : (
+                <div className="event-form__f-location">
                 <TextField
                   label="מיקום"
-                  placeholder="למשל: מחלף שורק, לכיוון צפון"
+                  placeholder="למשל: מחלף שורק"
                   value={draft.location}
                   onChange={(event) =>
                     updateDraft(
@@ -1045,9 +1155,11 @@ export function EventFormPage({
                   }
                   onBlur={() => void persistLatest()}
                 />
+                </div>
               )}
 
               {draft.location_lat != null && draft.location_lng != null ? (
+                <div className="event-form__f-coords">
                 <LocationCoordsField
                   lat={draft.location_lat}
                   lng={draft.location_lng}
@@ -1074,19 +1186,23 @@ export function EventFormPage({
                     queueMicrotask(() => void persistLatest())
                   }}
                 />
+                </div>
               ) : null}
+              </div>
 
+              {phoneLayout ? null : (
               <TextAreaField
                 label="הערות"
                 value={draft.notes}
                 onChange={(event) => updateDraft({ notes: event.target.value })}
                 onBlur={() => void persistLatest()}
               />
+              )}
             </div>
           </section>
 
           <section className="form-section">
-            <h2 className="form-section__heading">
+            <h2 className={phoneLayout ? 'visually-hidden' : 'form-section__heading'}>
               <span className="form-section__counter">חלק ב׳</span>
               <span>כוננים</span>
             </h2>
@@ -1096,11 +1212,13 @@ export function EventFormPage({
                   <p className="t-label text-secondary">
                     {draft.responders.length === 0
                       ? 'טרם הוקצו כוננים · אירוע בהזנה'
-                      : `${draft.responders.length} כוננים משובצים`}
+                      : draft.responders.length === 1
+                        ? 'כונן אחד משובץ'
+                        : `${draft.responders.length} כוננים משובצים`}
                   </p>
                   <Button
-                    variant="secondary"
-                    icon={<Plus size={20} strokeWidth={1.75} />}
+                    variant={phoneLayout ? 'ghost' : 'secondary'}
+                    icon={phoneLayout ? undefined : <Plus size={20} strokeWidth={1.75} />}
                     onClick={() => (pickerOpen ? setPickerOpen(false) : openAssigner())}
                     aria-expanded={pickerOpen}
                   >
@@ -1158,12 +1276,43 @@ export function EventFormPage({
                   <p className="t-body text-secondary">
                     בלי כונן משובץ האירוע נשאר בהזנה ואינו מוצג לכוננים.
                   </p>
-                  {!pickerOpen ? (
+                  {!pickerOpen && !phoneLayout ? (
                     <Button variant="ghost" onClick={openAssigner}>
                       התחלת הקצאה
                     </Button>
                   ) : null}
                 </div>
+              ) : phoneLayout ? (
+                <ul className="assignment-list">
+                  {draft.responders.map((responder) => (
+                    <li
+                      key={responder.key}
+                      data-responder-id={responder.responder_id}
+                      className="assignment-list__row"
+                    >
+                      <button
+                        type="button"
+                        className="assignment-list__open"
+                        onClick={() => setSheetResponderKey(responder.key)}
+                      >
+                        <span className="t-body">{responder.full_name}</span>
+                        <span className="t-caption text-muted">
+                          או״ק{' '}
+                          <span className={monoClass(responder.callsign)}>
+                            {responder.callsign}
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="assignment-list__remove"
+                        onClick={() => requestRemove(responder)}
+                      >
+                        הסרה
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               ) : (
                 <ul className="stack-3">
                   {draft.responders.map((responder) => {
@@ -1236,70 +1385,28 @@ export function EventFormPage({
 
                         {responder.expanded ? (
                           <div className="assignment-card__body">
-                            <ResponderTimes
-                              startTime={responder.start_time}
-                              endTime={responder.end_time}
+                            <ResponderLeadFields
+                              responder={responder}
+                              vehicleKinds={lookups.vehicleKinds}
+                              cancelled={draft.is_cancelled}
                               onChangeStart={(start_time) =>
                                 updateResponder(responder.key, { start_time })
                               }
                               onChangeEnd={(end_time) =>
                                 updateResponder(responder.key, { end_time })
                               }
-                              onPersist={() => void persistLatest()}
-                            />
-                            <TextField
-                              label="קילומטרים"
-                              numeric={responder.hasVehicle}
-                              inputMode={responder.hasVehicle ? 'decimal' : undefined}
-                              hint={
-                                responder.hasVehicle
-                                  ? over60kmHint(responder.total_km)
-                                  : undefined
+                              onChangeKm={(total_km) =>
+                                updateResponder(responder.key, { total_km })
                               }
-                              value={
-                                responder.hasVehicle
-                                  ? responder.total_km
-                                  : NO_VEHICLE_KM_PLACEHOLDER
-                              }
-                              disabled={!responder.hasVehicle}
-                              readOnly={!responder.hasVehicle}
-                              onChange={(event) =>
-                                updateResponder(responder.key, { total_km: event.target.value })
-                              }
-                              onBlur={() => void persistLatest()}
-                            />
-                            <Toggle
-                              label="אמצעים"
-                              checked={responder.emergency_means}
-                              onChange={(checked) => {
-                                updateResponder(responder.key, { emergency_means: checked })
+                              onToggleMeans={(emergency_means) => {
+                                updateResponder(responder.key, { emergency_means })
                                 queueMicrotask(() => void persistLatest())
                               }}
+                              onPersist={() => void persistLatest()}
+                              onBumpTreated={(kindId, delta) =>
+                                bumpTreated(responder.key, kindId, delta)
+                              }
                             />
-                            <div className="assignment-card__treated">
-                              <p className="t-label text-secondary">רכבים שטופלו</p>
-                              <div className="assignment-card__steppers">
-                                {lookups.vehicleKinds.map((kind) => {
-                                  const quantity =
-                                    responder.treated.find((row) => row.vehicle_kind_id === kind.id)
-                                      ?.quantity ?? 0
-                                  return (
-                                    <CounterStepper
-                                      key={kind.id}
-                                      label={kind.name}
-                                      value={quantity}
-                                      disabled={draft.is_cancelled}
-                                      onDelta={(delta) => bumpTreated(responder.key, kind.id, delta)}
-                                    />
-                                  )
-                                })}
-                              </div>
-                              {lookups.vehicleKinds.length === 0 ? (
-                                <p className="t-caption text-muted">
-                                  אין סוגי רכב ברשימה הסגורה. הוסיפו פריטים במסך הגדרות.
-                                </p>
-                              ) : null}
-                            </div>
                           </div>
                         ) : null}
                       </li>
@@ -1307,6 +1414,15 @@ export function EventFormPage({
                   })}
                 </ul>
               )}
+
+              {phoneLayout ? (
+              <TextAreaField
+                label="הערות"
+                value={draft.notes}
+                onChange={(event) => updateDraft({ notes: event.target.value })}
+                onBlur={() => void persistLatest()}
+              />
+              ) : null}
             </div>
           </section>
         </div>
@@ -1425,17 +1541,128 @@ export function EventFormPage({
           זמן הסיום מוקדם מזמן ההתחלה. האם האירוע מסתיים ביום למחרת?
         </p>
       </Dialog>
+
+      <Dialog
+        open={Boolean(sheetResponder)}
+        title={sheetResponder?.full_name ?? 'כונן'}
+        onClose={() => setSheetResponderKey(null)}
+        form
+        footer={
+          <Button variant="ghost" block onClick={() => setSheetResponderKey(null)}>
+            סגירה
+          </Button>
+        }
+      >
+        {sheetResponder ? (
+          <ResponderLeadFields
+            responder={sheetResponder}
+            vehicleKinds={lookups.vehicleKinds}
+            cancelled={draft.is_cancelled}
+            timeLabels={{ start: 'שעת התחלה', end: 'שעת סיום' }}
+            onChangeStart={(start_time) =>
+              updateResponder(sheetResponder.key, { start_time })
+            }
+            onChangeEnd={(end_time) => updateResponder(sheetResponder.key, { end_time })}
+            onChangeKm={(total_km) => updateResponder(sheetResponder.key, { total_km })}
+            onToggleMeans={(emergency_means) => {
+              updateResponder(sheetResponder.key, { emergency_means })
+              queueMicrotask(() => void persistLatest())
+            }}
+            onPersist={() => void persistLatest()}
+            onBumpTreated={(kindId, delta) => bumpTreated(sheetResponder.key, kindId, delta)}
+          />
+        ) : null}
+      </Dialog>
     </div>
   )
 }
 
+function ResponderLeadFields({
+  responder,
+  vehicleKinds,
+  cancelled,
+  timeLabels = { start: 'זמן התחלה', end: 'זמן סיום' },
+  onChangeStart,
+  onChangeEnd,
+  onChangeKm,
+  onToggleMeans,
+  onPersist,
+  onBumpTreated,
+}: {
+  responder: ResponderDraft
+  vehicleKinds: { id: string; name: string }[]
+  cancelled: boolean
+  timeLabels?: { start: string; end: string }
+  onChangeStart: (value: string) => void
+  onChangeEnd: (value: string) => void
+  onChangeKm: (value: string) => void
+  onToggleMeans: (value: boolean) => void
+  onPersist: () => void
+  onBumpTreated: (kindId: string, delta: number) => void
+}) {
+  return (
+    <>
+      <ResponderTimes
+        startLabel={timeLabels.start}
+        endLabel={timeLabels.end}
+        startTime={responder.start_time}
+        endTime={responder.end_time}
+        onChangeStart={onChangeStart}
+        onChangeEnd={onChangeEnd}
+        onPersist={onPersist}
+      />
+      <TextField
+        label="קילומטרים"
+        numeric={responder.hasVehicle}
+        inputMode={responder.hasVehicle ? 'decimal' : undefined}
+        hint={responder.hasVehicle ? over60kmHint(responder.total_km) : undefined}
+        value={responder.hasVehicle ? responder.total_km : NO_VEHICLE_KM_PLACEHOLDER}
+        disabled={!responder.hasVehicle}
+        readOnly={!responder.hasVehicle}
+        onChange={(event) => onChangeKm(event.target.value)}
+        onBlur={onPersist}
+      />
+      <Toggle
+        label="אמצעים"
+        checked={responder.emergency_means}
+        onChange={onToggleMeans}
+      />
+      <div className="assignment-card__treated">
+        <p className="t-label text-secondary">רכבים שטופלו</p>
+        <div className="assignment-card__steppers">
+          {vehicleKinds.map((kind) => {
+            const quantity =
+              responder.treated.find((row) => row.vehicle_kind_id === kind.id)?.quantity ?? 0
+            return (
+              <CounterStepper
+                key={kind.id}
+                label={kind.name}
+                value={quantity}
+                disabled={cancelled}
+                onDelta={(delta) => onBumpTreated(kind.id, delta)}
+              />
+            )
+          })}
+        </div>
+        {vehicleKinds.length === 0 ? (
+          <p className="t-caption text-muted">אין סוגי רכב ברשימה הסגורה. הוסיפו פריטים במסך הגדרות.</p>
+        ) : null}
+      </div>
+    </>
+  )
+}
+
 function ResponderTimes({
+  startLabel,
+  endLabel,
   startTime,
   endTime,
   onChangeStart,
   onChangeEnd,
   onPersist,
 }: {
+  startLabel: string
+  endLabel: string
   startTime: string
   endTime: string
   onChangeStart: (value: string) => void
@@ -1445,12 +1672,12 @@ function ResponderTimes({
   return (
     <div className="event-form__grid">
       <TimeField
-        label="זמן התחלה"
+        label={startLabel}
         value={startTime}
         onChange={onChangeStart}
         onBlur={onPersist}
       />
-      <TimeField label="זמן סיום" value={endTime} onChange={onChangeEnd} onBlur={onPersist} />
+      <TimeField label={endLabel} value={endTime} onChange={onChangeEnd} onBlur={onPersist} />
     </div>
   )
 }

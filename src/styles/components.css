@@ -5094,6 +5094,130 @@ textarea.field__input {
   gap: var(--space-4);
 }
 
+.event-form__f-date,
+.event-form__f-police,
+.event-form__f-district,
+.event-form__f-patrol,
+.event-form__f-type,
+.event-form__f-road,
+.event-form__f-location,
+.event-form__f-places,
+.event-form__f-coords {
+  min-width: 0;
+}
+
+.event-form--phone .event-form__head {
+  margin-block-end: var(--space-4);
+}
+
+.event-form--phone .event-form__sections {
+  gap: var(--space-6);
+}
+
+.event-form--phone .form-section {
+  margin-block-start: 0;
+  border-block-start: 0;
+}
+
+.event-form--phone .event-form__grid {
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.event-form--phone .event-form__identity {
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  grid-template-areas:
+    'date police'
+    'type district'
+    'patrol patrol'
+    'road loc'
+    'places places'
+    'coords coords';
+}
+
+.event-form--phone.event-form--places .event-form__identity {
+  grid-template-areas:
+    'date police'
+    'type district'
+    'patrol patrol'
+    'road road'
+    'places places'
+    'coords coords';
+}
+
+.event-form--phone .event-form__f-date { grid-area: date; }
+.event-form--phone .event-form__f-police { grid-area: police; }
+.event-form--phone .event-form__f-type { grid-area: type; }
+.event-form--phone .event-form__f-district { grid-area: district; }
+.event-form--phone .event-form__f-patrol { grid-area: patrol; }
+.event-form--phone .event-form__f-road { grid-area: road; }
+.event-form--phone .event-form__f-location { grid-area: loc; }
+.event-form--phone .event-form__f-places { grid-area: places; }
+.event-form--phone .event-form__f-coords { grid-area: coords; }
+
+.event-form--phone .responder-assign__toolbar {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.event-form--phone .responder-assign__toolbar .btn {
+  width: 100%;
+}
+
+.assignment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-page);
+  overflow: hidden;
+}
+
+.assignment-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border-block-end: 1px solid var(--stroke-hairline);
+}
+
+.assignment-list__row:last-child {
+  border-block-end: 0;
+}
+
+.assignment-list__open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding-block: var(--space-2);
+  border: 0;
+  background: transparent;
+  text-align: start;
+  color: inherit;
+}
+
+.assignment-list__remove {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding-inline: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--status-alert);
+  font: 600 15px/22px var(--font-ui);
+}
+
+@media (hover: hover) {
+  .assignment-list__open:hover {
+    background: var(--accent-subtle);
+  }
+}
+
 .event-form__panel:has(> .event-form__footer) > :nth-last-child(2) {
   margin-block-end: var(--space-8);
 }
@@ -5407,6 +5531,12 @@ textarea.field__input {
 @media (min-width: 720px) {
   .event-form__grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .event-form:not(.event-form--phone) .event-form__identity > .event-form__f-location,
+  .event-form:not(.event-form--phone) .event-form__identity > .event-form__f-places,
+  .event-form:not(.event-form--phone) .event-form__identity > .event-form__f-coords {
+    grid-column: 1 / -1;
   }
 }
 

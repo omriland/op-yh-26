@@ -33,6 +33,19 @@ describe('validateEventMinimum location', () => {
     expect(errors.location).toBeUndefined()
   })
 
+  it('requires location for עירוני even on a normal שלוחה', () => {
+    const roads: LookupOption[] = [
+      { id: 'r-urban', name: 'עירוני' },
+      { id: 'r20', name: '20' },
+    ]
+    const errors = validateEventMinimum(
+      draft({ district_id: 'north', road_id: 'r-urban', location: '' }),
+      districts,
+      roads,
+    )
+    expect(errors.location).toBe(LOCATION_REQUIRED_ERROR)
+  })
+
   it('passes when system שלוחה has location text', () => {
     const errors = validateEventMinimum(
       draft({ district_id: 'sys', location: 'תחנת ראשון' }),

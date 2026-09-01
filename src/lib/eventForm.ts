@@ -6,8 +6,8 @@ import { notifyFillReady } from './responderFillToken'
 import { planTrackingSync } from './liveTrack'
 import { startResponderTracking, stopResponderTracking } from './liveTrackApi'
 import {
-  districtNeedsPlacesLocation,
   LOCATION_REQUIRED_ERROR,
+  needsPlacesLocation,
 } from './systemDistricts'
 import {
   emptyLocationPinMeta,
@@ -419,16 +419,20 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
   }
 }
 
-/** Minimum to create/keep an event: date + event type + road (+ location for system שלוחות). */
+/** Minimum to create/keep an event: date + event type + road (+ location for Places). */
 export function validateEventMinimum(
   draft: EventFormDraft,
   districts: LookupOption[] = [],
+  roads: LookupOption[] = [],
 ): EventFormErrors {
   const errors: EventFormErrors = {}
   if (!draft.event_date) errors.event_date = 'יש לבחור תאריך.'
   if (!draft.event_type_id) errors.event_type_id = 'יש לבחור סוג אירוע.'
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש.'
-  if (districtNeedsPlacesLocation(districts, draft.district_id) && !draft.location.trim()) {
+  if (
+    needsPlacesLocation(districts, draft.district_id, roads, draft.road_id) &&
+    !draft.location.trim()
+  ) {
     errors.location = LOCATION_REQUIRED_ERROR
   }
   return errors
@@ -437,19 +441,20 @@ export function validateEventMinimum(
 export function hasEventMinimum(
   draft: EventFormDraft,
   districts: LookupOption[] = [],
+  roads: LookupOption[] = [],
 ): boolean {
-  return Object.keys(validateEventMinimum(draft, districts)).length === 0
+  return Object.keys(validateEventMinimum(draft, districts, roads)).length === 0
 }
 
 export function canPersistEventDraft(
   draft: EventFormDraft,
   districts: LookupOption[] = [],
-  options?: { allowPartial?: boolean },
+  options?: { allowPartial?: boolean; roads?: LookupOption[] },
 ): EventFormErrors {
   if (options?.allowPartial) {
     return draft.event_date ? {} : { event_date: 'יש לבחור תאריך.' }
   }
-  return validateEventMinimum(draft, districts)
+  return validateEventMinimum(draft, districts, options?.roads)
 }
 
 export function eventForeignIds(
@@ -545,6 +550,7 @@ export async function saveEventForm(input: {
   shiftLeadId: string
   vehicleKinds: LookupOption[]
   districts: LookupOption[]
+  roads?: LookupOption[]
   isAdmin: boolean
   previousIsCancelled: boolean
   allowPartial?: boolean
@@ -562,7 +568,10 @@ export async function saveEventForm(input: {
   const { draft, shiftLeadId, vehicleKinds, districts, isAdmin, previousIsCancelled } = input
   const allowPartial = Boolean(input.allowPartial)
 
-  const fieldErrors = canPersistEventDraft(draft, districts, { allowPartial })
+  const fieldErrors = canPersistEventDraft(draft, districts, {
+    allowPartial,
+    roads: input.roads,
+  })
   if (Object.keys(fieldErrors).length > 0) {
     const needsLocation = Boolean(fieldErrors.location)
     return {

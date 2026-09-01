@@ -1,4 +1,9 @@
 import { isValidPhone } from './format'
+import {
+  clearFillDraft,
+  readFillDraft,
+  stashFillDraft,
+} from './fillDraftStash'
 
 export type CreateUserDraftFields = {
   full_name: string
@@ -42,4 +47,64 @@ export function canSubmitCreateUser(draft: CreateUserDraftFields): boolean {
     draft.callsign.trim() !== '' &&
     isValidPhone(draft.phone)
   )
+}
+
+export const USER_CREATE_STASH_SCOPE = 'userCreate'
+export const USER_CREATE_STASH_DEBOUNCE_MS = 600
+
+export function userCreateStashId(actorId: string): string {
+  return `${actorId}:new`
+}
+
+export type CreateUserStashDraft = CreateUserDraftFields & {
+  id?: string
+  volunteer_status?: string
+  roles?: string[]
+  vehicles?: unknown[]
+  addresses?: { location?: string }[]
+}
+
+/** True when the create dialog has anything worth keeping across a remount. */
+export function shouldStashCreateUserDraft(draft: CreateUserStashDraft): boolean {
+  if (draft.id) return false
+  if (draft.full_name.trim()) return true
+  if (draft.email.trim()) return true
+  if (draft.callsign.trim()) return true
+  if (draft.phone.trim()) return true
+  if ((draft.vehicles?.length ?? 0) > 0) return true
+  return (draft.addresses ?? []).some((row) => (row.location ?? '').trim() !== '')
+}
+
+export function applyStashedCreateUserDraft<T extends CreateUserStashDraft>(
+  base: T,
+  stashed: unknown,
+): T | null {
+  if (!stashed || typeof stashed !== 'object') return null
+  const draft = stashed as Partial<CreateUserStashDraft>
+  if (typeof draft.full_name !== 'string') return null
+  if (draft.id) return null
+  return { ...base, ...draft, id: undefined }
+}
+
+export function readCreateUserStash<T>(actorId: string, now: number): T | null {
+  return (
+    readFillDraft<T>(USER_CREATE_STASH_SCOPE, userCreateStashId(actorId), now)?.draft ??
+    null
+  )
+}
+
+export function stashCreateUserDraft(
+  actorId: string,
+  draft: CreateUserStashDraft,
+  now: number,
+): void {
+  if (!shouldStashCreateUserDraft(draft)) {
+    clearCreateUserStash(actorId)
+    return
+  }
+  stashFillDraft(USER_CREATE_STASH_SCOPE, userCreateStashId(actorId), draft, now)
+}
+
+export function clearCreateUserStash(actorId: string): void {
+  clearFillDraft(USER_CREATE_STASH_SCOPE, userCreateStashId(actorId))
 }

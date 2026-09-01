@@ -17,11 +17,17 @@ import {
   type AdminUserRow,
 } from '../lib/adminUsers'
 import {
+  applyStashedCreateUserDraft,
   canEditUserEmail,
   canSubmitCreateUser,
+  clearCreateUserStash,
   createUserEmailError,
   emailsDiffer,
   isValidEmail,
+  readCreateUserStash,
+  stashCreateUserDraft,
+  shouldStashCreateUserDraft,
+  USER_CREATE_STASH_DEBOUNCE_MS,
   userEmailFieldHint,
 } from '../lib/adminUserDraft'
 import { SUPER_ADMIN_LOCK_ERROR, canMutateAdminUser, canToggleUsersPageOtp } from '../lib/adminUserMenu'
@@ -327,6 +333,11 @@ export function AdminUsersPage() {
   >(null)
   const draftRootRef = useRef<HTMLDivElement>(null)
   const passwordRootRef = useRef<HTMLDivElement>(null)
+  const draftRef = useRef<Draft | null>(null)
+  const stashLatest = useRef<(() => void) | null>(null)
+  const stashTimer = useRef<number | null>(null)
+
+  draftRef.current = draft
 
   const emailEditable = Boolean(draft && canEditUserEmail(!draft.id, isSuperAdmin))
   const canSaveDraft =
@@ -352,6 +363,59 @@ export function AdminUsersPage() {
     enabled: passwordTarget !== null && !passwordSaving,
     rootRef: passwordRootRef,
   })
+
+  function stashCreateDraftNow() {
+    if (!authUser) return
+    const current = draftRef.current
+    if (!current || current.id) return
+    stashCreateUserDraft(authUser.id, current, Date.now())
+  }
+
+  function openCreateForm() {
+    setFormError(null)
+    const fresh = emptyDraft()
+    if (!authUser) {
+      setDraft(fresh)
+      return
+    }
+    const restored = applyStashedCreateUserDraft(
+      fresh,
+      readCreateUserStash<Draft>(authUser.id, Date.now()),
+    )
+    setDraft(restored && shouldStashCreateUserDraft(restored) ? restored : fresh)
+  }
+
+  function closeCreateForm() {
+    if (saving) return
+    stashCreateDraftNow()
+    setDraft(null)
+  }
+
+  useEffect(() => {
+    if (!authUser || !draft || draft.id) return
+
+    stashLatest.current = stashCreateDraftNow
+    if (stashTimer.current) window.clearTimeout(stashTimer.current)
+    stashTimer.current = window.setTimeout(stashCreateDraftNow, USER_CREATE_STASH_DEBOUNCE_MS)
+    return () => {
+      if (stashTimer.current) window.clearTimeout(stashTimer.current)
+    }
+  }, [authUser, draft])
+
+  useEffect(() => {
+    function onHidden() {
+      if (document.visibilityState === 'hidden') stashLatest.current?.()
+    }
+    function onPageHide() {
+      stashLatest.current?.()
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('pagehide', onPageHide)
+    }
+  }, [])
 
   useEffect(() => {
     if (viewingAsOther || !authProfile?.otp_users_page_enabled) {
@@ -556,6 +620,7 @@ export function AdminUsersPage() {
                 : 'המשתמש נוצר, אך שמירת הכתובות נכשלה. ערכו את המשתמש כדי לנסות שוב.',
               'alert',
             )
+            if (authUser) clearCreateUserStash(authUser.id)
             setDraft(null)
             setReloadKey((value) => value + 1)
             return
@@ -568,6 +633,7 @@ export function AdminUsersPage() {
             : (result.message ?? 'משתמש נוצר בהצלחה'),
           'done',
         )
+        if (authUser) clearCreateUserStash(authUser.id)
       } else {
         const original = users?.find((entry) => entry.id === draft.id)
         if (
@@ -964,10 +1030,7 @@ export function AdminUsersPage() {
                 רענון
               </Button>
               <Button
-                onClick={() => {
-                  setFormError(null)
-                  setDraft(emptyDraft())
-                }}
+                onClick={openCreateForm}
                 icon={<Plus size={20} strokeWidth={1.75} />}
               >
                 משתמש חדש
@@ -984,10 +1047,7 @@ export function AdminUsersPage() {
               </IconButton>
               <IconButton
                 label="משתמש חדש"
-                onClick={() => {
-                  setFormError(null)
-                  setDraft(emptyDraft())
-                }}
+                onClick={openCreateForm}
               >
                 <Plus size={20} strokeWidth={1.75} />
               </IconButton>
@@ -1052,7 +1112,7 @@ export function AdminUsersPage() {
           title="אין משתמשים להצגה"
           caption="משתמש חדש יופיע כאן ברגע שיוזמן."
           action={
-            <Button onClick={() => setDraft(emptyDraft())}>משתמש חדש</Button>
+            <Button onClick={openCreateForm}>משתמש חדש</Button>
           }
         />
       ) : null}
@@ -1311,7 +1371,7 @@ export function AdminUsersPage() {
         open={draft !== null}
         title={draft?.id ? 'עריכת משתמש' : 'משתמש חדש'}
         form
-        onClose={() => !saving && setDraft(null)}
+        onClose={closeCreateForm}
         footer={
           <>
             {draft?.id && draft.id !== authUser?.id ? (
@@ -1326,7 +1386,7 @@ export function AdminUsersPage() {
                 מחיקה
               </Button>
             ) : null}
-            <Button variant="secondary" disabled={saving} onClick={() => setDraft(null)}>
+            <Button variant="secondary" disabled={saving} onClick={closeCreateForm}>
               ביטול
             </Button>
             <Button
