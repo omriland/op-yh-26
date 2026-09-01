@@ -62,7 +62,12 @@ import {
   monoClass,
   phoneDigits,
 } from '../lib/format'
-import { isVehicleAttachedToEvents } from '../lib/vehicles'
+import {
+  VEHICLE_ARCHIVE_CONFIRM,
+  VEHICLE_DELETE_CONFIRM,
+  isVehicleAttachedToEvents,
+  vehicleRemoveMode,
+} from '../lib/vehicles'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
@@ -111,12 +116,6 @@ type DraftVehicle = {
   model: string
   archived: boolean
 }
-
-const VEHICLE_DELETE_CONFIRM =
-  'האם למחוק את הרכב הזה? לא ניתן לשחזר אותו לאחר המחיקה.'
-
-const VEHICLE_ARCHIVE_CONFIRM =
-  'לא ניתן למחוק רכב זה כי הוא מקושר לאירוע קיים. האם להעביר אותו לארכיון כדי שאיש לא יוכל להשתמש בו יותר במערכת?'
 
 type Draft = {
   id?: string
@@ -795,7 +794,7 @@ export function AdminUsersPage() {
         vehicle.id,
         vehicle.plate_number,
       )
-      setVehicleConfirm({ mode: attached ? 'archive' : 'delete', vehicle })
+      setVehicleConfirm({ mode: vehicleRemoveMode(attached), vehicle })
     } catch {
       setFormError('בדיקת קישור הרכב לאירועים נכשלה. נסו שוב.')
     } finally {

@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-01  
 **Repo:** `yhpz-2026`  
-**Status:** Implementing (responder profile + assignment/fill defaults)  
+**Status:** Applied on production (`vehicle_is_default`); profile starring + assignment/fill/shift defaults.  
 **Depends on:** `vehicles` / `event_responders` / shifts personal plate (`2026-08-10-yahpaz-shifts-design.md`), רשומה profile (`design-system-design-instructions/screens/profile.md`)
 
 ## Problem

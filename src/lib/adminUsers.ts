@@ -238,35 +238,11 @@ export function copyAdminInviteLink(userId: string) {
   })
 }
 
-export async function deleteAdminVehicle(
-  vehicleId: string,
-): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('vehicles').delete().eq('id', vehicleId)
-  if (error) return { error: 'מחיקת הרכב נכשלה.' }
-  return { error: null }
-}
-
-export async function archiveAdminVehicle(
-  vehicleId: string,
-): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from('vehicles')
-    .update({ archived: true })
-    .eq('id', vehicleId)
-  if (error) return { error: 'העברת הרכב לארכיון נכשלה.' }
-  return { error: null }
-}
-
-export async function unarchiveAdminVehicle(
-  vehicleId: string,
-): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from('vehicles')
-    .update({ archived: false })
-    .eq('id', vehicleId)
-  if (error) return { error: 'שחזור הרכב מהארכיון נכשל.' }
-  return { error: null }
-}
+export {
+  archiveVehicle as archiveAdminVehicle,
+  deleteVehicle as deleteAdminVehicle,
+  unarchiveVehicle as unarchiveAdminVehicle,
+} from './vehicles'
 
 export async function saveAdminUser(input: SaveUserInput): Promise<{ error: string | null }> {
   const { error: profileError } = await supabase

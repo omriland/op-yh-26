@@ -1,4 +1,4 @@
-import { plateDigits } from './format'
+import { plateDigits, plateNumberForSave } from './format'
 import { queryVehiclesWithDefaultFallback } from './defaultVehicle'
 import { supabase } from './supabase'
 
@@ -8,6 +8,51 @@ export type VehicleRow = {
   model: string
   archived: boolean
   is_default: boolean
+}
+
+export type VehicleRemoveMode = 'archive' | 'delete'
+
+export const SET_DEFAULT_VEHICLE_LABEL = 'הגדר כרכב ברירת מחדל'
+export const DEFAULT_VEHICLE_LABEL = 'רכב ראשי'
+
+export const VEHICLE_DELETE_CONFIRM =
+  'האם למחוק את הרכב הזה? לא ניתן לשחזר אותו לאחר המחיקה.'
+
+export const VEHICLE_ARCHIVE_CONFIRM =
+  'לא ניתן למחוק רכב זה כי הוא מקושר לאירוע קיים. האם להעביר אותו לארכיון כדי שאיש לא יוכל להשתמש בו יותר במערכת?'
+
+const DUPLICATE_PLATE_ERROR =
+  'לא ניתן לשייך את אותה לוחית רישוי יותר מפעם אחת לאותו משתמש.'
+
+export function vehicleRemoveMode(attached: boolean): VehicleRemoveMode {
+  return attached ? 'archive' : 'delete'
+}
+
+export function isProfileVehicleEditing(
+  vehicle: { key: string; id?: string },
+  editingKey: string | null,
+): boolean {
+  return !vehicle.id || vehicle.key === editingKey
+}
+
+export function vehicleFieldsForSave(
+  plateNumber: string,
+  model: string,
+): { plate_number: string; model: string } | { error: string } {
+  const plate = plateNumberForSave(plateNumber)
+  const trimmedModel = model.trim()
+  if (!plate || !trimmedModel) {
+    return { error: 'יש להזין לוחית רישוי ודגם.' }
+  }
+  return { plate_number: plate, model: trimmedModel }
+}
+
+export function ownVehicleWriteError(
+  error: { code?: string; message?: string } | null | undefined,
+): string {
+  if (error?.code === '23505') return DUPLICATE_PLATE_ERROR
+  const message = error?.message?.trim()
+  return message || 'שמירת הרכב נכשלה.'
 }
 
 export async function fetchOwnVehicles(userId: string): Promise<VehicleRow[]> {
@@ -28,10 +73,80 @@ export async function setDefaultVehicle(vehicleId: string): Promise<{ error: str
   const { error } = await supabase.rpc('set_default_vehicle', { p_vehicle_id: vehicleId })
   if (error) {
     const message = error.message?.trim()
+    if (error.code === 'PGRST202' || /schema cache/i.test(message ?? '')) {
+      return { error: 'עדכון הרכב הראשי אינו זמין כרגע. נסו שוב בעוד רגע.' }
+    }
     return { error: message || 'עדכון הרכב הראשי נכשל.' }
   }
   return { error: null }
 }
+
+export async function createOwnVehicle(
+  userId: string,
+  plateNumber: string,
+  model: string,
+): Promise<{ error: string | null }> {
+  const fields = vehicleFieldsForSave(plateNumber, model)
+  if ('error' in fields) return { error: fields.error }
+
+  const { error } = await supabase.from('vehicles').insert({
+    user_id: userId,
+    plate_number: fields.plate_number,
+    model: fields.model,
+    archived: false,
+  })
+
+  if (error) return { error: ownVehicleWriteError(error) }
+  return { error: null }
+}
+
+export async function updateOwnVehicle(
+  vehicleId: string,
+  plateNumber: string,
+  model: string,
+): Promise<{ error: string | null }> {
+  const fields = vehicleFieldsForSave(plateNumber, model)
+  if ('error' in fields) return { error: fields.error }
+
+  const { error } = await supabase
+    .from('vehicles')
+    .update({
+      plate_number: fields.plate_number,
+      model: fields.model,
+    })
+    .eq('id', vehicleId)
+
+  if (error) return { error: ownVehicleWriteError(error) }
+  return { error: null }
+}
+
+export async function deleteVehicle(vehicleId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('vehicles').delete().eq('id', vehicleId)
+  if (error) return { error: 'מחיקת הרכב נכשלה.' }
+  return { error: null }
+}
+
+export async function archiveVehicle(vehicleId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ archived: true })
+    .eq('id', vehicleId)
+  if (error) return { error: 'העברת הרכב לארכיון נכשלה.' }
+  return { error: null }
+}
+
+export async function unarchiveVehicle(vehicleId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ archived: false })
+    .eq('id', vehicleId)
+  if (error) return { error: 'שחזור הרכב מהארכיון נכשל.' }
+  return { error: null }
+}
+
+export const deleteAdminVehicle = deleteVehicle
+export const archiveAdminVehicle = archiveVehicle
+export const unarchiveAdminVehicle = unarchiveVehicle
 
 /** True when this plate/user appears on an event participation or a shift personal vehicle. */
 export async function isVehicleAttachedToEvents(
