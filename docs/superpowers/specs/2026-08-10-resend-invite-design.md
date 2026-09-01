@@ -4,7 +4,7 @@ Approved 2026-08-10. Approach B.
 
 ## Decisions
 
-- Invite / OTP link expiry: **7 days** (604800s)
+- Invite / OTP link expiry: **24 hours** (86400s)
 - Pending = `profiles.invite_pending` (not Auth `email_confirmed_at` — scanners can confirm early)
 - Last-login column shows `ממתין להרשמה`; sort pending → active → inactive
 - Invite redeem is **click-gated** (`המשך להגדרת סיסמה`) so email scanners cannot burn the OTP
