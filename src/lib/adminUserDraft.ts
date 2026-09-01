@@ -23,7 +23,7 @@ export function canEditUserEmail(isCreate: boolean, actorIsSuperAdmin: boolean):
 }
 
 export function userEmailFieldHint(isCreate: boolean, actorIsSuperAdmin: boolean): string {
-  if (isCreate) return 'נשלחת הזמנה לכתובת זו.'
+  if (isCreate) return 'נשלחת הזמנה לכתובת זו. הקישור בתוקף ל־24 שעות.'
   if (actorIsSuperAdmin) return 'שינוי דוא״ל מעדכן גם את פרטי ההתחברות.'
   return 'לא ניתן לשנות דוא״ל לאחר יצירה.'
 }

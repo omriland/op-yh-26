@@ -40,7 +40,7 @@ Admin-only under ניהול (`ניהול דלק`, Fuel icon). Opening lands on a
 
 Sections:
 
-1. `פרטים` — שם מלא (required) · דוא״ל (required; sends invite on create; Super Admin may change after create) · או״ק · טלפון · סטטוס (required select: `מנהלה` · `חניכה בסיסית` · `חניכה טלפונית` · `חניכה ברכב פרטי` · `משמרות בלבד` · `מתנדב פעיל`; default `מתנדב פעיל`). Admin-only; users cannot change their own. Regular admins: דוא״ל is read-only after create (`לא ניתן לשנות דוא״ל לאחר יצירה.`).
+1. `פרטים` — שם מלא (required) · דוא״ל (required; sends invite on create, hint `נשלחת הזמנה לכתובת זו. הקישור בתוקף ל־24 שעות.`; Super Admin may change after create) · או״ק · טלפון · סטטוס (required select: `מנהלה` · `חניכה בסיסית` · `חניכה טלפונית` · `חניכה ברכב פרטי` · `משמרות בלבד` · `מתנדב פעיל`; default `מתנדב פעיל`). Admin-only; users cannot change their own. Regular admins: דוא״ל is read-only after create (`לא ניתן לשנות דוא״ל לאחר יצירה.`).
 2. `תפקידים` — three checkboxes: `מנהל` / `אחמ״ש` / `כונן`. Checking a role also checks every lower role and greys those out. Helper: `בחירת תפקיד כוללת את התפקידים שמתחתיו.` At least one required. `super_admin` is not a checkbox.
 3. `רכבים` — repeatable rows: לוחית רישוי (mono, LTR) + דגם + remove icon-button; ghost `הוספת רכב` below. A user may have several vehicles.
 4. `כתובות` — always two slots `בית` / `עבודה` (optional). Each is Places-only (no free-text row). Ghost `הוספת כתובת` adds an extra row: `שם הכתובת` + Places field + remove. Empty slots are not stored. Caption: `בית ועבודה הם ברירת מחדל. אפשר להשאיר ריק או לבחור כתובת מגוגל בלבד.`

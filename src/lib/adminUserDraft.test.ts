@@ -71,7 +71,9 @@ describe('canEditUserEmail', () => {
 
 describe('userEmailFieldHint', () => {
   it('explains invite on create and lock vs Super Admin change on edit', () => {
-    expect(userEmailFieldHint(true, false)).toBe('נשלחת הזמנה לכתובת זו.')
+    expect(userEmailFieldHint(true, false)).toBe(
+      'נשלחת הזמנה לכתובת זו. הקישור בתוקף ל־24 שעות.',
+    )
     expect(userEmailFieldHint(false, false)).toBe('לא ניתן לשנות דוא״ל לאחר יצירה.')
     expect(userEmailFieldHint(false, true)).toBe('שינוי דוא״ל מעדכן גם את פרטי ההתחברות.')
   })
