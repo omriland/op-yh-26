@@ -26,13 +26,13 @@ Repo: `yhpz-2026`
 
 - Auth: email + password (Supabase)
 - Seed admin: `omriland@gmail.com` — profile עמרי לנדמן / callsign Admin — roles `admin`, `shift_lead`, **`super_admin`**
-- `super_admin`: DB-only grant (trigger blocks JWT insert/delete); not in role checkboxes/invite. Capabilities: set user password (`set_password`); impersonate active non–super-admin users (`impersonate` / `stop_impersonation` + `impersonation_audit`). Specs: `2026-08-11-yahpaz-super-admin-set-password-design.md`, `2026-08-11-yahpaz-super-admin-impersonation-design.md`
+- `super_admin`: DB-only grant (trigger blocks JWT insert/delete); not in role checkboxes/invite. Capabilities: set user password (`set_password`); change user email (`set_email` — Auth + `profiles.email`); impersonate active non–super-admin users (`impersonate` / `stop_impersonation` + `impersonation_audit`). Specs: `2026-08-11-yahpaz-super-admin-set-password-design.md`, `2026-08-11-yahpaz-super-admin-impersonation-design.md`
 - `profiles.must_change_password` + RPC `clear_must_change_password()` for force-change gate after admin-set password
 - Profile auto-created via `handle_new_user` trigger on `auth.users`
 
 ## Product decisions (locked)
 
-- Roles: Admin (users + closed lists), Shift-lead (events), Responder (own participation fields); Super Admin (additive, DB-only — set passwords)
+- Roles: Admin (users + closed lists), Shift-lead (events), Responder (own participation fields); Super Admin (additive, DB-only — set passwords, change emails)
 - Multiple responders per event; each has own details
 - Event auto-`done` when **all** assigned responders are `done`; shift-lead sees **partial** until then
 - Viewer-relative labels
