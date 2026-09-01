@@ -5,12 +5,17 @@ import {
   FEEDBACK_EMPTY_ERROR,
   FEEDBACK_KIND_ERROR,
   FEEDBACK_KIND_LABEL,
+  FEEDBACK_SMS_EXCERPT_MAX,
   FEEDBACK_STATUS_STAMP,
+  buildFeedbackTreatedSms,
   canManageFeedbackInbox,
   feedbackBodyError,
+  feedbackSmsExcerpt,
   feedbackStorageExt,
   feedbackStoragePath,
   feedbackSubmitError,
+  feedbackTreatedToast,
+  firstNameFromFullName,
   formatRecordSeconds,
   normalizeFeedbackAudioMime,
 } from './userFeedback'
@@ -78,5 +83,47 @@ describe('feedback labels', () => {
     expect(FEEDBACK_STATUS_STAMP.open).toEqual({ label: 'פתוח', tone: 'pending' })
     expect(FEEDBACK_STATUS_STAMP.fixed).toEqual({ label: 'טופל', tone: 'done' })
     expect(FEEDBACK_STATUS_STAMP.wont_do).toEqual({ label: 'לא יטופל', tone: 'draft' })
+  })
+})
+
+describe('feedback treated SMS', () => {
+  it('uses the first name and quotes the body', () => {
+    expect(firstNameFromFullName('עמרי לנדמן')).toBe('עמרי')
+    expect(
+      buildFeedbackTreatedSms({
+        fullName: 'עמרי לנדמן',
+        body: 'המסך נתקע',
+        hasAudio: false,
+      }),
+    ).toBe(
+      'היי, עמרי,\nרק רצינו לעדכן שהפידבק שנתת על המסך נתקע טופל\n"אבן דרך"',
+    )
+  })
+
+  it('falls back when the name or body is missing', () => {
+    expect(firstNameFromFullName('  ')).toBe('')
+    expect(feedbackSmsExcerpt(null, true)).toBe('ההקלטה')
+    expect(feedbackSmsExcerpt('   ', false)).toBe('המשוב')
+    expect(
+      buildFeedbackTreatedSms({
+        fullName: null,
+        body: null,
+        hasAudio: true,
+      }),
+    ).toBe('היי,\nרק רצינו לעדכן שהפידבק שנתת על ההקלטה טופל\n"אבן דרך"')
+  })
+
+  it('collapses whitespace and truncates a long body', () => {
+    expect(feedbackSmsExcerpt('שורה\nשנייה', false)).toBe('שורה שנייה')
+    const long = 'א'.repeat(FEEDBACK_SMS_EXCERPT_MAX + 10)
+    const excerpt = feedbackSmsExcerpt(long, false)
+    expect(excerpt.endsWith('…')).toBe(true)
+    expect(excerpt.length).toBe(FEEDBACK_SMS_EXCERPT_MAX)
+  })
+
+  it('warns when the treated SMS did not go out', () => {
+    expect(feedbackTreatedToast('sent')).toEqual({ message: 'הסטטוס עודכן.', tone: 'done' })
+    expect(feedbackTreatedToast('skipped_no_phone').tone).toBe('alert')
+    expect(feedbackTreatedToast('failed').message).toContain('SMS')
   })
 })

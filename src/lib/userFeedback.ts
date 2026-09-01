@@ -1,4 +1,5 @@
 import type { AppRole } from './auth'
+import { isImpersonating } from './impersonationStash'
 import type { StampDescriptor } from './status'
 import { supabase } from './supabase'
 
@@ -21,6 +22,56 @@ export const FEEDBACK_RECORD_UNSUPPORTED = 'ההקלטה אינה זמינה ב�
 export const FEEDBACK_KIND_LABEL: Record<FeedbackKind, string> = {
   bug: 'באג',
   suggestion: 'הצעה',
+}
+
+/** Quoted feedback body in the treated SMS. Keep in sync with `supabase/functions/_shared/feedbackTreatedSms.ts`. */
+export const FEEDBACK_SMS_EXCERPT_MAX = 80
+export const FEEDBACK_SMS_AUDIO_EXCERPT = 'ההקלטה'
+export const FEEDBACK_SMS_FALLBACK_EXCERPT = 'המשוב'
+
+export type FeedbackSmsResult =
+  | 'sent'
+  | 'skipped_no_phone'
+  | 'failed'
+  | 'skipped'
+  | 'unavailable'
+
+export function firstNameFromFullName(fullName: string | null | undefined): string {
+  return (fullName ?? '').trim().split(/\s+/)[0] ?? ''
+}
+
+export function feedbackSmsExcerpt(
+  body: string | null | undefined,
+  hasAudio: boolean,
+): string {
+  const compact = (body ?? '').replace(/\s+/g, ' ').trim()
+  if (!compact) return hasAudio ? FEEDBACK_SMS_AUDIO_EXCERPT : FEEDBACK_SMS_FALLBACK_EXCERPT
+  if (compact.length <= FEEDBACK_SMS_EXCERPT_MAX) return compact
+  return `${compact.slice(0, FEEDBACK_SMS_EXCERPT_MAX - 1)}…`
+}
+
+export function buildFeedbackTreatedSms(input: {
+  fullName: string | null | undefined
+  body: string | null | undefined
+  hasAudio: boolean
+}): string {
+  const first = firstNameFromFullName(input.fullName)
+  const greeting = first ? `היי, ${first},` : 'היי,'
+  const excerpt = feedbackSmsExcerpt(input.body, input.hasAudio)
+  return `${greeting}\nרק רצינו לעדכן שהפידבק שנתת על ${excerpt} טופל\n"אבן דרך"`
+}
+
+export function feedbackTreatedToast(sms?: FeedbackSmsResult): {
+  message: string
+  tone: 'done' | 'alert'
+} {
+  if (sms === 'skipped_no_phone') {
+    return { message: 'הסטטוס עודכן. לא נשלח SMS — אין מספר נייד תקין.', tone: 'alert' }
+  }
+  if (sms === 'failed' || sms === 'unavailable') {
+    return { message: 'הסטטוס עודכן. שליחת ה-SMS נכשלה.', tone: 'alert' }
+  }
+  return { message: 'הסטטוס עודכן.', tone: 'done' }
 }
 
 export const FEEDBACK_STATUS_STAMP: Record<FeedbackStatus, StampDescriptor> = {
@@ -233,12 +284,71 @@ export async function hasOpenUserFeedback(): Promise<boolean> {
   return (count ?? 0) > 0
 }
 
-export async function updateUserFeedbackStatus(
+async function updateFeedbackStatusRow(
   id: string,
   status: FeedbackStatus,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await supabase.from('user_feedback').update({ status }).eq('id', id)
   if (error) return { ok: false, error: FEEDBACK_NETWORK }
+  return { ok: true }
+}
+
+async function markFeedbackTreatedViaEdge(
+  id: string,
+): Promise<{ ok: true; sms: FeedbackSmsResult } | { ok: false; error: string }> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (sessionError || !token) {
+    return { ok: false, error: 'יש להתחבר מחדש.' }
+  }
+
+  const { data, error } = await supabase.functions.invoke('user-feedback', {
+    body: { action: 'mark_treated', id },
+  })
+
+  if (error) {
+    const ctx = (error as { context?: Response }).context
+    if (ctx) {
+      try {
+        const payload = (await ctx.json()) as { error?: string }
+        if (payload.error) return { ok: false, error: payload.error }
+      } catch {
+        /* gateway 404 has no JSON body */
+      }
+      if (ctx.status === 404) {
+        const fallback = await updateFeedbackStatusRow(id, 'fixed')
+        if (!fallback.ok) return fallback
+        return { ok: true, sms: 'unavailable' }
+      }
+    }
+    if (/not found/i.test(error.message ?? '')) {
+      const fallback = await updateFeedbackStatusRow(id, 'fixed')
+      if (!fallback.ok) return fallback
+      return { ok: true, sms: 'unavailable' }
+    }
+    return { ok: false, error: FEEDBACK_NETWORK }
+  }
+
+  const payload = data as { error?: string; sms?: FeedbackSmsResult }
+  if (payload?.error) return { ok: false, error: payload.error }
+  return { ok: true, sms: payload.sms ?? 'sent' }
+}
+
+export async function updateUserFeedbackStatus(
+  id: string,
+  status: FeedbackStatus,
+): Promise<{ ok: true; sms?: FeedbackSmsResult } | { ok: false; error: string }> {
+  if (status === 'fixed') {
+    if (isImpersonating()) {
+      const result = await updateFeedbackStatusRow(id, status)
+      if (!result.ok) return result
+      return { ok: true, sms: 'skipped' }
+    }
+    return markFeedbackTreatedViaEdge(id)
+  }
+
+  const result = await updateFeedbackStatusRow(id, status)
+  if (!result.ok) return result
   return { ok: true }
 }
 

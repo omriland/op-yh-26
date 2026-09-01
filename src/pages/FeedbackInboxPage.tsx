@@ -11,6 +11,7 @@ import {
   FEEDBACK_KIND_LABEL,
   FEEDBACK_STATUS_STAMP,
   deleteUserFeedback,
+  feedbackTreatedToast,
   listUserFeedback,
   updateUserFeedbackStatus,
   type FeedbackStatus,
@@ -63,7 +64,11 @@ export function FeedbackInboxPage() {
       show(result.error, 'alert')
       return
     }
-    show('הסטטוס עודכן.', 'done')
+    const toast =
+      status === 'fixed'
+        ? feedbackTreatedToast(result.sms)
+        : { message: 'הסטטוס עודכן.', tone: 'done' as const }
+    show(toast.message, toast.tone)
     setReloadKey((key) => key + 1)
   }
 
