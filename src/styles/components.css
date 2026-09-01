@@ -2333,6 +2333,14 @@ textarea.field__input {
 
 /* In-flow (not position:fixed) — avoids iOS Safari fixed-bottom drift mid-scroll.
    Sits at the end of the viewport-locked .shell flex column (above home indicator). */
+html[data-keyboard-open] .tabbar {
+  display: none;
+}
+
+html[data-keyboard-open] .event-form__footer {
+  position: static;
+}
+
 .tabbar {
   z-index: 20;
   display: flex;

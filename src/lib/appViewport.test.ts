@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   APP_HEIGHT_VAR,
+  KEYBOARD_OPEN_ATTR,
   applyAppViewportHeight,
+  applyKeyboardOpenState,
   bindAppViewportHeight,
+  isVirtualKeyboardOpen,
   readAppViewportHeight,
   resetDocumentScroll,
+  shouldScrollFocusedField,
 } from './appViewport'
 
 describe('readAppViewportHeight', () => {
@@ -44,6 +48,46 @@ describe('resetDocumentScroll', () => {
   })
 })
 
+describe('isVirtualKeyboardOpen', () => {
+  it('is false until the visual viewport drops by the keyboard threshold', () => {
+    expect(isVirtualKeyboardOpen(640, 700)).toBe(false)
+    expect(isVirtualKeyboardOpen(520, 700)).toBe(true)
+  })
+
+  it('is false when resting height is still unknown', () => {
+    expect(isVirtualKeyboardOpen(700, 0)).toBe(false)
+  })
+})
+
+describe('applyKeyboardOpenState', () => {
+  it('toggles the html data attribute', () => {
+    const attrs = new Map<string, string>()
+    const root = {
+      setAttribute: (name: string, value: string) => {
+        attrs.set(name, value)
+      },
+      removeAttribute: (name: string) => {
+        attrs.delete(name)
+      },
+    }
+
+    applyKeyboardOpenState(true, root)
+    expect(attrs.get(KEYBOARD_OPEN_ATTR)).toBe('')
+    applyKeyboardOpenState(false, root)
+    expect(attrs.has(KEYBOARD_OPEN_ATTR)).toBe(false)
+  })
+})
+
+describe('shouldScrollFocusedField', () => {
+  it('is true for text fields and false for the document body', () => {
+    expect(shouldScrollFocusedField({ tagName: 'INPUT', isContentEditable: false })).toBe(true)
+    expect(shouldScrollFocusedField({ tagName: 'TEXTAREA', isContentEditable: false })).toBe(true)
+    expect(shouldScrollFocusedField({ tagName: 'SELECT', isContentEditable: false })).toBe(true)
+    expect(shouldScrollFocusedField({ tagName: 'BODY', isContentEditable: false })).toBe(false)
+    expect(shouldScrollFocusedField(null)).toBe(false)
+  })
+})
+
 describe('bindAppViewportHeight', () => {
   it('applies height immediately and on window / visualViewport events', () => {
     const applyHeight = vi.fn()
@@ -56,6 +100,8 @@ describe('bindAppViewportHeight', () => {
       getLayoutHeight: () => 800,
       applyHeight,
       resetScroll,
+      applyKeyboardOpen: () => {},
+      scrollFocusedField: () => {},
       addWindowListener: (type, listener) => {
         windowListeners.set(type, listener)
         return () => windowListeners.delete(type)
@@ -80,5 +126,37 @@ describe('bindAppViewportHeight', () => {
     unbind()
     expect(windowListeners.size).toBe(0)
     expect(vvListeners.size).toBe(0)
+  })
+
+  it('marks the document keyboard-open when the visual viewport shrinks', () => {
+    let visualHeight = 700
+    const applyKeyboardOpen = vi.fn()
+    const vvListeners = new Map<string, () => void>()
+
+    bindAppViewportHeight({
+      getVisualHeight: () => visualHeight,
+      getLayoutHeight: () => 700,
+      applyHeight: () => {},
+      resetScroll: () => {},
+      applyKeyboardOpen,
+      scrollFocusedField: () => {},
+      addWindowListener: () => () => {},
+      addVisualViewportListener: (type, listener) => {
+        vvListeners.set(type, listener)
+        return () => vvListeners.delete(type)
+      },
+    })
+
+    expect(applyKeyboardOpen).toHaveBeenCalledWith(false)
+
+    applyKeyboardOpen.mockClear()
+    visualHeight = 420
+    vvListeners.get('resize')?.()
+    expect(applyKeyboardOpen).toHaveBeenCalledWith(true)
+
+    applyKeyboardOpen.mockClear()
+    visualHeight = 700
+    vvListeners.get('resize')?.()
+    expect(applyKeyboardOpen).toHaveBeenCalledWith(false)
   })
 })
