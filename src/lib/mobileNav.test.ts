@@ -37,7 +37,7 @@ describe('splitMobileNav', () => {
       { view: 'my_shifts' },
     ])
 
-    expect(views(tabs)).toEqual(['mine', 'events', 'users', 'my_shifts'])
+    expect(views(tabs)).toEqual(['events', 'mine', 'users', 'my_shifts'])
     expect(more).toEqual([])
   })
 
@@ -52,7 +52,7 @@ describe('splitMobileNav', () => {
       { view: 'mine' },
     ])
 
-    expect(views(tabs)).toEqual(['mine', 'events', 'my_shifts'])
+    expect(views(tabs)).toEqual(['events', 'mine', 'my_shifts'])
     expect(views(more)).toEqual(['shifts', 'contacts', 'map', 'reports'])
   })
 
@@ -67,7 +67,7 @@ describe('splitMobileNav', () => {
       { view: 'users' },
     ])
 
-    expect(views(tabs)).toEqual(['mine', 'events', 'users'])
+    expect(views(tabs)).toEqual(['events', 'mine', 'users'])
     expect(views(more)).toEqual(['my_shifts', 'shifts', 'contacts', 'map'])
   })
 

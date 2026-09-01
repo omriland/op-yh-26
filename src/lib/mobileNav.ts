@@ -1,5 +1,5 @@
 /** Daily destinations — keep these in the mobile tab bar when they exist. */
-export const MOBILE_TAB_PRIMARY = ['mine', 'events', 'users', 'my_shifts'] as const
+export const MOBILE_TAB_PRIMARY = ['events', 'mine', 'users', 'my_shifts'] as const
 
 /** Reachable on mobile, but not every-session. Overflow into עוד. */
 export const MOBILE_TAB_SECONDARY = ['shifts', 'contacts', 'map', 'reports'] as const
