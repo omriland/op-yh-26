@@ -2099,6 +2099,11 @@ textarea.field__input {
   padding-block-end: var(--space-6);
 }
 
+/* Extra end inset only while the משוב control is actually on screen. */
+.shell:has(.feedback-fab):not(:has(.event-form__footer)) .shell__main {
+  padding-block-end: calc(var(--space-6) + 44px + var(--space-4));
+}
+
 .shell__main > * {
   max-width: var(--content-max);
   width: 100%;
@@ -6513,4 +6518,94 @@ textarea.field__input {
     height: auto;
     aspect-ratio: 1;
   }
+}
+
+/* ============================================================
+   In-app feedback
+   ============================================================ */
+
+.feedback-fab {
+  position: fixed;
+  z-index: 15;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  inset-inline-end: var(--space-4);
+  inset-block-end: calc(
+    var(--tabbar-height) + env(safe-area-inset-bottom, 0px) + var(--space-4)
+  );
+  pointer-events: none;
+}
+
+.shell:not(:has(.tabbar)) .feedback-fab {
+  inset-block-end: var(--space-4);
+}
+
+.shell:has(.event-form__footer) .feedback-fab {
+  display: none;
+}
+
+@media (min-width: 1025px) {
+  .feedback-fab {
+    inset-inline-end: var(--space-6);
+    inset-block-end: var(--space-6);
+  }
+}
+
+.feedback-fab__btn {
+  pointer-events: auto;
+  min-width: 44px;
+  width: 44px;
+  min-height: 44px;
+  height: 44px;
+}
+
+fieldset.field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.feedback-record,
+.feedback-record__live,
+.feedback-record__preview,
+.feedback-inbox__head,
+.feedback-inbox__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.feedback-record__time {
+  color: var(--text-secondary);
+}
+
+.feedback-record__preview {
+  width: 100%;
+}
+
+.feedback-record__audio {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.feedback-record__preview .feedback-record__audio {
+  flex: 1;
+}
+
+.feedback-inbox {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.feedback-inbox__head {
+  justify-content: space-between;
+}
+
+.feedback-inbox__body {
+  white-space: pre-wrap;
 }

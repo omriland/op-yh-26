@@ -39,6 +39,8 @@ import { ShiftDetailPage } from './pages/ShiftDetailPage'
 import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
 import { ContactsPage } from './pages/ContactsPage'
+import { FeedbackInboxPage } from './pages/FeedbackInboxPage'
+import { canManageFeedbackInbox } from './lib/userFeedback'
 import { isImpersonating } from './lib/impersonationStash'
 import { usePresenceHeartbeat } from './lib/usePresenceHeartbeat'
 import { fetchOtpStatus } from './lib/phoneOtp'
@@ -96,6 +98,7 @@ function Gate() {
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
     myShifts: false,
+    openFeedback: false,
   })
   const [loginOtp, setLoginOtp] = useState<
     | { state: 'idle' }
@@ -236,6 +239,7 @@ function Gate() {
   ])
 
   const isAdmin = roles.includes('admin')
+  const isSuperAdmin = canManageFeedbackInbox(roles)
   const manages = isAdmin || roles.includes('shift_lead')
   const responds = roles.includes('responder')
   // Leads also go on events — same personal list/fill surface, not only the responder role.
@@ -286,25 +290,25 @@ function Gate() {
   const attentionRefreshKey = `${eventSurface.kind}:${shiftSurface.kind}:${view}`
 
   useEffect(() => {
-    if (!hasMineList || !user) {
-      setNavAttention({ mineEvents: false, myShifts: false })
+    if (!user || (!hasMineList && !isSuperAdmin)) {
+      setNavAttention({ mineEvents: false, myShifts: false, openFeedback: false })
       return
     }
 
     let active = true
-    fetchNavAttention(user.id)
+    fetchNavAttention(user.id, { feedbackInbox: isSuperAdmin })
       .then((next) => {
         if (active) setNavAttention(next)
       })
       .catch(() => {
         // Fail closed — no dots if the check cannot run.
-        if (active) setNavAttention({ mineEvents: false, myShifts: false })
+        if (active) setNavAttention({ mineEvents: false, myShifts: false, openFeedback: false })
       })
 
     return () => {
       active = false
     }
-  }, [hasMineList, user, attentionRefreshKey])
+  }, [hasMineList, isSuperAdmin, user, attentionRefreshKey])
 
   const analyticsPath = useMemo(
     () =>
@@ -463,6 +467,16 @@ function Gate() {
       }
     }
 
+    if (isSuperAdmin) {
+      list.push({
+        view: 'feedback',
+        label: 'משוב',
+        icon: NAV_ICONS.feedback,
+        section: isDesktop ? 'ניהול' : undefined,
+        attention: navAttention.openFeedback,
+      })
+    }
+
     if (isAdmin) {
       if (isDesktop) {
         for (const segment of ADMIN_SEGMENTS) {
@@ -497,7 +511,7 @@ function Gate() {
     }
 
     return list
-  }, [manages, hasMineList, isAdmin, isDesktop, navAttention, roles])
+  }, [manages, hasMineList, isAdmin, isSuperAdmin, isDesktop, navAttention, roles])
 
   function isAllowedView(next: AppView): boolean {
     switch (next) {
@@ -518,6 +532,8 @@ function Gate() {
         return isAdmin
       case 'profile':
         return true
+      case 'feedback':
+        return isSuperAdmin
     }
   }
 
@@ -775,6 +791,7 @@ function Gate() {
             }
           : undefined
       }
+      feedbackPagePath={analyticsPath}
     >
       {legalPage === 'privacy' ? (
         <PrivacyPolicyPage onBack={closeLegalPage} />
@@ -905,6 +922,8 @@ function Gate() {
         <div className="page--wide">
           <UsersMapPage key={sectionReset} />
         </div>
+      ) : activeView === 'feedback' && isSuperAdmin ? (
+        <FeedbackInboxPage key={sectionReset} />
       ) : isAdminHub && isAdminSegment(activeView) ? (
           <div
             className={['stack-4', activeView === 'users' ? 'page--wide page--users' : '']

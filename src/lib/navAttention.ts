@@ -1,10 +1,12 @@
 import type { ParticipationStatus, ShiftStatus } from './status'
 import { isShiftPendingLog, jerusalemToday } from './shifts'
 import { supabase } from './supabase'
+import { hasOpenUserFeedback } from './userFeedback'
 
 export type NavAttention = {
   mineEvents: boolean
   myShifts: boolean
+  openFeedback: boolean
 }
 
 type ParticipationRow = { status: ParticipationStatus }
@@ -35,13 +37,17 @@ export function navAttentionAriaSuffix(attention: boolean): string {
 }
 
 /** Lightweight flags for sidebar / tab-bar attention dots. */
-export async function fetchNavAttention(userId: string): Promise<NavAttention> {
-  const [eventsResult, shiftsResult] = await Promise.all([
+export async function fetchNavAttention(
+  userId: string,
+  options: { feedbackInbox?: boolean } = {},
+): Promise<NavAttention> {
+  const [eventsResult, shiftsResult, openFeedback] = await Promise.all([
     supabase.from('event_responders').select('status').eq('responder_id', userId),
     supabase
       .from('shift_responders')
       .select('shift:shifts(shift_date, status, odometer_start, odometer_end)')
       .eq('responder_id', userId),
+    options.feedbackInbox ? hasOpenUserFeedback() : Promise.resolve(false),
   ])
 
   if (eventsResult.error) throw new Error(eventsResult.error.message)
@@ -59,5 +65,6 @@ export async function fetchNavAttention(userId: string): Promise<NavAttention> {
   return {
     mineEvents: hasOpenMineEvents(participations),
     myShifts: hasOpenMineShifts(shifts),
+    openFeedback,
   }
 }

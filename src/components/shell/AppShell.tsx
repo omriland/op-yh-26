@@ -20,6 +20,7 @@ import {
   MapPinned,
   Plus,
   Radar,
+  MessageSquarePlus,
   Settings,
   UserCog,
   UserRound,
@@ -62,6 +63,7 @@ import { useIsDesktop } from '../../lib/useMediaQuery'
 import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../availability/AvailabilityControl'
 import { Dialog } from '../ui/Dialog'
 import { SnykBadge } from './SnykBadge'
+import { FeedbackFab } from '../feedback/FeedbackFab'
 
 export type AppView =
   | 'events'
@@ -76,6 +78,7 @@ export type AppView =
   | 'fuel_quarter'
   | 'lists'
   | 'profile'
+  | 'feedback'
 
 type NavEntry = {
   view: AppView
@@ -105,6 +108,8 @@ type AppShellProps = {
   /** Desktop sidebar only — create shortcuts beside אירועים / משמרות. */
   onCreateEvent?: () => void
   onCreateShift?: () => void
+  /** Current virtual path, attached to submitted feedback. */
+  feedbackPagePath?: string | null
   children: ReactNode
 }
 
@@ -120,6 +125,7 @@ export function AppShell({
   entries,
   onCreateEvent,
   onCreateShift,
+  feedbackPagePath = null,
   children,
 }: AppShellProps) {
   const isDesktop = useIsDesktop()
@@ -161,6 +167,7 @@ export function AppShell({
         </main>
       </div>
       {withSidebar ? null : <BottomTabBar view={view} onNavigate={onNavigate} entries={entries} />}
+      <FeedbackFab pagePath={feedbackPagePath} />
     </div>
   )
 }
@@ -178,6 +185,7 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   fuel_quarter: <Fuel size={24} strokeWidth={1.75} aria-hidden="true" />,
   lists: <Settings size={24} strokeWidth={1.75} aria-hidden="true" />,
   profile: <UserRound size={24} strokeWidth={1.75} aria-hidden="true" />,
+  feedback: <MessageSquarePlus size={24} strokeWidth={1.75} aria-hidden="true" />,
 }
 
 function isNavCurrent(entry: NavEntry, view: AppView) {
