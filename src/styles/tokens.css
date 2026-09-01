@@ -58,6 +58,11 @@
   --plate-band-text: var(--paper-0);
   --plate-flag: var(--blue-800);
 
+  /* ---- Real-world artifact: Israeli kilometre post (theme-invariant) ---- */
+  --km-post-border: var(--red-field);
+  --km-post-face: var(--paper-0);
+  --km-post-ink: var(--ink-900);
+
   /* ---- Typography: full stacks only, never a bare family name ---- */
   /* Display/titles share the UI face (Plex Sans Hebrew). Brand mark is Suez One only. */
   --font-display: 'IBM Plex Sans Hebrew', 'Heebo', 'Segoe UI', 'Arial Hebrew', 'Noto Sans Hebrew',

@@ -129,9 +129,19 @@ Used only for the profile vehicles plate mark. A physical plate does not invert 
 | `--plate-band-text` | `#FFFFFF` | `IL` letters + flag field |
 | `--plate-flag` | `#17416E` | Flag stripes and star |
 
+### Real-world artifact — Israeli kilometre post (theme-invariant)
+
+Used only for ops-map **אבני קילומטר**. A physical road stone does not invert with Field/Command. Palette aliases only (no new hex).
+
+| Semantic token | Value | Use |
+|---|---|---|
+| `--km-post-border` | `--red-field` (`#B3382F`) | Red rim stroke |
+| `--km-post-face` | `--paper-0` | Inner white panel |
+| `--km-post-ink` | `--ink-900` | Kilometre numerals |
+
 ## Usage rules
 
-- **One accent.** Record blue is the only interactive color. Green/red/amber appear exclusively in status semantics (stamps, validation, toasts) — never as decoration.
+- **One accent.** Record blue is the only interactive color. Green/red/amber appear exclusively in status semantics (stamps, validation, toasts) — never as decoration. **Exceptions:** the civil-plate yellow mark and the kilometre-post red rim (`--km-post-*`) — real-world artifacts, theme-invariant, same rule as `--plate-*`.
 - **Status color mapping is fixed:** `done` → seal green · `partial` → stamp amber · `pending`/`in_progress` (awaiting input) → record blue · `draft` → muted ink · destructive/errors → archive red.
 - **Hairline vs strong is a semantic split:** hairline (12–15%) is decoration and may be subtle; `--stroke-strong` marks interactive/meaning-bearing boundaries and MUST keep ≥3:1 — never reduce its opacity for aesthetics.
 - **No gradients** anywhere. Flat, matte fills only.

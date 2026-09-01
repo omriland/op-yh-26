@@ -295,16 +295,28 @@ export function createLabeledPin(
       } else if (onClick) {
         el.addEventListener('click', onClick)
       }
-      const dot = document.createElement('span')
-      dot.className = 'user-map-pin__dot'
-      if (variant === 'live') appendLiveCarIcon(dot)
-      const text = document.createElement('span')
-      text.className = 'user-map-pin__label'
-      text.textContent = label
-      if (unavailable) {
-        text.setAttribute('data-theme', 'field')
+      const isKm = extraClass === 'user-map-pin--km'
+      if (isKm) {
+        const face = document.createElement('span')
+        face.className = 'user-map-pin__km-face'
+        face.setAttribute('dir', 'ltr')
+        const num = document.createElement('span')
+        num.className = 'user-map-pin__km-num'
+        num.textContent = label
+        face.append(num)
+        el.append(face)
+      } else {
+        const dot = document.createElement('span')
+        dot.className = 'user-map-pin__dot'
+        if (variant === 'live') appendLiveCarIcon(dot)
+        const text = document.createElement('span')
+        text.className = 'user-map-pin__label'
+        text.textContent = label
+        if (unavailable) {
+          text.setAttribute('data-theme', 'field')
+        }
+        el.append(dot, text)
       }
-      el.append(dot, text)
       if (tooltip) {
         const tip = document.createElement('span')
         tip.className = [

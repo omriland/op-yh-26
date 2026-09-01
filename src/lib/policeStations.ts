@@ -1,11 +1,13 @@
 export const POLICE_STATIONS_GEOJSON_URL = '/data/police-station-boundaries.geojson'
 
 export const DEFAULT_OPS_MAP_LAYERS = {
-  policeStations: true,
+  policeStations: false,
+  milePosts: true,
 } as const
 
 export type OpsMapLayers = {
   policeStations: boolean
+  milePosts: boolean
 }
 
 export type PoliceStationProps = {

@@ -12,7 +12,8 @@ export function MapLayersControl({ layers, onChange }: MapLayersControlProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
-  const checkboxId = useId()
+  const policeCheckboxId = useId()
+  const milePostsCheckboxId = useId()
 
   useEffect(() => {
     if (!open) return
@@ -55,10 +56,16 @@ export function MapLayersControl({ layers, onChange }: MapLayersControlProps) {
       {open ? (
         <div id={menuId} className="menu user-map__layers-menu" role="dialog" aria-label="שכבות מפה">
           <Checkbox
-            id={checkboxId}
+            id={policeCheckboxId}
             label="תחנות משטרה"
             checked={layers.policeStations}
             onChange={(checked) => onChange({ ...layers, policeStations: checked })}
+          />
+          <Checkbox
+            id={milePostsCheckboxId}
+            label="אבני קילומטר"
+            checked={layers.milePosts}
+            onChange={(checked) => onChange({ ...layers, milePosts: checked })}
           />
         </div>
       ) : null}

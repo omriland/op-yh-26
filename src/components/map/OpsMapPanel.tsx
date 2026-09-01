@@ -54,6 +54,14 @@ import {
 } from '../../lib/opsMapView'
 import { defaultOpsMapLayers, type OpsMapLayers } from '../../lib/policeStations'
 import { attachPoliceStationLayer } from '../../lib/policeStationsMap'
+import {
+  fetchMilePosts,
+  milePostTooltip,
+  milePostsInView,
+  MILE_POST_LAYER_LOAD_ERROR,
+  shouldShowMilePosts,
+  type MilePost,
+} from '../../lib/milePosts'
 
 export type SearchOrigin = {
   location: string
@@ -402,10 +410,13 @@ function OpsMapCanvas({
   const prevFocusEventRequestIdRef = useRef(focusEventRequestId)
   const eventFocusAppliedKeyRef = useRef<string | null>(null)
   const mapListenersRef = useRef<{ remove: () => void }[]>([])
+  const { show } = useToast()
   const [mapError, setMapError] = useState<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [layers, setLayers] = useState<OpsMapLayers>(defaultOpsMapLayers)
   const policeLayerRef = useRef<ReturnType<typeof attachPoliceStationLayer> | null>(null)
+  const mileOverlaysRef = useRef<MapPinOverlay[]>([])
+  const [milePosts, setMilePosts] = useState<MilePost[] | null>(null)
   const [viewport, setViewport] = useState({ bbox: ISRAEL_VIEW_BBOX, zoom: 8 })
   const motionsRef = useRef(new Map<string, LiveMotion>())
   const displayRef = useRef(new Map<string, { lat: number; lng: number }>())
@@ -418,6 +429,11 @@ function OpsMapCanvas({
     () => cullLivePinsToBbox(livePins, viewport.bbox),
     [livePins, viewport],
   )
+  const milePostsVisible = useMemo(() => {
+    const inView = milePostsInView(milePosts ?? [], viewport.bbox)
+    if (!shouldShowMilePosts(layers.milePosts, viewport.zoom, inView.length)) return []
+    return inView
+  }, [layers.milePosts, milePosts, viewport])
 
   useEffect(() => {
     const host = hostRef.current
@@ -476,6 +492,8 @@ function OpsMapCanvas({
       staticOverlaysRef.current = []
       for (const overlay of liveOverlaysRef.current.values()) overlay.setMap(null)
       liveOverlaysRef.current.clear()
+      for (const overlay of mileOverlaysRef.current) overlay.setMap(null)
+      mileOverlaysRef.current = []
       policeLayerRef.current?.detach()
       policeLayerRef.current = null
       sessionRef.current?.searchOverlay?.setMap(null)
@@ -652,6 +670,47 @@ function OpsMapCanvas({
     if (!session || !mapReady) return
     policeLayerRef.current?.setVisible(layers.policeStations)
   }, [mapReady, layers.policeStations])
+
+  useEffect(() => {
+    if (!layers.milePosts || milePosts) return
+    let active = true
+    fetchMilePosts()
+      .then((next) => {
+        if (active) setMilePosts(next)
+      })
+      .catch(() => {
+        if (active) show(MILE_POST_LAYER_LOAD_ERROR, 'alert')
+      })
+    return () => {
+      active = false
+    }
+  }, [layers.milePosts, milePosts, show])
+
+  useEffect(() => {
+    const session = sessionRef.current
+    if (!session || !mapReady) return
+    for (const overlay of mileOverlaysRef.current) overlay.setMap(null)
+    mileOverlaysRef.current = []
+    const overlays: MapPinOverlay[] = []
+    for (const post of milePostsVisible) {
+      const tip = milePostTooltip(post)
+      const overlay = createLabeledPin(
+        session.maps,
+        { lat: post.lat, lng: post.lng },
+        formatNumber(post.km),
+        tip,
+        'user',
+        undefined,
+        { text: tip },
+        false,
+        undefined,
+        'user-map-pin--km',
+      )
+      overlay.setMap(session.map)
+      overlays.push(overlay)
+    }
+    mileOverlaysRef.current = overlays
+  }, [mapReady, milePostsVisible])
 
   if (mapError) {
     return (

@@ -189,6 +189,7 @@ pair('command', 'toast text', P.commandText, P.navyOverlay, TEXT)
 // Israeli civil plate mark — theme-invariant (02-color.md).
 pair('artifact', 'plate serial on yellow', P.ink900, P.plateField, TEXT)
 pair('artifact', 'IL letters on euroband', P.paper0, P.blue800, TEXT)
+pair('artifact', 'km post numerals on white', P.ink900, P.paper0, TEXT)
 
 // ---------- known traps: these MUST fail (08-accessibility.md) ----------
 

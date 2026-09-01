@@ -20,8 +20,8 @@ function loadBundledStations(): GeoJsonFeatureCollection {
 }
 
 describe('defaultOpsMapLayers', () => {
-  it('shows police stations until the user unchecks them', () => {
-    expect(defaultOpsMapLayers()).toEqual({ policeStations: true })
+  it('shows police stations until the user unchecks them, and kilometre posts stay off', () => {
+    expect(defaultOpsMapLayers()).toEqual({ policeStations: false, milePosts: true })
   })
 })
 
