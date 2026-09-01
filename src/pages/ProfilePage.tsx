@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { LogOut, Star } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
-import { supabase } from '../lib/supabase'
 import { formatDateTime, formatNumber, formatPhone, monoClass } from '../lib/format'
 import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
 import { addressKindLabel, fetchOwnAddresses, type UserAddressRow } from '../lib/userAddresses'
 import { fetchPartnerGrants, revokePartnerGrant, type PartnerGrant } from '../lib/partnerApi'
 import { canChooseDefaultVehicle } from '../lib/defaultVehicle'
-import { setDefaultVehicle } from '../lib/vehicles'
+import { fetchOwnVehicles, setDefaultVehicle } from '../lib/vehicles'
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
@@ -47,6 +46,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
   const { show } = useToast()
   const isAdmin = roles.includes('admin')
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null)
+  const [vehicleError, setVehicleError] = useState<string | null>(null)
   const [addresses, setAddresses] = useState<UserAddressRow[] | null>(null)
   const [grants, setGrants] = useState<PartnerGrant[] | null>(null)
   const [grantError, setGrantError] = useState<string | null>(null)
@@ -58,22 +58,24 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
     if (!profile) return
     let active = true
 
-    supabase
-      .from('vehicles')
-      .select('id, plate_number, model, archived, is_default')
-      .eq('user_id', profile.id)
-      .then(({ data }) => {
-        if (active) {
-          setVehicles(
-            sortProfileVehicles(
-              ((data as Vehicle[] | null) ?? []).map((vehicle) => ({
-                ...vehicle,
-                archived: Boolean(vehicle.archived),
-                is_default: Boolean(vehicle.is_default),
-              })),
-            ),
-          )
-        }
+    fetchOwnVehicles(profile.id)
+      .then((rows) => {
+        if (!active) return
+        setVehicleError(null)
+        setVehicles(
+          sortProfileVehicles(
+            rows.map((vehicle) => ({
+              ...vehicle,
+              archived: Boolean(vehicle.archived),
+              is_default: Boolean(vehicle.is_default),
+            })),
+          ),
+        )
+      })
+      .catch(() => {
+        if (!active) return
+        setVehicleError('טעינת הרכבים נכשלה.')
+        setVehicles([])
       })
 
     fetchOwnAddresses(profile.id)
@@ -288,6 +290,8 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
           <div style={{ marginBlockStart: 'var(--space-4)' }}>
             {vehicles === null ? (
               <Skeleton height={24} />
+            ) : vehicleError ? (
+              <p className="t-body text-muted">{vehicleError}</p>
             ) : vehicles.length === 0 ? (
               <p className="t-body text-muted">לא רשומים רכבים. פנו למנהל המערכת להוספת רכב.</p>
             ) : (

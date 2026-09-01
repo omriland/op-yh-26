@@ -1,7 +1,7 @@
 import { plateDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
-import { pickDefaultVehiclePlate } from './defaultVehicle'
+import { pickDefaultVehiclePlate, queryVehiclesWithDefaultFallback } from './defaultVehicle'
 import { leftoverEventMediaError } from './eventMedia'
 import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
 
@@ -155,12 +155,11 @@ export async function fetchResponderFillContext(
   eventId: string,
   userId: string,
 ): Promise<ResponderFillContext | null> {
-  const [{ data: event, error: eventError }, { data: vehicles, error: vehiclesError }] =
-    await Promise.all([
-      supabase
-        .from('events')
-        .select(
-          `
+  const [{ data: event, error: eventError }, vehicles] = await Promise.all([
+    supabase
+      .from('events')
+      .select(
+        `
           id, status, event_date, police_event_id, location, is_cancelled,
           event_type:event_types(name),
           road:roads(name),
@@ -171,14 +170,20 @@ export async function fetchResponderFillContext(
             treated_plates:event_treated_plates(plate_number, model, color, left_where, manufacturer, logo_slug, sort_order)
           )
         `,
-        )
-        .eq('id', eventId)
-        .maybeSingle(),
-      supabase
-        .from('vehicles')
-        .select('plate_number, model, archived, is_default')
-        .eq('user_id', userId),
-    ])
+      )
+      .eq('id', eventId)
+      .maybeSingle(),
+    queryVehiclesWithDefaultFallback(
+      'plate_number, model, archived, is_default',
+      async (select) => {
+        const { data, error } = await supabase
+          .from('vehicles')
+          .select(select)
+          .eq('user_id', userId)
+        return { data, error }
+      },
+    ),
+  ])
 
   if (eventError) {
     // Nested embed can fail if PostgREST cannot resolve the FK — fall back once.
@@ -187,7 +192,6 @@ export async function fetchResponderFillContext(
     }
     throw new Error(eventError.message)
   }
-  if (vehiclesError) throw new Error(vehiclesError.message)
   if (!event) return null
 
   const row = event as unknown as {
@@ -234,12 +238,11 @@ async function fetchResponderFillContextWithPlateQuery(
   eventId: string,
   userId: string,
 ): Promise<ResponderFillContext | null> {
-  const [{ data: event, error: eventError }, { data: vehicles, error: vehiclesError }] =
-    await Promise.all([
-      supabase
-        .from('events')
-        .select(
-          `
+  const [{ data: event, error: eventError }, vehicles] = await Promise.all([
+    supabase
+      .from('events')
+      .select(
+        `
           id, status, event_date, police_event_id, location, is_cancelled,
           event_type:event_types(name),
           road:roads(name),
@@ -249,17 +252,22 @@ async function fetchResponderFillContextWithPlateQuery(
             total_km, route, treatment_detail, treatment_notes, status, updated_at
           )
         `,
-        )
-        .eq('id', eventId)
-        .maybeSingle(),
-      supabase
-        .from('vehicles')
-        .select('plate_number, model, archived, is_default')
-        .eq('user_id', userId),
-    ])
+      )
+      .eq('id', eventId)
+      .maybeSingle(),
+    queryVehiclesWithDefaultFallback(
+      'plate_number, model, archived, is_default',
+      async (select) => {
+        const { data, error } = await supabase
+          .from('vehicles')
+          .select(select)
+          .eq('user_id', userId)
+        return { data, error }
+      },
+    ),
+  ])
 
   if (eventError) throw new Error(eventError.message)
-  if (vehiclesError) throw new Error(vehiclesError.message)
   if (!event) return null
 
   const row = event as unknown as {
