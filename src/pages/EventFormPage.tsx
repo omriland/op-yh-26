@@ -741,7 +741,7 @@ export function EventFormPage({
         icon={<UserRound size={40} strokeWidth={1.75} />}
         title="אין לך הרשאה לפעולה זו."
         action={
-          <Button variant="secondary" onClick={onCancel}>
+          <Button variant="secondary" onClick={() => onCancel()}>
             חזרה
           </Button>
         }

@@ -741,7 +741,7 @@ function Gate() {
   function navigate(next: AppView) {
     void discardAbandonedEmptyEventIfAny()
     const nextState = applyNavClick(
-      { view, eventSurface, shiftSurface, sectionReset },
+      { view: view ?? fallbackView, eventSurface, shiftSurface, sectionReset },
       next,
     )
     if (next !== 'lists' || view === 'lists') setListsPane(undefined)
