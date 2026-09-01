@@ -165,6 +165,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Security headers (2026-08-16):** `netlify.toml` sets HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` (camera/mic/geo/payment off). CSP deferred (Fonts/Maps/PostHog/Supabase). **LIVE on https://yahpz.com** (merged PR #9 → `infra/bootstrap`; browser smoke PASS, clean console).
 - **Edge CORS allowlist (2026-08-16):** functions reject `*`; reflect Origin only for `yahpz.com` / www, `yahpaz-2026.netlify.app`, Netlify `*--yahpaz-2026.netlify.app` previews, and `localhost:5173` / `127.0.0.1:5173`. Shared: `supabase/functions/_shared/cors.ts`. **Code on `infra/bootstrap`; live Edge still `*` until redeploy** (needs `SUPABASE_ACCESS_TOKEN`). Workflow: `.github/workflows/deploy-edge-functions.yml` (skips if secret missing).
 - **Dependabot (2026-08-16):** weekly npm updates via `.github/dependabot.yml` on `infra/bootstrap`.
+- **Merged + Netlify prod (2026-09-01):** Super Admin email edit (PR #18 → `infra/bootstrap` `3c54c07`). UI live on https://yahpz.com. Edge `admin-users` `set_email` **not live** — workflow skipped (`SUPABASE_ACCESS_TOKEN` missing).
 
 
 ## Auth URLs
