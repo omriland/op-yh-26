@@ -50,7 +50,7 @@ Use `Intl.DateTimeFormat('he-IL')` and `Intl.NumberFormat('he-IL')` — never ha
 
 The register is **official but human**: the tone of a professional duty log, not a startup and not a legal document.
 
-- Active voice, plain verbs. Buttons say exactly what happens: `שמירת אירוע`, `הקצאת כוננים`, `סיום דיווח` — not `שלח` or `אישור` alone.
+- Active voice, plain verbs. Buttons say exactly what happens: `שמירת אירוע`, `מתנדבים`, `סיום דיווח` — not `שלח` or `אישור` alone.
 - An action keeps its name through the whole flow: a button `שמירת אירוע` produces the toast `האירוע נשמר`.
 - No exclamation marks. No emoji. No English words in UI strings.
 - Errors state what happened and what to do: `שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.` Never `אופס!` and never vague `אירעה שגיאה`.

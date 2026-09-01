@@ -26,7 +26,7 @@ Tab `מפה` on the visual left edge (`inset-inline-end`, Command). Opens a shee
 
 ### Stage
 
-- Selected: event form without Back or sticky Save footer. Caption = autosave pulse. Stage has `50vh` end slack so חלק ב׳ / הקצאת כוננים can scroll up; opening the assigner scrolls that block to the start of the stage.
+- Selected: event form without Back or sticky Save footer. Caption = autosave pulse. Stage has `50vh` end slack so חלק ב׳ / מתנדבים can scroll up; opening the assigner scrolls that block to the start of the stage.
 - None selected, reel has rows: `אין אירוע נבחר` / `לחצו על אירוע חדש או בחרו שורה בגלגלת.`
 - No events: centered quiet empty — resting koala with no plate (animated WebP, still PNG if `prefers-reduced-motion`) + `אני רואה שהמשמרת שקטה ;)` + `אירוע חדש` (plus icon 30% smaller).
 

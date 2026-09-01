@@ -1222,7 +1222,7 @@ export function EventFormPage({
                     onClick={() => (pickerOpen ? setPickerOpen(false) : openAssigner())}
                     aria-expanded={pickerOpen}
                   >
-                    {pickerOpen ? 'סגירת הקצאה' : 'הקצאת כוננים'}
+                    {pickerOpen ? 'סגירת הקצאה' : 'מתנדבים'}
                   </Button>
                 </div>
 
