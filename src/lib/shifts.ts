@@ -1,3 +1,4 @@
+import { addCalendarDays } from './mineListSections'
 import { searchQueryVariants } from './searchQuery'
 import { shiftRecordLogStatus } from './shiftLogStatus'
 import { supabase } from './supabase'
@@ -104,11 +105,55 @@ export const SHIFT_LIST_SELECT = `
   last_saved:profiles!shifts_last_saved_by_fkey(full_name)
 `
 
-/** Default window for the unit shifts table. Search can hydrate older rows. */
+/** Fetch cap for the unit shifts table. Search can hydrate older rows. */
 export const UNIT_SHIFTS_LIST_LIMIT = 200
 
-export function unitShiftsListHint(limit: number): string {
-  return `מציג את ${limit} המשמרות האחרונות. ניתן להשתמש בחיפוש לשליפת משמרות ישנות יותר`
+/** Default visible window on משמרות. Load-more expands by this many days. */
+export const UNIT_SHIFTS_WINDOW_DAYS = 30
+
+export const UNIT_SHIFTS_RECENT_EMPTY_TITLE = 'לא נמצאו משמרות מ-30 הימים האחרונים'
+
+export const UNIT_SHIFTS_LOAD_MORE_LABEL = 'טען עוד'
+
+export function unitShiftsListHint(days: number): string {
+  return `מציג משמרות מ-${days} הימים האחרונים. ניתן להשתמש בחיפוש לשליפת משמרות ישנות יותר`
+}
+
+export function compareShiftsByDateDesc(
+  a: { shift_date: string; id: string },
+  b: { shift_date: string; id: string },
+): number {
+  if (a.shift_date !== b.shift_date) return a.shift_date < b.shift_date ? 1 : -1
+  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0
+}
+
+export function sortShiftsByDateDesc<T extends { shift_date: string; id: string }>(shifts: T[]): T[] {
+  return [...shifts].sort(compareShiftsByDateDesc)
+}
+
+export function unitShiftsWindowStart(today: string, windowsLoaded: number): string {
+  const windows = Math.max(1, windowsLoaded)
+  return addCalendarDays(today, -(windows * UNIT_SHIFTS_WINDOW_DAYS))
+}
+
+export function partitionUnitShiftsByWindow<T>(
+  shifts: T[],
+  opts: { dateOf: (shift: T) => string; today: string; windowsLoaded: number },
+): { visible: T[]; hasMore: boolean } {
+  const start = unitShiftsWindowStart(opts.today, opts.windowsLoaded)
+  const visible: T[] = []
+  let hasMore = false
+  for (const shift of shifts) {
+    if (opts.dateOf(shift) >= start) visible.push(shift)
+    else hasMore = true
+  }
+  visible.sort((a, b) => {
+    const left = opts.dateOf(a)
+    const right = opts.dateOf(b)
+    if (left !== right) return left < right ? 1 : -1
+    return 0
+  })
+  return { visible, hasMore }
 }
 
 export function missingSearchShiftIds(
@@ -128,18 +173,16 @@ export function mergeShiftLists(
   for (const shift of extras) {
     if (!byId.has(shift.id)) byId.set(shift.id, shift)
   }
-  return [...byId.values()].sort((a, b) => {
-    if (a.shift_date !== b.shift_date) return a.shift_date < b.shift_date ? 1 : -1
-    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0
-  })
+  return [...byId.values()].sort(compareShiftsByDateDesc)
 }
 
 export function filterUnitShiftsForList(
   shifts: ShiftListItem[],
   opts: { searchIds: ReadonlySet<string> | null },
 ): ShiftListItem[] {
-  if (opts.searchIds === null) return shifts
-  return shifts.filter((shift) => opts.searchIds!.has(shift.id))
+  const matched =
+    opts.searchIds === null ? shifts : shifts.filter((shift) => opts.searchIds!.has(shift.id))
+  return sortShiftsByDateDesc(matched)
 }
 
 /** Unit-wide list for shift-leads and admins; RLS narrows it for everyone else. */

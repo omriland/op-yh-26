@@ -3,6 +3,9 @@ import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   UNIT_SHIFTS_LIST_LIMIT,
+  UNIT_SHIFTS_LOAD_MORE_LABEL,
+  UNIT_SHIFTS_RECENT_EMPTY_TITLE,
+  UNIT_SHIFTS_WINDOW_DAYS,
   SHIFT_TOO_EARLY_MESSAGE,
   canDocumentShift,
   fetchMyShifts,
@@ -14,6 +17,7 @@ import {
   jerusalemToday,
   mergeShiftLists,
   missingSearchShiftIds,
+  partitionUnitShiftsByWindow,
   searchUnitShiftIds,
   unitShiftsListHint,
   type ShiftListItem,
@@ -61,6 +65,7 @@ export function ShiftsPage({
   const [searching, setSearching] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [loggedWindows, setLoggedWindows] = useState(1)
+  const [unitWindows, setUnitWindows] = useState(1)
 
   useEffect(() => {
     let active = true
@@ -89,6 +94,7 @@ export function ShiftsPage({
 
   useEffect(() => {
     setLoggedWindows(1)
+    setUnitWindows(1)
   }, [reloadKey, scope])
 
   useEffect(() => {
@@ -152,14 +158,28 @@ export function ShiftsPage({
     }
   }, [query, scope, shifts, show])
 
+  const unitWindow = useMemo(() => {
+    if (scope !== 'unit' || !shifts) return null
+    const source = searchIds === null ? shifts : mergeShiftLists(shifts, searchExtras)
+    if (searchIds !== null) {
+      return { inWindow: source, hasMore: false }
+    }
+    const partitioned = partitionUnitShiftsByWindow(source, {
+      dateOf: (shift) => shift.shift_date,
+      today: jerusalemToday(),
+      windowsLoaded: unitWindows,
+    })
+    return { inWindow: partitioned.visible, hasMore: partitioned.hasMore }
+  }, [scope, searchExtras, searchIds, shifts, unitWindows])
+
   const visible = useMemo(() => {
     if (!shifts) return []
     if (scope === 'unit') {
-      const source = searchIds === null ? shifts : mergeShiftLists(shifts, searchExtras)
-      return filterUnitShiftsForList(source, { searchIds })
+      if (!unitWindow) return []
+      return filterUnitShiftsForList(unitWindow.inWindow, { searchIds })
     }
     return [...shifts].sort((a, b) => b.shift_date.localeCompare(a.shift_date))
-  }, [scope, searchExtras, searchIds, shifts])
+  }, [scope, searchIds, shifts, unitWindow])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
   const mineSections = useMemo(() => {
@@ -182,7 +202,7 @@ export function ShiftsPage({
         {scope === 'unit' ? (
           <div className="page-head__intro">
             <h1 className="t-title">משמרות</h1>
-            <p className="t-caption text-muted">{unitShiftsListHint(UNIT_SHIFTS_LIST_LIMIT)}</p>
+            <p className="t-caption text-muted">{unitShiftsListHint(UNIT_SHIFTS_WINDOW_DAYS)}</p>
           </div>
         ) : (
           <h1 className="t-title">המשמרות שלי</h1>
@@ -297,26 +317,47 @@ export function ShiftsPage({
       ) : visible.length === 0 ? (
         <ListEmptyState
           filtered={query.trim() !== ''}
+          recentWindowEmpty={
+            scope === 'unit' &&
+            unitWindow != null &&
+            unitWindow.inWindow.length === 0 &&
+            unitWindow.hasMore
+          }
           canManage={canManage && Boolean(onCreate)}
           onCreate={onCreate}
           onClear={() => setQuery('')}
+          onLoadMore={() => setUnitWindows((windows) => windows + 1)}
         />
       ) : asTable ? (
-        <ShiftsTable shifts={visible} onOpen={onOpen} onOpenEvent={onOpenEvent} />
+        <div className="stack-4">
+          <ShiftsTable shifts={visible} onOpen={onOpen} onOpenEvent={onOpenEvent} />
+          {scope === 'unit' && unitWindow?.hasMore ? (
+            <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>
+              {UNIT_SHIFTS_LOAD_MORE_LABEL}
+            </Button>
+          ) : null}
+        </div>
       ) : (
-        <DateGroups>
-          {grouped.map(([day, items]) => (
-            <DateGroup key={day} heading={formatDayHeading(day)}>
-              <ShiftCards
-                shifts={items}
-                onOpen={onOpen}
-                onFill={onFill}
-                onOpenEvent={onOpenEvent}
-                canManageLead={canManageLead}
-              />
-            </DateGroup>
-          ))}
-        </DateGroups>
+        <div className="stack-4">
+          <DateGroups>
+            {grouped.map(([day, items]) => (
+              <DateGroup key={day} heading={formatDayHeading(day)}>
+                <ShiftCards
+                  shifts={items}
+                  onOpen={onOpen}
+                  onFill={onFill}
+                  onOpenEvent={onOpenEvent}
+                  canManageLead={canManageLead}
+                />
+              </DateGroup>
+            ))}
+          </DateGroups>
+          {scope === 'unit' && unitWindow?.hasMore ? (
+            <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>
+              {UNIT_SHIFTS_LOAD_MORE_LABEL}
+            </Button>
+          ) : null}
+        </div>
       )}
     </div>
   )
@@ -365,15 +406,35 @@ function ShiftCards({
 
 function ListEmptyState({
   filtered,
+  recentWindowEmpty = false,
   canManage,
   onCreate,
   onClear,
+  onLoadMore,
 }: {
   filtered: boolean
+  recentWindowEmpty?: boolean
   canManage: boolean
   onCreate?: () => void
   onClear: () => void
+  onLoadMore?: () => void
 }) {
+  if (recentWindowEmpty) {
+    return (
+      <EmptyState
+        icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+        title={UNIT_SHIFTS_RECENT_EMPTY_TITLE}
+        action={
+          onLoadMore ? (
+            <Button variant="secondary" onClick={onLoadMore}>
+              {UNIT_SHIFTS_LOAD_MORE_LABEL}
+            </Button>
+          ) : undefined
+        }
+      />
+    )
+  }
+
   if (filtered) {
     return (
       <EmptyState
@@ -410,5 +471,5 @@ function groupByDate(shifts: ShiftListItem[]): [string, ShiftListItem[]][] {
     bucket.push(shift)
     groups.set(shift.shift_date, bucket)
   }
-  return [...groups.entries()]
+  return [...groups.entries()].sort(([a], [b]) => b.localeCompare(a))
 }
