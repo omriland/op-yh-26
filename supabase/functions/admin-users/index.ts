@@ -87,7 +87,8 @@ type RequestBody =
   | ImpersonateBody
   | StopImpersonationBody;
 
-const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Durable invite URL TTL. Resend / copy-link mints a fresh token. */
+const INVITE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const ALLOWED_ROLES: AppRole[] = ["admin", "shift_lead", "responder"];
 
@@ -838,6 +839,8 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
     "",
     `או להעתיק את הכתובת: ${actionLink}`,
     "",
+    "הקישור בתוקף ל־24 שעות.",
+    "",
     "אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה",
   ].join("\n");
 
@@ -875,6 +878,7 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
                       <p style="margin:0 0 16px;font-size:13px;color:#5B6F86;word-break:break-all;">
                         או להעתיק את הכתובת: ${actionLink}
                       </p>
+                      <p style="margin:0 0 16px;font-size:14px;color:#5B6F86;">הקישור בתוקף ל־24 שעות.</p>
                       <p style="margin:0;font-size:14px;color:#5B6F86;">אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה</p>
                     </td>
                   </tr>
