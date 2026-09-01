@@ -18,7 +18,7 @@ Full-bleed in `.shell__main` (no page padding). Desktop: row — יומן `calc(
 - Current row: `--accent-subtle` + `--accent` ink, 2px accent bar at inline-start (same recipe as sidebar), `aria-current="true"`. Desktop: 2px accent at inline-end that meets the stage hairline (open-folder cue).
 - Empty: `אין אירועים מהשעתיים האחרונות.`
 - Load error: `לא ניתן לטעון את הגלגלת` / `בדקו את החיבור ונסו שוב.` / `נסיון נוסף`.
-- Keyboard (ignored while typing in a field / combobox, and with ⌘/Ctrl/Alt): `N` (physical KeyN) creates; `↑`/`↓` move in the log; `Backspace`/`Delete` arms or confirms delete on the current row. `Escape` closes the map drawer when it is open (and the user is not typing).
+- Keyboard (ignored while typing in a field / combobox, and with ⌘/Ctrl/Alt): `N` (physical KeyN) creates; `↑`/`↓` move in the log; `Backspace`/`Delete` arms or confirms delete on the current row. `Escape` closes the map drawer when it is open (and the user is not typing). A second `אירוע חדש` while the current row is still empty reuses that row instead of inserting another. Leaving the cockpit or switching rows discards an untouched empty insert.
 
 ### מפה (drawer)
 

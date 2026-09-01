@@ -1,31 +1,36 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sidebarCreateAction } from './sidebarCreate'
+import { SHIFT_LEAD_NAV_SECTION, sidebarCreateAction, sidebarLeadNewEvent } from './sidebarCreate'
 
-describe('sidebarCreateAction', () => {
+describe('sidebarLeadNewEvent', () => {
   const onCreateEvent = vi.fn()
-  const onCreateShift = vi.fn()
 
-  it('binds אירוע חדש only to the events row', () => {
-    expect(sidebarCreateAction('events', onCreateEvent, onCreateShift)).toEqual({
+  it('binds אירוע חדש to the כלים לאחמ״ש section, not a nav row', () => {
+    expect(sidebarLeadNewEvent(SHIFT_LEAD_NAV_SECTION, onCreateEvent)).toEqual({
       onCreate: onCreateEvent,
       label: 'אירוע חדש',
     })
+    expect(sidebarLeadNewEvent('ניהול', onCreateEvent)).toBeNull()
+    expect(sidebarLeadNewEvent(SHIFT_LEAD_NAV_SECTION)).toBeNull()
   })
+})
+
+describe('sidebarCreateAction', () => {
+  const onCreateShift = vi.fn()
 
   it('binds משמרת חדשה only to the shifts row', () => {
-    expect(sidebarCreateAction('shifts', onCreateEvent, onCreateShift)).toEqual({
+    expect(sidebarCreateAction('shifts', onCreateShift)).toEqual({
       onCreate: onCreateShift,
       label: 'משמרת חדשה',
     })
   })
 
-  it('does not attach create to other nav rows', () => {
-    expect(sidebarCreateAction('mine', onCreateEvent, onCreateShift)).toBeNull()
-    expect(sidebarCreateAction('reports', onCreateEvent, onCreateShift)).toBeNull()
+  it('does not attach a + to אירועים or other nav rows', () => {
+    expect(sidebarCreateAction('events', onCreateShift)).toBeNull()
+    expect(sidebarCreateAction('mine', onCreateShift)).toBeNull()
+    expect(sidebarCreateAction('reports', onCreateShift)).toBeNull()
   })
 
   it('hides the button when the matching create handler is missing', () => {
-    expect(sidebarCreateAction('events')).toBeNull()
-    expect(sidebarCreateAction('shifts', onCreateEvent)).toBeNull()
+    expect(sidebarCreateAction('shifts')).toBeNull()
   })
 })

@@ -2028,6 +2028,17 @@ textarea.field__input {
   height: 40px;
 }
 
+.sidebar__new-event {
+  width: 100%;
+  margin-block-end: var(--space-1);
+  white-space: nowrap;
+}
+
+.events-page__create {
+  flex: none;
+  white-space: nowrap;
+}
+
 .nav-item {
   position: relative;
   display: flex;

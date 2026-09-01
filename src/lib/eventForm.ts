@@ -215,6 +215,37 @@ export function emptyEventDraft(lead: {
   }
 }
 
+/** New event with only the default date — no typed fields, pin, cancel, or responders. */
+export function isAbandonedEmptyEventDraft(
+  draft: EventFormDraft,
+  initialEventDate: string,
+): boolean {
+  if (draft.responders.length > 0) return false
+  if (draft.is_cancelled) return false
+  if (draft.event_date !== initialEventDate) return false
+  if (draft.police_event_id.trim()) return false
+  if (draft.district_id) return false
+  if (draft.patrol_callsign.trim()) return false
+  if (draft.event_type_id) return false
+  if (draft.road_id) return false
+  if (draft.location.trim()) return false
+  if (draft.location_place_id) return false
+  if (draft.location_lat != null || draft.location_lng != null) return false
+  if (draft.notes.trim()) return false
+  return true
+}
+
+let abandonEmptyEventHandler: (() => Promise<void>) | null = null
+
+export function registerAbandonedEmptyEventHandler(handler: (() => Promise<void>) | null) {
+  abandonEmptyEventHandler = handler
+}
+
+/** Drop a never-touched new event when leaving the form (nav, back, cockpit switch). */
+export async function discardAbandonedEmptyEventIfAny() {
+  await abandonEmptyEventHandler?.()
+}
+
 async function fetchLookup(table: 'event_types' | 'roads' | 'vehicle_kinds') {
   const { data, error } = await supabase
     .from(table)

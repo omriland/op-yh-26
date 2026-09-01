@@ -17,6 +17,7 @@ import {
   formatCockpitAge,
   formatCockpitClock,
   insertCockpitDraft,
+  isAbandonedEmptyCockpitItem,
   isCockpitTypingTarget,
   saveEventLocationPin,
   type CockpitDeleteHintKind,
@@ -25,6 +26,7 @@ import {
 } from '../lib/cockpit'
 import { hasSeenCockpitIntro, markCockpitIntroSeen } from '../lib/cockpitIntro'
 import { deleteEvent } from '../lib/events'
+import { discardAbandonedEmptyEventIfAny } from '../lib/eventForm'
 import { monoClass } from '../lib/format'
 import { cancelledStamp, eventStamp } from '../lib/status'
 import { Button, IconButton } from '../components/ui/Button'
@@ -114,6 +116,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   }
 
   function selectEvent(eventId: string) {
+    if (eventId !== selectedEventId) void discardAbandonedEmptyEventIfAny()
     clearDeletePrompt()
     onSelectEvent(eventId)
     if (mapOpen) requestMapEventFocus(eventId)
@@ -185,7 +188,12 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
 
   async function createNew() {
     if (!user || creating) return
+    const current = reel.find((row) => row.id === selectedEventId)
+    if (current && isAbandonedEmptyCockpitItem(current)) {
+      return
+    }
     setCreating(true)
+    await discardAbandonedEmptyEventIfAny()
     const result = await insertCockpitDraft(user.id)
     setCreating(false)
     if (!result.ok) {

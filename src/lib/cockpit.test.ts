@@ -23,6 +23,7 @@ import {
   formatCockpitAge,
   formatCockpitClock,
   isCockpitTypingTarget,
+  isAbandonedEmptyCockpitItem,
   isInCockpitWindow,
 } from './cockpit'
 
@@ -70,6 +71,29 @@ describe('cockpitReelTitle', () => {
       'אירוע חדש',
     )
     expect(cockpitReelTitle({ police_event_id: null, event_type: null })).toBe('אירוע חדש')
+  })
+})
+
+describe('isAbandonedEmptyCockpitItem', () => {
+  const blank = {
+    status: 'draft' as const,
+    is_cancelled: false,
+    police_event_id: null,
+    location: null,
+    location_lat: null,
+    location_lng: null,
+    event_type: null,
+    road: null,
+    responders: [],
+  }
+
+  it('is true for a date-only cockpit insert', () => {
+    expect(isAbandonedEmptyCockpitItem(blank)).toBe(true)
+  })
+
+  it('is false once type, road, location, or a כונן exists', () => {
+    expect(isAbandonedEmptyCockpitItem({ ...blank, event_type: { name: 'תקוע' } })).toBe(false)
+    expect(isAbandonedEmptyCockpitItem({ ...blank, responders: [{}] })).toBe(false)
   })
 })
 

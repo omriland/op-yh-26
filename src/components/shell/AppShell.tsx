@@ -38,8 +38,8 @@ import {
   clearRolePreviewStash,
   isRolePreviewing,
 } from '../../lib/rolePreviewStash'
-import { sidebarCreateAction } from '../../lib/sidebarCreate'
-import { IconButton } from '../ui/Button'
+import { sidebarCreateAction, sidebarLeadNewEvent } from '../../lib/sidebarCreate'
+import { Button, IconButton } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
@@ -105,7 +105,7 @@ type AppShellProps = {
   /** Wordmark → role home (unit events / mine / profile). */
   onHome: () => void
   entries: NavEntry[]
-  /** Desktop sidebar only — create shortcuts beside אירועים / משמרות. */
+  /** Desktop sidebar — אירוע חדש at the top of כלים לאחמ״ש; משמרת חדשה beside משמרות. */
   onCreateEvent?: () => void
   onCreateShift?: () => void
   /** Current virtual path, attached to submitted feedback. */
@@ -654,10 +654,21 @@ function SidebarNavItems({
       {entries.map((entry, index) => {
         const prev = entries[index - 1]
         const showSection = entry.section && entry.section !== prev?.section
-        const create = sidebarCreateAction(entry.view, onCreateEvent, onCreateShift)
+        const create = sidebarCreateAction(entry.view, onCreateShift)
+        const leadNewEvent =
+          showSection ? sidebarLeadNewEvent(entry.section, onCreateEvent) : null
         return (
           <div key={entry.view}>
             {showSection ? <p className="sidebar__section">{entry.section}</p> : null}
+            {leadNewEvent ? (
+              <Button
+                className="sidebar__new-event"
+                onClick={leadNewEvent.onCreate}
+                icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
+              >
+                {leadNewEvent.label}
+              </Button>
+            ) : null}
             <div className={create ? 'sidebar__row' : undefined}>
               <button
                 type="button"

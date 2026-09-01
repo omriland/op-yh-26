@@ -18,6 +18,9 @@ import {
   isAdminSegment,
 } from './lib/adminSegments'
 import { reportsNavPlacement } from './lib/reports/access'
+import { defaultHomeView } from './lib/defaultHomeView'
+import { SHIFT_LEAD_NAV_SECTION } from './lib/sidebarCreate'
+import { discardAbandonedEmptyEventIfAny } from './lib/eventForm'
 import { AdminListsPage } from './pages/AdminListsPage'
 import { SETTINGS_BOT_KEY, type SettingsPaneKey } from './lib/settingsPanes'
 import { AdminUsersPage } from './pages/AdminUsersPage'
@@ -83,7 +86,7 @@ function Gate() {
   const trackToken = useRef(
     typeof window === 'undefined' ? null : parseTrackTokenFromSearch(window.location.search),
   ).current
-  const [view, setView] = useState<AppView>(cockpitBoot ? 'cockpit' : 'mine')
+  const [view, setView] = useState<AppView | null>(cockpitBoot ? 'cockpit' : null)
   const [legalPage, setLegalPage] = useState<'privacy' | 'android' | null>(() =>
     typeof window !== 'undefined' && isAndroidDownloadPath(window.location.pathname)
       ? 'android'
@@ -244,6 +247,7 @@ function Gate() {
   const responds = roles.includes('responder')
   // Leads also go on events — same personal list/fill surface, not only the responder role.
   const hasMineList = responds || roles.includes('shift_lead')
+  const fallbackView: AppView = defaultHomeView({ manages, hasMineList, isAdmin })
 
   useEffect(() => {
     if (loginOtp.state !== 'ok') return
@@ -265,7 +269,7 @@ function Gate() {
         return
       }
       setCockpitEventId(undefined)
-      setView((current) => (current === 'cockpit' ? 'mine' : current))
+      setView((current) => (current === 'cockpit' ? null : current))
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -327,10 +331,10 @@ function Gate() {
         legalPage,
         oauthAuthorize:
           typeof window !== 'undefined' && isOAuthAuthorizePath(window.location.pathname),
-        view,
+        view: view ?? fallbackView,
         eventKind: eventSurface.kind,
         eventId:
-          view === 'cockpit'
+          (view ?? fallbackView) === 'cockpit'
             ? cockpitEventId
             : eventSurface.kind === 'list'
               ? undefined
@@ -349,6 +353,7 @@ function Gate() {
       loginOtp.state,
       legalPage,
       view,
+      fallbackView,
       eventSurface,
       shiftSurface,
       cockpitEventId,
@@ -442,27 +447,27 @@ function Gate() {
           view: 'cockpit',
           label: 'הקוקפיט',
           icon: NAV_ICONS.cockpit,
-          section: 'כלים לאחמ״ש',
+          section: SHIFT_LEAD_NAV_SECTION,
         })
       }
       list.push({
         view: 'events',
         label: 'אירועים',
         icon: NAV_ICONS.events,
-        section: 'כלים לאחמ״ש',
+        section: SHIFT_LEAD_NAV_SECTION,
       })
       list.push({
         view: 'shifts',
         label: 'משמרות',
         icon: NAV_ICONS.shifts,
-        section: 'כלים לאחמ״ש',
+        section: SHIFT_LEAD_NAV_SECTION,
       })
       if (reportsNavPlacement(roles) === 'shift_lead') {
         list.push({
           view: 'reports',
           label: isDesktop ? 'דוחות וסטטיסטיקות' : 'דוחות',
           icon: NAV_ICONS.reports,
-          section: isDesktop ? 'כלים לאחמ״ש' : undefined,
+          section: isDesktop ? SHIFT_LEAD_NAV_SECTION : undefined,
         })
       }
     }
@@ -536,14 +541,6 @@ function Gate() {
         return isSuperAdmin
     }
   }
-
-  const fallbackView: AppView = hasMineList
-    ? 'mine'
-    : manages
-      ? 'events'
-      : isAdmin
-        ? 'users'
-        : 'profile'
 
   if (trackToken) {
     return (
@@ -717,7 +714,7 @@ function Gate() {
 
   // Role allowlist — not nav entries — so profile / fuel / lists / reports stay
   // reachable when omitted from the mobile tab bar.
-  const activeView: AppView = isAllowedView(view) ? view : fallbackView
+  const activeView: AppView = view && isAllowedView(view) ? view : fallbackView
 
   const isAdminHub = isAdmin && isAdminSegment(activeView)
   const onEvents = activeView === 'events' || activeView === 'mine'
@@ -742,6 +739,7 @@ function Gate() {
   const commandShell = isDesktop && (manages || isAdminHub)
 
   function navigate(next: AppView) {
+    void discardAbandonedEmptyEventIfAny()
     const nextState = applyNavClick(
       { view, eventSurface, shiftSurface, sectionReset },
       next,
@@ -823,11 +821,11 @@ function Gate() {
         <EventFormPage
           eventId={eventSurface.eventId}
           focusResponderId={eventSurface.focusResponderId}
-          onCancel={() =>
+          onCancel={(result) =>
             setEventSurface(
-              eventSurface.eventId
-                ? { kind: 'detail', eventId: eventSurface.eventId }
-                : { kind: 'list' },
+              result?.discarded || !eventSurface.eventId
+                ? { kind: 'list' }
+                : { kind: 'detail', eventId: eventSurface.eventId },
             )
           }
           onEventId={(id) =>

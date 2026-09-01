@@ -50,8 +50,7 @@ import {
 } from '../lib/mineInbox'
 import { isMineFillOverdue } from '../lib/overdueFill'
 import { jerusalemToday } from '../lib/shifts'
-import { useIsDesktop } from '../lib/useMediaQuery'
-import { Button, IconButton } from '../components/ui/Button'
+import { Button } from '../components/ui/Button'
 import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
@@ -82,7 +81,6 @@ export function EventsPage({
   onCreate,
   onFill,
 }: EventsPageProps) {
-  const isDesktop = useIsDesktop()
   const { user } = useAuth()
   const { show } = useToast()
   const [events, setEvents] = useState<EventListItem[] | null>(null)
@@ -302,15 +300,13 @@ export function EventsPage({
           </div>
           {canCreate && onCreate ? (
             <div className="page-head__actions">
-              {isDesktop ? (
-                <Button onClick={onCreate} icon={<Plus size={20} strokeWidth={1.75} />}>
-                  אירוע חדש
-                </Button>
-              ) : (
-                <IconButton label="אירוע חדש" onClick={onCreate}>
-                  <Plus size={20} strokeWidth={1.75} />
-                </IconButton>
-              )}
+              <Button
+                className="events-page__create"
+                onClick={onCreate}
+                icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
+              >
+                אירוע חדש
+              </Button>
             </div>
           ) : null}
         </div>

@@ -46,6 +46,7 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
   - no responders assigned → `draft` (אירוע בהזנה) — not shown on responders’ “האירועים שלי”
   - ≥1 responder assigned → `in_progress` (or keep `partial` / `done` if already there)
 - **Minimum to create:** תאריך + סוג אירוע + כביש. Autosave does not create a row until those three are set; explicit save / assign shows field errors if missing. Other fields may stay empty.
+- **Back with no input:** if the lead opens `אירוע חדש` and leaves (חזרה or another nav item) without typing or changing any field, the empty row is deleted. A date-only cockpit insert is treated the same. Changing the date, a lookup, location, notes, a pin, or assigning a כונן keeps the event.
 
 ## Footer actions (sticky on mobile, above tab bar)
 

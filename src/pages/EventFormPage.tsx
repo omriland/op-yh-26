@@ -11,9 +11,11 @@ import {
   fetchEventForEdit,
   fetchEventLookups,
   hasEventMinimum,
+  isAbandonedEmptyEventDraft,
   isOvernightEnd,
   mergeAssignmentIds,
   NO_VEHICLE_KM_PLACEHOLDER,
+  registerAbandonedEmptyEventHandler,
   saveEventForm,
   totalTreatedQuantity,
   type AssignableUser,
@@ -22,6 +24,7 @@ import {
   type EventLookups,
   type ResponderDraft,
 } from '../lib/eventForm'
+import { deleteEvent } from '../lib/events'
 import { viewerStamp } from '../lib/status'
 import { monoClass } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
@@ -69,7 +72,7 @@ type EventFormPageProps = {
   focusResponderId?: string
   /** Inbox embed: no back/save chrome, persist incomplete drafts. */
   variant?: 'page' | 'cockpit'
-  onCancel: () => void
+  onCancel: (result?: { discarded?: boolean }) => void
   onSaved: (eventId: string) => void
   /** After save, stay on a blank create form for the next event. */
   onSavedAndCreateNew: () => void
@@ -134,6 +137,7 @@ export function EventFormPage({
   const savedTimer = useRef<number | null>(null)
   const skipReloadForId = useRef<string | null>(null)
   const overnightConfirmed = useRef(new Set<string>())
+  const initialDateRef = useRef('')
 
   useEffect(() => {
     draftRef.current = draft
@@ -193,6 +197,7 @@ export function EventFormPage({
           }
         }
         draftRef.current = nextDraft
+        initialDateRef.current = nextDraft.event_date
         seedOvernightConfirmed(nextDraft)
         setDraft(nextDraft)
         setPreviousIsCancelled(nextDraft.is_cancelled)
@@ -246,6 +251,7 @@ export function EventFormPage({
     overnightConfirmed.current.clear()
     skipReloadForId.current = null
     draftRef.current = fresh
+    initialDateRef.current = fresh.event_date
     setDraft(fresh)
     setPreviousIsCancelled(false)
     setErrors({})
@@ -253,6 +259,20 @@ export function EventFormPage({
     baselineRef.current = snapshot
     setBaseline(snapshot)
     setSavePulse('idle')
+  }
+
+  async function discardIfAbandonedEmpty(): Promise<boolean> {
+    const current = draftRef.current
+    if (!current?.id || !isAbandonedEmptyEventDraft(current, initialDateRef.current)) {
+      return false
+    }
+    const eventId = current.id
+    const result = await deleteEvent(eventId)
+    if (!result.ok) return false
+    const cleared = { ...current, id: undefined }
+    draftRef.current = cleared
+    setDraft(cleared)
+    return true
   }
 
   function finishAfterSave(eventIdSaved: string, options?: PersistOptions) {
@@ -280,6 +300,15 @@ export function EventFormPage({
       if (!current || !currentLookups) return false
 
       const snapshot = JSON.stringify(current)
+      if (
+        isAbandonedEmptyEventDraft(current, initialDateRef.current) &&
+        !options?.navigate &&
+        !options?.createNew &&
+        !options?.revealErrors
+      ) {
+        setSavePulse('idle')
+        return true
+      }
       // Autosave often already flushed (e.g. after הקצאת כונן). Explicit
       // שמירת אירוע must still confirm + leave the form.
       if (snapshot === baselineRef.current && current.id) {
@@ -647,12 +676,30 @@ export function EventFormPage({
   }, [locationPinDrop, user, draft])
 
   useEffect(() => {
+    registerAbandonedEmptyEventHandler(() =>
+      discardIfAbandonedEmpty().then(() => undefined),
+    )
+    return () => registerAbandonedEmptyEventHandler(null)
+  }, [])
+
+  useEffect(() => {
     return () => {
-      if (variant === 'cockpit') void persistLatest()
+      if (variant !== 'cockpit') return
+      const current = draftRef.current
+      if (
+        current &&
+        !isAbandonedEmptyEventDraft(current, initialDateRef.current)
+      ) {
+        void persistLatest()
+      }
     }
   }, [variant])
 
   async function leaveForm() {
+    if (await discardIfAbandonedEmpty()) {
+      onCancel({ discarded: true })
+      return
+    }
     if (dirty) {
       await persistLatest()
     }
@@ -669,9 +716,14 @@ export function EventFormPage({
 
   useEffect(() => {
     function onHidden() {
-      if (document.visibilityState === 'hidden') void persistLatest()
+      if (document.visibilityState !== 'hidden') return
+      const current = draftRef.current
+      if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current)) return
+      void persistLatest()
     }
     function onPageHide() {
+      const current = draftRef.current
+      if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current)) return
       void persistLatest()
     }
     document.addEventListener('visibilitychange', onHidden)
@@ -1294,7 +1346,10 @@ export function EventFormPage({
               variant="destructive"
               onClick={() => {
                 setLeaveConfirm(false)
-                onCancel()
+                void (async () => {
+                  const discarded = await discardIfAbandonedEmpty()
+                  onCancel(discarded ? { discarded: true } : undefined)
+                })()
               }}
             >
               יציאה בלי שמירה

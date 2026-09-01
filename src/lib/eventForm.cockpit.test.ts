@@ -3,6 +3,7 @@ import {
   canPersistEventDraft,
   emptyEventDraft,
   eventForeignIds,
+  isAbandonedEmptyEventDraft,
   type EventFormDraft,
   type LookupOption,
 } from './eventForm'
@@ -42,5 +43,49 @@ describe('eventForeignIds', () => {
       road_id: null,
       district_id: null,
     })
+  })
+})
+
+describe('isAbandonedEmptyEventDraft', () => {
+  it('treats a default new form as abandoned', () => {
+    const empty = draft()
+    expect(isAbandonedEmptyEventDraft(empty, empty.event_date)).toBe(true)
+  })
+
+  it('keeps the event after a typed field, date change, pin, or assigned כונן', () => {
+    const empty = draft()
+    expect(isAbandonedEmptyEventDraft(draft({ police_event_id: '1' }), empty.event_date)).toBe(
+      false,
+    )
+    expect(isAbandonedEmptyEventDraft(draft({ event_date: '2026-01-01' }), empty.event_date)).toBe(
+      false,
+    )
+    expect(
+      isAbandonedEmptyEventDraft(draft({ location_lat: 32.1, location_lng: 34.8 }), empty.event_date),
+    ).toBe(false)
+    expect(
+      isAbandonedEmptyEventDraft(
+        draft({
+          responders: [
+            {
+              key: 'r1',
+              responder_id: 'u1',
+              full_name: 'א',
+              callsign: '1',
+              start_time: '',
+              end_time: '',
+              total_km: '',
+              emergency_means: false,
+              treated: [],
+              status: 'pending',
+              hasOwnedData: false,
+              expanded: false,
+              hasVehicle: true,
+            },
+          ],
+        }),
+        empty.event_date,
+      ),
+    ).toBe(false)
   })
 })

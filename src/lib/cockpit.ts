@@ -371,6 +371,27 @@ export async function insertCockpitDraft(shiftLeadId: string): Promise<
   return { ok: true, eventId: data.id as string }
 }
 
+export function isAbandonedEmptyCockpitItem(event: {
+  status: CockpitReelItem['status']
+  is_cancelled: boolean
+  police_event_id: string | null
+  location: string | null
+  location_lat: number | null
+  location_lng: number | null
+  event_type: { name: string } | null
+  road: { name: string } | null
+  responders: unknown[]
+}): boolean {
+  if (event.status !== 'draft' || event.is_cancelled) return false
+  if (event.responders.length > 0) return false
+  if (event.police_event_id?.trim()) return false
+  if (event.location?.trim()) return false
+  if (event.location_lat != null || event.location_lng != null) return false
+  if (event.event_type?.name.trim()) return false
+  if (event.road?.name.trim()) return false
+  return true
+}
+
 export async function saveEventLocationPin(input: {
   eventId: string
   lat: number
