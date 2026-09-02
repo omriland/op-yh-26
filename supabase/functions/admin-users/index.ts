@@ -284,12 +284,13 @@ async function handleSetPassword(
 
   const forceChange = Boolean(body.force_change);
 
-  const { error: authError } = await adminClient.auth.admin.updateUserById(userId, {
-    password,
-  });
+  const { data: authData, error: authError } = await adminClient.auth.admin.updateUserById(
+    userId,
+    { password },
+  );
 
-  if (authError) {
-    console.error("set_password updateUserById", authError.message);
+  if (authError || !authData?.user) {
+    console.error("set_password updateUserById", authError?.message ?? "no user returned");
     return json(400, { error: "הגדרת הסיסמה נכשלה." });
   }
 
@@ -307,15 +308,43 @@ async function handleSetPassword(
   }
 
   // Kill every device session so an already-logged-in user cannot skip the gate.
+  await revokeAuthSessions(adminClient, userId);
+
+  return json(200, { ok: true, message: "הסיסמה עודכנה." });
+}
+
+async function revokeAuthSessions(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (supabaseUrl && serviceKey) {
+    try {
+      const logout = await fetch(
+        `${supabaseUrl}/auth/v1/admin/users/${userId}/logout`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${serviceKey}`,
+            apikey: serviceKey,
+          },
+        },
+      );
+      if (!logout.ok) {
+        console.error("set_password admin logout", logout.status, await logout.text());
+      }
+    } catch (error) {
+      console.error("set_password admin logout", error);
+    }
+  }
+
   const { error: revokeError } = await adminClient.rpc("revoke_user_sessions", {
     target_user_id: userId,
   });
   if (revokeError) {
     console.error("set_password revoke_user_sessions", revokeError.message);
-    // Password + flag already applied; still report success but log revoke failure.
   }
-
-  return json(200, { ok: true, message: "הסיסמה עודכנה." });
 }
 
 function isValidEmailAddress(raw: string): boolean {
@@ -713,6 +742,33 @@ async function handleDeleteUser(
     .eq("responder_id", userId);
   if (shiftRespondersError) {
     return json(500, { error: "מחיקת שיוכי המשמרות נכשלה. נסו שוב." });
+  }
+
+  // Detach personal-vehicle shifts, then drop cars so Auth cascade
+  // does not hit vehicles triggers as supabase_auth_admin.
+  const { data: vehicleRows, error: vehicleLookupError } = await adminClient
+    .from("vehicles")
+    .select("id")
+    .eq("user_id", userId);
+  if (vehicleLookupError) {
+    return json(500, { error: "בדיקת הרכבים נכשלה. נסו שוב." });
+  }
+  const vehicleIds = (vehicleRows ?? []).map((row) => row.id as string);
+  if (vehicleIds.length > 0) {
+    const { error: detachShiftsError } = await adminClient
+      .from("shifts")
+      .update({ personal_vehicle_id: null })
+      .in("personal_vehicle_id", vehicleIds);
+    if (detachShiftsError) {
+      return json(500, { error: "ניתוק רכב ממשמרות נכשל. נסו שוב." });
+    }
+  }
+  const { error: vehiclesError } = await adminClient
+    .from("vehicles")
+    .delete()
+    .eq("user_id", userId);
+  if (vehiclesError) {
+    return json(500, { error: "מחיקת הרכבים נכשלה. נסו שוב." });
   }
 
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);

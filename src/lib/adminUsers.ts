@@ -4,6 +4,7 @@ import { findDuplicatePlate, phoneDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import { syncUserRolesDiff } from './syncUserRolesDiff'
 import { fetchAdminLastActive, mergeLastActive } from './userPresence'
+import { parseAdminUsersInvokeResult } from './adminUsersInvoke'
 import type { PersistableAddress, UserAddressRow } from './userAddresses'
 import { parseVolunteerStatus, type VolunteerStatus } from './volunteerStatus'
 import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
@@ -87,20 +88,7 @@ async function callAdminUsers(
     return { ok: false, error: 'הפעולה נכשלה. בדקו את החיבור ונסו שוב.' }
   }
 
-  const payload = data as {
-    error?: string
-    message?: string
-    user_id?: string
-    action_link?: string
-    ok?: boolean
-  }
-  if (payload?.error) return { ok: false, error: payload.error }
-  return {
-    ok: true,
-    message: payload.message,
-    user_id: payload.user_id,
-    action_link: payload.action_link,
-  }
+  return parseAdminUsersInvokeResult(data, error)
 }
 
 export async function fetchAdminUsers(): Promise<AdminUserRow[]> {

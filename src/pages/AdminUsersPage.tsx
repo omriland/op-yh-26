@@ -62,6 +62,10 @@ import { isValidIlMobile } from '../lib/phoneE164'
 import { fetchOtpStatus, setOtpFlags } from '../lib/phoneOtp'
 import { otpUserLabel } from '../lib/otpUserTags'
 import { passwordStrengthError } from '../lib/passwordRules'
+import {
+  setPasswordTargetIdentity,
+  setPasswordTargetWarnings,
+} from '../lib/setPasswordTarget'
 import { ImpersonationPickerDialog } from '../components/shell/ImpersonationPickerDialog'
 import { OtpGate } from '../components/otp/OtpGate'
 import {
@@ -867,7 +871,7 @@ export function AdminUsersPage() {
         setPasswordError(result.error)
         return
       }
-      show('הסיסמה עודכנה', 'done')
+      show(`הסיסמה עודכנה עבור ${passwordTarget.email}`, 'done')
       setPasswordTarget(null)
     } finally {
       setPasswordSaving(false)
@@ -1716,6 +1720,12 @@ export function AdminUsersPage() {
       >
         {passwordTarget ? (
           <div ref={passwordRootRef} className="stack-6">
+            <p className="t-body">{setPasswordTargetIdentity(passwordTarget)}</p>
+            {setPasswordTargetWarnings(passwordTarget, users ?? []).map((warning) => (
+              <p key={warning} className="t-caption text-alert" role="status">
+                {warning}
+              </p>
+            ))}
             <PasswordField
               label="סיסמה חדשה"
               autoComplete="new-password"
