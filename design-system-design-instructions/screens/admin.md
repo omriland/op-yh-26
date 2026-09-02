@@ -74,6 +74,7 @@ Four admin-managed lookups: `שלוחות` · `סוגי אירוע` · `כביש
 
 - Title = list name + primary `הוספת פריט`. For `כבישים`, caption `מיובא אוטומטית מGov.il` at `--type-caption` / `--text-muted` next to the title (`Gov.il` is an LTR isolate).
 - Items: simple rows, hairline-separated, 48 px: value text + overflow menu (עריכה / הסרה).
+- **שלוחות order:** ghost icon-buttons `העלאה` / `הורדה` (ChevronUp / ChevronDown) at inline-end, before the overflow menu. First row disables up; last disables down. System שלוחה `תחנה / אחר / משוכפל` can be reordered (sort position is not locked) but still has no edit/delete menu. Persisted as `districts.sort_order`; event-form and Android שלוחה dropdowns follow this order, not alpha.
 - System שלוחה `תחנה / אחר / משוכפל`: caption `מערכת`; no edit/delete menu (DB-locked). Spec: `docs/superpowers/specs/2026-08-11-yahpaz-system-districts-places-location-design.md`.
 - Add/edit: inline row editor (input + `שמירה` / `ביטול`) — no dialog needed for a single field.
 - Remove item in use by events: block with explanation `לא ניתן להסיר פריט שמשויך לאירועים קיימים.` (info banner, not error toast).

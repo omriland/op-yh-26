@@ -1,8 +1,14 @@
+import { isUrbanRoadName } from './systemDistricts'
+
 /**
- * Sort road names: pure numbers ascending first; names that contain
- * any letter (Hebrew/Latin) last, then by Hebrew locale name.
+ * Sort road names: urban road (`עירוני`, including legacy `עירוני (101)`)
+ * pinned first; then pure numbers ascending; then names that contain any
+ * letter (Hebrew/Latin) by Hebrew locale.
  */
 export function compareRoadNames(a: string, b: string): number {
+  const aUrban = isUrbanRoadName(a)
+  const bUrban = isUrbanRoadName(b)
+  if (aUrban !== bUrban) return aUrban ? -1 : 1
   const aNumeric = isPureNumber(a)
   const bNumeric = isPureNumber(b)
   if (aNumeric && bNumeric) return Number(a.trim()) - Number(b.trim())

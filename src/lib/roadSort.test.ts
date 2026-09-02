@@ -19,6 +19,12 @@ describe('compareRoadNames', () => {
       ['כביש החוף', '4א', 'מנהרות'].sort(compareRoadNames),
     ).toEqual(['4א', 'כביש החוף', 'מנהרות'])
   })
+
+  it('pins עירוני first, including the legacy עירוני (101) name', () => {
+    expect(
+      ['20', 'עירוני', '6', 'מנהרות', 'עירוני (101)'].sort(compareRoadNames),
+    ).toEqual(['עירוני', 'עירוני (101)', '6', '20', 'מנהרות'])
+  })
 })
 
 describe('sortByRoadName', () => {
@@ -28,8 +34,10 @@ describe('sortByRoadName', () => {
       { id: 'b', name: '4א' },
       { id: 'c', name: '1' },
       { id: 'd', name: 'מנהרות הכרמל' },
+      { id: 'e', name: 'עירוני' },
     ]
     expect(sortByRoadName(rows).map((row) => row.name)).toEqual([
+      'עירוני',
       '1',
       '443',
       '4א',

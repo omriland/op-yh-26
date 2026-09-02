@@ -378,36 +378,6 @@ textarea.field__input {
   color: var(--status-alert);
 }
 
-.location-coords {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.location-coords__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 44px;
-}
-
-.location-coords__pin {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.location-coords__value {
-  min-width: 0;
-  color: var(--text-primary);
-}
-
-.location-coords__reset {
-  flex: none;
-}
-
 /* ============================================================
    Inline alert
    ============================================================ */
@@ -4359,6 +4329,13 @@ html[data-keyboard-open] .event-form__footer {
   min-width: 0;
 }
 
+.list-rows__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
 .location-places__control {
   position: relative;
 }
@@ -5121,8 +5098,7 @@ html[data-keyboard-open] .event-form__footer {
     'district type'
     'road road'
     'loc loc'
-    'places places'
-    'coords coords';
+    'places places';
 }
 
 .event-form__f-date,
@@ -5132,8 +5108,7 @@ html[data-keyboard-open] .event-form__footer {
 .event-form__f-type,
 .event-form__f-road,
 .event-form__f-location,
-.event-form__f-places,
-.event-form__f-coords {
+.event-form__f-places {
   min-width: 0;
 }
 
@@ -5145,7 +5120,6 @@ html[data-keyboard-open] .event-form__footer {
 .event-form__identity > .event-form__f-road { grid-area: road; }
 .event-form__identity > .event-form__f-location { grid-area: loc; }
 .event-form__identity > .event-form__f-places { grid-area: places; }
-.event-form__identity > .event-form__f-coords { grid-area: coords; }
 
 .event-form--phone .event-form__head {
   margin-block-end: var(--space-4);
@@ -5174,8 +5148,7 @@ html[data-keyboard-open] .event-form__footer {
     'type district'
     'road road'
     'loc loc'
-    'places places'
-    'coords coords';
+    'places places';
 }
 
 .event-form--phone.event-form--places .event-form__identity {
@@ -5184,8 +5157,7 @@ html[data-keyboard-open] .event-form__footer {
     'police patrol'
     'type district'
     'road road'
-    'places places'
-    'coords coords';
+    'places places';
 }
 
 .event-form--phone .responder-assign__toolbar {

@@ -66,13 +66,10 @@ import {
 } from '../lib/systemDistricts'
 import { COCKPIT_AUTOSAVE_MS } from '../lib/cockpit'
 import { LocationPlacesField } from '../components/events/LocationPlacesField'
-import { LocationCoordsField } from '../components/events/LocationCoordsField'
 import {
   applyLeadMapPin,
   applyLocationFieldChange,
-  clearLockedLocationPin,
   emptyLocationPinMeta,
-  formatLocationCoords,
   locationPinIsLocked,
 } from '../lib/locationPin'
 
@@ -1204,37 +1201,6 @@ export function EventFormPage({
                 />
                 </div>
               )}
-
-              {draft.location_lat != null && draft.location_lng != null ? (
-                <div className="event-form__f-coords">
-                <LocationCoordsField
-                  lat={draft.location_lat}
-                  lng={draft.location_lng}
-                  source={draft.location_pin_source}
-                  onCopy={() => {
-                    const value = formatLocationCoords(draft.location_lat!, draft.location_lng!)
-                    void navigator.clipboard.writeText(value).then(
-                      () => show('הקואורדינטות הועתקו', 'done'),
-                      () => show('ההעתקה נכשלה. נסו שוב.', 'alert'),
-                    )
-                  }}
-                  onResetToGoogle={() => {
-                    updateDraft(
-                      clearLockedLocationPin({
-                        location: draft.location,
-                        location_place_id: draft.location_place_id,
-                        location_lat: draft.location_lat,
-                        location_lng: draft.location_lng,
-                        location_pin_source: draft.location_pin_source,
-                        location_pinned_at: draft.location_pinned_at,
-                        location_pinned_by: draft.location_pinned_by,
-                      }),
-                    )
-                    queueMicrotask(() => void persistLatest())
-                  }}
-                />
-                </div>
-              ) : null}
               </div>
 
               {phoneLayout ? null : (

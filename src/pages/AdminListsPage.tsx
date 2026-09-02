@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, ListTree, Plus } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronUp, ListTree, Plus } from 'lucide-react'
 import {
   canMutateClosedListItem,
+  canReorderClosedList,
   closedListMeta,
   createClosedListItem,
   deleteClosedListItem,
   fetchClosedListItems,
+  moveClosedListItem,
+  persistClosedListOrder,
   updateClosedListItem,
   type ClosedListItem,
+  type ClosedListMoveDirection,
 } from '../lib/closedLists'
 import {
   SETTINGS_BOT,
@@ -47,6 +51,7 @@ export function AdminListsPage({ initialPane }: { initialPane?: SettingsPaneKey 
   const [saving, setSaving] = useState(false)
   const [banner, setBanner] = useState<string | null>(null)
   const [menuItemId, setMenuItemId] = useState<string | null>(null)
+  const [orderSaving, setOrderSaving] = useState(false)
 
   const selectedListMeta = useMemo(
     () => (selectedKey && isClosedListPane(selectedKey) ? closedListMeta(selectedKey) : null),
@@ -146,6 +151,21 @@ export function AdminListsPage({ initialPane }: { initialPane?: SettingsPaneKey 
     }
     show('הפריט הוסר', 'done')
     setReloadKey((value) => value + 1)
+  }
+
+  async function moveItem(item: ClosedListItem, direction: ClosedListMoveDirection) {
+    if (!selectedKey || !isClosedListPane(selectedKey) || !items || orderSaving) return
+    const next = moveClosedListItem(items, item.id, direction)
+    if (!next) return
+    const previous = items
+    setItems(next)
+    setOrderSaving(true)
+    const result = await persistClosedListOrder(selectedKey, next)
+    setOrderSaving(false)
+    if (!result.ok) {
+      setItems(previous)
+      show(result.error, 'alert')
+    }
   }
 
   const showPicker = !isDesktop && !selectedKey
@@ -269,7 +289,7 @@ export function AdminListsPage({ initialPane }: { initialPane?: SettingsPaneKey 
                   </li>
                 ) : null}
 
-                {items.map((item) =>
+                {items.map((item, index) =>
                   editor?.mode === 'edit' && editor.item.id === item.id ? (
                     <li key={item.id} className="list-rows__editor">
                       <InlineEditor
@@ -293,25 +313,51 @@ export function AdminListsPage({ initialPane }: { initialPane?: SettingsPaneKey 
                           <span className="t-caption text-muted">מערכת</span>
                         ) : null}
                       </span>
-                      {selectedKey &&
-                      isClosedListPane(selectedKey) &&
-                      canMutateClosedListItem(selectedKey, item) ? (
-                        <OverflowMenu
-                          open={menuItemId === item.id}
-                          onOpenChange={(next) => setMenuItemId(next ? item.id : null)}
-                          items={[
-                            {
-                              label: 'עריכה',
-                              onSelect: () => openEdit(item),
-                            },
-                            {
-                              label: 'הסרה',
-                              danger: true,
-                              onSelect: () => void removeItem(item),
-                            },
-                          ]}
-                        />
-                      ) : null}
+                      <span className="list-rows__actions">
+                        {selectedKey &&
+                        isClosedListPane(selectedKey) &&
+                        canReorderClosedList(selectedKey) ? (
+                          <>
+                            <IconButton
+                              label="העלאה"
+                              variant="ghost"
+                              disabled={orderSaving || Boolean(editor) || index === 0}
+                              onClick={() => void moveItem(item, 'up')}
+                            >
+                              <ChevronUp size={20} strokeWidth={1.75} />
+                            </IconButton>
+                            <IconButton
+                              label="הורדה"
+                              variant="ghost"
+                              disabled={
+                                orderSaving || Boolean(editor) || index === items.length - 1
+                              }
+                              onClick={() => void moveItem(item, 'down')}
+                            >
+                              <ChevronDown size={20} strokeWidth={1.75} />
+                            </IconButton>
+                          </>
+                        ) : null}
+                        {selectedKey &&
+                        isClosedListPane(selectedKey) &&
+                        canMutateClosedListItem(selectedKey, item) ? (
+                          <OverflowMenu
+                            open={menuItemId === item.id}
+                            onOpenChange={(next) => setMenuItemId(next ? item.id : null)}
+                            items={[
+                              {
+                                label: 'עריכה',
+                                onSelect: () => openEdit(item),
+                              },
+                              {
+                                label: 'הסרה',
+                                danger: true,
+                                onSelect: () => void removeItem(item),
+                              },
+                            ]}
+                          />
+                        ) : null}
+                      </span>
                     </li>
                   ),
                 )}

@@ -55,6 +55,29 @@ export function canMutateClosedListItem(key: ClosedListKey, item: ClosedListItem
   return !(key === 'districts' && isSystemClosedListItem(item))
 }
 
+/** Admin can reorder שלוחות; other closed lists keep their own sort rules. */
+export function canReorderClosedList(key: ClosedListKey): boolean {
+  return key === 'districts'
+}
+
+export type ClosedListMoveDirection = 'up' | 'down'
+
+/** Swap an item one slot and rewrite sort_order to 1..n. Null if the move is impossible. */
+export function moveClosedListItem(
+  items: ClosedListItem[],
+  id: string,
+  direction: ClosedListMoveDirection,
+): ClosedListItem[] | null {
+  const index = items.findIndex((row) => row.id === id)
+  if (index < 0) return null
+  const target = direction === 'up' ? index - 1 : index + 1
+  if (target < 0 || target >= items.length) return null
+  const next = [...items]
+  const [moved] = next.splice(index, 1)
+  next.splice(target, 0, moved)
+  return next.map((row, order) => ({ ...row, sort_order: order + 1 }))
+}
+
 export async function fetchClosedListItems(key: ClosedListKey): Promise<ClosedListItem[]> {
   if (key === 'districts') {
     const { data, error } = await supabase
@@ -182,5 +205,24 @@ export async function deleteClosedListItem(
     return { ok: false, error: 'הסרת הפריט נכשלה. בדקו את החיבור ונסו שוב.' }
   }
 
+  return { ok: true }
+}
+
+export async function persistClosedListOrder(
+  key: ClosedListKey,
+  items: ClosedListItem[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!canReorderClosedList(key)) {
+    return { ok: false, error: 'לא ניתן לשנות את סדר הרשימה הזו.' }
+  }
+
+  const results = await Promise.all(
+    items.map((item, index) =>
+      supabase.from(key).update({ sort_order: index + 1 }).eq('id', item.id),
+    ),
+  )
+  if (results.some((result) => result.error)) {
+    return { ok: false, error: 'שמירת הסדר נכשלה. בדקו את החיבור ונסו שוב.' }
+  }
   return { ok: true }
 }
