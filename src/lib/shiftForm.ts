@@ -79,7 +79,7 @@ export function suggestRollupsFromLinkedEvents(input: {
   }
 }
 
-export const SHIFT_CREW_ERROR = 'יש לשבץ בין כונן אחד לשלושה'
+export const SHIFT_CREW_ERROR = 'יש לשבץ בין מתנדב אחד לשלושה'
 
 /**
  * Deliberately permits an equal pair, unlike the event-fill rule, which demands
@@ -169,7 +169,7 @@ async function verifyPersonalVehicle(draft: ShiftFormDraft): Promise<string | nu
     return 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
   }
   if (!data || !draft.responder_ids.includes(data.user_id as string)) {
-    return 'הרכב הפרטי חייב להיות של כונן משובץ למשמרת'
+    return 'הרכב הפרטי חייב להיות של מתנדב משובץ למשמרת'
   }
   if (data.archived) {
     return 'לא ניתן לשייך רכב בארכיון למשמרת חדשה'

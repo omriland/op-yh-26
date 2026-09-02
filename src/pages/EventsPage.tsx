@@ -321,7 +321,7 @@ export function EventsPage({
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="חיפוש לפי מספר אירוע, כביש, מיקום, שם או או״ק"
+              placeholder="אירוע, כביש, מיקום או שם"
             />
             <span className="field__affix" aria-hidden="true">
               <Search size={20} strokeWidth={1.75} />
@@ -546,7 +546,7 @@ function MineLoggedList({
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="חיפוש לפי מספר אירוע, כביש, מיקום"
+            placeholder="אירוע, כביש או מיקום"
           />
         </label>
       </div>

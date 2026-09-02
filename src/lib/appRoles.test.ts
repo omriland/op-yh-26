@@ -37,7 +37,7 @@ describe('highestRoleLabel', () => {
   it('labels the highest assignable role', () => {
     expect(highestRoleLabel(['responder', 'shift_lead'])).toBe('אחמ״ש')
     expect(highestRoleLabel(['admin'])).toBe('מנהל')
-    expect(highestRoleLabel(['responder'])).toBe('כונן')
+    expect(highestRoleLabel(['responder'])).toBe('מתנדב')
   })
 })
 

@@ -20,6 +20,8 @@ export type CockpitReelItem = {
   location_pin_source: LocationPinSource | null
   frozen_over_60km?: boolean
   frozen_suspicious_duplicate?: boolean
+  bus_lane?: boolean
+  shift_lead_id: string
   event_type: { name: string } | null
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
@@ -38,6 +40,7 @@ const COCKPIT_REEL_SELECT = `
   location_pin_source,
   frozen_over_60km,
   frozen_suspicious_duplicate,
+  shift_lead_id,
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
@@ -95,23 +98,45 @@ export function cockpitReelLead(event: {
   return { full_name: name, callsign }
 }
 
-export type CockpitDeleteBlock = 'responders'
+export type CockpitDeleteBlock = 'responders' | 'other_lead'
 export type CockpitDeleteHintKind = CockpitDeleteBlock | 'confirm'
 
-/** Blocked only while responders are still allocated. */
-export function cockpitDeleteBlock(event: {
-  responders: { id: string }[]
-}): CockpitDeleteBlock | null {
+export type CockpitDeleteViewer = {
+  userId: string | undefined
+  isAdmin: boolean
+}
+
+/** Blocked while responders remain, or when an אחמ״ש views another lead's event. */
+export function cockpitDeleteBlock(
+  event: {
+    responders: { id: string }[]
+    shift_lead_id?: string | null
+  },
+  viewer?: CockpitDeleteViewer,
+): CockpitDeleteBlock | null {
+  if (
+    viewer &&
+    !viewer.isAdmin &&
+    viewer.userId &&
+    event.shift_lead_id &&
+    event.shift_lead_id !== viewer.userId
+  ) {
+    return 'other_lead'
+  }
   if ((event.responders ?? []).length > 0) return 'responders'
   return null
 }
 
-export function canDeleteCockpitDraft(event: { responders: { id: string }[] }): boolean {
-  return cockpitDeleteBlock(event) === null
+export function canDeleteCockpitDraft(
+  event: { responders: { id: string }[]; shift_lead_id?: string | null },
+  viewer?: CockpitDeleteViewer,
+): boolean {
+  return cockpitDeleteBlock(event, viewer) === null
 }
 
 export function cockpitDeleteHint(kind: CockpitDeleteHintKind): string {
-  if (kind === 'responders') return 'יש כוננים משובצים. הסירו אותם תחילה.'
+  if (kind === 'responders') return 'יש מתנדבים משובצים. הסירו אותם תחילה.'
+  if (kind === 'other_lead') return 'אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.'
   return 'לחצו שוב למחיקה.'
 }
 
@@ -382,6 +407,7 @@ export function isAbandonedEmptyCockpitItem(event: {
   event_type: { name: string } | null
   road: { name: string } | null
   responders: unknown[]
+  bus_lane?: boolean
 }): boolean {
   if (event.status !== 'draft' || event.is_cancelled) return false
   if (event.responders.length > 0) return false
@@ -390,6 +416,7 @@ export function isAbandonedEmptyCockpitItem(event: {
   if (event.location_lat != null || event.location_lng != null) return false
   if (event.event_type?.name.trim()) return false
   if (event.road?.name.trim()) return false
+  if (event.bus_lane) return false
   return true
 }
 

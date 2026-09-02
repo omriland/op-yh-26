@@ -10,6 +10,10 @@ export const FEEDBACK_BODY_MAX = 2000
 export const FEEDBACK_AUDIO_MAX_BYTES = 5 * 1024 * 1024
 export const FEEDBACK_RECORD_MAX_SECONDS = 90
 export const FEEDBACK_BUCKET = 'user-feedback'
+export const FEEDBACK_ATTACH_MAX = 3
+export const FEEDBACK_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+export const FEEDBACK_VIDEO_MAX_BYTES = 25 * 1024 * 1024
+export const FEEDBACK_ATTACH_NAME_MAX = 200
 
 export const FEEDBACK_NETWORK = 'השליחה נכשלה. בדקו את החיבור ונסו שוב.'
 export const FEEDBACK_EMPTY_ERROR = 'יש לכתוב הערה או להקליט הודעה.'
@@ -18,6 +22,14 @@ export const FEEDBACK_KIND_ERROR = 'בחרו אם זה באג או הצעה.'
 export const FEEDBACK_AUDIO_SIZE_ERROR = 'ההקלטה ארוכה מדי. הקליטו שוב בקצרה.'
 export const FEEDBACK_MIC_ERROR = 'אין גישה למיקרופון. אפשר לכתוב הערה במקום.'
 export const FEEDBACK_RECORD_UNSUPPORTED = 'ההקלטה אינה זמינה בדפדפן זה. אפשר לכתוב הערה.'
+export const FEEDBACK_ATTACH_HINT =
+  'אפשר לצרף עד 3 קבצים: צילומי מסך עד 5 מ״ב, או סרטונים קצרים עד 25 מ״ב.'
+export const FEEDBACK_ATTACH_COUNT_ERROR = 'אפשר לצרף עד 3 קבצים.'
+export const FEEDBACK_ATTACH_TYPE_ERROR = 'אפשר לצרף רק צילומי מסך או סרטונים קצרים.'
+export const FEEDBACK_ATTACH_IMAGE_SIZE_ERROR = 'התמונה גדולה מדי. בחרו קובץ עד 5 מ״ב.'
+export const FEEDBACK_ATTACH_VIDEO_SIZE_ERROR = 'הסרטון גדול מדי. בחרו קובץ עד 25 מ״ב.'
+export const FEEDBACK_ATTACH_UNAVAILABLE =
+  'צירוף הקבצים אינו זמין כרגע. שלחו בלי קבצים, או נסו שוב מאוחר יותר.'
 
 export const FEEDBACK_KIND_LABEL: Record<FeedbackKind, string> = {
   bug: 'באג',
@@ -80,6 +92,26 @@ export const FEEDBACK_STATUS_STAMP: Record<FeedbackStatus, StampDescriptor> = {
   wont_do: { label: 'לא יטופל', tone: 'draft' },
 }
 
+export type FeedbackAttachmentKind = 'image' | 'video'
+
+export type FeedbackAttachmentMeta = {
+  path: string
+  mime: string
+  size: number
+  name: string
+}
+
+export type FeedbackAttachmentView = FeedbackAttachmentMeta & {
+  kind: FeedbackAttachmentKind
+  signed_url: string | null
+}
+
+export type FeedbackPickedFile = {
+  name: string
+  type: string
+  size: number
+}
+
 export type UserFeedback = {
   id: string
   user_id: string
@@ -92,6 +124,7 @@ export type UserFeedback = {
   audio_storage_path: string | null
   audio_mime_type: string | null
   audio_byte_size: number | null
+  attachments: FeedbackAttachmentView[]
   created_at: string
   signed_url: string | null
 }
@@ -106,6 +139,7 @@ type FeedbackRow = {
   audio_storage_path: string | null
   audio_mime_type: string | null
   audio_byte_size: number | null
+  attachments?: unknown
   created_at: string
   author?:
     | { full_name: string | null; callsign: string | null }
@@ -114,7 +148,40 @@ type FeedbackRow = {
 }
 
 const FEEDBACK_SELECT =
+  'id, user_id, kind, body, page_path, status, audio_storage_path, audio_mime_type, audio_byte_size, attachments, created_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
+
+const FEEDBACK_SELECT_NO_ATTACH =
   'id, user_id, kind, body, page_path, status, audio_storage_path, audio_mime_type, audio_byte_size, created_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
+
+const FEEDBACK_IMAGE_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+])
+
+const FEEDBACK_VIDEO_MIMES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/3gpp',
+])
+
+const FEEDBACK_EXT_MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  '3gp': 'video/3gpp',
+}
 
 export function canManageFeedbackInbox(roles: readonly AppRole[]): boolean {
   return roles.includes('super_admin')
@@ -160,6 +227,130 @@ export function feedbackStoragePath(userId: string, feedbackId: string, mime: st
   return `${userId}/${feedbackId}.${feedbackStorageExt(mime)}`
 }
 
+export function isMissingFeedbackAttachmentsColumn(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false
+  const message = error.message ?? ''
+  return (
+    (error.code === '42703' && /user_feedback\.attachments/.test(message)) ||
+    (error.code === 'PGRST204' && /attachments/.test(message))
+  )
+}
+
+export function parseFeedbackAttachments(raw: unknown): FeedbackAttachmentMeta[] {
+  if (!Array.isArray(raw)) return []
+  const out: FeedbackAttachmentMeta[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const path = typeof rec.path === 'string' ? rec.path : ''
+    const mime = typeof rec.mime === 'string' ? rec.mime : ''
+    const name = typeof rec.name === 'string' ? rec.name : ''
+    const size = typeof rec.size === 'number' ? rec.size : Number(rec.size)
+    if (!path || !mime || !name || !Number.isFinite(size)) continue
+    out.push({ path, mime, name, size })
+  }
+  return out.slice(0, FEEDBACK_ATTACH_MAX)
+}
+
+export function normalizeFeedbackAttachmentMime(mime: string, name: string): string | null {
+  const fromMime = mime.toLowerCase().split(';')[0]?.trim() ?? ''
+  if (fromMime === 'image/jpg') return 'image/jpeg'
+  if (FEEDBACK_IMAGE_MIMES.has(fromMime) || FEEDBACK_VIDEO_MIMES.has(fromMime)) return fromMime
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  return FEEDBACK_EXT_MIME[ext] ?? null
+}
+
+export function feedbackAttachmentKind(
+  mime: string,
+  name = '',
+): FeedbackAttachmentKind | null {
+  const normalized = normalizeFeedbackAttachmentMime(mime, name)
+  if (!normalized) return null
+  return normalized.startsWith('image/') ? 'image' : 'video'
+}
+
+export function feedbackAttachmentExt(mime: string, name = ''): string | null {
+  const normalized = normalizeFeedbackAttachmentMime(mime, name)
+  if (!normalized) return null
+  switch (normalized) {
+    case 'image/jpeg':
+      return 'jpg'
+    case 'image/png':
+      return 'png'
+    case 'image/webp':
+      return 'webp'
+    case 'image/gif':
+      return 'gif'
+    case 'image/heic':
+      return 'heic'
+    case 'image/heif':
+      return 'heif'
+    case 'video/mp4':
+      return 'mp4'
+    case 'video/webm':
+      return 'webm'
+    case 'video/quicktime':
+      return 'mov'
+    case 'video/3gpp':
+      return '3gp'
+    default:
+      return null
+  }
+}
+
+export function feedbackAttachmentStoragePath(
+  userId: string,
+  feedbackId: string,
+  attachmentId: string,
+  mime: string,
+  name = '',
+): string | null {
+  const ext = feedbackAttachmentExt(mime, name)
+  if (!ext) return null
+  return `${userId}/${feedbackId}/${attachmentId}.${ext}`
+}
+
+export function feedbackAttachmentError(file: FeedbackPickedFile): string | undefined {
+  const kind = feedbackAttachmentKind(file.type, file.name)
+  if (!kind) return FEEDBACK_ATTACH_TYPE_ERROR
+  if (kind === 'image' && file.size > FEEDBACK_IMAGE_MAX_BYTES) {
+    return FEEDBACK_ATTACH_IMAGE_SIZE_ERROR
+  }
+  if (kind === 'video' && file.size > FEEDBACK_VIDEO_MAX_BYTES) {
+    return FEEDBACK_ATTACH_VIDEO_SIZE_ERROR
+  }
+  if (file.size <= 0) return FEEDBACK_ATTACH_TYPE_ERROR
+  return undefined
+}
+
+export function addFeedbackAttachments<T extends FeedbackPickedFile>(
+  current: readonly T[],
+  incoming: readonly T[],
+): { files: T[]; error?: string } {
+  const next = [...current]
+  let error: string | undefined
+  for (const file of incoming) {
+    if (next.length >= FEEDBACK_ATTACH_MAX) {
+      error = FEEDBACK_ATTACH_COUNT_ERROR
+      break
+    }
+    const fileError = feedbackAttachmentError(file)
+    if (fileError) {
+      error = fileError
+      continue
+    }
+    next.push(file)
+  }
+  return { files: next, error }
+}
+
+export function sanitizeFeedbackAttachmentName(name: string): string {
+  const trimmed = name.trim().replace(/[/\\]/g, '') || 'קובץ'
+  return trimmed.slice(0, FEEDBACK_ATTACH_NAME_MAX)
+}
+
 export function formatRecordSeconds(total: number): string {
   const safe = Math.max(0, Math.min(FEEDBACK_RECORD_MAX_SECONDS, Math.floor(total)))
   const minutes = Math.floor(safe / 60)
@@ -183,6 +374,24 @@ async function withSignedUrl(row: FeedbackRow): Promise<UserFeedback> {
       .createSignedUrl(row.audio_storage_path, 3600)
     signed_url = data?.signedUrl ?? null
   }
+  const metas = parseFeedbackAttachments(row.attachments)
+  const signedByPath = new Map<string, string>()
+  if (metas.length > 0) {
+    const { data } = await supabase.storage
+      .from(FEEDBACK_BUCKET)
+      .createSignedUrls(
+        metas.map((item) => item.path),
+        3600,
+      )
+    for (const item of data ?? []) {
+      if (item.path && item.signedUrl) signedByPath.set(item.path, item.signedUrl)
+    }
+  }
+  const attachments: FeedbackAttachmentView[] = metas.map((item) => ({
+    ...item,
+    kind: feedbackAttachmentKind(item.mime, item.name) ?? 'image',
+    signed_url: signedByPath.get(item.path) ?? null,
+  }))
   return {
     id: row.id,
     user_id: row.user_id,
@@ -195,6 +404,7 @@ async function withSignedUrl(row: FeedbackRow): Promise<UserFeedback> {
     audio_storage_path: row.audio_storage_path,
     audio_mime_type: row.audio_mime_type,
     audio_byte_size: row.audio_byte_size,
+    attachments,
     created_at: row.created_at,
     signed_url,
   }
@@ -205,7 +415,9 @@ export async function submitUserFeedback(input: {
   body: string
   pagePath: string | null
   audio: Blob | null
+  files?: File[]
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const files = input.files ?? []
   const error = feedbackSubmitError({
     kind: input.kind,
     body: input.body,
@@ -216,6 +428,9 @@ export async function submitUserFeedback(input: {
   if (input.audio && input.audio.size > FEEDBACK_AUDIO_MAX_BYTES) {
     return { ok: false, error: FEEDBACK_AUDIO_SIZE_ERROR }
   }
+
+  const added = addFeedbackAttachments([], files)
+  if (added.error) return { ok: false, error: added.error }
 
   const {
     data: { user },
@@ -228,6 +443,8 @@ export async function submitUserFeedback(input: {
   let audio_storage_path: string | null = null
   let audio_mime_type: string | null = null
   let audio_byte_size: number | null = null
+  const uploadedPaths: string[] = []
+  const attachments: FeedbackAttachmentMeta[] = []
 
   if (input.audio && input.audio.size > 0) {
     audio_mime_type = normalizeFeedbackAudioMime(input.audio.type || 'audio/webm')
@@ -240,9 +457,40 @@ export async function submitUserFeedback(input: {
         upsert: false,
       })
     if (uploadError) return { ok: false, error: FEEDBACK_NETWORK }
+    uploadedPaths.push(audio_storage_path)
   }
 
-  const { error: insertError } = await supabase.from('user_feedback').insert({
+  for (const file of added.files) {
+    const mime = normalizeFeedbackAttachmentMime(file.type, file.name)
+    const attachmentId = crypto.randomUUID()
+    const storagePath =
+      mime && feedbackAttachmentStoragePath(user.id, id, attachmentId, mime, file.name)
+    if (!mime || !storagePath) {
+      if (uploadedPaths.length > 0) {
+        await supabase.storage.from(FEEDBACK_BUCKET).remove(uploadedPaths)
+      }
+      return { ok: false, error: FEEDBACK_ATTACH_TYPE_ERROR }
+    }
+    const { error: uploadError } = await supabase.storage.from(FEEDBACK_BUCKET).upload(storagePath, file, {
+      contentType: mime,
+      upsert: false,
+    })
+    if (uploadError) {
+      if (uploadedPaths.length > 0) {
+        await supabase.storage.from(FEEDBACK_BUCKET).remove(uploadedPaths)
+      }
+      return { ok: false, error: FEEDBACK_NETWORK }
+    }
+    uploadedPaths.push(storagePath)
+    attachments.push({
+      path: storagePath,
+      mime,
+      size: file.size,
+      name: sanitizeFeedbackAttachmentName(file.name),
+    })
+  }
+
+  const row: Record<string, unknown> = {
     id,
     user_id: user.id,
     kind: input.kind,
@@ -252,11 +500,17 @@ export async function submitUserFeedback(input: {
     audio_storage_path,
     audio_mime_type,
     audio_byte_size,
-  })
+  }
+  if (attachments.length > 0) row.attachments = attachments
+
+  const { error: insertError } = await supabase.from('user_feedback').insert(row)
 
   if (insertError) {
-    if (audio_storage_path) {
-      await supabase.storage.from(FEEDBACK_BUCKET).remove([audio_storage_path])
+    if (uploadedPaths.length > 0) {
+      await supabase.storage.from(FEEDBACK_BUCKET).remove(uploadedPaths)
+    }
+    if (attachments.length > 0 && isMissingFeedbackAttachmentsColumn(insertError)) {
+      return { ok: false, error: FEEDBACK_ATTACH_UNAVAILABLE }
     }
     return { ok: false, error: FEEDBACK_NETWORK }
   }
@@ -265,12 +519,18 @@ export async function submitUserFeedback(input: {
 }
 
 export async function listUserFeedback(status?: FeedbackStatus | 'all'): Promise<UserFeedback[]> {
-  let query = supabase
-    .from('user_feedback')
-    .select(FEEDBACK_SELECT)
-    .order('created_at', { ascending: false })
-  if (status && status !== 'all') query = query.eq('status', status)
-  const { data, error } = await query
+  const run = async (select: string) => {
+    let query = supabase
+      .from('user_feedback')
+      .select(select)
+      .order('created_at', { ascending: false })
+    if (status && status !== 'all') query = query.eq('status', status)
+    return query
+  }
+  let { data, error } = await run(FEEDBACK_SELECT)
+  if (error && isMissingFeedbackAttachmentsColumn(error)) {
+    ;({ data, error } = await run(FEEDBACK_SELECT_NO_ATTACH))
+  }
   if (error) throw new Error(error.message)
   return Promise.all(((data ?? []) as FeedbackRow[]).map(withSignedUrl))
 }
@@ -355,11 +615,16 @@ export async function updateUserFeedbackStatus(
 export async function deleteUserFeedback(input: {
   id: string
   audioStoragePath: string | null
+  attachmentPaths?: string[]
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await supabase.from('user_feedback').delete().eq('id', input.id)
   if (error) return { ok: false, error: FEEDBACK_NETWORK }
-  if (input.audioStoragePath) {
-    await supabase.storage.from(FEEDBACK_BUCKET).remove([input.audioStoragePath])
+  const paths = [
+    input.audioStoragePath,
+    ...(input.attachmentPaths ?? []),
+  ].filter((path): path is string => Boolean(path))
+  if (paths.length > 0) {
+    await supabase.storage.from(FEEDBACK_BUCKET).remove(paths)
   }
   return { ok: true }
 }

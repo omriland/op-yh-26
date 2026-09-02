@@ -185,7 +185,7 @@ export function ShiftDetailPage({
           <p className="t-caption text-muted">
             <span className="mono">{formatDate(shift.shift_date)}</span>
             {' · '}
-            {shift.responders.length} כוננים
+            {shift.responders.length} מתנדבים
             {' · '}
             {bornEvents.length} אירועים
             {savedLabel ? ` · ${savedLabel}` : ''}
@@ -261,13 +261,13 @@ export function ShiftDetailPage({
 
         <section className="stack-4">
           <div className="card stack-3">
-            <h2 className="t-section">כוננים ({shift.responders.length})</h2>
+            <h2 className="t-section">מתנדבים ({shift.responders.length})</h2>
             {shift.responders.length === 0 ? (
-              <p className="t-body text-secondary">לא שובצו כוננים למשמרת זו.</p>
+              <p className="t-body text-secondary">לא שובצו מתנדבים למשמרת זו.</p>
             ) : (
               <ul className="stack-3">
                 {shift.responders.map((responder) => {
-                  const name = responder.profile?.full_name ?? 'כונן'
+                  const name = responder.profile?.full_name ?? 'מתנדב'
                   const callsign = responder.profile?.callsign ?? '—'
                   return (
                     <li key={responder.id} className="responder-card__head">

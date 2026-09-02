@@ -77,6 +77,7 @@ export function FeedbackInboxPage() {
     const result = await deleteUserFeedback({
       id: item.id,
       audioStoragePath: item.audio_storage_path,
+      attachmentPaths: item.attachments.map((file) => file.path),
     })
     setBusyId(null)
     setConfirmDelete(null)
@@ -156,6 +157,37 @@ export function FeedbackInboxPage() {
               {item.body ? <p className="t-body feedback-inbox__body">{item.body}</p> : null}
               {item.signed_url ? (
                 <audio className="feedback-record__audio" controls src={item.signed_url} />
+              ) : null}
+              {item.attachments.length > 0 ? (
+                <ul className="feedback-inbox__files">
+                  {item.attachments.map((file) => (
+                    <li key={file.path}>
+                      {file.kind === 'image' &&
+                      file.signed_url &&
+                      !file.mime.includes('heic') &&
+                      !file.mime.includes('heif') ? (
+                        <a href={file.signed_url} target="_blank" rel="noopener noreferrer">
+                          <img className="feedback-inbox__thumb" src={file.signed_url} alt={file.name} />
+                        </a>
+                      ) : file.kind === 'video' && file.signed_url ? (
+                        <video className="feedback-inbox__video" controls src={file.signed_url} />
+                      ) : file.signed_url ? (
+                        <a
+                          className="t-body"
+                          href={file.signed_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <span dir="ltr">{file.name}</span>
+                        </a>
+                      ) : (
+                        <p className="t-caption text-muted" dir="ltr">
+                          {file.name}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               ) : null}
               <div className="feedback-inbox__actions">
                 {item.status !== 'fixed' ? (

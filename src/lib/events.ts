@@ -1,3 +1,4 @@
+import { isMissingBusLaneColumn } from './eventForm'
 import { addCalendarDays } from './mineListSections'
 import { searchQueryVariants } from './searchQuery'
 import type { EventOrigin } from './shiftBornEvents'
@@ -273,6 +274,7 @@ export type EventResponderDetail = {
 
 export type EventDetail = Omit<EventListItem, 'responders'> & {
   notes: string | null
+  bus_lane: boolean
   road_id: string | null
   location_lat: number | null
   location_lng: number | null
@@ -295,6 +297,7 @@ const EVENT_DETAIL_SELECT = `
   location_lng,
   location_pin_source,
   notes,
+  bus_lane,
   status,
   is_cancelled,
   origin,
@@ -339,6 +342,7 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
   location_lng,
   location_pin_source,
   notes,
+  bus_lane,
   status,
   is_cancelled,
   origin,
@@ -397,6 +401,7 @@ function normalizeEventDetail(raw: EventDetailRaw): EventDetail {
   const treated_plates = mapTreatedPlateRows(raw.shared_plates)
   return {
     ...raw,
+    bus_lane: Boolean(raw.bus_lane),
     treated_plates,
     shared_plates: treated_plates,
     responders: (raw.responders ?? []).map((responder) => ({
@@ -407,11 +412,21 @@ function normalizeEventDetail(raw: EventDetailRaw): EventDetail {
 }
 
 export async function fetchEventDetail(eventId: string): Promise<EventDetail | null> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('events')
     .select(EVENT_DETAIL_SELECT)
     .eq('id', eventId)
     .maybeSingle()
+
+  if (error && isMissingBusLaneColumn(error)) {
+    const retry = await supabase
+      .from('events')
+      .select(EVENT_DETAIL_SELECT.replace(/\n  bus_lane,/, ''))
+      .eq('id', eventId)
+      .maybeSingle()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) {
     if (/event_treated_plates|could not find|relationship/i.test(error.message)) {
@@ -424,11 +439,21 @@ export async function fetchEventDetail(eventId: string): Promise<EventDetail | n
 }
 
 async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventDetail | null> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('events')
     .select(EVENT_DETAIL_SELECT_NO_PLATES)
     .eq('id', eventId)
     .maybeSingle()
+
+  if (error && isMissingBusLaneColumn(error)) {
+    const retry = await supabase
+      .from('events')
+      .select(EVENT_DETAIL_SELECT_NO_PLATES.replace(/\n  bus_lane,/, ''))
+      .eq('id', eventId)
+      .maybeSingle()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) throw new Error(error.message)
   if (!data) return null
@@ -492,7 +517,26 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
   })
 }
 
-/** Hard-delete. RLS: admin, or shift-lead on a recent event with no responders. Cascades children. */
+export const EVENT_DELETE_FAILED = 'מחיקת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
+export const EVENT_DELETE_OTHER_LEAD = 'אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.'
+
+export function viewerMayDeleteOthersEvents(roles: readonly string[]): boolean {
+  return roles.includes('admin') || roles.includes('super_admin')
+}
+
+/** Admin/super_admin: any event. Shift-lead: only events they created (`shift_lead_id`). */
+export function canViewerDeleteEvent(input: {
+  roles: readonly string[]
+  userId: string | undefined
+  shiftLeadId: string | null | undefined
+}): boolean {
+  if (!input.userId) return false
+  if (viewerMayDeleteOthersEvents(input.roles)) return true
+  if (!input.roles.includes('shift_lead')) return false
+  return Boolean(input.shiftLeadId) && input.shiftLeadId === input.userId
+}
+
+/** Hard-delete. RLS: admin, or owning shift-lead on a recent event with no responders. Cascades children. */
 export async function deleteEvent(
   eventId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -502,10 +546,17 @@ export async function deleteEvent(
     .eq('id', eventId)
     .select('id')
     .maybeSingle()
-  if (error || !data) {
-    return { ok: false, error: 'מחיקת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+  if (!error && data) return { ok: true }
+
+  const [{ data: remaining }, { data: sessionData }] = await Promise.all([
+    supabase.from('events').select('shift_lead_id').eq('id', eventId).maybeSingle(),
+    supabase.auth.getUser(),
+  ])
+  const userId = sessionData.user?.id
+  if (remaining && userId && remaining.shift_lead_id !== userId) {
+    return { ok: false, error: EVENT_DELETE_OTHER_LEAD }
   }
-  return { ok: true }
+  return { ok: false, error: EVENT_DELETE_FAILED }
 }
 
 export async function approveEventFreeze(

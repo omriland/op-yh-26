@@ -4,8 +4,8 @@ import { filterReportCatalog } from './librarySearch'
 const kinds = [
   {
     id: 'km_summary',
-    title: 'סיכום ק״מ לפי כונן',
-    includes: 'קילומטרים ואירועים לכל כונן פעיל לפי תאריך דיווח',
+    title: 'סיכום ק״מ לפי מתנדב',
+    includes: 'קילומטרים ואירועים לכל מתנדב פעיל לפי תאריך דיווח',
   },
   {
     id: 'km_detail',
@@ -20,7 +20,7 @@ const kinds = [
   {
     id: 'duplicate_events',
     title: 'אירועים כפולים',
-    includes: 'כונן + מקום + יום בחלון ±30 דקות',
+    includes: 'מתנדב + מקום + יום בחלון ±30 דקות',
   },
 ]
 
@@ -46,13 +46,13 @@ describe('filterReportCatalog', () => {
     expect(filterReportCatalog(kinds, 'כפולים').map((kind) => kind.id)).toEqual([
       'duplicate_events',
     ])
-    expect(filterReportCatalog(kinds, 'סיכום כונן').map((kind) => kind.id)).toEqual([
+    expect(filterReportCatalog(kinds, 'סיכום מתנדב').map((kind) => kind.id)).toEqual([
       'km_summary',
     ])
   })
 
   it('ranks title hits above description-only hits', () => {
-    expect(filterReportCatalog(kinds, 'כונן').map((kind) => kind.id)[0]).toBe('km_summary')
+    expect(filterReportCatalog(kinds, 'מתנדב').map((kind) => kind.id)[0]).toBe('km_summary')
   })
 
   it('allows a one-letter typo on words of three letters or more', () => {

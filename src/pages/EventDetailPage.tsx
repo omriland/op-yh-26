@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   deleteEvent,
+  viewerMayDeleteOthersEvents,
   fetchEventDetail,
   type EventDetail,
   type EventResponderDetail,
@@ -54,7 +55,7 @@ export function EventDetailPage({
   const { user, roles } = useAuth()
   const { show } = useToast()
   const canEdit = Boolean(onEdit) && (roles.includes('admin') || roles.includes('shift_lead'))
-  const canDelete = roles.includes('admin')
+  const canDelete = viewerMayDeleteOthersEvents(roles)
   const canSeeLeadKm = roles.includes('admin') || roles.includes('shift_lead')
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
@@ -313,6 +314,7 @@ export function EventDetailPage({
             {event.is_cancelled ? <LedgerRow label="בוטל" value="כן" /> : null}
             <LedgerRow label="כביש" value={event.road?.name} />
             <LedgerRow label="מיקום" value={event.location ?? undefined} />
+            <LedgerRow label="נת״צ" value={event.bus_lane ? 'כן' : 'לא'} />
             {event.origin === 'shift' ? (
               <LedgerRow
                 label="מספרי כלי רכב"
@@ -344,7 +346,7 @@ export function EventDetailPage({
 
         <section className="stack-4">
           <div className="row-between">
-            <h2 className="t-section">כוננים ({event.responders.length})</h2>
+            <h2 className="t-section">מתנדבים ({event.responders.length})</h2>
             <p className="t-caption text-muted">
               <span className="mono">
                 {doneCount}/{event.responders.length}
@@ -354,7 +356,7 @@ export function EventDetailPage({
           </div>
 
           {event.responders.length === 0 ? (
-            <p className="card t-body text-secondary">לא שובצו כוננים לאירוע זה.</p>
+            <p className="card t-body text-secondary">לא שובצו מתנדבים לאירוע זה.</p>
           ) : (
             event.responders.map((responder) => {
               const isViewer = responder.responder_id === user?.id
@@ -418,7 +420,7 @@ export function EventDetailPage({
           </>
         }
       >
-        <p className="t-body">הפעולה תמחק גם את נתוני הכוננים המשויכים. לא ניתן לשחזר.</p>
+        <p className="t-body">הפעולה תמחק גם את נתוני המתנדבים המשויכים. לא ניתן לשחזר.</p>
       </Dialog>
     </div>
   )
@@ -448,7 +450,7 @@ function ResponderCard({
   showTreatedPlates: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
-  const name = responder.profile?.full_name ?? 'כונן'
+  const name = responder.profile?.full_name ?? 'מתנדב'
   const treated = responder.treated
     .map((row) => `${row.kind?.name ?? 'רכב'} × ${row.quantity}`)
     .join(', ')

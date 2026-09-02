@@ -44,7 +44,7 @@ function toPin(row: LiveRow): LiveMapPin | null {
     lng: row.lng,
     label: livePinLabel({
       callsign: person?.callsign ?? null,
-      fullName: person?.full_name ?? 'כונן',
+      fullName: person?.full_name ?? 'מתנדב',
     }),
     tooltip: livePinTooltip({
       eventLine: liveEventLine({

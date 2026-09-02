@@ -55,7 +55,7 @@ const openDocumentation: ReportKind = {
   audience: 'admin_and_shift_lead',
   hasDateRange: true,
   hasPeriodPicker: true,
-  searchPlaceholder: 'חיפוש לפי מתנדב, מספר אירוע או מיקום',
+  searchPlaceholder: 'מתנדב, אירוע או מיקום',
   csvFilename: 'אירועים-פתוחים-לתיעוד.csv',
   columns: [
     { id: 'police', header: 'מס אירוע', numeric: true },
@@ -97,7 +97,7 @@ const eventsByResponder: ReportKind = {
   audience: 'admin_and_shift_lead',
   hasDateRange: true,
   hasPeriodPicker: true,
-  searchPlaceholder: 'חיפוש לפי מתנדב, מספר אירוע או מיקום',
+  searchPlaceholder: 'מתנדב, אירוע או מיקום',
   csvFilename: 'אירועים-לפי-מתנדב.csv',
   columns: [
     { id: 'responder', header: 'מתנדב' },
@@ -146,7 +146,7 @@ const kmDiscrepancy: ReportKind = {
   audience: 'admin',
   hasDateRange: true,
   hasPeriodPicker: true,
-  searchPlaceholder: 'חיפוש לפי מתנדב, מספר אירוע או מיקום',
+  searchPlaceholder: 'מתנדב, אירוע או מיקום',
   csvFilename: 'פערי-דיווח-קמ.csv',
   columns: [
     { id: 'police', header: 'מספר אירוע', numeric: true },
@@ -208,7 +208,7 @@ const kmExceptions: ReportKind = {
   csvFilename: 'חריגי-קמ.csv',
   columns: [
     { id: 'date', header: 'תאריך', numeric: true },
-    { id: 'responder', header: 'כונן' },
+    { id: 'responder', header: 'מתנדב' },
     { id: 'km', header: 'ק״מ', numeric: true },
     { id: 'type', header: 'סוג אירוע' },
     { id: 'place', header: 'כביש / מיקום' },
@@ -262,14 +262,14 @@ const kmExceptions: ReportKind = {
 const duplicateEvents: ReportKind = {
   id: 'duplicate_events',
   title: 'אירועים כפולים',
-  includes: 'אירועים עם אותו הכונן, באותו מקום בחלון זמן של חצי שעה',
+  includes: 'אירועים עם אותו המתנדב, באותו מקום בחלון זמן של חצי שעה',
   audience: 'admin_and_shift_lead',
   hasDateRange: false,
   csvFilename: 'אירועים-כפולים.csv',
   columns: [
     { id: 'date', header: 'תאריך', numeric: true },
     { id: 'time', header: 'שעה', numeric: true },
-    { id: 'responder', header: 'כונן' },
+    { id: 'responder', header: 'מתנדב' },
     { id: 'type', header: 'סוג אירוע' },
     { id: 'place', header: 'כביש / מיקום' },
     { id: 'police', header: 'מספר אירוע', numeric: true },

@@ -112,7 +112,7 @@ import {
 const ROLE_OPTIONS: { role: AssignableRole; label: string }[] = [
   { role: 'admin', label: 'מנהל' },
   { role: 'shift_lead', label: 'אחמ״ש' },
-  { role: 'responder', label: 'כונן' },
+  { role: 'responder', label: 'מתנדב' },
 ]
 
 function RoleTag({ roles }: { roles: AppRole[] }) {
@@ -1063,7 +1063,7 @@ export function AdminUsersPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="חיפוש לפי שם, או״ק, דוא״ל, סטטוס או זמינות"
+            placeholder="שם, או״ק, דוא״ל או סטטוס"
           />
         </label>
       </div>

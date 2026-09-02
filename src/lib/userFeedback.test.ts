@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FEEDBACK_ATTACH_COUNT_ERROR,
+  FEEDBACK_ATTACH_IMAGE_SIZE_ERROR,
+  FEEDBACK_ATTACH_MAX,
+  FEEDBACK_ATTACH_TYPE_ERROR,
+  FEEDBACK_ATTACH_VIDEO_SIZE_ERROR,
   FEEDBACK_BODY_ERROR,
   FEEDBACK_BODY_MAX,
   FEEDBACK_EMPTY_ERROR,
+  FEEDBACK_IMAGE_MAX_BYTES,
   FEEDBACK_KIND_ERROR,
   FEEDBACK_KIND_LABEL,
   FEEDBACK_SMS_EXCERPT_MAX,
   FEEDBACK_STATUS_STAMP,
+  FEEDBACK_VIDEO_MAX_BYTES,
+  addFeedbackAttachments,
   buildFeedbackTreatedSms,
   canManageFeedbackInbox,
+  feedbackAttachmentExt,
+  feedbackAttachmentKind,
+  feedbackAttachmentStoragePath,
   feedbackBodyError,
   feedbackSmsExcerpt,
   feedbackStorageExt,
@@ -17,7 +28,11 @@ import {
   feedbackTreatedToast,
   firstNameFromFullName,
   formatRecordSeconds,
+  isMissingFeedbackAttachmentsColumn,
+  normalizeFeedbackAttachmentMime,
   normalizeFeedbackAudioMime,
+  parseFeedbackAttachments,
+  sanitizeFeedbackAttachmentName,
 } from './userFeedback'
 
 describe('canManageFeedbackInbox', () => {
@@ -73,6 +88,87 @@ describe('feedback audio helpers', () => {
     expect(formatRecordSeconds(9)).toBe('00:09')
     expect(formatRecordSeconds(75)).toBe('01:15')
     expect(formatRecordSeconds(200)).toBe('01:30')
+  })
+})
+
+describe('feedback attachments', () => {
+  it('maps mime and extension, including empty mime via filename', () => {
+    expect(normalizeFeedbackAttachmentMime('image/jpeg', 'a.jpg')).toBe('image/jpeg')
+    expect(normalizeFeedbackAttachmentMime('', 'screen.PNG')).toBe('image/png')
+    expect(normalizeFeedbackAttachmentMime('video/quicktime', 'clip.mov')).toBe('video/quicktime')
+    expect(feedbackAttachmentKind('image/webp', 'x.webp')).toBe('image')
+    expect(feedbackAttachmentKind('video/mp4', 'x.mp4')).toBe('video')
+    expect(feedbackAttachmentExt('image/jpeg')).toBe('jpg')
+    expect(feedbackAttachmentStoragePath('u1', 'f1', 'a1', 'image/png', 'shot.png')).toBe(
+      'u1/f1/a1.png',
+    )
+  })
+
+  it('rejects a fourth file and keeps the first three', () => {
+    const current = [
+      { name: '1.jpg', type: 'image/jpeg', size: 10 },
+      { name: '2.jpg', type: 'image/jpeg', size: 10 },
+      { name: '3.jpg', type: 'image/jpeg', size: 10 },
+    ]
+    const result = addFeedbackAttachments(current, [{ name: '4.jpg', type: 'image/jpeg', size: 10 }])
+    expect(result.files).toHaveLength(FEEDBACK_ATTACH_MAX)
+    expect(result.error).toBe(FEEDBACK_ATTACH_COUNT_ERROR)
+  })
+
+  it('rejects wrong types and oversized files without adding them', () => {
+    const empty = addFeedbackAttachments([], [{ name: 'note.pdf', type: 'application/pdf', size: 10 }])
+    expect(empty.files).toEqual([])
+    expect(empty.error).toBe(FEEDBACK_ATTACH_TYPE_ERROR)
+
+    const hugeImage = addFeedbackAttachments(
+      [],
+      [{ name: 'big.jpg', type: 'image/jpeg', size: FEEDBACK_IMAGE_MAX_BYTES + 1 }],
+    )
+    expect(hugeImage.files).toEqual([])
+    expect(hugeImage.error).toBe(FEEDBACK_ATTACH_IMAGE_SIZE_ERROR)
+
+    const hugeVideo = addFeedbackAttachments(
+      [],
+      [{ name: 'big.mp4', type: 'video/mp4', size: FEEDBACK_VIDEO_MAX_BYTES + 1 }],
+    )
+    expect(hugeVideo.files).toEqual([])
+    expect(hugeVideo.error).toBe(FEEDBACK_ATTACH_VIDEO_SIZE_ERROR)
+  })
+
+  it('accepts one valid image or short video', () => {
+    const image = addFeedbackAttachments(
+      [],
+      [{ name: 'screen.jpg', type: 'image/jpeg', size: 1024 }],
+    )
+    expect(image.error).toBeUndefined()
+    expect(image.files).toHaveLength(1)
+    const video = addFeedbackAttachments(
+      image.files,
+      [{ name: 'clip.mp4', type: 'video/mp4', size: 2048 }],
+    )
+    expect(video.error).toBeUndefined()
+    expect(video.files).toHaveLength(2)
+  })
+
+  it('parses stored metadata and sanitizes names', () => {
+    expect(parseFeedbackAttachments(null)).toEqual([])
+    expect(
+      parseFeedbackAttachments([
+        { path: 'u/f/a.jpg', mime: 'image/jpeg', size: 12, name: 'a.jpg' },
+        { path: '', mime: 'image/jpeg', size: 12, name: 'skip.jpg' },
+      ]),
+    ).toEqual([{ path: 'u/f/a.jpg', mime: 'image/jpeg', size: 12, name: 'a.jpg' }])
+    expect(sanitizeFeedbackAttachmentName('  ../evil\\name.png  ')).toBe('..evilname.png')
+  })
+
+  it('detects a missing attachments column', () => {
+    expect(
+      isMissingFeedbackAttachmentsColumn({
+        code: '42703',
+        message: 'column user_feedback.attachments does not exist',
+      }),
+    ).toBe(true)
+    expect(isMissingFeedbackAttachmentsColumn({ code: '42703', message: 'other' })).toBe(false)
   })
 })
 

@@ -56,48 +56,48 @@ import {
 import { loadFillByToken } from './lib/responderFillToken'
 import { captureAppPageview } from './lib/posthog'
 import { appAnalyticsPath } from './lib/posthogAppPath'
-import { applyCockpitUrl, parseCockpitPath } from './lib/cockpitPath'
 import { isAndroidDownloadPath } from './lib/androidDownload'
 import { verifyPrivacyPageAccess } from './lib/privacyPageAccess'
 import { isPrivacyPath, parsePrivacyTokenFromSearch } from './lib/privacyPageToken'
+import {
+  applyAppUrl,
+  isAllowedAppView,
+  parseAppPath,
+  readBootRoute,
+  shouldSyncAppUrl,
+  type EventSurface,
+  type ShiftSurface,
+} from './lib/appRoute'
 import { isOAuthAuthorizePath, parseOAuthAuthorizeRequest } from './lib/partnerOAuth'
 import { OAuthAuthorizePage } from './pages/OAuthAuthorizePage'
 
-type EventSurface =
-  | { kind: 'list' }
-  | { kind: 'detail'; eventId: string }
-  | { kind: 'form'; eventId?: string; focusResponderId?: string }
-  | { kind: 'fill'; eventId: string; returnTo: 'list' | 'detail' }
-
-type ShiftSurface =
-  | { kind: 'list' }
-  | { kind: 'detail'; shiftId: string }
-  | { kind: 'form'; shiftId?: string }
-
-function readCockpitBoot(): { eventId?: string } | null {
-  if (typeof window === 'undefined') return null
-  return parseCockpitPath(window.location.pathname)
+function readWindowBoot() {
+  if (typeof window === 'undefined') {
+    return {
+      view: null as AppView | null,
+      eventSurface: { kind: 'list' } as EventSurface,
+      shiftSurface: { kind: 'list' } as ShiftSurface,
+      cockpitEventId: undefined as string | undefined,
+      legalPage: null as 'privacy' | 'android' | null,
+    }
+  }
+  return readBootRoute(window.location.pathname)
 }
 
 function Gate() {
   const { session, loading, roles, passwordSetupReason, user, profile } = useAuth()
   const isDesktop = useIsDesktop()
-  const cockpitBoot = useRef(readCockpitBoot()).current
+  const boot = useRef(readWindowBoot()).current
   const trackToken = useRef(
     typeof window === 'undefined' ? null : parseTrackTokenFromSearch(window.location.search),
   ).current
-  const [view, setView] = useState<AppView | null>(cockpitBoot ? 'cockpit' : null)
-  const [legalPage, setLegalPage] = useState<'privacy' | 'android' | null>(() =>
-    typeof window !== 'undefined' && isAndroidDownloadPath(window.location.pathname)
-      ? 'android'
-      : null,
-  )
-  const [eventSurface, setEventSurface] = useState<EventSurface>({ kind: 'list' })
-  const [shiftSurface, setShiftSurface] = useState<ShiftSurface>({ kind: 'list' })
+  const homeAdoptedRef = useRef(false)
+  const [view, setView] = useState<AppView | null>(boot.view)
+  const [legalPage, setLegalPage] = useState<'privacy' | 'android' | null>(boot.legalPage)
+  const [eventSurface, setEventSurface] = useState<EventSurface>(boot.eventSurface)
+  const [shiftSurface, setShiftSurface] = useState<ShiftSurface>(boot.shiftSurface)
   const [sectionReset, setSectionReset] = useState(0)
-  const [cockpitEventId, setCockpitEventId] = useState<string | undefined>(
-    cockpitBoot?.eventId,
-  )
+  const [cockpitEventId, setCockpitEventId] = useState<string | undefined>(boot.cockpitEventId)
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
     myShifts: false,
@@ -250,26 +250,93 @@ function Gate() {
   const fallbackView: AppView = defaultHomeView({ manages, hasMineList, isAdmin })
 
   useEffect(() => {
-    if (loginOtp.state !== 'ok') return
-    applyCockpitUrl(window.history, window.location, cockpitEventId, view === 'cockpit' && manages)
-  }, [loginOtp.state, view, cockpitEventId, manages])
+    if (
+      !shouldSyncAppUrl({
+        trackToken: Boolean(trackToken),
+        oauthPath: isOAuthAuthorizePath(window.location.pathname),
+        passwordSetup: Boolean(passwordSetupReason),
+        fillTokenOwnsUrl:
+          !session && (tokenFill.status === 'checking' || tokenFill.status === 'ready'),
+        privacyChecking: privacyGate.status === 'checking',
+      })
+    ) {
+      return
+    }
+
+    if (legalPage === 'android' || legalPage === 'privacy') {
+      applyAppUrl(window.history, window.location, {
+        view: view ?? fallbackView,
+        eventSurface,
+        shiftSurface,
+        cockpitEventId,
+        legalPage,
+      })
+      return
+    }
+
+    if (!session || loginOtp.state !== 'ok') return
+
+    const nextView =
+      view && isAllowedAppView(view, { manages, hasMineList, isAdmin, isSuperAdmin })
+        ? view
+        : fallbackView
+    const adoptHome = !homeAdoptedRef.current
+    applyAppUrl(
+      window.history,
+      window.location,
+      {
+        view: nextView,
+        eventSurface,
+        shiftSurface,
+        cockpitEventId: nextView === 'cockpit' ? cockpitEventId : undefined,
+        legalPage: null,
+      },
+      { adoptHome },
+    )
+    homeAdoptedRef.current = true
+  }, [
+    trackToken,
+    passwordSetupReason,
+    session,
+    tokenFill.status,
+    privacyGate.status,
+    legalPage,
+    view,
+    eventSurface,
+    shiftSurface,
+    cockpitEventId,
+    loginOtp.state,
+    manages,
+    hasMineList,
+    isAdmin,
+    isSuperAdmin,
+    fallbackView,
+  ])
 
   useEffect(() => {
     function onPop() {
-      if (isAndroidDownloadPath(window.location.pathname)) {
+      const parsed = parseAppPath(window.location.pathname)
+      if (parsed.kind === 'android') {
         setLegalPage('android')
         return
       }
-      setLegalPage((current) => (current === 'android' ? null : current))
-      const parsed = parseCockpitPath(window.location.pathname)
-      if (parsed) {
-        setLegalPage(null)
-        setView('cockpit')
-        setCockpitEventId(parsed.eventId)
+      if (parsed.kind === 'privacy') {
+        setLegalPage('privacy')
+        return
+      }
+      if (parsed.kind === 'oauth') return
+      setLegalPage(null)
+      if (parsed.kind === 'app') {
+        setView(parsed.state.view)
+        setEventSurface(parsed.state.eventSurface)
+        setShiftSurface(parsed.state.shiftSurface)
+        setCockpitEventId(parsed.state.cockpitEventId)
         return
       }
       setCockpitEventId(undefined)
-      setView((current) => (current === 'cockpit' ? null : current))
+      setEventSurface({ kind: 'list' })
+      setShiftSurface({ kind: 'list' })
+      setView(null)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -277,17 +344,17 @@ function Gate() {
 
   function openAndroidDownload() {
     setLegalPage('android')
-    if (!isAndroidDownloadPath(window.location.pathname)) {
-      window.history.pushState(window.history.state, '', '/android')
-    }
   }
 
   function closeLegalPage() {
-    const wasAndroid = legalPage === 'android'
-    setLegalPage(null)
-    if (wasAndroid && isAndroidDownloadPath(window.location.pathname)) {
-      window.history.pushState(window.history.state, '', '/')
+    if (
+      isAndroidDownloadPath(window.location.pathname) ||
+      isPrivacyPath(window.location.pathname)
+    ) {
+      window.history.back()
+      return
     }
+    setLegalPage(null)
   }
 
   // Refresh attention when returning to list surfaces after fill/save.
@@ -519,27 +586,7 @@ function Gate() {
   }, [manages, hasMineList, isAdmin, isSuperAdmin, isDesktop, navAttention, roles])
 
   function isAllowedView(next: AppView): boolean {
-    switch (next) {
-      case 'mine':
-      case 'my_shifts':
-        return hasMineList
-      case 'contacts':
-      case 'map':
-        return true
-      case 'events':
-      case 'shifts':
-      case 'reports':
-      case 'cockpit':
-        return manages
-      case 'users':
-      case 'fuel_quarter':
-      case 'lists':
-        return isAdmin
-      case 'profile':
-        return true
-      case 'feedback':
-        return isSuperAdmin
-    }
+    return isAllowedAppView(next, { manages, hasMineList, isAdmin, isSuperAdmin })
   }
 
   if (trackToken) {

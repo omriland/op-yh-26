@@ -4,6 +4,7 @@ import {
   emptyEventDraft,
   eventForeignIds,
   isAbandonedEmptyEventDraft,
+  isMissingBusLaneColumn,
   type EventFormDraft,
   type LookupOption,
 } from './eventForm'
@@ -63,6 +64,7 @@ describe('isAbandonedEmptyEventDraft', () => {
     expect(
       isAbandonedEmptyEventDraft(draft({ location_lat: 32.1, location_lng: 34.8 }), empty.event_date),
     ).toBe(false)
+    expect(isAbandonedEmptyEventDraft(draft({ bus_lane: true }), empty.event_date)).toBe(false)
     expect(
       isAbandonedEmptyEventDraft(
         draft({
@@ -87,5 +89,17 @@ describe('isAbandonedEmptyEventDraft', () => {
         empty.event_date,
       ),
     ).toBe(false)
+  })
+})
+
+describe('isMissingBusLaneColumn', () => {
+  it('detects PostgREST missing-column errors for events.bus_lane', () => {
+    expect(isMissingBusLaneColumn({ code: '42703', message: 'column events.bus_lane does not exist' })).toBe(
+      true,
+    )
+    expect(isMissingBusLaneColumn({ code: 'PGRST204', message: "Could not find the 'bus_lane' column of 'events'" })).toBe(
+      true,
+    )
+    expect(isMissingBusLaneColumn({ code: '42501', message: 'permission denied' })).toBe(false)
   })
 })

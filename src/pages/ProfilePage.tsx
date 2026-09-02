@@ -17,6 +17,7 @@ import {
   fetchOwnVehicles,
   isProfileVehicleEditing,
   isVehicleAttachedToEvents,
+  leftoverUnsavedVehicleDrafts,
   setDefaultVehicle,
   unarchiveVehicle,
   updateOwnVehicle,
@@ -36,7 +37,7 @@ import { useToast } from '../components/ui/Toast'
 const ROLE_LABELS: Partial<Record<AppRole, string>> = {
   admin: 'מנהל',
   shift_lead: 'אחמ״ש',
-  responder: 'כונן',
+  responder: 'מתנדב',
 }
 
 function visibleRoles(roles: AppRole[]): AppRole[] {
@@ -141,13 +142,21 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
     }
   }, [profile])
 
-  async function reloadSavedVehicles() {
+  async function reloadSavedVehicles(persistedKeys: Iterable<string> = []) {
     if (!profile) return
-    const unsaved = (vehiclesRef.current ?? []).filter((vehicle) => !vehicle.id)
+    const current = vehiclesRef.current ?? []
     try {
       const rows = await fetchOwnVehicles(profile.id)
       setVehicleError(null)
-      setVehicles(sortProfileVehicles([...rows.map(toDraft), ...unsaved]))
+      setVehicles(
+        sortProfileVehicles([
+          ...rows.map(toDraft),
+          ...leftoverUnsavedVehicleDrafts(current, {
+            persistedKeys,
+            savedPlates: rows.map((row) => row.plate_number),
+          }),
+        ]),
+      )
     } catch {
       setVehicleError('טעינת הרכבים נכשלה.')
     }
@@ -178,8 +187,11 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
           return
         }
         setVehicles((current) => (current ?? []).filter((row) => row.key !== vehicle.key))
+        vehiclesRef.current = leftoverUnsavedVehicleDrafts(vehiclesRef.current ?? [], {
+          persistedKeys: [vehicle.key],
+        })
         setEditingKey(null)
-        await reloadSavedVehicles()
+        await reloadSavedVehicles([vehicle.key])
         show('הרכב נשמר.')
         return
       }

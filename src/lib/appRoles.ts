@@ -11,7 +11,7 @@ const ROLE_LABEL: Record<AppRole, string> = {
   super_admin: SUPER_ADMIN_CAPTION,
   admin: 'מנהל',
   shift_lead: 'אחמ״ש',
-  responder: 'כונן',
+  responder: 'מתנדב',
 }
 
 export function highestRole(roles: readonly AppRole[]): AppRole | null {

@@ -35,6 +35,32 @@ export function isProfileVehicleEditing(
   return !vehicle.id || vehicle.key === editingKey
 }
 
+/**
+ * Unsaved add-row drafts that should survive a reload.
+ * Drop the row that just persisted (and any leftover whose plate is now saved)
+ * so the add form closes instead of staying open with previous values.
+ */
+export function leftoverUnsavedVehicleDrafts<
+  T extends { key: string; id?: string; plate_number: string },
+>(
+  drafts: T[],
+  options?: {
+    persistedKeys?: Iterable<string>
+    savedPlates?: Iterable<string>
+  },
+): T[] {
+  const persisted = new Set(options?.persistedKeys ?? [])
+  const saved = new Set(
+    [...(options?.savedPlates ?? [])].map((plate) => plateDigits(plate)).filter(Boolean),
+  )
+  return drafts.filter((row) => {
+    if (row.id || persisted.has(row.key)) return false
+    const plate = plateDigits(row.plate_number)
+    if (plate && saved.has(plate)) return false
+    return true
+  })
+}
+
 export function vehicleFieldsForSave(
   plateNumber: string,
   model: string,

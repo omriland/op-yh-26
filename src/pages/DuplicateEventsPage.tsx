@@ -142,7 +142,7 @@ function DuplicateTable({
         <thead>
           <tr>
             <th scope="col">שעה</th>
-            <th scope="col">כונן</th>
+            <th scope="col">מתנדב</th>
             <th scope="col">סוג אירוע</th>
             <th scope="col">כביש / מיקום</th>
             <th scope="col">מספר אירוע</th>

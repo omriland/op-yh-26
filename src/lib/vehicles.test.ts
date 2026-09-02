@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   SET_DEFAULT_VEHICLE_LABEL,
   isProfileVehicleEditing,
+  leftoverUnsavedVehicleDrafts,
   ownVehicleWriteError,
   vehicleFieldsForSave,
   vehicleRemoveMode,
@@ -63,5 +64,47 @@ describe('isProfileVehicleEditing', () => {
     expect(isProfileVehicleEditing({ key: 'v1', id: 'v1' }, null)).toBe(false)
     expect(isProfileVehicleEditing({ key: 'v1', id: 'v1' }, 'v1')).toBe(true)
     expect(isProfileVehicleEditing({ key: 'v1', id: 'v1' }, 'v2')).toBe(false)
+  })
+})
+
+describe('leftoverUnsavedVehicleDrafts', () => {
+  const saved = {
+    key: 'v1',
+    id: 'v1',
+    plate_number: '12-345-67',
+  }
+  const justAdded = {
+    key: 'new-1',
+    plate_number: '12-345-67',
+  }
+  const blankAddAnother = {
+    key: 'new-2',
+    plate_number: '',
+  }
+
+  it('drops the draft that just persisted so the add form closes', () => {
+    expect(
+      leftoverUnsavedVehicleDrafts([saved, justAdded], { persistedKeys: ['new-1'] }),
+    ).toEqual([])
+  })
+
+  it('drops a leftover draft whose plate is now on a saved vehicle', () => {
+    expect(
+      leftoverUnsavedVehicleDrafts([justAdded], { savedPlates: ['12-345-67'] }),
+    ).toEqual([])
+  })
+
+  it('keeps an empty add-another draft across reload', () => {
+    expect(
+      leftoverUnsavedVehicleDrafts([saved, justAdded, blankAddAnother], {
+        persistedKeys: ['new-1'],
+        savedPlates: ['12-345-67'],
+      }),
+    ).toEqual([blankAddAnother])
+  })
+
+  it('leaves a closed saved row closed after add', () => {
+    expect(isProfileVehicleEditing({ key: 'v1', id: 'v1' }, null)).toBe(false)
+    expect(leftoverUnsavedVehicleDrafts([justAdded], { persistedKeys: ['new-1'] })).toEqual([])
   })
 })

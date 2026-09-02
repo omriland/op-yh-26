@@ -39,7 +39,7 @@ describe('REPORT_KINDS', () => {
 
   it('describes duplicate events as same responder, place, and half-hour window', () => {
     expect(REPORT_KINDS.find((kind) => kind.id === 'duplicate_events')?.includes).toBe(
-      'אירועים עם אותו הכונן, באותו מקום בחלון זמן של חצי שעה',
+      'אירועים עם אותו המתנדב, באותו מקום בחלון זמן של חצי שעה',
     )
   })
 
@@ -47,7 +47,7 @@ describe('REPORT_KINDS', () => {
     expect(REPORT_KINDS.find((kind) => kind.id === 'duplicate_events')?.columns.map((column) => column.header)).toEqual([
       'תאריך',
       'שעה',
-      'כונן',
+      'מתנדב',
       'סוג אירוע',
       'כביש / מיקום',
       'מספר אירוע',

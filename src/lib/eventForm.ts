@@ -32,6 +32,24 @@ export type AssignableUser = {
 
 export const NO_VEHICLE_KM_PLACEHOLDER = 'מתנדב ללא רכב'
 
+/** Create-only: the lead may appear in the picker but cannot be assigned. */
+export const SELF_ASSIGN_ON_CREATE_ERROR = 'לא ניתן לשבץ את יוצר האירוע כמתנדב.'
+
+export function createIncludesSelfAssign(
+  shiftLeadId: string,
+  responders: { responder_id: string }[],
+): boolean {
+  return responders.some((row) => row.responder_id === shiftLeadId)
+}
+
+export function isSelfAssignDisabledInPicker(
+  blockSelfAssign: boolean,
+  currentUserId: string | undefined,
+  personId: string,
+): boolean {
+  return Boolean(blockSelfAssign && currentUserId && personId === currentUserId)
+}
+
 export function hasActiveVehicle(
   vehicles: { archived?: boolean | null }[] | null | undefined,
 ): boolean {
@@ -117,6 +135,8 @@ export type EventFormDraft = {
   location_pinned_by: string | null
   notes: string
   is_cancelled: boolean
+  /** נת״צ — event took place in a bus / public-transit lane. */
+  bus_lane: boolean
   shift_lead: { full_name: string; callsign: string }
   responders: ResponderDraft[]
 }
@@ -216,6 +236,7 @@ export function emptyEventDraft(lead: {
     location_pinned_by: null,
     notes: '',
     is_cancelled: false,
+    bus_lane: false,
     shift_lead: lead,
     responders: [],
   }
@@ -238,6 +259,7 @@ export function isAbandonedEmptyEventDraft(
   if (draft.location_place_id) return false
   if (draft.location_lat != null || draft.location_lng != null) return false
   if (draft.notes.trim()) return false
+  if (draft.bus_lane) return false
   return true
 }
 
@@ -327,15 +349,24 @@ type LoadedResponder = {
   treated: { vehicle_kind_id: string; quantity: number }[]
 }
 
-export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft | null> {
-  const { data, error } = await supabase
-    .from('events')
-    .select(
-      `
+/** PostgREST 42703 / PGRST204 when `events.bus_lane` has not been migrated yet. */
+export function isMissingBusLaneColumn(error: {
+  code?: string
+  message?: string
+} | null): boolean {
+  const message = error?.message ?? ''
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    /events\.bus_lane|column.*bus_lane/i.test(message)
+  )
+}
+
+const EVENT_EDIT_SELECT = `
       id, status, event_date, police_event_id, district_id, patrol_callsign,
       event_type_id, road_id, location, location_place_id, location_lat, location_lng,
       location_pin_source, location_pinned_at, location_pinned_by,
-      notes, is_cancelled,
+      notes, is_cancelled, bus_lane,
       shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
       responders:event_responders(
         id, responder_id, started_at, ended_at, total_km, emergency_means, status,
@@ -344,10 +375,26 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
         profile:profiles(full_name, callsign, vehicles(id, archived)),
         treated:event_treated_vehicles(vehicle_kind_id, quantity)
       )
-    `,
-    )
+    `
+
+const EVENT_EDIT_SELECT_NO_BUS_LANE = EVENT_EDIT_SELECT.replace(', bus_lane', '')
+
+export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft | null> {
+  let { data, error } = await supabase
+    .from('events')
+    .select(EVENT_EDIT_SELECT)
     .eq('id', eventId)
     .maybeSingle()
+
+  if (error && isMissingBusLaneColumn(error)) {
+    const retry = await supabase
+      .from('events')
+      .select(EVENT_EDIT_SELECT_NO_BUS_LANE)
+      .eq('id', eventId)
+      .maybeSingle()
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) throw new Error(error.message)
   if (!data) return null
@@ -370,6 +417,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     location_pinned_by: string | null
     notes: string | null
     is_cancelled: boolean
+    bus_lane: boolean
     shift_lead: { full_name: string; callsign: string } | null
     responders: LoadedResponder[]
   }
@@ -392,6 +440,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     location_pinned_by: row.location_pinned_by ?? null,
     notes: row.notes ?? '',
     is_cancelled: row.is_cancelled ?? false,
+    bus_lane: row.bus_lane ?? false,
     shift_lead: row.shift_lead ?? { full_name: '—', callsign: '—' },
     responders: (row.responders ?? []).map((responder) => {
       const hasVehicle = hasActiveVehicle(responder.profile?.vehicles)
@@ -399,7 +448,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
         key: responder.id,
         assignmentId: responder.id,
         responder_id: responder.responder_id,
-        full_name: responder.profile?.full_name ?? 'כונן',
+        full_name: responder.profile?.full_name ?? 'מתנדב',
         callsign: responder.profile?.callsign ?? '—',
         start_time: toTimeInput(responder.started_at),
         end_time: toTimeInput(responder.ended_at),
@@ -581,6 +630,8 @@ export async function saveEventForm(input: {
   isAdmin: boolean
   previousIsCancelled: boolean
   allowPartial?: boolean
+  /** Create session (including cockpit). Rejects a tampered self-assign. */
+  blockSelfAssign?: boolean
 }): Promise<
   | {
       ok: true
@@ -597,6 +648,10 @@ export async function saveEventForm(input: {
 > {
   const { draft, shiftLeadId, vehicleKinds, districts, isAdmin, previousIsCancelled } = input
   const allowPartial = Boolean(input.allowPartial)
+  const rejectSelfAssign = Boolean(input.blockSelfAssign) || !draft.id
+  if (rejectSelfAssign && createIncludesSelfAssign(shiftLeadId, draft.responders)) {
+    return { ok: false, error: SELF_ASSIGN_ON_CREATE_ERROR }
+  }
 
   const fieldErrors = canPersistEventDraft(draft, districts, {
     allowPartial,
@@ -668,24 +723,40 @@ export async function saveEventForm(input: {
     location_pinned_by: locationPayload.location_pinned_by,
     notes: draft.notes.trim() || null,
     is_cancelled: draft.is_cancelled,
+    bus_lane: draft.bus_lane,
     status: nextStatus,
     updated_at: new Date().toISOString(),
   }
 
   let eventId = draft.id
 
+  const payloadWithoutBusLane = (({ bus_lane: _busLane, ...rest }) => rest)(eventPayload)
+
   if (eventId) {
     // Keep original shift_lead_id — אחמ״ש is the creator, not the last editor.
-    const { error } = await supabase.from('events').update(eventPayload).eq('id', eventId)
+    let { error } = await supabase.from('events').update(eventPayload).eq('id', eventId)
+    if (error && isMissingBusLaneColumn(error)) {
+      const retry = await supabase.from('events').update(payloadWithoutBusLane).eq('id', eventId)
+      error = retry.error
+    }
     if (error) {
       return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
     }
   } else {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('events')
       .insert({ ...eventPayload, shift_lead_id: shiftLeadId })
       .select('id')
       .single()
+    if (error && isMissingBusLaneColumn(error)) {
+      const retry = await supabase
+        .from('events')
+        .insert({ ...payloadWithoutBusLane, shift_lead_id: shiftLeadId })
+        .select('id')
+        .single()
+      data = retry.data
+      error = retry.error
+    }
     if (error || !data) {
       return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
     }

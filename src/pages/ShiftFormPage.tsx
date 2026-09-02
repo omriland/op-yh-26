@@ -356,7 +356,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
       const profile = assignedProfiles.get(id)
       return {
         id,
-        full_name: profile?.full_name ?? 'כונן',
+        full_name: profile?.full_name ?? 'מתנדב',
         callsign: profile?.callsign ?? '—',
       }
     })
@@ -723,7 +723,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                     error={errors.personal_vehicle_id}
                     placeholder={
                       draft.responder_ids.length === 0
-                        ? 'יש לשבץ כוננים תחילה'
+                        ? 'יש לשבץ מתנדבים תחילה'
                         : personalVehicles.length === 0
                           ? 'אין לוחיות לרכב פרטי'
                           : 'בחירת לוחית'
@@ -747,15 +747,15 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
           <section className="form-section">
             <h2 className="form-section__heading">
               <span className="form-section__counter">חלק ב׳</span>
-              <span>שיבוץ כוננים</span>
+              <span>שיבוץ מתנדבים</span>
             </h2>
             <div className="form-section__fields">
               <div className="responder-assign">
                 <div className="responder-assign__toolbar">
                   <p className="t-label text-secondary">
                     {assignedPeople.length === 0
-                      ? 'טרם שובצו כוננים'
-                      : `${assignedPeople.length} כוננים משובצים`}
+                      ? 'טרם שובצו מתנדבים'
+                      : `${assignedPeople.length} מתנדבים משובצים`}
                   </p>
                   {canEditResponders ? (
                     <Button
@@ -764,16 +764,16 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                       onClick={() => (pickerOpen ? setPickerOpen(false) : openAssigner())}
                       aria-expanded={pickerOpen}
                     >
-                      {pickerOpen ? 'סגירת שיבוץ' : 'שיבוץ כוננים'}
+                      {pickerOpen ? 'סגירת שיבוץ' : 'שיבוץ מתנדבים'}
                     </Button>
                   ) : null}
                 </div>
 
                 {pickerOpen && canEditResponders ? (
-                  <div className="responder-picker__panel" role="listbox" aria-label="בחירת כוננים">
+                  <div className="responder-picker__panel" role="listbox" aria-label="בחירת מתנדבים">
                     <label className="search-field">
                       <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-                      <span className="visually-hidden">חיפוש כוננים</span>
+                      <span className="visually-hidden">חיפוש מתנדבים</span>
                       <input
                         ref={assignSearchRef}
                         value={pickerQuery}
@@ -786,7 +786,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                         <li className="responder-picker__empty t-caption text-muted">
                           {roster.length === 0
                             ? 'אין משתמשים פעילים לשיבוץ.'
-                            : 'לא נמצאו כוננים לשיבוץ'}
+                            : 'לא נמצאו מתנדבים לשיבוץ'}
                         </li>
                       ) : (
                         pickerOptions.map((person) => (
@@ -820,8 +820,8 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
               {assignedPeople.length === 0 ? (
                 <div className="assignment-empty">
                   <p className="t-body text-secondary">
-                    {canEditResponders                      ? 'יש לשבץ כוננים למשמרת.'
-                      : 'לא שובצו כוננים למשמרת זו.'}
+                    {canEditResponders                      ? 'יש לשבץ מתנדבים למשמרת.'
+                      : 'לא שובצו מתנדבים למשמרת זו.'}
                   </p>
                 </div>
               ) : (
@@ -840,7 +840,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                           </span>
                         </div>
                         {canEditResponders ? (
-                          <IconButton label="הסרת כונן" onClick={() => removeResponder(person.id)}>
+                          <IconButton label="הסרת מתנדב" onClick={() => removeResponder(person.id)}>
                             <Trash2 size={20} strokeWidth={1.75} />
                           </IconButton>
                         ) : null}

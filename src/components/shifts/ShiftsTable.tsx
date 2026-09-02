@@ -49,7 +49,7 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent }: ShiftsTableProps) {
             <th scope="col">שם משמרת</th>
             <th scope="col">רכב</th>
             <th scope="col">אחמ״ש</th>
-            <th scope="col">כוננים</th>
+            <th scope="col">מתנדבים</th>
             <th scope="col">אירועים</th>
             <th scope="col">סטטוס</th>
           </tr>

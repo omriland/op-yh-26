@@ -312,7 +312,7 @@ export function FuelQuarterWorkbook() {
         </div>
         <label className="search-field fuel-quarter__search">
           <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-          <span className="visually-hidden">חיפוש כוננים</span>
+          <span className="visually-hidden">חיפוש מתנדבים</span>
           <input
             type="search"
             value={query}
@@ -365,14 +365,14 @@ export function FuelQuarterWorkbook() {
       {workbook && rows.length === 0 ? (
         <EmptyState
           icon={<Fuel size={40} strokeWidth={1.75} />}
-          title="אין כוננים עם ק״מ או יתרה ברבעון זה."
+          title="אין מתנדבים עם ק״מ או יתרה ברבעון זה."
         />
       ) : null}
 
       {workbook && rows.length > 0 && filteredRows.length === 0 && query.trim() ? (
         <EmptyState
           icon={<Search size={40} strokeWidth={1.75} />}
-          title="לא נמצאו כוננים תואמים"
+          title="לא נמצאו מתנדבים תואמים"
           action={
             <Button variant="ghost" onClick={() => setQuery('')}>
               ניקוי חיפוש
@@ -387,7 +387,7 @@ export function FuelQuarterWorkbook() {
             <thead>
               <tr>
                 <th scope="col" className="table--fuel-quarter__sticky">
-                  כונן
+                  מתנדב
                 </th>
                 <th scope="col">יתרה מרבעון קודם</th>
                 <th scope="col">{workbook.monthLabels[0]}</th>

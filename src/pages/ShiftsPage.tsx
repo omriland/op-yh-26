@@ -217,7 +217,7 @@ export function ShiftsPage({
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="חיפוש לפי שם משמרת, רכב, מספר אירוע, שם או או״ק"
+                  placeholder="משמרת, רכב, אירוע או שם"
                 />
                 <span className="field__affix" aria-hidden="true">
                   <Search size={20} strokeWidth={1.75} />

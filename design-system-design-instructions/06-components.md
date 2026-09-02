@@ -118,13 +118,13 @@ Base: `--surface-raised`, hairline outline, radius `--radius-md`, padding `--spa
 - Row 2: road + location, `--type-body`, `--text-secondary`.
 - Row 3 (`--type-caption`, `--text-muted`): date · שלוחה · מספר אירוע (mono). Mine inbox (`ממתינים לתיעוד`) drops שלוחה — date · מספר אירוע only.
 - Entire card is one tap target; pressed state = `--surface-sunken` flash. Chevron NOT needed (the card is obviously tappable; keep it clean). Unit list → event detail. Mine inbox open card → fill.
-- Mine-list open card: primary `השלמת הפרטים שלי` / `המשך מילוי הפרטים` — full-width under the body on mobile; on desktop shrink-wrap under the stamp at inline-end. No ghost detail button — pending cards only fill.
+- Mine-list open card: primary `השלמת התיעוד שלי` / `המשך התיעוד` — full-width under the body on mobile; on desktop shrink-wrap under the stamp at inline-end. No ghost detail button — pending cards only fill.
 - Mine inbox (`האירועים שלי` · `ממתינים לתיעוד`) only: a standalone / regular (`origin = manual`) card gets a 3px `--accent` rail on inline-start (physical right in RTL) plus `--accent-subtle` wash — origin, not status. Never `--status-done` green (reads as הושלם). Shift-born cards stay unmarked; they already sit under a משמרת subheader and show `(משמרת)` on the type.
 - **Overdue fill (web):** if the viewer’s participation is not `done`, the event is not cancelled, and ≥ 48 hours have passed since קילומטרים were first entered (`fill_completable_at`), the card uses a 3px `--status-alert` rail + `--status-alert-tint` wash instead of the origin rail. A 20 px Lucide `Hourglass` (`--status-alert`, stroke 1.75) sits inline-start of the type row, same line as the event type. Hover (`HoverTip` `mode="always"`, Field) reads `אירוע ממתין לתיעוד מעל ל־48 שעות` on `--status-alert-tint` with `--status-alert-on-tint` text. Stamp copy is unchanged. Shift-born overdue cards get the same red mark. Spec: `docs/superpowers/specs/2026-08-18-yahpaz-overdue-fill-reminder-design.md`.
 
 **Mine archive row** (`תועדו`): not a card. One stacked list (`list-rows`) with hairline dividers. Row: type + place + date/id at inline-start, stamp at inline-end. Tap → detail. No fill CTA, no opacity fade.
 
-**Responder card** (inside event detail): header row = avatar (28 px) + name + callsign (mono, caption) + stamp + chevron at inline-end. Whole header toggles the body (`aria-expanded`). Collapsed by default except the viewer’s own כונן row (אחמ״ש / מנהל start all collapsed). Body = ledger rows of that responder's fields. When it's the viewer's own open card, a primary button `השלמת הפרטים שלי` sits at the card footer, full-width on mobile.
+**Responder card** (inside event detail): header row = avatar (28 px) + name + callsign (mono, caption) + stamp + chevron at inline-end. Whole header toggles the body (`aria-expanded`). Collapsed by default except the viewer’s own כונן row (אחמ״ש / מנהל start all collapsed). Body = ledger rows of that responder's fields. When it's the viewer's own open card, a primary button `השלמת התיעוד שלי` sits at the card footer, full-width on mobile.
 
 ## Table (desktop manager layout only)
 

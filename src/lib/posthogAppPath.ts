@@ -43,11 +43,18 @@ export function appAnalyticsPath(input: AnalyticsPathInput): string | null {
 
   if (input.view === 'shifts' || input.view === 'my_shifts') {
     const root = input.view === 'my_shifts' ? '/my-shifts' : '/shifts'
+    let path = root
     if (input.shiftKind === 'form') {
-      return input.shiftId ? `${root}/${input.shiftId}/edit` : `${root}/new`
+      path = input.shiftId ? `${root}/${input.shiftId}/edit` : `${root}/new`
+    } else if (input.shiftKind === 'detail' && input.shiftId) {
+      path = `${root}/${input.shiftId}`
     }
-    if (input.shiftKind === 'detail' && input.shiftId) return `${root}/${input.shiftId}`
-    return root
+    if (input.eventKind && input.eventKind !== 'list' && input.eventId) {
+      if (input.eventKind === 'form') return `${path}/event/${input.eventId}/edit`
+      if (input.eventKind === 'fill') return `${path}/event/${input.eventId}/fill`
+      return `${path}/event/${input.eventId}`
+    }
+    return path
   }
 
   if (input.view === 'cockpit') {

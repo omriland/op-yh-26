@@ -46,7 +46,7 @@ describe('queryMatchesText EN layout', () => {
 
 describe('filterReportCatalog EN layout', () => {
   const kinds = [
-    { id: 'duplicate_events', title: 'אירועים כפולים', includes: 'כונן ומקום' },
+    { id: 'duplicate_events', title: 'אירועים כפולים', includes: 'מתנדב ומקום' },
     { id: 'km_exceptions', title: 'חריגי ק״מ', includes: '60 ק״מ' },
   ]
 

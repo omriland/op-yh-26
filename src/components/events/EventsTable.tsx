@@ -23,7 +23,7 @@ export function EventsTable({ events, onOpen }: EventsTableProps) {
             <th scope="col">סוג אירוע</th>
             <th scope="col">כביש / מיקום</th>
             <th scope="col">אחמ״ש</th>
-            <th scope="col">כוננים</th>
+            <th scope="col">מתנדבים</th>
             <th scope="col">סטטוס תיעוד</th>
           </tr>
         </thead>
@@ -63,7 +63,7 @@ export function EventsTable({ events, onOpen }: EventsTableProps) {
                     responders={event.responders.map((row) => ({
                       id: row.id,
                       status: row.status,
-                      name: row.profile?.full_name ?? row.profile?.callsign ?? 'כונן',
+                      name: row.profile?.full_name ?? row.profile?.callsign ?? 'מתנדב',
                     }))}
                   />
                 </td>

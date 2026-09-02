@@ -5,6 +5,11 @@ import {
   jsonResponse as json,
   runWithCors,
 } from "../_shared/cors.ts";
+import {
+  ANDROID_APP_DOWNLOAD_LABEL,
+  ANDROID_APP_DOWNLOAD_URL,
+  androidDownloadButtonHtml,
+} from "../_shared/email.ts";
 import { inviteExpiresAt, isInviteExpired } from "../_shared/inviteTtl.ts";
 
 type AppRole = "admin" | "shift_lead" | "responder";
@@ -922,6 +927,9 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
     "",
     "הקישור בתוקף ל־24 שעות.",
     "",
+    "אחרי השלמת הרישום אפשר להוריד את האפליקציה לטלפון:",
+    `${ANDROID_APP_DOWNLOAD_LABEL}: ${ANDROID_APP_DOWNLOAD_URL}`,
+    "",
     "אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה",
   ].join("\n");
 
@@ -959,7 +967,14 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
                       <p style="margin:0 0 16px;font-size:13px;color:#5B6F86;word-break:break-all;">
                         או להעתיק את הכתובת: ${actionLink}
                       </p>
-                      <p style="margin:0 0 16px;font-size:14px;color:#5B6F86;">הקישור בתוקף ל־24 שעות.</p>
+                      <p style="margin:0 0 20px;font-size:14px;color:#5B6F86;">הקישור בתוקף ל־24 שעות.</p>
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+                        <tr>
+                          <td style="border-top:1px solid #DDE4EB;font-size:0;line-height:0;height:1px;">&nbsp;</td>
+                        </tr>
+                      </table>
+                      <p style="margin:0 0 16px;">אחרי השלמת הרישום אפשר להוריד את האפליקציה לטלפון:</p>
+                      ${androidDownloadButtonHtml()}
                       <p style="margin:0;font-size:14px;color:#5B6F86;">אם לא ציפית להזמנה זו, ניתן להתעלם מההודעה</p>
                     </td>
                   </tr>

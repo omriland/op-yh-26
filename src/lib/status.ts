@@ -64,7 +64,7 @@ export function splitRespondersByParticipation(
   const draft: string[] = []
   const pending: string[] = []
   for (const row of responders) {
-    const name = row.name.trim() || 'כונן'
+    const name = row.name.trim() || 'מתנדב'
     if (row.status === 'done') done.push(name)
     else if (row.status === 'in_progress') draft.push(name)
     else pending.push(name)
@@ -92,14 +92,14 @@ export function participationStamp(status: ParticipationStatus, isViewer: boolea
   if (status === 'in_progress' && isViewer) {
     return { label: 'טיוטה נשמרה', tone: 'draft' }
   }
-  return { label: isViewer ? 'ממתין למילוי פרטים' : 'ממתין לכונן', tone: 'pending' }
+  return { label: isViewer ? 'ממתין לתיעוד' : 'ממתין למתנדב', tone: 'pending' }
 }
 
 /** Mine-list / own-card CTA after draft save vs first open. */
 export function mineFillCtaLabel(status: ParticipationStatus): string | null {
   if (status === 'done') return null
-  if (status === 'in_progress') return 'המשך מילוי הפרטים'
-  return 'השלמת הפרטים שלי'
+  if (status === 'in_progress') return 'המשך התיעוד'
+  return 'השלמת התיעוד שלי'
 }
 
 /**
@@ -114,7 +114,7 @@ export function viewerStamp(
     return { label: 'טיוטה נשמרה', tone: 'draft' }
   }
   if (ownParticipation && ownParticipation !== 'done') {
-    return { label: 'ממתין למילוי פרטים', tone: 'pending' }
+    return { label: 'ממתין לתיעוד', tone: 'pending' }
   }
   return eventStamp(status)
 }

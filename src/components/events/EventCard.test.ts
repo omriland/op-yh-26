@@ -30,7 +30,7 @@ function event(partial: Partial<EventListItem> = {}): EventListItem {
   }
 }
 
-const stamp = { label: 'ממתין למילוי פרטים', tone: 'pending' as const }
+const stamp = { label: 'ממתין לתיעוד', tone: 'pending' as const }
 
 describe('EventCard inbox mode', () => {
   it('keeps the fill CTA and opens detail from the card body', () => {
@@ -42,12 +42,12 @@ describe('EventCard inbox mode', () => {
         stamp,
         onOpen: (id) => opened.push(id),
         onFill: (id) => filled.push(id),
-        fillLabel: 'השלמת הפרטים שלי',
+        fillLabel: 'השלמת התיעוד שלי',
         mode: 'inbox',
       }),
     )
 
-    expect(html).toContain('השלמת הפרטים שלי')
+    expect(html).toContain('השלמת התיעוד שלי')
     expect(html).toContain('event-card')
     expect(html).not.toContain('פרטי האירוע')
     expect(opened).toEqual([])
@@ -61,7 +61,7 @@ describe('EventCard inbox mode', () => {
         stamp,
         onOpen: () => undefined,
         onFill: () => undefined,
-        fillLabel: 'השלמת הפרטים שלי',
+        fillLabel: 'השלמת התיעוד שלי',
         mode: 'inbox',
       }),
     )
@@ -76,7 +76,7 @@ describe('EventCard inbox mode', () => {
         stamp,
         onOpen: () => undefined,
         onFill: () => undefined,
-        fillLabel: 'השלמת הפרטים שלי',
+        fillLabel: 'השלמת התיעוד שלי',
         mode: 'inbox',
       }),
     )
@@ -91,7 +91,7 @@ describe('EventCard inbox mode', () => {
         stamp,
         onOpen: () => undefined,
         onFill: () => undefined,
-        fillLabel: 'השלמת הפרטים שלי',
+        fillLabel: 'השלמת התיעוד שלי',
         mode: 'inbox',
         overdue: true,
       }),
@@ -114,7 +114,7 @@ describe('EventCard inbox mode', () => {
         stamp,
         onOpen: () => undefined,
         onFill: () => undefined,
-        fillLabel: 'השלמת הפרטים שלי',
+        fillLabel: 'השלמת התיעוד שלי',
         mode: 'inbox',
         overdue: true,
       }),
@@ -132,7 +132,7 @@ describe('EventCard inbox mode', () => {
         stamp,
         onOpen: () => undefined,
         onFill: () => undefined,
-        fillLabel: 'השלמת הפרטים שלי',
+        fillLabel: 'השלמת התיעוד שלי',
         mode: 'inbox',
       }),
     )
@@ -148,7 +148,7 @@ describe('EventCard inbox mode', () => {
         stamp,
         onOpen: () => undefined,
         onFill: () => undefined,
-        fillLabel: 'השלמת הפרטים שלי',
+        fillLabel: 'השלמת התיעוד שלי',
         mode: 'inbox',
       }),
     )

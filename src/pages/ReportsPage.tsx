@@ -66,7 +66,7 @@ export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="חיפוש לפי שם דוח או תיאור"
+                placeholder="שם דוח או תיאור"
               />
             </label>
           </div>

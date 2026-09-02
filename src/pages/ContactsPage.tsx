@@ -58,7 +58,7 @@ export function ContactsPage() {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="חיפוש לפי שם, או״ק, טלפון או דוא״ל"
+            placeholder="שם, או״ק, טלפון או דוא״ל"
           />
         </label>
       </div>

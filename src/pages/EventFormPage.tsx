@@ -13,6 +13,7 @@ import {
   hasEventMinimum,
   isAbandonedEmptyEventDraft,
   isOvernightEnd,
+  isSelfAssignDisabledInPicker,
   mergeAssignmentIds,
   NO_VEHICLE_KM_PLACEHOLDER,
   registerAbandonedEmptyEventHandler,
@@ -91,6 +92,8 @@ type EventFormPageProps = {
   onPersisted?: (eventId: string) => void
   /** Cockpit map drop — apply a shift-lead pin without changing כביש / מיקום text. */
   locationPinDrop?: { eventId: string; lat: number; lng: number; nonce: number } | null
+  /** Create session: show the current user in the picker but do not allow self-assign. */
+  blockSelfAssign?: boolean
 }
 
 type SavePulse = 'idle' | 'saving' | 'saved' | 'error'
@@ -112,12 +115,14 @@ export function EventFormPage({
   onEventId,
   onPersisted,
   locationPinDrop,
+  blockSelfAssign: blockSelfAssignProp,
 }: EventFormPageProps) {
   const { user, profile, roles } = useAuth()
   const { show } = useToast()
   const isDesktop = useIsDesktop()
   const isAdmin = roles.includes('admin')
   const canManage = isAdmin || roles.includes('shift_lead')
+  const [blockSelfAssign] = useState(() => blockSelfAssignProp ?? !eventId)
   const phoneLayout = variant !== 'cockpit' && !isDesktop
   const assignSearchRef = useRef<HTMLInputElement>(null)
   const assignSectionRef = useRef<HTMLDivElement>(null)
@@ -213,6 +218,12 @@ export function EventFormPage({
         ) {
           if (stashed.id && !eventId) skipReloadForId.current = stashed.id
           nextDraft = stashed
+        }
+        if (blockSelfAssign && user) {
+          nextDraft = {
+            ...nextDraft,
+            responders: nextDraft.responders.filter((row) => row.responder_id !== user.id),
+          }
         }
         if (focusResponderId) {
           nextDraft = {
@@ -351,7 +362,7 @@ export function EventFormPage({
         setSavePulse('idle')
         return true
       }
-      // Autosave often already flushed (e.g. after הקצאת כונן). Explicit
+      // Autosave often already flushed (e.g. after הקצאת מתנדב). Explicit
       // שמירת אירוע must still confirm + leave the form.
       if (snapshot === baselineRef.current && current.id) {
         if (options?.navigate || options?.createNew) {
@@ -411,6 +422,7 @@ export function EventFormPage({
         isAdmin,
         previousIsCancelled,
         allowPartial,
+        blockSelfAssign,
       })
 
       if (!result.ok) {
@@ -600,6 +612,7 @@ export function EventFormPage({
 
   function assignResponder(person: AssignableUser) {
     if (!lookups || !draft) return
+    if (isSelfAssignDisabledInPicker(blockSelfAssign, user?.id, person.id)) return
     if (variant !== 'cockpit' && !hasEventMinimum(draft, lookups.districts, lookups.roads)) {
       void persistLatest({ revealErrors: true })
       return
@@ -635,7 +648,7 @@ export function EventFormPage({
     setPickerOpen(false)
     if (phoneLayout) setSheetResponderKey(next.responders[next.responders.length - 1]?.key ?? null)
     void persistLatest({ revealErrors: true }).then((ok) => {
-      if (ok) show('הכונן נוסף לאירוע', 'done')
+      if (ok) show('המתנדב נוסף לאירוע', 'done')
     })
   }
 
@@ -822,6 +835,28 @@ export function EventFormPage({
     }
   }, [user])
 
+  useEffect(() => {
+    if (!pickerOpen) return
+
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (assignSectionRef.current?.contains(target)) return
+      setPickerOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setPickerOpen(false)
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [pickerOpen])
+
   if (!canManage || loadState === 'denied') {
     return (
       <EmptyState
@@ -881,7 +916,7 @@ export function EventFormPage({
                 ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור את האירוע.'
                 : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור את האירוע.'
               : displayStatus === 'draft'
-                ? 'נשמר כאירוע בהזנה עד שישובץ כונן.'
+                ? 'נשמר כאירוע בהזנה עד שישובץ מתנדב.'
                 : 'השינויים נשמרים אוטומטית.'
 
   return (
@@ -1216,17 +1251,17 @@ export function EventFormPage({
           <section className="form-section">
             <h2 className={phoneLayout ? 'visually-hidden' : 'form-section__heading'}>
               <span className="form-section__counter">חלק ב׳</span>
-              <span>כוננים</span>
+              <span>מתנדבים</span>
             </h2>
             <div className="form-section__fields">
               <div className="responder-assign" ref={assignSectionRef}>
                 <div className="responder-assign__toolbar">
                   <p className="t-label text-secondary">
                     {draft.responders.length === 0
-                      ? 'טרם הוקצו כוננים · אירוע בהזנה'
+                      ? 'טרם הוקצו מתנדבים · אירוע בהזנה'
                       : draft.responders.length === 1
-                        ? 'כונן אחד משובץ'
-                        : `${draft.responders.length} כוננים משובצים`}
+                        ? 'מתנדב אחד משובץ'
+                        : `${draft.responders.length} מתנדבים משובצים`}
                   </p>
                   <Button
                     variant={phoneLayout ? 'ghost' : 'secondary'}
@@ -1239,10 +1274,10 @@ export function EventFormPage({
                 </div>
 
                 {pickerOpen ? (
-                  <div className="responder-picker__panel" role="listbox" aria-label="בחירת כוננים">
+                  <div className="responder-picker__panel" role="listbox" aria-label="בחירת מתנדבים">
                     <label className="search-field">
                       <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-                      <span className="visually-hidden">חיפוש כוננים</span>
+                      <span className="visually-hidden">חיפוש מתנדבים</span>
                       <input
                         ref={assignSearchRef}
                         value={pickerQuery}
@@ -1255,28 +1290,46 @@ export function EventFormPage({
                         <li className="responder-picker__empty t-caption text-muted">
                           {roster.length === 0
                             ? 'אין משתמשים פעילים להקצאה.'
-                            : 'לא נמצאו כוננים להקצאה'}
+                            : 'לא נמצאו מתנדבים להקצאה'}
                         </li>
                       ) : (
-                        pickerOptions.map((person) => (
-                          <li key={person.id}>
-                            <button
-                              type="button"
-                              className="responder-picker__option"
-                              onClick={() => assignResponder(person)}
-                            >
-                              <Avatar name={person.full_name} />
-                              <span className="responder-picker__meta">
-                                <span className="t-body-strong">{person.full_name}</span>
-                                <span className="t-caption text-muted">
-                                  או״ק{' '}
-                                  <span className={monoClass(person.callsign)}>{person.callsign}</span>
+                        pickerOptions.map((person) => {
+                          const selfDisabled = isSelfAssignDisabledInPicker(
+                            blockSelfAssign,
+                            user?.id,
+                            person.id,
+                          )
+                          return (
+                            <li key={person.id}>
+                              <button
+                                type="button"
+                                className={[
+                                  'responder-picker__option',
+                                  selfDisabled ? 'responder-picker__option--disabled' : '',
+                                ]
+                                  .filter(Boolean)
+                                  .join(' ')}
+                                disabled={selfDisabled}
+                                aria-disabled={selfDisabled || undefined}
+                                onClick={() => assignResponder(person)}
+                              >
+                                <Avatar name={person.full_name} />
+                                <span className="responder-picker__meta">
+                                  <span className="t-body-strong">{person.full_name}</span>
+                                  <span className="t-caption text-muted">
+                                    או״ק{' '}
+                                    <span className={monoClass(person.callsign)}>
+                                      {person.callsign}
+                                    </span>
+                                  </span>
                                 </span>
-                              </span>
-                              <span className="responder-picker__add t-caption">הוספה</span>
-                            </button>
-                          </li>
-                        ))
+                                <span className="responder-picker__add t-caption">
+                                  {selfDisabled ? 'לא ניתן לשבץ' : 'הוספה'}
+                                </span>
+                              </button>
+                            </li>
+                          )
+                        })
                       )}
                     </ul>
                   </div>
@@ -1286,7 +1339,7 @@ export function EventFormPage({
               {draft.responders.length === 0 ? (
                 <div className="assignment-empty">
                   <p className="t-body text-secondary">
-                    בלי כונן משובץ האירוע נשאר בהזנה ואינו מוצג לכוננים.
+                    בלי מתנדב משובץ האירוע נשאר בהזנה ואינו מוצג למתנדבים.
                   </p>
                   {!pickerOpen && !phoneLayout ? (
                     <Button variant="ghost" onClick={openAssigner}>
@@ -1372,6 +1425,7 @@ export function EventFormPage({
                                       ? `${treatedTotal} רכבים`
                                       : 'ללא רכבים'}
                                     {responder.emergency_means ? ' · אמצעים' : ''}
+                                    {draft.bus_lane ? ' · נת״צ' : ''}
                                   </>
                                 ) : null}
                               </span>
@@ -1388,7 +1442,7 @@ export function EventFormPage({
                             />
                           </button>
                           <IconButton
-                            label="הסרת כונן"
+                            label="הסרת מתנדב"
                             onClick={() => requestRemove(responder)}
                           >
                             <Trash2 size={20} strokeWidth={1.75} />
@@ -1412,6 +1466,11 @@ export function EventFormPage({
                               }
                               onToggleMeans={(emergency_means) => {
                                 updateResponder(responder.key, { emergency_means })
+                                queueMicrotask(() => void persistLatest())
+                              }}
+                              busLane={draft.bus_lane}
+                              onToggleBusLane={(bus_lane) => {
+                                updateDraft({ bus_lane })
                                 queueMicrotask(() => void persistLatest())
                               }}
                               onPersist={() => void persistLatest()}
@@ -1499,7 +1558,7 @@ export function EventFormPage({
 
       <Dialog
         open={Boolean(removeTarget)}
-        title="הסרת כונן"
+        title="הסרת מתנדב"
         onClose={() => setRemoveTarget(null)}
         footer={
           <>
@@ -1517,7 +1576,7 @@ export function EventFormPage({
           </>
         }
       >
-        <p className="t-body">להסיר את הכונן? הנתונים שמילא יימחקו.</p>
+        <p className="t-body">להסיר את המתנדב? הנתונים שמילא יימחקו.</p>
       </Dialog>
 
       <Dialog
@@ -1556,7 +1615,7 @@ export function EventFormPage({
 
       <Dialog
         open={Boolean(sheetResponder)}
-        title={sheetResponder?.full_name ?? 'כונן'}
+        title={sheetResponder?.full_name ?? 'מתנדב'}
         onClose={() => setSheetResponderKey(null)}
         form
         footer={
@@ -1580,6 +1639,11 @@ export function EventFormPage({
               updateResponder(sheetResponder.key, { emergency_means })
               queueMicrotask(() => void persistLatest())
             }}
+            busLane={draft.bus_lane}
+            onToggleBusLane={(bus_lane) => {
+              updateDraft({ bus_lane })
+              queueMicrotask(() => void persistLatest())
+            }}
             onPersist={() => void persistLatest()}
             onBumpTreated={(kindId, delta) => bumpTreated(sheetResponder.key, kindId, delta)}
           />
@@ -1598,6 +1662,8 @@ function ResponderLeadFields({
   onChangeEnd,
   onChangeKm,
   onToggleMeans,
+  busLane,
+  onToggleBusLane,
   onPersist,
   onBumpTreated,
 }: {
@@ -1609,6 +1675,8 @@ function ResponderLeadFields({
   onChangeEnd: (value: string) => void
   onChangeKm: (value: string) => void
   onToggleMeans: (value: boolean) => void
+  busLane: boolean
+  onToggleBusLane: (value: boolean) => void
   onPersist: () => void
   onBumpTreated: (kindId: string, delta: number) => void
 }) {
@@ -1638,6 +1706,11 @@ function ResponderLeadFields({
         label="אמצעים"
         checked={responder.emergency_means}
         onChange={onToggleMeans}
+      />
+      <Toggle
+        label="נת״צ"
+        checked={busLane}
+        onChange={onToggleBusLane}
       />
       <div className="assignment-card__treated">
         <p className="t-label text-secondary">רכבים שטופלו</p>

@@ -84,7 +84,7 @@ export function FuelRefundPage() {
           <h1 className="t-title">טבלה מסכמת</h1>
           <p className="t-caption text-muted">
             {segment === 'summary'
-              ? 'סיכום קילומטרים לפי כונן לפי תאריך דיווח האירוע'
+              ? 'סיכום קילומטרים לפי מתנדב לפי תאריך דיווח האירוע'
               : 'פירוט אירועים לפי תאריך דיווח — שורה לכל השתתפות עם ק״מ'}
           </p>
         </div>
@@ -170,7 +170,7 @@ export function FuelRefundPage() {
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">כונן</th>
+                <th scope="col">מתנדב</th>
                 <th scope="col">קילומטרים</th>
                 <th scope="col">אירועים</th>
               </tr>
@@ -219,7 +219,7 @@ export function FuelRefundPage() {
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">כונן</th>
+                <th scope="col">מתנדב</th>
                 <th scope="col">תאריך</th>
                 <th scope="col">שעה</th>
                 <th scope="col">מיקום</th>

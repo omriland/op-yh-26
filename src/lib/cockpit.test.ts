@@ -95,6 +95,7 @@ describe('isAbandonedEmptyCockpitItem', () => {
   it('is false once type, road, location, or a כונן exists', () => {
     expect(isAbandonedEmptyCockpitItem({ ...blank, event_type: { name: 'תקוע' } })).toBe(false)
     expect(isAbandonedEmptyCockpitItem({ ...blank, responders: [{}] })).toBe(false)
+    expect(isAbandonedEmptyCockpitItem({ ...blank, bus_lane: true })).toBe(false)
   })
 })
 
@@ -129,9 +130,23 @@ describe('cockpit reel details', () => {
       }),
     ).toBeNull()
     expect(cockpitDeleteHint('responders')).toBe(
-      'יש כוננים משובצים. הסירו אותם תחילה.',
+      'יש מתנדבים משובצים. הסירו אותם תחילה.',
     )
     expect(cockpitDeleteHint('confirm')).toBe('לחצו שוב למחיקה.')
+  })
+
+  it('blocks an אחמ״ש from deleting another lead\'s event', () => {
+    const other = { responders: [], shift_lead_id: 'lead-b' }
+    const leadViewer = { userId: 'lead-a', isAdmin: false }
+    expect(cockpitDeleteBlock(other, leadViewer)).toBe('other_lead')
+    expect(canDeleteCockpitDraft(other, leadViewer)).toBe(false)
+    expect(canDeleteCockpitDraft({ responders: [], shift_lead_id: 'lead-a' }, leadViewer)).toBe(
+      true,
+    )
+    expect(canDeleteCockpitDraft(other, { userId: 'admin', isAdmin: true })).toBe(true)
+    expect(cockpitDeleteHint('other_lead')).toBe(
+      'אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.',
+    )
   })
 
   it('returns אחמ״ש name and callsign when present', () => {

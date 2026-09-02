@@ -56,7 +56,7 @@ export function FuelUsagePanel() {
     downloadCsv(
       'שימוש-דלק.csv',
       toCsv(
-        ['כונן', 'קילומטרים', 'אירועים', 'ליטרים'],
+        ['מתנדב', 'קילומטרים', 'אירועים', 'ליטרים'],
         filtered.map((row) => [
           [row.full_name, row.callsign].filter(Boolean).join(' · '),
           formatNumber(row.total_km),
@@ -132,7 +132,7 @@ export function FuelUsagePanel() {
           <p className="t-caption text-muted">
             סה״כ <span className="mono">{formatNumber(totals.totalKm)}</span> ק״מ ·{' '}
             <span className="mono">{formatLiters(totals.totalKm)}</span> ל׳ ·{' '}
-            <span className="mono">{formatNumber(totals.withKm)}</span> כוננים עם ק״מ
+            <span className="mono">{formatNumber(totals.withKm)}</span> מתנדבים עם ק״מ
           </p>
 
           {isDesktop ? (
@@ -140,7 +140,7 @@ export function FuelUsagePanel() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th scope="col">כונן</th>
+                    <th scope="col">מתנדב</th>
                     <th scope="col">קילומטרים</th>
                     <th scope="col">אירועים</th>
                     <th scope="col">ליטרים</th>

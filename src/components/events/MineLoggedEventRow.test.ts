@@ -44,7 +44,7 @@ describe('MineLoggedEventRow', () => {
     expect(html).toContain('כביש 6 · מחלף אייל')
     expect(html).toContain('הושלם')
     expect(html).toContain('12345')
-    expect(html).not.toContain('השלמת הפרטים שלי')
+    expect(html).not.toContain('השלמת התיעוד שלי')
     expect(html).not.toContain('פרטי האירוע')
     expect(html).toContain('list-rows__item')
   })

@@ -12,6 +12,15 @@
         ],
         "createdAt": "2026-08-24T07:30:06.114Z",
         "reason": "Email HTML uses Arial for client compatibility; existing אבן דרך transactional shell."
+      },
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "files": [
+          "supabase/functions/_shared/email.ts"
+        ],
+        "createdAt": "2026-09-02T05:36:37.525Z",
+        "reason": "Email-client-safe stack already used in אבן דרך transactional mail; web fonts do not load reliably in Gmail/Outlook"
       }
     ]
   }

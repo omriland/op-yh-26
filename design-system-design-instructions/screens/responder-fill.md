@@ -1,4 +1,4 @@
-# Screen — My Events & Complete My Section (האירועים שלי · השלמת הפרטים שלי)
+# Screen — My Events & Complete My Section (האירועים שלי · השלמת התיעוד שלי)
 
 The responder's world. Optimized for one job: finish your part of the record, often later, from a phone. Always **Field** theme — this is the daylight document surface, on every device width.
 
@@ -9,14 +9,14 @@ Same event-card list component as `event-list.md`, filtered to the viewer's assi
 - Tabs under the header (`role="tablist"`, chip chrome): `ממתינים לתיעוד` (open count as plain text after the label when count > 0, e.g. `ממתינים לתיעוד 3` — not a stamp) · `תועדו`. Default tab: `ממתינים לתיעוד`.
 - Desktop: insight strip at top (accent rail + subtle tint): loud mono open-count only (no caption under the digit) + eyebrow `האירועים שלי` + `שלום, {first name}` + sentence `יש לך N אירועים לתעד.` (zero → `אין אירועים שממתינים לתיעוד.`). When open count ≥ 3, add note `שימו לב! אירועים שלא תועדו במלואם לא נכללים בהחזר הדלק הרבעוני`. Tabs sit under the strip.
 - Mobile: no insight strip (too tall). Compact page title `האירועים שלי` + the same summary sentence + the fuel note when count ≥ 3. Tabs sit under that.
-- **ממתינים לתיעוד:** raised event cards only. Card tap and stamp open event detail. Primary `השלמת הפרטים שלי` / `המשך מילוי הפרטים` open fill (`returnTo: 'list'`). Meta line is date · מספר אירוע (no שלוחה). Standalone / regular cards (`origin = manual`) carry a 3px `--accent` rail on inline-start plus `--accent-subtle` wash so they scan apart from shift-born cards — not green, not a new hue. **Overdue (web):** 48 hours after קילומטרים, that origin rail is replaced by `--status-alert` rail + `--status-alert-tint`; a sand-watch (`Hourglass`) sits inline-start of the event type on the same row; hover tip uses that same tint and reads `אירוע ממתין לתיעוד מעל ל־48 שעות`; shift-born overdue cards get the same red mark. Stamp stays `ממתין למילוי פרטים` / `טיוטה נשמרה`.
+- **ממתינים לתיעוד:** raised event cards only. Card tap and stamp open event detail. Primary `השלמת התיעוד שלי` / `המשך התיעוד` open fill (`returnTo: 'list'`). Meta line is date · מספר אירוע (no שלוחה). Standalone / regular cards (`origin = manual`) carry a 3px `--accent` rail on inline-start plus `--accent-subtle` wash so they scan apart from shift-born cards — not green, not a new hue. **Overdue (web):** 48 hours after קילומטרים, that origin rail is replaced by `--status-alert` rail + `--status-alert-tint`; a sand-watch (`Hourglass`) sits inline-start of the event type on the same row; hover tip uses that same tint and reads `אירוע ממתין לתיעוד מעל ל־48 שעות`; shift-born overdue cards get the same red mark. Stamp stays `ממתין לתיעוד` / `טיוטה נשמרה`.
 - Shift-born events on `ממתינים לתיעוד` group under a shift **subheader** (`משמרת` · date · שם משמרת · רכב) — heading + whitespace, never a card wrapping cards. Caption is the open count (`2 לתעד` / `אירוע אחד לתעד`). The group starts **open** when it has items to log. Shift-born type still shows `(משמרת)` in brackets next to the event type. No origin rail or wash on those cards.
 - **תועדו:** stacked list in one `list-rows` container (hairline dividers, not faded cards). Row tap → detail. No fill CTA. Search field (`חיפוש לפי מספר אירוע, כביש, מיקום`) filters the loaded window. Caption `תועדו · 30 יום אחרונים`. Secondary `הצג 30 יום נוספים` loads another 30-day window.
 - Empty `ממתינים לתיעוד`: empty-state icon + `אין אירועים שממתינים לתיעוד.` + caption `אירוע חדש יופיע כאן כשישויך אליך.` If the archive has rows (or more windows exist), ghost `לצפייה באירועים שתועדו`. No celebration copy, no exclamation.
 - Empty `תועדו` (no query): `אין אירועים שתועדו בתקופה זו`. Search miss: `אין אירועים שתועדו התואמים ל־“{query}”` + ghost `ניקוי חיפוש`.
 - Desktop responder-only: same list centered, max-width 720. No table view — this surface stays personal, not managerial.
 
-## השלמת הפרטים שלי (fill flow)
+## השלמת התיעוד שלי (fill flow)
 
 Entry: from the card fill button or from the responder's own card on event detail.
 
@@ -30,7 +30,7 @@ Entry: from the card fill button or from the responder's own card on event detai
 | לוחית רישוי | select | Options = vehicles linked to this user only (plate · model). Not free-text. Prefill when exactly one vehicle. Empty roster → helper to contact admin. |
 | מד אוץ התחלה | numeric, mono | |
 | מד אוץ סיום | numeric, mono | must be ≥ מד אוץ התחלה — error: `מד אוץ סיום חייב להיות גדול ממד אוץ התחלה` |
-| נתיב נסיעה | text | placeholder `דרך צומת X וכביש Y וכו'` |
+| נתיב נסיעה | textarea | placeholder `דרך צומת X וכביש Y וכו'` |
 | פירוט הטיפול | textarea | the main narrative field — min-height 120 |
 | מספרי כלי רכב | repeating | Optional. After פירוט הטיפול, before הערות. Compose placeholder `xx-xxx-xx` (7/8 digits) + `הוספה` (same 44px height as input, stays aligned with the input when the field shows an error under it); committed rows = Israeli plate mark + details slot (pending: skeleton; ready: logo + model · color; failed: small alert icon + hover tip `לא הצלחנו לייבא את פרטי הרכב`) + optional short `איפה הרכב הושאר` (`left_where`) before remove; leftover pending digits on `סיום דיווח` → `השלימו או מחקו את המספר בתחתית.` Read-only done: ledger value = `TreatedPlateStack` (empty → `—`). |
 | מדיה | media annex | After plates, before הערות. Not required. Images only; required select `מתי צולמה` (`לפני הטיפול` · `במהלך/לאחר הטיפול`); optional plates (multi-select) + caption. Car select shows logo + plate + model/color. Writable for assigned responders after `סיום דיווח`. Absent on the email fill-link. Leftover drafts missing when-taken on complete → `בחרו מתי צולמה כל תמונה.` Cap 20. See `06-components.md` Media annex. |

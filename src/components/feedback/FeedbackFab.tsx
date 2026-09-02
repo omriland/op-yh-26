@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MessageSquarePlus, Mic, Square, Trash2 } from 'lucide-react'
+import { ImagePlus, MessageSquarePlus, Mic, Square, Trash2 } from 'lucide-react'
 import { Button, IconButton } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
 import { TextAreaField } from '../ui/TextAreaField'
@@ -10,8 +10,11 @@ import {
   shouldAutoStopRecording,
 } from '../../lib/feedbackRecorder'
 import {
+  FEEDBACK_ATTACH_HINT,
+  FEEDBACK_ATTACH_MAX,
   FEEDBACK_KIND_LABEL,
   FEEDBACK_RECORD_MAX_SECONDS,
+  addFeedbackAttachments,
   feedbackSubmitError,
   formatRecordSeconds,
   submitUserFeedback,
@@ -29,14 +32,17 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
   const [kind, setKind] = useState<FeedbackKind | null>(null)
   const [body, setBody] = useState('')
   const [error, setError] = useState<string>()
+  const [attachError, setAttachError] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [audio, setAudio] = useState<Blob | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     return () => {
@@ -60,12 +66,15 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
     setKind(null)
     setBody('')
     setError(undefined)
+    setAttachError(undefined)
     setBusy(false)
     setRecording(false)
     setElapsed(0)
     setAudio(null)
     if (audioUrl) URL.revokeObjectURL(audioUrl)
     setAudioUrl(null)
+    setFiles([])
+    if (fileInputRef.current) fileInputRef.current.value = ''
     chunksRef.current = []
     stopMediaStream(streamRef.current)
     streamRef.current = null
@@ -145,6 +154,7 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
       body,
       pagePath,
       audio,
+      files,
     })
     setBusy(false)
     if (!result.ok) {
@@ -217,7 +227,7 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
           </fieldset>
           <TextAreaField
             label="הערה"
-            hint="אפשר לכתוב, להקליט, או את שניהם."
+            hint="אפשר לכתוב, להקליט, לצרף קבצים, או לשלב."
             placeholder="למשל: אחרי שמירה המסך נשאר ריק"
             rows={4}
             maxLength={2000}
@@ -261,6 +271,69 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
               </Button>
             )}
           </div>
+          <fieldset className="field">
+            <legend className="field__label">קבצים</legend>
+            {attachError ? (
+              <p className="field__hint field__hint--error" role="alert">
+                {attachError}
+              </p>
+            ) : (
+              <p className="field__hint">{FEEDBACK_ATTACH_HINT}</p>
+            )}
+            {files.length > 0 ? (
+              <ul className="feedback-attach__list">
+                {files.map((file, index) => (
+                  <li key={`${file.name}-${file.size}-${index}`} className="feedback-attach__row">
+                    <span className="t-body feedback-attach__name" dir="ltr">
+                      {file.name}
+                    </span>
+                    <IconButton
+                      label="הסרת קובץ"
+                      variant="ghost"
+                      disabled={busy || recording}
+                      onClick={() => {
+                        setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                        setAttachError(undefined)
+                      }}
+                    >
+                      <Trash2 size={20} strokeWidth={1.75} aria-hidden="true" />
+                    </IconButton>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {files.length < FEEDBACK_ATTACH_MAX ? (
+              <div className="feedback-attach">
+                <input
+                  ref={fileInputRef}
+                  className="visually-hidden"
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  disabled={busy || recording}
+                  onChange={(event) => {
+                    const picked = Array.from(event.target.files ?? [])
+                    event.target.value = ''
+                    if (picked.length === 0) return
+                    const result = addFeedbackAttachments(files, picked)
+                    setFiles(result.files)
+                    setAttachError(result.error)
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={busy || recording}
+                  icon={<ImagePlus size={20} strokeWidth={1.75} aria-hidden="true" />}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  צירוף קובץ
+                </Button>
+              </div>
+            ) : null}
+          </fieldset>
         </div>
       </Dialog>
     </>

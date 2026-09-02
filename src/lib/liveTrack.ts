@@ -131,7 +131,7 @@ export function shouldEmitPing(last: LatLngAt | null, next: LatLngAt): boolean {
 
 export function livePinLabel(person: { callsign: string | null; fullName: string }): string {
   const callsign = person.callsign?.trim()
-  const who = callsign || person.fullName.trim() || 'כונן'
+  const who = callsign || person.fullName.trim() || 'מתנדב'
   return `${who} · בדרך`
 }
 

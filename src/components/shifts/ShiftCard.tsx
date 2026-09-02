@@ -75,7 +75,7 @@ export function ShiftCard({
               {kindLabel} · {vehicleLabel}
             </span>
             <span className="t-body text-secondary">
-              {responderCount} כוננים · {eventCount} אירועים
+              {responderCount} מתנדבים · {eventCount} אירועים
             </span>
             <span className="event-card__meta">
               <span className="mono">{formatDate(shift.shift_date)}</span>

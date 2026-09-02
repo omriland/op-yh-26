@@ -71,7 +71,7 @@ describe('parseRolePreviewRole', () => {
 
 describe('rolePreviewLabel', () => {
   it('uses the same Hebrew role names as the rest of the app', () => {
-    expect(rolePreviewLabel('responder')).toBe('כונן')
+    expect(rolePreviewLabel('responder')).toBe('מתנדב')
     expect(rolePreviewLabel('shift_lead')).toBe('אחמ״ש')
     expect(rolePreviewLabel('admin')).toBe('מנהל')
   })

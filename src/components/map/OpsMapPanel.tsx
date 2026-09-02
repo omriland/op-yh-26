@@ -269,20 +269,20 @@ function NearbyRespondersList({
   onFocus: (userId: string) => void
 }) {
   return (
-    <section className="user-map-nearby" aria-label="כוננים קרובים">
+    <section className="user-map-nearby" aria-label="מתנדבים קרובים">
       <div className="form-section">
-        <h2 className="form-section__heading">כוננים קרובים</h2>
+        <h2 className="form-section__heading">מתנדבים קרובים</h2>
       </div>
       <p className="t-caption text-muted">{origin.location}</p>
       <p className="t-caption text-muted">
-        כוננים בטווח {formatMapDistanceKm(SEARCH_VIEW_RADIUS_KM)}, לפי הכתובת הקרובה ביותר. לחצו על
-        כונן כדי למקד את המפה.
+        מתנדבים בטווח {formatMapDistanceKm(SEARCH_VIEW_RADIUS_KM)}, לפי הכתובת הקרובה ביותר. לחצו על
+        מתנדב כדי למקד את המפה.
       </p>
       {rows.length === 0 ? (
         <p className="t-body text-muted">
           {hasPins
-            ? `אין כוננים בטווח ${formatMapDistanceKm(SEARCH_VIEW_RADIUS_KM)}.`
-            : 'אין כתובות כוננים להשוואה.'}
+            ? `אין מתנדבים בטווח ${formatMapDistanceKm(SEARCH_VIEW_RADIUS_KM)}.`
+            : 'אין כתובות מתנדבים להשוואה.'}
         </p>
       ) : (
         <ol className="user-map-nearby__list">

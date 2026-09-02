@@ -412,7 +412,7 @@ export function ResponderFillPage({
           </button>
           <div className="event-form__title-row">
             <div className="event-form__title-block">
-              <h1 className="t-title">השלמת הפרטים שלי</h1>
+              <h1 className="t-title">השלמת התיעוד שלי</h1>
               {readOnly ? (
                 <p className="t-caption text-muted">
                   {ctx.updated_at
@@ -574,12 +574,13 @@ export function ResponderFillPage({
                   }
                   onBlur={checkOdometerRange}
                 />
-                <TextField
+                <TextAreaField
                   label="נתיב נסיעה"
                   required
                   value={draft.route}
                   error={errors.route}
                   placeholder="דרך צומת X וכביש Y וכו'"
+                  rows={4}
                   onChange={(event) => {
                     patchDraft({ route: event.target.value })
                     setErrors((current) => ({ ...current, route: undefined }))

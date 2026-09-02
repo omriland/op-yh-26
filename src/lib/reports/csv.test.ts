@@ -3,7 +3,7 @@ import { csvWithBom, toCsv } from './csv'
 
 describe('toCsv', () => {
   it('joins headers and rows with commas', () => {
-    expect(toCsv(['כונן', 'ק״מ'], [['עמרי', '12']])).toBe('כונן,ק״מ\r\nעמרי,12')
+    expect(toCsv(['מתנדב', 'ק״מ'], [['עמרי', '12']])).toBe('מתנדב,ק״מ\r\nעמרי,12')
   })
 
   it('quotes cells that contain commas, quotes, or newlines', () => {

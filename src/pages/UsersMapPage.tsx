@@ -6,7 +6,7 @@ export function UsersMapPage() {
       <div>
         <h1 className="t-title">מפה</h1>
         <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
-          חפשו כתובת כדי לראות מי הכוננים הקרובים. כל סיכה היא כתובת אחת של משתמש פעיל.
+          חפשו כתובת כדי לראות מי המתנדבים הקרובים. כל סיכה היא כתובת אחת של משתמש פעיל.
         </p>
       </div>
       <OpsMapPanel />

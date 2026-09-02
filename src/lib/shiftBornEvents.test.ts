@@ -48,7 +48,7 @@ describe('shiftBornFillStamp', () => {
 
   it('marks empty open events as waiting for details', () => {
     expect(shiftBornFillStamp(snapshot())).toEqual({
-      label: 'ממתין למילוי פרטים',
+      label: 'ממתין לתיעוד',
       tone: 'draft',
     })
   })

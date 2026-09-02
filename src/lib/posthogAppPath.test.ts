@@ -71,6 +71,17 @@ describe('appAnalyticsPath', () => {
       appAnalyticsPath({
         signedIn: true,
         otp: 'ok',
+        view: 'shifts',
+        shiftKind: 'detail',
+        shiftId: 'sh-1',
+        eventKind: 'detail',
+        eventId: 'evt-2',
+      }),
+    ).toBe('/shifts/sh-1/event/evt-2')
+    expect(
+      appAnalyticsPath({
+        signedIn: true,
+        otp: 'ok',
         oauthAuthorize: true,
         view: 'mine',
       }),

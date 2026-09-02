@@ -139,7 +139,7 @@ function KmExceptionsTable({
         <thead>
           <tr>
             <th scope="col">תאריך</th>
-            <th scope="col">כונן</th>
+            <th scope="col">מתנדב</th>
             <th scope="col">ק״מ</th>
             <th scope="col">סוג אירוע</th>
             <th scope="col">כביש / מיקום</th>

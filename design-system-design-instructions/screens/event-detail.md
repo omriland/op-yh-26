@@ -22,7 +22,7 @@ The record itself. This screen is where the document metaphor is strongest: an e
 
 Card with form-section heading `פרטי האירוע` sitting on its rule. Content = **ledger rows** (dl/dt/dd):
 
-`אחמ״ש` · `תאריך` · `מספר אירוע` (mono) · `שלוחה` · `או״ק ניידת` (mono) · `סוג אירוע` · `כביש` · `מיקום` · `הערות` (notes render full-width below the ledger as a paragraph, `--type-body`, with label above).
+`אחמ״ש` · `תאריך` · `מספר אירוע` (mono) · `שלוחה` · `או״ק ניידת` (mono) · `סוג אירוע` · `כביש` · `מיקום` · `נת״צ` (`כן`/`לא`) · `הערות` (notes render full-width below the ledger as a paragraph, `--type-body`, with label above).
 
 **מדיה** sits on this event block after notes (crew-wide, including shift-born): two contact-sheet bands `לפני הטיפול` / `במהלך/לאחר הטיפול`, 3-up square thumbs. Empty → `אין תמונות לאירוע זה.` Assigned responders may add after their fill is done; admin / shift-lead view without being assigned. Cancelled events are view-only. Desktop lightbox is wide (`--content-max`): photo at inline-start, `תיאור` + assigned vehicles at inline-end.
 
@@ -40,7 +40,7 @@ One **responder card** per `event_responders` row (per `06-components.md`):
 - Default open: viewer’s own assignment only. אחמ״ש / מנהל, and events the viewer is not assigned to: all cards start collapsed.
 - Expanded body: ledger rows `לוחית רישוי` (mono, LTR isolate) · `מד אוץ התחלה` · `מד אוץ סיום` (כונן sees these two only on their own card; hidden on other כוננים. אחמ״ש / מנהל see them on every card) · `קילומטרים` (hidden for כונן-only viewers — lead-entered `total_km` is אחמ״ש / מנהל only) · `נתיב נסיעה` · `אמצעים` (`כן`/`לא`) · `רכבים שטופלו` (comma list `גרר × 2, פרטי × 1`) · **standalone only:** `מספרי כלי רכב` immediately after `רכבים שטופלו` (plate-mark stack; empty → `—`) · `פירוט הטיפול` + `הערות לטיפול` as paragraphs.
 - Footer (expanded only):
-  - Viewer's own open card → full-width primary `השלמת הפרטים שלי` → responder fill flow.
+  - Viewer's own open card → full-width primary `השלמת התיעוד שלי` → responder fill flow.
   - Shift-lead on any card → ghost `עריכת שדות אחמ״ש`.
 
 Desktop: event block and responder column side by side — event block 5/12 at inline-start (sticky), responder cards stacked in the remaining 7/12. Mobile: single column, event block first.

@@ -47,7 +47,9 @@ type CockpitPageProps = {
 }
 
 export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps) {
-  const { user } = useAuth()
+  const { user, roles } = useAuth()
+  const isAdmin = roles.includes('admin') || roles.includes('super_admin')
+  const deleteViewer = { userId: user?.id, isAdmin }
   const { show } = useToast()
   const [reel, setReel] = useState<CockpitReelItem[]>([])
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -211,7 +213,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   }
 
   async function confirmDelete(event: CockpitReelItem) {
-    const block = cockpitDeleteBlock(event)
+    const block = cockpitDeleteBlock(event, deleteViewer)
     if (block) {
       setArmedDeleteId(null)
       setDeleteHint({ id: event.id, kind: block })
@@ -397,6 +399,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                       <span className="t-caption cockpit__delete-hint">{hint}</span>
                     ) : null}
                   </button>
+                  {cockpitDeleteBlock(event, deleteViewer) === 'other_lead' ? null : (
                   <IconButton
                     className="cockpit__delete"
                     variant={armed ? 'destructive' : 'ghost'}
@@ -406,6 +409,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                   >
                     <Trash2 size={20} strokeWidth={1.75} aria-hidden="true" />
                   </IconButton>
+                  )}
                 </li>
               )
             })}
@@ -418,6 +422,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             key={selectedEventId}
             variant="cockpit"
             eventId={selectedEventId}
+            blockSelfAssign
             onCancel={() => undefined}
             onSaved={() => undefined}
             onSavedAndCreateNew={() => undefined}
