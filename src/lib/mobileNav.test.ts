@@ -83,4 +83,20 @@ describe('splitMobileNav', () => {
     expect(views(tabs)).toEqual(['events', 'users', 'shifts'])
     expect(views(more)).toEqual(['contacts', 'map'])
   })
+
+  it('parks a SuperAdmin submenu in עוד instead of the tab bar', () => {
+    const { tabs, more } = splitMobileNav([
+      { view: 'events' },
+      { view: 'mine' },
+      { view: 'users' },
+      {
+        menuId: 'super_admin',
+        children: [{ view: 'feedback' }, { view: 'event_locations' }],
+      },
+    ])
+
+    expect(views(tabs)).toEqual(['events', 'mine', 'users'])
+    expect(more).toHaveLength(1)
+    expect(more[0]?.menuId).toBe('super_admin')
+  })
 })

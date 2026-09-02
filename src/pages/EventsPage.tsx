@@ -61,7 +61,15 @@ import { MineInboxTabs } from '../components/events/MineInboxTabs'
 import { MineLoggedEventRow } from '../components/events/MineLoggedEventRow'
 import { MineShiftEventGroup } from '../components/events/MineShiftEventGroup'
 import { EventsTable } from '../components/events/EventsTable'
+import { Toggle } from '../components/ui/Toggle'
 import { useToast } from '../components/ui/Toast'
+import {
+  SHOW_OTHERS_CREATED_EVENTS_LABEL,
+  readShowOthersCreatedEvents,
+  shouldFilterUnitEventsToOwnCreated,
+  unitEventsCreatedByFilter,
+  writeShowOthersCreatedEvents,
+} from '../lib/unitEventsScope'
 
 type EventsPageProps = {
   scope: 'unit' | 'mine'
@@ -81,12 +89,19 @@ export function EventsPage({
   onCreate,
   onFill,
 }: EventsPageProps) {
-  const { user } = useAuth()
+  const { user, roles } = useAuth()
   const { show } = useToast()
   const [events, setEvents] = useState<EventListItem[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [filter, setFilter] = useState<EventStatus | 'all'>('all')
   const [query, setQuery] = useState('')
+  const [showOthersCreated, setShowOthersCreated] = useState(readShowOthersCreatedEvents)
+  const showOthersControl = shouldFilterUnitEventsToOwnCreated(roles)
+  const createdById = unitEventsCreatedByFilter({
+    roles,
+    showOthersCreated,
+    userId: user?.id,
+  })
   const [searchIds, setSearchIds] = useState<ReadonlySet<string> | null>(null)
   const [searchExtras, setSearchExtras] = useState<EventListItem[]>([])
   const [reloadKey, setReloadKey] = useState(0)
@@ -108,7 +123,7 @@ export function EventsPage({
           // the desktop table — an uncapped select pulls every event with its
           // nested responders over the worst connection in the product, and
           // search already queries the full database for older records.
-          fetchEvents({ limit: UNIT_EVENTS_LIST_LIMIT })
+          fetchEvents({ limit: UNIT_EVENTS_LIST_LIMIT, shiftLeadId: createdById })
     load
       .then((rows) => {
         if (active) setEvents(rows)
@@ -120,7 +135,7 @@ export function EventsPage({
     return () => {
       active = false
     }
-  }, [scope, user, reloadKey])
+  }, [createdById, scope, user, reloadKey])
 
   useEffect(() => {
     setLoggedWindows(1)
@@ -153,7 +168,7 @@ export function EventsPage({
 
     let cancelled = false
     const handle = window.setTimeout(() => {
-      searchUnitEventIds(trimmed)
+      searchUnitEventIds(trimmed, { shiftLeadId: createdById })
         .then(async (ids) => {
           const missing = missingSearchEventIds(
             events.map((event) => event.id),
@@ -162,7 +177,7 @@ export function EventsPage({
           let extras: EventListItem[] = []
           if (missing.length > 0) {
             try {
-              extras = await fetchEventsByIds(missing)
+              extras = await fetchEventsByIds(missing, { shiftLeadId: createdById })
             } catch {
               if (!cancelled) {
                 show('טעינת אירועים ישנים יותר נכשלה. מוצגות תוצאות מהרשימה הנוכחית.', 'alert')
@@ -188,7 +203,7 @@ export function EventsPage({
       cancelled = true
       window.clearTimeout(handle)
     }
-  }, [events, query, scope, show])
+  }, [createdById, events, query, scope, show])
 
   const stampFor = useMemo(
     () => (event: EventListItem) => {
@@ -327,6 +342,18 @@ export function EventsPage({
               <Search size={20} strokeWidth={1.75} />
             </span>
           </label>
+          {showOthersControl ? (
+            <div className="events-others-toggle">
+              <Toggle
+                label={SHOW_OTHERS_CREATED_EVENTS_LABEL}
+                checked={showOthersCreated}
+                onChange={(next) => {
+                  setShowOthersCreated(next)
+                  writeShowOthersCreatedEvents(next)
+                }}
+              />
+            </div>
+          ) : null}
           <FilterChips
             options={EVENT_FILTERS}
             value={filter}

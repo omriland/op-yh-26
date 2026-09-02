@@ -2082,6 +2082,49 @@ textarea.field__input {
   background: var(--accent);
 }
 
+.nav-item__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nav-item__chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-inline-start: auto;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.nav-item__chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.nav-flyout {
+  position: relative;
+}
+
+.menu.nav-flyout__panel {
+  position: fixed;
+  inset: auto;
+  z-index: 40;
+  min-width: 180px;
+}
+
+.menu.nav-flyout__panel .menu__item[aria-current='page'] {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.nav-item--sub {
+  padding-inline-start: var(--space-8);
+}
+
+.tabbar-more__menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 @media (hover: hover) {
   .nav-item:hover {
     background: var(--accent-subtle);
@@ -2503,8 +2546,13 @@ html[data-keyboard-open] .event-form__footer {
   margin-block-end: var(--space-4);
 }
 
-.events-search + .chips {
+.events-search + .chips,
+.events-others-toggle + .chips {
   margin-block-end: var(--space-6);
+}
+
+.events-others-toggle {
+  margin-block-end: var(--space-4);
 }
 
 @media (min-width: 1025px) {
@@ -2758,6 +2806,63 @@ html[data-keyboard-open] .event-form__footer {
   background: var(--status-done-tint);
 }
 
+.table-wrap--event-locations {
+  overflow: visible;
+}
+
+.table--event-locations tbody tr.table-row--missing-map {
+  background: var(--status-alert-tint);
+}
+
+.table--event-locations tbody td.table-cell--maps {
+  min-width: 16rem;
+  padding-block: var(--space-2);
+  vertical-align: top;
+}
+
+.table--event-locations tbody tr:focus-within {
+  position: relative;
+  z-index: 2;
+}
+
+.event-locations-card--missing {
+  background: var(--status-alert-tint);
+}
+
+.event-locations-card__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.event-locations-card__open:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.event-locations-card__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.event-locations-card__maps {
+  margin-block-start: var(--space-3);
+}
+
+.event-locations-maps__hint {
+  margin-block-start: var(--space-1);
+}
+
 /* Instant hover tip — Command overlay chrome (menus / toasts family). */
 .hover-tip {
   position: fixed;
@@ -2936,6 +3041,10 @@ html[data-keyboard-open] .event-form__footer {
 
   .table--events tbody tr.table-row--done:hover {
     background: var(--status-done-tint);
+  }
+
+  .table--event-locations tbody tr.table-row--missing-map:hover {
+    background: var(--status-alert-tint);
   }
 
   .table tbody tr.is-static:hover {
@@ -4338,6 +4447,14 @@ html[data-keyboard-open] .event-form__footer {
 
 .location-places__control {
   position: relative;
+}
+
+.location-places--compact {
+  margin: 0;
+}
+
+.location-places--compact .field__label {
+  margin: 0;
 }
 
 .location-places__list {

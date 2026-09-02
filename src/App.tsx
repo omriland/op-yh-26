@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AuthProvider, useAuth } from './lib/auth'
 import { useIsDesktop } from './lib/useMediaQuery'
-import { AppShell, NAV_ICONS, type AppView } from './components/shell/AppShell'
+import { AppShell, NAV_ICONS, SUPER_ADMIN_NAV_ICON, type AppView, type NavEntry } from './components/shell/AppShell'
 import { fetchNavAttention, type NavAttention } from './lib/navAttention'
 import { applyNavClick } from './lib/navReset'
 import { shouldShowSecurityBadge } from './lib/securityBadge'
@@ -43,8 +43,11 @@ import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
 import { ContactsPage } from './pages/ContactsPage'
 import { FeedbackInboxPage } from './pages/FeedbackInboxPage'
+import { EventLocationsPage } from './pages/EventLocationsPage'
 import { canManageFeedbackInbox } from './lib/userFeedback'
-import { isImpersonating } from './lib/impersonationStash'
+import { canAccessSuperAdminNav } from './lib/superAdminAccess'
+import { IMPERSONATION_CHANGE_EVENT, isImpersonating } from './lib/impersonationStash'
+import { ROLE_PREVIEW_CHANGE_EVENT, isRolePreviewing } from './lib/rolePreviewStash'
 import { usePresenceHeartbeat } from './lib/usePresenceHeartbeat'
 import { fetchOtpStatus } from './lib/phoneOtp'
 import {
@@ -109,6 +112,10 @@ function Gate() {
     | { state: 'required'; maskedPhone: string | null }
     | { state: 'ok' }
   >({ state: 'idle' })
+  const [superAdminChrome, setSuperAdminChrome] = useState(() => ({
+    impersonating: isImpersonating(),
+    previewing: isRolePreviewing(),
+  }))
   const [tokenFill, setTokenFill] = useState<
     | { status: 'idle' }
     | { status: 'checking' }
@@ -243,11 +250,30 @@ function Gate() {
 
   const isAdmin = roles.includes('admin')
   const isSuperAdmin = canManageFeedbackInbox(roles)
+  const showSuperAdminNav = canAccessSuperAdminNav({
+    roles,
+    impersonating: superAdminChrome.impersonating,
+    previewing: superAdminChrome.previewing,
+  })
   const manages = isAdmin || roles.includes('shift_lead')
   const responds = roles.includes('responder')
   // Leads also go on events — same personal list/fill surface, not only the responder role.
   const hasMineList = responds || roles.includes('shift_lead')
   const fallbackView: AppView = defaultHomeView({ manages, hasMineList, isAdmin })
+
+  useEffect(() => {
+    const sync = () =>
+      setSuperAdminChrome({
+        impersonating: isImpersonating(),
+        previewing: isRolePreviewing(),
+      })
+    window.addEventListener(IMPERSONATION_CHANGE_EVENT, sync)
+    window.addEventListener(ROLE_PREVIEW_CHANGE_EVENT, sync)
+    return () => {
+      window.removeEventListener(IMPERSONATION_CHANGE_EVENT, sync)
+      window.removeEventListener(ROLE_PREVIEW_CHANGE_EVENT, sync)
+    }
+  }, [])
 
   useEffect(() => {
     if (
@@ -470,15 +496,7 @@ function Gate() {
   usePresenceHeartbeat(Boolean(session && !passwordSetupReason && loginOtp.state === 'ok'))
 
   const entries = useMemo(() => {
-    const list: {
-      view: AppView
-      label: string
-      icon: (typeof NAV_ICONS)[AppView]
-      section?: string
-      alsoCurrentFor?: AppView[]
-      attention?: boolean
-      pin?: 'end'
-    }[] = []
+    const list: NavEntry[] = []
 
     // Personal — top of nav for anyone who goes on calls.
     if (hasMineList) {
@@ -539,13 +557,27 @@ function Gate() {
       }
     }
 
-    if (isSuperAdmin) {
+    if (showSuperAdminNav) {
       list.push({
-        view: 'feedback',
-        label: 'משוב',
-        icon: NAV_ICONS.feedback,
+        menuId: 'super_admin',
+        label: 'סופר־אדמין',
+        icon: SUPER_ADMIN_NAV_ICON,
         section: isDesktop ? 'ניהול' : undefined,
         attention: navAttention.openFeedback,
+        alsoCurrentFor: ['feedback', 'event_locations'],
+        children: [
+          {
+            view: 'feedback',
+            label: 'משוב',
+            icon: NAV_ICONS.feedback,
+            attention: navAttention.openFeedback,
+          },
+          {
+            view: 'event_locations',
+            label: 'מיקומים',
+            icon: NAV_ICONS.event_locations,
+          },
+        ],
       })
     }
 
@@ -583,7 +615,7 @@ function Gate() {
     }
 
     return list
-  }, [manages, hasMineList, isAdmin, isSuperAdmin, isDesktop, navAttention, roles])
+  }, [manages, hasMineList, isAdmin, showSuperAdminNav, isDesktop, navAttention, roles])
 
   function isAllowedView(next: AppView): boolean {
     return isAllowedAppView(next, { manages, hasMineList, isAdmin, isSuperAdmin })
@@ -969,6 +1001,15 @@ function Gate() {
         </div>
       ) : activeView === 'feedback' && isSuperAdmin ? (
         <FeedbackInboxPage key={sectionReset} />
+      ) : activeView === 'event_locations' && isSuperAdmin ? (
+        <EventLocationsPage
+          key={sectionReset}
+          onOpenEvent={(eventId) => {
+            setView('events')
+            setEventSurface({ kind: 'detail', eventId })
+            setShiftSurface({ kind: 'list' })
+          }}
+        />
       ) : isAdminHub && isAdminSegment(activeView) ? (
           <div
             className={['stack-4', activeView === 'users' ? 'page--wide page--users' : '']

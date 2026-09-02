@@ -24,17 +24,32 @@ function rank(view: string): number {
   return MOBILE_TAB_PRIMARY.length + MOBILE_TAB_SECONDARY.length
 }
 
-export function splitMobileNav<T extends { view: string }>(
+function isMenu<T extends { children?: readonly unknown[] }>(entry: T): boolean {
+  return (entry.children?.length ?? 0) > 0
+}
+
+export function splitMobileNav<T extends { view?: string; children?: readonly unknown[] }>(
   entries: readonly T[],
 ): { tabs: T[]; more: T[] } {
-  const ordered = [...entries].sort((a, b) => rank(a.view) - rank(b.view))
+  const menus = entries.filter(isMenu)
+  const rest = entries.filter((entry) => !isMenu(entry))
+  const ordered = [...rest].sort((a, b) => rank(a.view ?? '') - rank(b.view ?? ''))
 
-  if (ordered.length <= MOBILE_TAB_MAX) {
-    return { tabs: ordered, more: [] }
+  if (menus.length === 0) {
+    if (ordered.length <= MOBILE_TAB_MAX) {
+      return { tabs: ordered, more: [] }
+    }
+    return {
+      tabs: ordered.slice(0, MOBILE_TAB_MAX - 1),
+      more: ordered.slice(MOBILE_TAB_MAX - 1),
+    }
   }
 
+  if (ordered.length <= MOBILE_TAB_MAX - 1) {
+    return { tabs: ordered, more: menus }
+  }
   return {
     tabs: ordered.slice(0, MOBILE_TAB_MAX - 1),
-    more: ordered.slice(MOBILE_TAB_MAX - 1),
+    more: [...ordered.slice(MOBILE_TAB_MAX - 1), ...menus],
   }
 }

@@ -1,15 +1,19 @@
 import {
   useEffect,
+  useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import {
   BarChart3,
   CalendarCheck,
   CalendarClock,
+  ChevronDown,
   ClipboardList,
   Contact,
   Ellipsis,
@@ -17,11 +21,13 @@ import {
   Fuel,
   ListChecks,
   LogOut,
+  MapPin,
   MapPinned,
   Plus,
   Radar,
   MessageSquarePlus,
   Settings,
+  Shield,
   UserCog,
   UserRound,
   Users,
@@ -59,6 +65,7 @@ import {
 } from '../../lib/sidebarWidth'
 import { navAttentionAriaSuffix } from '../../lib/navAttention'
 import { MOBILE_MORE_LABEL, splitMobileNav } from '../../lib/mobileNav'
+import { NAV_FLYOUT_MIN_WIDTH, placeNavFlyout } from '../../lib/navFlyoutPlacement'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../availability/AvailabilityControl'
 import { Dialog } from '../ui/Dialog'
@@ -79,9 +86,12 @@ export type AppView =
   | 'lists'
   | 'profile'
   | 'feedback'
+  | 'event_locations'
 
-type NavEntry = {
-  view: AppView
+export type NavEntry = {
+  view?: AppView
+  /** Parent-only id when this row is a submenu, not a destination. */
+  menuId?: string
   label: string
   icon: ReactNode
   section?: string
@@ -91,6 +101,7 @@ type NavEntry = {
   attention?: boolean
   /** Desktop sidebar: pin to the block-end footer (פרופיל / הגדרות). */
   pin?: 'end'
+  children?: NavEntry[]
 }
 
 type AppShellProps = {
@@ -186,10 +197,20 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   lists: <Settings size={24} strokeWidth={1.75} aria-hidden="true" />,
   profile: <UserRound size={24} strokeWidth={1.75} aria-hidden="true" />,
   feedback: <MessageSquarePlus size={24} strokeWidth={1.75} aria-hidden="true" />,
+  event_locations: <MapPin size={24} strokeWidth={1.75} aria-hidden="true" />,
+}
+
+export const SUPER_ADMIN_NAV_ICON = (
+  <Shield size={24} strokeWidth={1.75} aria-hidden="true" />
+)
+
+function navEntryKey(entry: NavEntry) {
+  return entry.view ?? entry.menuId ?? entry.label
 }
 
 function isNavCurrent(entry: NavEntry, view: AppView) {
-  return entry.view === view || Boolean(entry.alsoCurrentFor?.includes(view))
+  if (entry.view === view || Boolean(entry.alsoCurrentFor?.includes(view))) return true
+  return Boolean(entry.children?.some((child) => isNavCurrent(child, view)))
 }
 
 function BrandMark({
@@ -485,9 +506,11 @@ function splitSidebarEntries(entries: NavEntry[]) {
     if (entry.pin === 'end') end.push(entry)
     else main.push(entry)
   }
-  end.sort(
-    (a, b) => SIDEBAR_END_ORDER.indexOf(a.view) - SIDEBAR_END_ORDER.indexOf(b.view),
-  )
+  end.sort((a, b) => {
+    const left = a.view ? SIDEBAR_END_ORDER.indexOf(a.view) : SIDEBAR_END_ORDER.length
+    const right = b.view ? SIDEBAR_END_ORDER.indexOf(b.view) : SIDEBAR_END_ORDER.length
+    return left - right
+  })
   return { main, end }
 }
 
@@ -654,11 +677,11 @@ function SidebarNavItems({
       {entries.map((entry, index) => {
         const prev = entries[index - 1]
         const showSection = entry.section && entry.section !== prev?.section
-        const create = sidebarCreateAction(entry.view, onCreateShift)
+        const create = entry.view ? sidebarCreateAction(entry.view, onCreateShift) : null
         const leadNewEvent =
           showSection ? sidebarLeadNewEvent(entry.section, onCreateEvent) : null
         return (
-          <div key={entry.view}>
+          <div key={navEntryKey(entry)}>
             {showSection ? <p className="sidebar__section">{entry.section}</p> : null}
             {leadNewEvent ? (
               <Button
@@ -669,37 +692,180 @@ function SidebarNavItems({
                 {leadNewEvent.label}
               </Button>
             ) : null}
-            <div className={create ? 'sidebar__row' : undefined}>
-              <button
-                type="button"
-                className={
-                  entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
-                }
-                aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
-                aria-label={
-                  entry.attention
-                    ? `${entry.label}${navAttentionAriaSuffix(true)}`
-                    : undefined
-                }
-                onClick={() => onNavigate(entry.view)}
-              >
-                <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-                {entry.label}
-              </button>
-              {create ? (
-                <IconButton
-                  className="sidebar__create"
-                  label={create.label}
-                  onClick={create.onCreate}
+            {entry.children && entry.children.length > 0 ? (
+              <SidebarNavMenu entry={entry} view={view} onNavigate={onNavigate} />
+            ) : (
+              <div className={create ? 'sidebar__row' : undefined}>
+                <button
+                  type="button"
+                  className={
+                    entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
+                  }
+                  aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
+                  aria-label={
+                    entry.attention
+                      ? `${entry.label}${navAttentionAriaSuffix(true)}`
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (entry.view) onNavigate(entry.view)
+                  }}
                 >
-                  <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
-                </IconButton>
-              ) : null}
-            </div>
+                  <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+                  {entry.label}
+                </button>
+                {create ? (
+                  <IconButton
+                    className="sidebar__create"
+                    label={create.label}
+                    onClick={create.onCreate}
+                  >
+                    <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
+                  </IconButton>
+                ) : null}
+              </div>
+            )}
           </div>
         )
       })}
     </>
+  )
+}
+
+function SidebarNavMenu({
+  entry,
+  view,
+  onNavigate,
+}: {
+  entry: NavEntry
+  view: AppView
+  onNavigate: (view: AppView) => void
+}) {
+  const children = entry.children ?? []
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closeTimer = useRef<number | null>(null)
+  const menuId = useId()
+  const current = isNavCurrent(entry, view)
+
+  function clearCloseTimer() {
+    if (closeTimer.current != null) {
+      window.clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+  }
+
+  function openMenu() {
+    clearCloseTimer()
+    setOpen(true)
+  }
+
+  function scheduleClose() {
+    clearCloseTimer()
+    closeTimer.current = window.setTimeout(() => setOpen(false), 120)
+  }
+
+  useEffect(() => () => clearCloseTimer(), [])
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) {
+      setCoords(null)
+      return
+    }
+
+    function place() {
+      const triggerEl = triggerRef.current
+      const panelEl = panelRef.current
+      if (!triggerEl) return
+      const rect = triggerEl.getBoundingClientRect()
+      const panelWidth = panelEl?.offsetWidth ?? NAV_FLYOUT_MIN_WIDTH
+      setCoords(
+        placeNavFlyout({
+          trigger: { top: rect.top, left: rect.left, right: rect.right },
+          panelWidth,
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          rtl: isDocumentRtl(),
+        }),
+      )
+    }
+
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open, children.length])
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open])
+
+  return (
+    <div className="nav-flyout">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="nav-item nav-item--menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        aria-current={current ? 'page' : undefined}
+        aria-label={
+          entry.attention ? `${entry.label}${navAttentionAriaSuffix(true)}` : undefined
+        }
+        onPointerEnter={openMenu}
+        onPointerLeave={scheduleClose}
+        onClick={() => setOpen((currentOpen) => !currentOpen)}
+      >
+        <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+        <span className="nav-item__label">{entry.label}</span>
+        <ChevronDown size={16} strokeWidth={1.75} className="nav-item__chevron" aria-hidden="true" />
+      </button>
+      {open
+        ? createPortal(
+            <div
+              ref={panelRef}
+              id={menuId}
+              className="menu nav-flyout__panel"
+              role="menu"
+              style={coords ? { top: coords.top, left: coords.left } : undefined}
+              onPointerEnter={openMenu}
+              onPointerLeave={scheduleClose}
+            >
+              {children.map((child) => (
+                <button
+                  key={navEntryKey(child)}
+                  type="button"
+                  role="menuitem"
+                  className="menu__item"
+                  aria-current={isNavCurrent(child, view) ? 'page' : undefined}
+                  onClick={() => {
+                    if (!child.view) return
+                    setOpen(false)
+                    onNavigate(child.view)
+                  }}
+                >
+                  <NavIcon icon={child.icon} attention={Boolean(child.attention)} />
+                  {child.label}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
   )
 }
 
@@ -726,10 +892,12 @@ function BottomTabBar({
       <nav className="tabbar" aria-label="ניווט ראשי">
         {tabs.map((entry) => (
           <TabButton
-            key={entry.view}
+            key={navEntryKey(entry)}
             entry={entry}
             current={isNavCurrent(entry, view)}
-            onClick={() => onNavigate(entry.view)}
+            onClick={() => {
+              if (entry.view) onNavigate(entry.view)
+            }}
           />
         ))}
         {more.length > 0 ? (
@@ -756,29 +924,101 @@ function BottomTabBar({
       </nav>
       <Dialog open={moreOpen} title={MOBILE_MORE_LABEL} onClose={() => setMoreOpen(false)}>
         <div className="tabbar-more">
-          {more.map((entry) => (
-            <button
-              key={entry.view}
-              type="button"
-              className="nav-item"
-              aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
-              aria-label={
-                entry.attention
-                  ? `${entry.label}${navAttentionAriaSuffix(true)}`
-                  : undefined
-              }
-              onClick={() => {
-                setMoreOpen(false)
-                onNavigate(entry.view)
-              }}
-            >
-              <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-              {entry.label}
-            </button>
-          ))}
+          {more.map((entry) =>
+            entry.children && entry.children.length > 0 ? (
+              <MoreNavMenu
+                key={navEntryKey(entry)}
+                entry={entry}
+                view={view}
+                onNavigate={(next) => {
+                  setMoreOpen(false)
+                  onNavigate(next)
+                }}
+              />
+            ) : (
+              <button
+                key={navEntryKey(entry)}
+                type="button"
+                className="nav-item"
+                aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
+                aria-label={
+                  entry.attention
+                    ? `${entry.label}${navAttentionAriaSuffix(true)}`
+                    : undefined
+                }
+                onClick={() => {
+                  if (!entry.view) return
+                  setMoreOpen(false)
+                  onNavigate(entry.view)
+                }}
+              >
+                <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+                {entry.label}
+              </button>
+            ),
+          )}
         </div>
       </Dialog>
     </>
+  )
+}
+
+function MoreNavMenu({
+  entry,
+  view,
+  onNavigate,
+}: {
+  entry: NavEntry
+  view: AppView
+  onNavigate: (view: AppView) => void
+}) {
+  const children = entry.children ?? []
+  const current = isNavCurrent(entry, view)
+  const [expanded, setExpanded] = useState(current)
+
+  return (
+    <div className="tabbar-more__menu">
+      <button
+        type="button"
+        className="nav-item nav-item--menu"
+        aria-expanded={expanded}
+        aria-current={current ? 'page' : undefined}
+        aria-label={
+          entry.attention ? `${entry.label}${navAttentionAriaSuffix(true)}` : undefined
+        }
+        onClick={() => setExpanded((open) => !open)}
+      >
+        <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+        <span className="nav-item__label">{entry.label}</span>
+        <ChevronDown
+          size={16}
+          strokeWidth={1.75}
+          className={['nav-item__chevron', expanded ? 'is-open' : ''].filter(Boolean).join(' ')}
+          aria-hidden="true"
+        />
+      </button>
+      {expanded
+        ? children.map((child) => (
+            <button
+              key={navEntryKey(child)}
+              type="button"
+              className="nav-item nav-item--sub"
+              aria-current={isNavCurrent(child, view) ? 'page' : undefined}
+              aria-label={
+                child.attention
+                  ? `${child.label}${navAttentionAriaSuffix(true)}`
+                  : undefined
+              }
+              onClick={() => {
+                if (child.view) onNavigate(child.view)
+              }}
+            >
+              <NavIcon icon={child.icon} attention={Boolean(child.attention)} />
+              {child.label}
+            </button>
+          ))
+        : null}
+    </div>
   )
 }
 

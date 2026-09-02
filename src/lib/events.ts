@@ -159,12 +159,19 @@ export function mergeEventLists(
 }
 
 /** Unit-wide list for shift-leads and admins; RLS narrows it for everyone else. */
-export async function fetchEvents(opts?: { limit?: number }): Promise<EventListItem[]> {
+export async function fetchEvents(opts?: {
+  limit?: number
+  shiftLeadId?: string | null
+}): Promise<EventListItem[]> {
   let query = supabase
     .from('events')
     .select(EVENT_LIST_SELECT)
     .order('event_date', { ascending: false })
     .order('created_at', { ascending: false })
+
+  if (opts?.shiftLeadId) {
+    query = query.eq('shift_lead_id', opts.shiftLeadId)
+  }
 
   if (opts?.limit != null) {
     query = query.limit(opts.limit)
@@ -179,7 +186,10 @@ export async function fetchEvents(opts?: { limit?: number }): Promise<EventListI
 const EVENT_ID_CHUNK = 100
 
 /** Hydrate unit-list rows for search hits that are outside the default window. */
-export async function fetchEventsByIds(ids: string[]): Promise<EventListItem[]> {
+export async function fetchEventsByIds(
+  ids: string[],
+  opts?: { shiftLeadId?: string | null },
+): Promise<EventListItem[]> {
   if (ids.length === 0) return []
 
   const chunks: string[][] = []
@@ -189,12 +199,16 @@ export async function fetchEventsByIds(ids: string[]): Promise<EventListItem[]> 
 
   const rows: EventListItem[] = []
   for (const chunk of chunks) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('events')
       .select(EVENT_LIST_SELECT)
       .in('id', chunk)
       .order('event_date', { ascending: false })
       .order('created_at', { ascending: false })
+    if (opts?.shiftLeadId) {
+      query = query.eq('shift_lead_id', opts.shiftLeadId)
+    }
+    const { data, error } = await query
 
     if (error) throw new Error(error.message)
     rows.push(...((data ?? []) as unknown as EventListItem[]))
@@ -595,17 +609,27 @@ export function doneFraction(event: EventListItem): string {
 }
 
 /** Unit-list text search ids (shift_lead+). Empty trimmed needle → []. */
-export async function searchUnitEventIds(needle: string): Promise<string[]> {
+export async function searchUnitEventIds(
+  needle: string,
+  opts?: { shiftLeadId?: string | null },
+): Promise<string[]> {
   const variants = searchQueryVariants(needle)
   if (variants.length === 0) return []
 
   const batches = await Promise.all(
     variants.map(async (variant) => {
-      const { data, error } = await supabase.rpc('search_unit_event_ids', {
+      const params: { p_needle: string; p_shift_lead_id?: string } = {
+        p_needle: variant,
+      }
+      if (opts?.shiftLeadId) params.p_shift_lead_id = opts.shiftLeadId
+      const first = await supabase.rpc('search_unit_event_ids', params)
+      if (!first.error) return (first.data ?? []) as string[]
+      if (!params.p_shift_lead_id) throw new Error(first.error.message)
+      const fallback = await supabase.rpc('search_unit_event_ids', {
         p_needle: variant,
       })
-      if (error) throw new Error(error.message)
-      return (data ?? []) as string[]
+      if (fallback.error) throw new Error(fallback.error.message)
+      return (fallback.data ?? []) as string[]
     }),
   )
   return [...new Set(batches.flat())]

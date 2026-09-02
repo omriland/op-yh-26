@@ -12,11 +12,15 @@ import {
 type LocationPlacesFieldProps = {
   value: LocationPlaceFields
   onChange: (next: LocationPlaceFields) => void
+  /** Fired only after a Google place is chosen (not on each keystroke). */
+  onPlaceCommit?: (next: LocationPlaceFields) => void
   onBlurCommit?: () => void
   error?: string
   required?: boolean
   label?: string
   placeholder?: string
+  /** Hide the visible label (keep it for assistive tech). */
+  hideLabel?: boolean
   /** When set, Google autocomplete is queried as road + typed location. */
   roadName?: string | null
   /** Events keep a free-text first row. User addresses must pick a Google place. */
@@ -27,11 +31,13 @@ type LocationPlacesFieldProps = {
 export function LocationPlacesField({
   value,
   onChange,
+  onPlaceCommit,
   onBlurCommit,
   error,
   required,
   label = 'מיקום',
   placeholder = 'הקלידו כתובת או שם מקום',
+  hideLabel = false,
   roadName = null,
   allowFreeText = true,
   onAutocompleteUnavailable,
@@ -50,7 +56,12 @@ export function LocationPlacesField({
   const [query, setQuery] = useState(value.location)
 
   useEffect(() => {
-    if (value.location_place_id) lastGoogleRef.current = value
+    if (
+      value.location_place_id ||
+      (value.location.trim() && value.location_lat != null && value.location_lng != null)
+    ) {
+      lastGoogleRef.current = value
+    }
   }, [value])
 
   useEffect(() => {
@@ -131,7 +142,7 @@ export function LocationPlacesField({
 
   function revertPlacesOnly() {
     const last = lastGoogleRef.current
-    if (last.location_place_id) {
+    if (last.location_place_id || last.location.trim()) {
       onChange(last)
       setQuery(last.location)
     } else {
@@ -153,12 +164,14 @@ export function LocationPlacesField({
       notifyUnavailable()
       return
     }
-    onChange({
+    const next = {
       location: details.place.label,
       location_place_id: details.place.placeId,
       location_lat: details.place.lat,
       location_lng: details.place.lng,
-    })
+    }
+    onChange(next)
+    onPlaceCommit?.(next)
     setQuery(details.place.label)
     setOpen(false)
   }
@@ -178,8 +191,13 @@ export function LocationPlacesField({
   }
 
   return (
-    <div className="field location-places" ref={rootRef}>
-      <label className="field__label" htmlFor={fieldId}>
+    <div
+      className={['field', 'location-places', hideLabel ? 'location-places--compact' : '']
+        .filter(Boolean)
+        .join(' ')}
+      ref={rootRef}
+    >
+      <label className={hideLabel ? 'visually-hidden' : 'field__label'} htmlFor={fieldId}>
         {label}
         {required ? <span className="visually-hidden"> שדה חובה</span> : null}
       </label>

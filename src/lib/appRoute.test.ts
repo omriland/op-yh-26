@@ -101,6 +101,13 @@ describe('parseAppPath', () => {
     expect(parseAppPath('/cockpit/evt-9/edit')).toEqual({ kind: 'home' })
   })
 
+  it('reads the SuperAdmin locations queue', () => {
+    expect(parseAppPath('/event-locations')).toEqual({
+      kind: 'app',
+      state: listState('event_locations'),
+    })
+  })
+
   it('reads cockpit the same way as the existing helper', () => {
     expect(parseAppPath('/cockpit')).toEqual({
       kind: 'app',
@@ -154,6 +161,7 @@ describe('appPath', () => {
       }),
     ).toBe('/shifts/sh-1/event/evt-2')
     expect(appPath({ ...listState('cockpit'), cockpitEventId: 'evt-9' })).toBe('/cockpit/evt-9')
+    expect(appPath(listState('event_locations'))).toBe('/event-locations')
     expect(appPath({ ...listState('profile'), legalPage: 'privacy' })).toBe('/privacy')
   })
 })
@@ -254,6 +262,17 @@ describe('isAllowedAppView', () => {
     expect(isAllowedAppView('events', lead)).toBe(true)
     expect(isAllowedAppView('users', lead)).toBe(false)
     expect(isAllowedAppView('profile', responder)).toBe(true)
+  })
+
+  it('gates SuperAdmin screens to super_admin only', () => {
+    const admin = { manages: true, hasMineList: true, isAdmin: true, isSuperAdmin: false }
+    const superAdmin = { manages: true, hasMineList: true, isAdmin: true, isSuperAdmin: true }
+    expect(isAllowedAppView('feedback', admin)).toBe(false)
+    expect(isAllowedAppView('event_locations', admin)).toBe(false)
+    expect(isAllowedAppView('feedback', lead)).toBe(false)
+    expect(isAllowedAppView('event_locations', lead)).toBe(false)
+    expect(isAllowedAppView('feedback', superAdmin)).toBe(true)
+    expect(isAllowedAppView('event_locations', superAdmin)).toBe(true)
   })
 })
 

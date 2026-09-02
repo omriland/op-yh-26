@@ -67,6 +67,9 @@ describe('appAnalyticsPath', () => {
     expect(appAnalyticsPath({ signedIn: true, otp: 'ok', view: 'feedback' })).toBe(
       '/feedback',
     )
+    expect(appAnalyticsPath({ signedIn: true, otp: 'ok', view: 'event_locations' })).toBe(
+      '/event-locations',
+    )
     expect(
       appAnalyticsPath({
         signedIn: true,
