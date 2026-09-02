@@ -532,7 +532,7 @@ export async function listUserFeedback(status?: FeedbackStatus | 'all'): Promise
     ;({ data, error } = await run(FEEDBACK_SELECT_NO_ATTACH))
   }
   if (error) throw new Error(error.message)
-  return Promise.all(((data ?? []) as FeedbackRow[]).map(withSignedUrl))
+  return Promise.all(((data ?? []) as unknown as FeedbackRow[]).map(withSignedUrl))
 }
 
 export async function hasOpenUserFeedback(): Promise<boolean> {

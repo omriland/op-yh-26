@@ -424,7 +424,7 @@ export async function fetchEventDetail(eventId: string): Promise<EventDetail | n
       .select(EVENT_DETAIL_SELECT.replace(/\n  bus_lane,/, ''))
       .eq('id', eventId)
       .maybeSingle()
-    data = retry.data
+    data = retry.data as typeof data
     error = retry.error
   }
 
@@ -451,7 +451,7 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
       .select(EVENT_DETAIL_SELECT_NO_PLATES.replace(/\n  bus_lane,/, ''))
       .eq('id', eventId)
       .maybeSingle()
-    data = retry.data
+    data = retry.data as typeof data
     error = retry.error
   }
 

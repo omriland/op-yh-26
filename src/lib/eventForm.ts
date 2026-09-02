@@ -392,7 +392,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
       .select(EVENT_EDIT_SELECT_NO_BUS_LANE)
       .eq('id', eventId)
       .maybeSingle()
-    data = retry.data
+    data = retry.data as typeof data
     error = retry.error
   }
 
@@ -754,7 +754,7 @@ export async function saveEventForm(input: {
         .insert({ ...payloadWithoutBusLane, shift_lead_id: shiftLeadId })
         .select('id')
         .single()
-      data = retry.data
+      data = retry.data as typeof data
       error = retry.error
     }
     if (error || !data) {
