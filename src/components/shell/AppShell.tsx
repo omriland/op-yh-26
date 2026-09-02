@@ -208,7 +208,7 @@ function navEntryKey(entry: NavEntry) {
   return entry.view ?? entry.menuId ?? entry.label
 }
 
-function isNavCurrent(entry: NavEntry, view: AppView) {
+function isNavCurrent(entry: NavEntry, view: AppView): boolean {
   if (entry.view === view || Boolean(entry.alsoCurrentFor?.includes(view))) return true
   return Boolean(entry.children?.some((child) => isNavCurrent(child, view)))
 }

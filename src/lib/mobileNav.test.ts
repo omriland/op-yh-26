@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { splitMobileNav } from './mobileNav'
 
-function views(list: { view: string }[]) {
+function views(list: { view?: string }[]) {
   return list.map((entry) => entry.view)
 }
 
