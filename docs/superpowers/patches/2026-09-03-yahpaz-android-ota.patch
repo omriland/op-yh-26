@@ -1,4 +1,4 @@
-From 5b55ac01449a576408cf370103c57c84b4bc3de7 Mon Sep 17 00:00:00 2001
+From 8ca26c54ef7839728a61c2fe9b1be76589e7eb7a Mon Sep 17 00:00:00 2001
 From: Cursor Agent <cursoragent@cursor.com>
 Date: Thu, 3 Sep 2026 18:33:18 +0000
 Subject: [PATCH] feat: in-app OTA updates via PackageInstaller
@@ -18,8 +18,8 @@ prompt rather than a hard block.
  .../main/kotlin/com/yahpz/domain/AppUpdate.kt |  56 +++++
  .../kotlin/com/yahpz/domain/AppUpdateTest.kt  |  58 +++++
  scripts/build-release-apk.sh                  |  16 +-
- scripts/publish-apk-to-website.sh             |  15 +-
- 10 files changed, 675 insertions(+), 33 deletions(-)
+ scripts/publish-apk-to-website.sh             |  49 ++++-
+ 10 files changed, 703 insertions(+), 39 deletions(-)
  create mode 100644 app/src/main/java/com/yahpz/responder/ApkUpdate.kt
 
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
@@ -948,23 +948,47 @@ index fcd161c..4c29f36 100755
  echo "Version: $WEB_PUBLIC/version.json (code=$VERSION_CODE name=$VERSION_NAME)"
  echo "URL: $APK_URL"
 diff --git a/scripts/publish-apk-to-website.sh b/scripts/publish-apk-to-website.sh
-index 6753ee5..524f658 100755
+index 6753ee5..acf3921 100755
 --- a/scripts/publish-apk-to-website.sh
 +++ b/scripts/publish-apk-to-website.sh
-@@ -29,13 +29,24 @@ git pull origin infra/bootstrap
+@@ -1,6 +1,15 @@
+ #!/usr/bin/env bash
+ # Publish a built APK + version.json into op-yh-26 (yahpz.com /android).
++#
+ # Usage: scripts/publish-apk-to-website.sh [path-to-apk]
++#
++# Env:
++#   KEEP_MANIFEST=1    Host the APK without touching version.json. Nobody is
++#                      prompted or forced; the build is reachable only by its
++#                      direct URL, for installing on your own device first.
++#   MIN_VERSION_CODE   Force floor for older clients. Defaults to this build,
++#                      which forces everyone. Set it to the previous release to
++#                      publish a soft (dismissible) update instead.
+ set -euo pipefail
+ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ APK_SRC="${1:-}"
+@@ -28,20 +37,44 @@ git pull origin infra/bootstrap
+ 
  mkdir -p public/android
  cp "$APK_SRC" "public/android/$APK_NAME"
- rm -f public/android/yahpaz.apk
+-rm -f public/android/yahpaz.apk
+-cat > public/android/version.json <<JSON
 +
-+# In-app OTA verifies these before handing the APK to PackageInstaller.
-+APK_SHA256="$(sha256sum "public/android/$APK_NAME" | awk '{print $1}')"
-+APK_SIZE="$(wc -c < "public/android/$APK_NAME" | tr -d ' ')"
++BRANCH="cursor/android-${VERSION_NAME}-website-2580"
++git checkout -B "$BRANCH"
++git add "public/android/$APK_NAME"
 +
-+# MIN_VERSION_CODE forces older clients to update. Leave it at the previous
-+# release to ship a soft (dismissible) update instead.
-+MIN_VERSION_CODE="${MIN_VERSION_CODE:-$VERSION_CODE}"
++if [[ "${KEEP_MANIFEST:-0}" == "1" ]]; then
++  COMMIT_MESSAGE="Host Android ${VERSION_NAME} without announcing it."
++else
++  rm -f public/android/yahpaz.apk
 +
- cat > public/android/version.json <<JSON
++  # In-app OTA verifies these before handing the APK to PackageInstaller.
++  APK_SHA256="$(sha256sum "public/android/$APK_NAME" | awk '{print $1}')"
++  APK_SIZE="$(wc -c < "public/android/$APK_NAME" | tr -d ' ')"
++  MIN_VERSION_CODE="${MIN_VERSION_CODE:-$VERSION_CODE}"
++
++  cat > public/android/version.json <<JSON
  {
 -  "minVersionCode": ${VERSION_CODE},
 +  "minVersionCode": ${MIN_VERSION_CODE},
@@ -978,6 +1002,24 @@ index 6753ee5..524f658 100755
  }
  JSON
  
+-BRANCH="cursor/android-${VERSION_NAME}-website-2580"
+-git checkout -B "$BRANCH"
+-git add "public/android/$APK_NAME" public/android/version.json
+-git -c user.email=cursoragent@cursor.com -c user.name=Cursor commit -m "Force-update Android clients to ${VERSION_NAME}."
++  git add public/android/version.json public/android/yahpaz.apk 2>/dev/null || git add public/android/version.json
++  if [[ "$MIN_VERSION_CODE" == "$VERSION_CODE" ]]; then
++    COMMIT_MESSAGE="Force-update Android clients to ${VERSION_NAME}."
++  else
++    COMMIT_MESSAGE="Offer Android ${VERSION_NAME} as an optional update."
++  fi
++fi
++
++git -c user.email=cursoragent@cursor.com -c user.name=Cursor commit -m "$COMMIT_MESSAGE"
+ git push -u origin "$BRANCH"
+ echo "Pushed $BRANCH — merge to infra/bootstrap for production."
++if [[ "${KEEP_MANIFEST:-0}" == "1" ]]; then
++  echo "version.json untouched. Install yourself from: $APK_URL"
++fi
 -- 
 2.43.0
 

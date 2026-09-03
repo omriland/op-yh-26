@@ -28,7 +28,7 @@ Contents:
 | `app/…/RootScreen.kt` | Force screen installs in-app; new dismissible soft dialog; shared update controls |
 | `AndroidManifest.xml` | `REQUEST_INSTALL_PACKAGES` + receiver registration |
 | `app/build.gradle.kts` | versionCode 25 / versionName 0.3.14 |
-| `scripts/*.sh` | Release scripts write `apkSha256` / `apkSizeBytes` and honor `MIN_VERSION_CODE` |
+| `scripts/*.sh` | Release scripts write `apkSha256` / `apkSizeBytes`, honor `MIN_VERSION_CODE`, and support `KEEP_MANIFEST=1` to host a build without announcing it |
 
 Verified on this branch: `./gradlew :domain:test` (10 update tests pass),
 `:app:compileDebugKotlin`, and `:app:assembleDebug` all succeed against

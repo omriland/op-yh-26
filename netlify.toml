@@ -22,7 +22,7 @@
     Cache-Control = "no-store"
 
 [[headers]]
-  for = "/android/yahpaz.apk"
+  for = "/android/*.apk"
   [headers.values]
     Content-Type = "application/vnd.android.package-archive"
     Cache-Control = "public, max-age=300"
