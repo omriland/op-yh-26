@@ -43,9 +43,11 @@ export function AndroidDownloadPage({ onBack }: AndroidDownloadPageProps) {
       <header className="android-download__header">
         <h1 className="t-title">אפליקציית אנדרואיד</h1>
         <p className="t-body text-secondary">
-          מטעמי אבטחה - האפליקציה אינה חשופה לחנות האפליקציות.
+          מטעמי אבטחה ההתקנה ליחידה בלבד — אין הרשמה פתוחה לציבור.
           <br />
-          על מנת להתקינה:
+          אפשר להוריד מכאן. אם קיבלתם הזמנה לחנות, אפשר גם משם.
+          <br />
+          על מנת להתקינה מכאן:
         </p>
       </header>
 
