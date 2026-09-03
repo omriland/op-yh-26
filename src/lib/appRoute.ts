@@ -1,5 +1,6 @@
 import { isAndroidDownloadPath, ANDROID_DOWNLOAD_PATH } from './androidDownload'
 import { cockpitPath, parseCockpitPath, withPathname } from './cockpitPath'
+import { DELETE_DATA_PATH, isDeleteDataPath } from './deleteDataPage'
 import { isOAuthAuthorizePath } from './partnerOAuth'
 import { isPrivacyPath, PRIVACY_PATH } from './privacyPageToken'
 
@@ -36,12 +37,13 @@ export type AppRouteState = {
   eventSurface: EventSurface
   shiftSurface: ShiftSurface
   cockpitEventId?: string
-  legalPage?: 'privacy' | 'android' | null
+  legalPage?: 'privacy' | 'android' | 'delete_data' | null
 }
 
 export type ParsedAppLocation =
   | { kind: 'app'; state: AppRouteState }
   | { kind: 'android' }
+  | { kind: 'delete_data' }
   | { kind: 'privacy' }
   | { kind: 'oauth' }
   | { kind: 'home' }
@@ -77,6 +79,7 @@ const SLUG_TO_VIEW = Object.fromEntries(
 
 const RESERVED_ROOTS = new Set([
   'android',
+  'delete-data',
   'privacy',
   'oauth',
   'login',
@@ -161,6 +164,7 @@ export function parseAppPath(pathname: string): ParsedAppLocation {
   const path = normalizePath(pathname)
   if (path === '/') return { kind: 'home' }
   if (isAndroidDownloadPath(path)) return { kind: 'android' }
+  if (isDeleteDataPath(path)) return { kind: 'delete_data' }
   if (isPrivacyPath(path)) return { kind: 'privacy' }
   if (isOAuthAuthorizePath(path)) return { kind: 'oauth' }
 
@@ -234,6 +238,7 @@ function shiftPathSuffix(shift: ShiftSurface, event: EventSurface): string {
 
 export function appPath(state: AppRouteState): string {
   if (state.legalPage === 'android') return ANDROID_DOWNLOAD_PATH
+  if (state.legalPage === 'delete_data') return DELETE_DATA_PATH
   if (state.legalPage === 'privacy') return PRIVACY_PATH
   if (state.view === 'cockpit') return cockpitPath(state.cockpitEventId)
   const root = `/${VIEW_TO_SLUG[state.view]}`
@@ -249,7 +254,7 @@ export function readBootRoute(pathname: string): {
   eventSurface: EventSurface
   shiftSurface: ShiftSurface
   cockpitEventId?: string
-  legalPage: 'privacy' | 'android' | null
+  legalPage: 'privacy' | 'android' | 'delete_data' | null
 } {
   const parsed = parseAppPath(pathname)
   if (parsed.kind === 'android') {
@@ -258,6 +263,15 @@ export function readBootRoute(pathname: string): {
       eventSurface: { kind: 'list' },
       shiftSurface: { kind: 'list' },
       legalPage: 'android',
+    }
+  }
+  if (parsed.kind === 'delete_data') {
+    return {
+      view: null,
+      eventSurface: { kind: 'list' },
+      shiftSurface: { kind: 'list' },
+      cockpitEventId: undefined,
+      legalPage: 'delete_data',
     }
   }
   if (parsed.kind === 'privacy') {

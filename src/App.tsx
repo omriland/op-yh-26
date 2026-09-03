@@ -34,6 +34,7 @@ import { EventsPage } from './pages/EventsPage'
 import { LoginPage } from './pages/LoginPage'
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
 import { AndroidDownloadPage } from './pages/AndroidDownloadPage'
+import { DeleteDataPage } from './pages/DeleteDataPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LiveTrackPage } from './pages/LiveTrackPage'
 import { parseTrackTokenFromSearch } from './lib/liveTrack'
@@ -61,6 +62,7 @@ import { loadFillByToken } from './lib/responderFillToken'
 import { captureAppPageview } from './lib/posthog'
 import { appAnalyticsPath } from './lib/posthogAppPath'
 import { isAndroidDownloadPath } from './lib/androidDownload'
+import { isDeleteDataPath } from './lib/deleteDataPage'
 import { verifyPrivacyPageAccess } from './lib/privacyPageAccess'
 import { isPrivacyPath, parsePrivacyTokenFromSearch } from './lib/privacyPageToken'
 import {
@@ -82,7 +84,7 @@ function readWindowBoot() {
       eventSurface: { kind: 'list' } as EventSurface,
       shiftSurface: { kind: 'list' } as ShiftSurface,
       cockpitEventId: undefined as string | undefined,
-      legalPage: null as 'privacy' | 'android' | null,
+      legalPage: null as 'privacy' | 'android' | 'delete_data' | null,
     }
   }
   return readBootRoute(window.location.pathname)
@@ -97,7 +99,7 @@ function Gate() {
   ).current
   const homeAdoptedRef = useRef(false)
   const [view, setView] = useState<AppView | null>(boot.view)
-  const [legalPage, setLegalPage] = useState<'privacy' | 'android' | null>(boot.legalPage)
+  const [legalPage, setLegalPage] = useState<'privacy' | 'android' | 'delete_data' | null>(boot.legalPage)
   const [eventSurface, setEventSurface] = useState<EventSurface>(boot.eventSurface)
   const [shiftSurface, setShiftSurface] = useState<ShiftSurface>(boot.shiftSurface)
   const [sectionReset, setSectionReset] = useState(0)
@@ -291,7 +293,7 @@ function Gate() {
       return
     }
 
-    if (legalPage === 'android' || legalPage === 'privacy') {
+    if (legalPage === 'android' || legalPage === 'privacy' || legalPage === 'delete_data') {
       applyAppUrl(window.history, window.location, {
         view: view ?? fallbackView,
         eventSurface,
@@ -348,6 +350,10 @@ function Gate() {
         setLegalPage('android')
         return
       }
+      if (parsed.kind === 'delete_data') {
+        setLegalPage('delete_data')
+        return
+      }
       if (parsed.kind === 'privacy') {
         setLegalPage('privacy')
         return
@@ -377,6 +383,7 @@ function Gate() {
   function closeLegalPage() {
     if (
       isAndroidDownloadPath(window.location.pathname) ||
+      isDeleteDataPath(window.location.pathname) ||
       isPrivacyPath(window.location.pathname)
     ) {
       window.history.back()
@@ -658,6 +665,16 @@ function Gate() {
     )
   }
 
+  if (legalPage === 'delete_data') {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <DeleteDataPage onBack={closeLegalPage} />
+        </main>
+      </div>
+    )
+  }
+
   if (loading || !fillBootDone || tokenFill.status === 'checking') {
     return (
       <div className="shell" data-theme="field">
@@ -731,6 +748,15 @@ function Gate() {
         <div className="shell" data-theme="field">
           <main className="shell__main">
             <PrivacyPolicyPage onBack={() => setLegalPage(null)} />
+          </main>
+        </div>
+      )
+    }
+    if (legalPage === 'delete_data') {
+      return (
+        <div className="shell" data-theme="field">
+          <main className="shell__main">
+            <DeleteDataPage onBack={() => setLegalPage(null)} />
           </main>
         </div>
       )
@@ -879,6 +905,8 @@ function Gate() {
     >
       {legalPage === 'privacy' ? (
         <PrivacyPolicyPage onBack={closeLegalPage} />
+      ) : legalPage === 'delete_data' ? (
+        <DeleteDataPage onBack={closeLegalPage} />
       ) : onCockpit ? (
         <CockpitPage
           key={sectionReset}
