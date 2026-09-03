@@ -944,8 +944,12 @@ export function EventFormPage({
       : (draft.responders.find((row) => row.key === sheetResponderKey) ?? null)
   const title = isEdit
     ? draft.police_event_id
-      ? `אירוע ${draft.police_event_id} — עריכה`
-      : 'עריכת אירוע'
+      ? cockpitPreviewing
+        ? `אירוע ${draft.police_event_id}`
+        : `אירוע ${draft.police_event_id} — עריכה`
+      : cockpitPreviewing
+        ? 'אירוע'
+        : 'עריכת אירוע'
     : 'אירוע חדש'
 
   const placesLocation = needsPlacesLocation(
@@ -996,6 +1000,7 @@ export function EventFormPage({
       <div
         className="event-form__panel"
         data-theme="field"
+        data-readonly={cockpitPreviewing || undefined}
         inert={cockpitPreviewing || foreignEditPending || undefined}
       >
         <header className="event-form__head">

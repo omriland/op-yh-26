@@ -6118,6 +6118,35 @@ html[data-keyboard-open] .event-form__footer {
   width: 100%;
 }
 
+/* Cockpit view-only: same fields, read-only chrome from 06-components.md */
+.event-form__panel[data-readonly] .field__input {
+  background: var(--surface-sunken);
+  resize: none;
+}
+
+.event-form__panel[data-readonly] .field__input[data-blank='true'] {
+  border-block-end: 1px solid var(--stroke-strong);
+}
+
+.event-form__panel[data-readonly] .field__affix,
+.event-form__panel[data-readonly] .event-form__cancelled:not(.event-form__cancelled--on),
+.event-form__panel[data-readonly] .responder-assign__toolbar .btn,
+.event-form__panel[data-readonly] .assignment-empty .btn,
+.event-form__panel[data-readonly] .assignment-card .btn--icon,
+.event-form__panel[data-readonly] .assignment-list__remove,
+.event-form__panel[data-readonly] .assignment-card__chevron {
+  display: none;
+}
+
+.event-form__panel[data-readonly] .assignment-card__toggle {
+  cursor: default;
+}
+
+.event-form__panel[data-readonly] .field__input--with-affix,
+.event-form__panel[data-readonly] .field__select {
+  padding-inline-end: var(--space-3);
+}
+
 .cockpit-edit-veil {
   position: absolute;
   inset: 0;
