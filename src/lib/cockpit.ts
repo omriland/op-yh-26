@@ -14,6 +14,7 @@ export const COCKPIT_CLICK_TO_EDIT = 'לחצו לעריכה'
 export type CockpitReelItem = {
   id: string
   created_at: string
+  event_date: string
   police_event_id: string | null
   status: 'draft' | 'in_progress' | 'partial' | 'done'
   is_cancelled: boolean
@@ -34,6 +35,7 @@ export type CockpitReelItem = {
 const COCKPIT_REEL_SELECT = `
   id,
   created_at,
+  event_date,
   police_event_id,
   status,
   is_cancelled,
@@ -401,6 +403,17 @@ export async function insertCockpitDraft(shiftLeadId: string): Promise<
   return { ok: true, eventId: data.id as string }
 }
 
+function jerusalemYmdFromIso(iso: string): string | null {
+  const created = new Date(iso)
+  if (Number.isNaN(created.getTime())) return null
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(created)
+}
+
 export function isAbandonedEmptyCockpitItem(event: {
   status: CockpitReelItem['status']
   is_cancelled: boolean
@@ -412,6 +425,8 @@ export function isAbandonedEmptyCockpitItem(event: {
   road: { name: string } | null
   responders: unknown[]
   bus_lane?: boolean
+  event_date?: string | null
+  created_at?: string
 }): boolean {
   if (event.status !== 'draft' || event.is_cancelled) return false
   if (event.responders.length > 0) return false
@@ -421,7 +436,39 @@ export function isAbandonedEmptyCockpitItem(event: {
   if (event.event_type?.name.trim()) return false
   if (event.road?.name.trim()) return false
   if (event.bus_lane) return false
+  const eventDate = event.event_date?.trim()
+  if (eventDate && event.created_at) {
+    const createdDay = jerusalemYmdFromIso(event.created_at)
+    if (createdDay && eventDate !== createdDay) return false
+  }
   return true
+}
+
+/** Drop a leaving גלגלת row only after the form confirmed it was an abandoned empty insert. */
+export function cockpitReelAfterLeavingRow<T extends { id: string }>(
+  rows: T[],
+  leavingId: string | undefined,
+  discarded: boolean,
+): T[] {
+  if (!discarded || !leavingId) return rows
+  return rows.filter((row) => row.id !== leavingId)
+}
+
+/**
+ * ביטול on the foreign-edit confirm: close the dialog and restore the event
+ * that was selected before the foreign row. Empty state only if there was
+ * nothing to restore.
+ */
+export function cockpitSelectionAfterForeignEditCancel(input: {
+  previousEventId: string | undefined
+  currentEventId: string | undefined
+}): { eventId: string | undefined; editing: boolean } {
+  const previous = input.previousEventId
+  const current = input.currentEventId
+  if (previous && previous !== current) {
+    return { eventId: previous, editing: false }
+  }
+  return { eventId: current, editing: false }
 }
 
 /** Second אירוע חדש reuses the selected empty row only when this lead created it. */

@@ -4,7 +4,10 @@ import { useAuth } from '../lib/auth'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import {
   applyCancelledChange,
+  POLICE_EVENT_ID_DUPLICATE_ERROR,
   canPersistEventDraft,
+  cockpitIdentityDraftWarning,
+  cockpitPoliceEventIdCollides,
   deriveEventStatus,
   emptyEventDraft,
   fetchAssignableUsers,
@@ -12,6 +15,7 @@ import {
   fetchEventLookups,
   hasEventMinimum,
   isAbandonedEmptyEventDraft,
+  policeEventIdForCockpitSave,
   isOvernightEnd,
   isSelfAssignDisabledInPicker,
   mergeAssignmentIds,
@@ -27,7 +31,7 @@ import {
 } from '../lib/eventForm'
 import { deleteEvent } from '../lib/events'
 import { viewerStamp } from '../lib/status'
-import { monoClass } from '../lib/format'
+import { digitsOnly, monoClass } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
@@ -102,6 +106,8 @@ type EventFormPageProps = {
   /** Cockpit: the stage is writable. Selecting a reel row starts locked. */
   cockpitEditing?: boolean
   onRequestCockpitEdit?: () => void
+  /** Cockpit: close the foreign-edit confirm without leaving the stage. */
+  onDismissForeignEdit?: () => void
 }
 
 type SavePulse = 'idle' | 'saving' | 'saved' | 'error'
@@ -126,6 +132,7 @@ export function EventFormPage({
   blockSelfAssign: blockSelfAssignProp,
   cockpitEditing = false,
   onRequestCockpitEdit,
+  onDismissForeignEdit,
 }: EventFormPageProps) {
   const { user, profile, roles } = useAuth()
   const { show } = useToast()
@@ -170,6 +177,7 @@ export function EventFormPage({
   const skipReloadForId = useRef<string | null>(null)
   const overnightConfirmed = useRef(new Set<string>())
   const initialDateRef = useRef('')
+  const lastPersistedPoliceIdRef = useRef('')
   const stashLatest = useRef<(() => void) | null>(null)
   const stashTimer = useRef<number | null>(null)
 
@@ -279,6 +287,7 @@ export function EventFormPage({
               callsign: leadCallsign,
             }).event_date
         seedOvernightConfirmed(nextDraft)
+        lastPersistedPoliceIdRef.current = nextDraft.police_event_id
         setDraft(nextDraft)
         setPreviousIsCancelled(nextDraft.is_cancelled)
         setBaseline(JSON.stringify(nextDraft))
@@ -457,6 +466,40 @@ export function EventFormPage({
         return false
       }
 
+      let draftToSave = current
+      let policeIdBlocked = false
+      if (allowPartial && current.police_event_id.trim()) {
+        try {
+          const collides = await cockpitPoliceEventIdCollides({
+            eventDate: current.event_date,
+            policeEventId: current.police_event_id,
+            currentEventId: current.id,
+          })
+          if (collides) {
+            policeIdBlocked = true
+            const lastSaved = lastPersistedPoliceIdRef.current
+            draftToSave = {
+              ...current,
+              police_event_id: policeEventIdForCockpitSave({
+                typed: current.police_event_id,
+                lastSaved,
+                collides: true,
+              }),
+            }
+          }
+        } catch {
+          setSavePulse('error')
+          setErrors((prev) => ({
+            ...prev,
+            police_event_id: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
+          }))
+          if (options?.navigate || options?.createNew || options?.revealErrors) {
+            show('שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.', 'alert')
+          }
+          return false
+        }
+      }
+
       const pendingOvernight = current.responders.filter(
         (row) =>
           isOvernightEnd(row.start_time, row.end_time) &&
@@ -474,7 +517,7 @@ export function EventFormPage({
 
       setSavePulse('saving')
       const result = await saveEventForm({
-        draft: current,
+        draft: draftToSave,
         shiftLeadId: user.id,
         vehicleKinds: currentLookups.vehicleKinds,
         districts: currentLookups.districts,
@@ -498,7 +541,10 @@ export function EventFormPage({
         }
         return false
       }
-      setErrors({})
+      setErrors(
+        policeIdBlocked ? { police_event_id: POLICE_EVENT_ID_DUPLICATE_ERROR } : {},
+      )
+      lastPersistedPoliceIdRef.current = draftToSave.police_event_id
       setPreviousIsCancelled(current.is_cancelled)
       if (result.trackingStopFailed) {
         show('עצירת מעקב המיקום נכשלה. האירוע נשמר.', 'alert')
@@ -843,8 +889,14 @@ export function EventFormPage({
   }, [locationPinDrop, user, draft, cockpitPreviewing, foreignEditPending])
 
   useEffect(() => {
-    registerAbandonedEmptyEventHandler(() =>
-      discardIfAbandonedEmpty().then(() => undefined),
+    registerAbandonedEmptyEventHandler(
+      () => discardIfAbandonedEmpty(),
+      () => {
+        const current = draftRef.current
+        return Boolean(
+          current && isAbandonedEmptyEventDraft(current, initialDateRef.current),
+        )
+      },
     )
     return () => registerAbandonedEmptyEventHandler(null)
   }, [])
@@ -969,6 +1021,8 @@ export function EventFormPage({
   const selectedRoadName =
     lookups.roads.find((row) => row.id === draft.road_id)?.name ?? null
   const needsMinimum = !hasEventMinimum(draft, lookups.districts, lookups.roads)
+  const identityDraftWarning =
+    variant === 'cockpit' ? cockpitIdentityDraftWarning(draft) : null
   const saveHint =
     cockpitPreviewing
       ? ''
@@ -1058,6 +1112,11 @@ export function EventFormPage({
                 </div>
                 ) : null}
               </div>
+              {identityDraftWarning ? (
+              <p className="t-caption field__hint--error" role="status">
+                {identityDraftWarning}
+              </p>
+              ) : null}
               {cockpitPreviewing && !errors.form ? null : (
               <p
                 className={[
@@ -1120,11 +1179,18 @@ export function EventFormPage({
                 <div className="event-form__f-police">
                 <TextField
                   label="מספר אירוע"
+                  type="text"
                   numeric
+                  isolate
                   inputMode="numeric"
+                  autoComplete="off"
+                  pattern="[0-9]*"
                   value={draft.police_event_id}
                   error={errors.police_event_id}
-                  onChange={(event) => updateDraft({ police_event_id: event.target.value })}
+                  onChange={(event) => {
+                    updateDraft({ police_event_id: digitsOnly(event.target.value) })
+                    setErrors((current) => ({ ...current, police_event_id: undefined }))
+                  }}
                   onBlur={() => void persistLatest()}
                 />
                 </div>
@@ -1589,7 +1655,7 @@ export function EventFormPage({
       <Dialog
         open={foreignEditPending}
         title={foreignEventEditTitle(foreignEventEditLeadName(draft.shift_lead))}
-        onClose={() => onCancel()}
+        onClose={() => (onDismissForeignEdit ?? onCancel)()}
         footer={
           <>
             <Button
@@ -1600,7 +1666,10 @@ export function EventFormPage({
             >
               {FOREIGN_EVENT_EDIT_CONFIRM}
             </Button>
-            <Button variant="secondary" onClick={() => onCancel()}>
+            <Button
+              variant="secondary"
+              onClick={() => (onDismissForeignEdit ?? onCancel)()}
+            >
               {FOREIGN_EVENT_EDIT_CANCEL}
             </Button>
           </>

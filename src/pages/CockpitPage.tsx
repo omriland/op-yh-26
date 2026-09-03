@@ -21,6 +21,8 @@ import {
   insertCockpitDraft,
   isOwnAbandonedEmptyCockpitItem,
   isCockpitTypingTarget,
+  cockpitReelAfterLeavingRow,
+  cockpitSelectionAfterForeignEditCancel,
   saveEventLocationPin,
   type CockpitDeleteHintKind,
   type CockpitEventPin,
@@ -28,7 +30,11 @@ import {
 } from '../lib/cockpit'
 import { hasSeenCockpitIntro, markCockpitIntroSeen } from '../lib/cockpitIntro'
 import { deleteEvent } from '../lib/events'
-import { discardAbandonedEmptyEventIfAny } from '../lib/eventForm'
+import {
+  discardAbandonedEmptyEventIfAny,
+  mountedEventIsKeptFromAbandon,
+  todayJerusalem,
+} from '../lib/eventForm'
 import { monoClass } from '../lib/format'
 import { cancelledStamp, eventStamp } from '../lib/status'
 import { Button, IconButton } from '../components/ui/Button'
@@ -69,6 +75,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   } | null>(null)
   const [introOpen, setIntroOpen] = useState(false)
   const [stageEditing, setStageEditing] = useState(false)
+  const [previousEventId, setPreviousEventId] = useState<string | undefined>()
   const knownEventPins = useMemo(() => cockpitEventMapPins(reel), [reel])
   const [geocodedEventPins, setGeocodedEventPins] = useState<CockpitEventPin[]>([])
   const [pinOverrides, setPinOverrides] = useState<Record<string, { lat: number; lng: number }>>(
@@ -125,13 +132,12 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     setMapEventFocus(null)
   }
 
-  function selectEvent(eventId: string, opts?: { editing?: boolean }) {
+  async function selectEvent(eventId: string, opts?: { editing?: boolean }) {
     if (eventId !== selectedEventId) {
-      const leaving = reel.find((row) => row.id === selectedEventId)
-      if (leaving && user && isOwnAbandonedEmptyCockpitItem(leaving, user.id)) {
-        setReel((rows) => rows.filter((row) => row.id !== leaving.id))
-      }
-      void discardAbandonedEmptyEventIfAny()
+      setPreviousEventId(selectedEventId)
+      const leavingId = selectedEventId
+      const discarded = await discardAbandonedEmptyEventIfAny()
+      setReel((rows) => cockpitReelAfterLeavingRow(rows, leavingId, discarded))
       setStageEditing(Boolean(opts?.editing))
     } else if (opts?.editing) {
       setStageEditing(true)
@@ -139,6 +145,18 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     clearDeletePrompt()
     onSelectEvent(eventId)
     if (mapOpen) requestMapEventFocus(eventId)
+  }
+
+  function dismissForeignEdit() {
+    const next = cockpitSelectionAfterForeignEditCancel({
+      previousEventId,
+      currentEventId: selectedEventId,
+    })
+    setStageEditing(next.editing)
+    if (next.eventId !== selectedEventId) {
+      onSelectEvent(next.eventId)
+      if (mapOpen && next.eventId) requestMapEventFocus(next.eventId)
+    }
   }
 
   async function handleEventPinMove(eventId: string, lat: number, lng: number) {
@@ -208,7 +226,11 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   async function createNew() {
     if (!user || creating) return
     const current = reel.find((row) => row.id === selectedEventId)
-    if (current && isOwnAbandonedEmptyCockpitItem(current, user.id)) {
+    if (
+      current &&
+      isOwnAbandonedEmptyCockpitItem(current, user.id) &&
+      !mountedEventIsKeptFromAbandon()
+    ) {
       setStageEditing(true)
       return
     }
@@ -223,6 +245,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     const draftRow: CockpitReelItem = {
       id: result.eventId,
       created_at: new Date().toISOString(),
+      event_date: todayJerusalem(),
       police_event_id: null,
       status: 'draft',
       is_cancelled: false,
@@ -239,7 +262,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
       responders: [],
     }
     setReel((rows) => [draftRow, ...rows.filter((row) => row.id !== draftRow.id)])
-    selectEvent(result.eventId, { editing: true })
+    void selectEvent(result.eventId, { editing: true })
     void reloadReel().catch(() => {})
   }
 
@@ -306,7 +329,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
           action.direction,
         )
         if (next && next !== selectedEventId) {
-          selectEvent(next)
+          void selectEvent(next)
         }
         return
       }
@@ -390,7 +413,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                     type="button"
                     className="cockpit__item"
                     aria-current={current ? 'true' : undefined}
-                    onClick={() => selectEvent(event.id)}
+                    onClick={() => void selectEvent(event.id)}
                   >
                     <span
                       className={
@@ -456,9 +479,9 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             blockSelfAssign
             cockpitEditing={stageEditing}
             onRequestCockpitEdit={() => setStageEditing(true)}
+            onDismissForeignEdit={dismissForeignEdit}
             onCancel={() => {
               setStageEditing(false)
-              onSelectEvent(undefined)
             }}
             onSaved={() => undefined}
             onSavedAndCreateNew={() => undefined}

@@ -1,10 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
+  COCKPIT_IDENTITY_DRAFT_WARNING,
+  POLICE_EVENT_ID_DUPLICATE_ERROR,
   canPersistEventDraft,
+  cockpitIdentityDraftWarning,
+  cockpitPoliceEventIdCollides,
+  discardAbandonedEmptyEventIfAny,
   emptyEventDraft,
   eventForeignIds,
+  eventLacksRequiredIdentity,
   isAbandonedEmptyEventDraft,
   isMissingBusLaneColumn,
+  mountedEventIsKeptFromAbandon,
+  policeEventIdForCockpitSave,
+  registerAbandonedEmptyEventHandler,
+  sameDayPoliceEventIdCollides,
   type EventFormDraft,
   type LookupOption,
 } from './eventForm'
@@ -87,6 +97,239 @@ describe('isAbandonedEmptyEventDraft', () => {
           ],
         }),
         empty.event_date,
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('discardAbandonedEmptyEventIfAny', () => {
+  afterEach(() => {
+    registerAbandonedEmptyEventHandler(null)
+  })
+
+  it('returns whether the mounted form discarded, and peek treats a date edit as kept', async () => {
+    expect(await discardAbandonedEmptyEventIfAny()).toBe(false)
+    expect(mountedEventIsKeptFromAbandon()).toBe(false)
+
+    registerAbandonedEmptyEventHandler(
+      async () => false,
+      () => false,
+    )
+    expect(await discardAbandonedEmptyEventIfAny()).toBe(false)
+    expect(mountedEventIsKeptFromAbandon()).toBe(true)
+
+    registerAbandonedEmptyEventHandler(
+      async () => true,
+      () => true,
+    )
+    expect(await discardAbandonedEmptyEventIfAny()).toBe(true)
+    expect(mountedEventIsKeptFromAbandon()).toBe(false)
+  })
+})
+
+describe('eventLacksRequiredIdentity', () => {
+  it('is a cockpit draft until תאריך, כביש, and סוג אירוע are all set', () => {
+    expect(eventLacksRequiredIdentity(draft())).toBe(true)
+    expect(eventLacksRequiredIdentity(draft({ event_date: '2026-09-03' }))).toBe(true)
+    expect(
+      eventLacksRequiredIdentity(draft({ event_date: '2026-09-03', road_id: 'r1' })),
+    ).toBe(true)
+    expect(
+      eventLacksRequiredIdentity(
+        draft({ event_date: '2026-09-03', event_type_id: 't1' }),
+      ),
+    ).toBe(true)
+    expect(
+      eventLacksRequiredIdentity(
+        draft({ event_date: '2026-09-03', road_id: 'r1', event_type_id: 't1' }),
+      ),
+    ).toBe(false)
+  })
+
+  it('does not require מיקום or מספר אירוע to leave draft', () => {
+    expect(
+      eventLacksRequiredIdentity(
+        draft({
+          event_date: '2026-09-03',
+          road_id: 'r1',
+          event_type_id: 't1',
+          location: '',
+          police_event_id: '',
+        }),
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('cockpitIdentityDraftWarning', () => {
+  it('names what is still missing, with חסר / חסרים', () => {
+    expect(
+      cockpitIdentityDraftWarning(draft({ event_date: '', event_type_id: '', road_id: '' })),
+    ).toBe('האירוע בטיוטה')
+    expect(COCKPIT_IDENTITY_DRAFT_WARNING).toBe('האירוע בטיוטה')
+    expect(cockpitIdentityDraftWarning(draft({ event_date: '2026-09-03' }))).toBe(
+      'חסרים סוג וכביש',
+    )
+    expect(
+      cockpitIdentityDraftWarning(draft({ event_date: '2026-09-03', event_type_id: 't1' })),
+    ).toBe('חסר כביש')
+    expect(
+      cockpitIdentityDraftWarning(draft({ event_date: '2026-09-03', road_id: 'r1' })),
+    ).toBe('חסר סוג')
+    expect(
+      cockpitIdentityDraftWarning(
+        draft({ event_date: '', event_type_id: 't1', road_id: 'r1' }),
+      ),
+    ).toBe('חסר תאריך')
+    expect(
+      cockpitIdentityDraftWarning(
+        draft({ event_date: '', event_type_id: '', road_id: 'r1' }),
+      ),
+    ).toBe('חסרים תאריך וסוג')
+    expect(
+      cockpitIdentityDraftWarning(
+        draft({ event_date: '2026-09-03', road_id: 'r1', event_type_id: 't1' }),
+      ),
+    ).toBeNull()
+  })
+})
+
+describe('sameDayPoliceEventIdCollides', () => {
+  const existing = [
+    {
+      id: 'evt-1',
+      event_date: '2026-09-03',
+      police_event_id: '12345',
+      is_cancelled: false,
+    },
+    {
+      id: 'evt-cancelled',
+      event_date: '2026-09-03',
+      police_event_id: '99999',
+      is_cancelled: true,
+    },
+  ]
+
+  it('blocks the same מספר אירוע on the same תאריך', () => {
+    expect(
+      sameDayPoliceEventIdCollides({
+        eventDate: '2026-09-03',
+        policeEventId: '12345',
+        currentEventId: 'evt-new',
+        existing,
+      }),
+    ).toBe(true)
+    expect(
+      sameDayPoliceEventIdCollides({
+        eventDate: '2026-09-03',
+        policeEventId: '12-345',
+        currentEventId: 'evt-new',
+        existing,
+      }),
+    ).toBe(true)
+  })
+
+  it('allows the same number on another day, an empty number, and the current row', () => {
+    expect(
+      sameDayPoliceEventIdCollides({
+        eventDate: '2026-09-04',
+        policeEventId: '12345',
+        currentEventId: 'evt-new',
+        existing,
+      }),
+    ).toBe(false)
+    expect(
+      sameDayPoliceEventIdCollides({
+        eventDate: '2026-09-03',
+        policeEventId: '',
+        currentEventId: 'evt-new',
+        existing,
+      }),
+    ).toBe(false)
+    expect(
+      sameDayPoliceEventIdCollides({
+        eventDate: '2026-09-03',
+        policeEventId: '12345',
+        currentEventId: 'evt-1',
+        existing,
+      }),
+    ).toBe(false)
+  })
+
+  it('ignores cancelled events so a number can be reused', () => {
+    expect(
+      sameDayPoliceEventIdCollides({
+        eventDate: '2026-09-03',
+        policeEventId: '99999',
+        currentEventId: 'evt-new',
+        existing,
+      }),
+    ).toBe(false)
+  })
+
+  it('uses a Hebrew field error and keeps the last saved number', () => {
+    expect(POLICE_EVENT_ID_DUPLICATE_ERROR).toBe(
+      'כבר קיים אירוע עם המספר הזה באותו תאריך.',
+    )
+    expect(
+      policeEventIdForCockpitSave({
+        typed: '12345',
+        lastSaved: '111',
+        collides: true,
+      }),
+    ).toBe('111')
+    expect(
+      policeEventIdForCockpitSave({
+        typed: '12345',
+        lastSaved: '',
+        collides: true,
+      }),
+    ).toBe('')
+    expect(
+      policeEventIdForCockpitSave({
+        typed: '12345',
+        lastSaved: '111',
+        collides: false,
+      }),
+    ).toBe('12345')
+    expect(
+      policeEventIdForCockpitSave({
+        typed: '12345',
+        lastSaved: '12345',
+        collides: true,
+      }),
+    ).toBe('')
+  })
+})
+
+describe('cockpitPoliceEventIdCollides', () => {
+  it('loads same-day rows and applies the collision rule', async () => {
+    const loadRows = async () => [
+      {
+        id: 'evt-1',
+        event_date: '2026-09-03',
+        police_event_id: '12345',
+        is_cancelled: false,
+      },
+    ]
+    expect(
+      await cockpitPoliceEventIdCollides(
+        {
+          eventDate: '2026-09-03',
+          policeEventId: '12345',
+          currentEventId: 'evt-new',
+        },
+        loadRows,
+      ),
+    ).toBe(true)
+    expect(
+      await cockpitPoliceEventIdCollides(
+        {
+          eventDate: '2026-09-03',
+          policeEventId: '   ',
+          currentEventId: 'evt-new',
+        },
+        loadRows,
       ),
     ).toBe(false)
   })

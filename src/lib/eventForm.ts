@@ -11,7 +11,7 @@ import {
   eventNeedsPersistedGeocode,
 } from './eventGeocode'
 import { geocodePlaceQuery } from './googlePlaces'
-import { isCompleteTimeInput } from './format'
+import { digitsOnly, isCompleteTimeInput } from './format'
 import {
   LOCATION_REQUIRED_ERROR,
   needsPlacesLocation,
@@ -273,15 +273,26 @@ export function isAbandonedEmptyEventDraft(
   return true
 }
 
-let abandonEmptyEventHandler: (() => Promise<void>) | null = null
+let abandonEmptyEventHandler: (() => Promise<boolean>) | null = null
+let abandonEmptyEventPeek: (() => boolean) | null = null
 
-export function registerAbandonedEmptyEventHandler(handler: (() => Promise<void>) | null) {
+export function registerAbandonedEmptyEventHandler(
+  handler: (() => Promise<boolean>) | null,
+  peek?: (() => boolean) | null,
+) {
   abandonEmptyEventHandler = handler
+  abandonEmptyEventPeek = handler ? (peek ?? null) : null
+}
+
+/** True when the mounted form has a real edit (including date-only) so it must not be reused or dropped. */
+export function mountedEventIsKeptFromAbandon(): boolean {
+  if (!abandonEmptyEventPeek) return false
+  return !abandonEmptyEventPeek()
 }
 
 /** Drop a never-touched new event when leaving the form (nav, back, cockpit switch). */
-export async function discardAbandonedEmptyEventIfAny() {
-  await abandonEmptyEventHandler?.()
+export async function discardAbandonedEmptyEventIfAny(): Promise<boolean> {
+  return (await abandonEmptyEventHandler?.()) ?? false
 }
 
 async function fetchLookup(table: 'event_types' | 'roads' | 'vehicle_kinds') {
@@ -484,6 +495,107 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
       }
     }),
   }
+}
+
+/** Cockpit: missing תאריך / כביש / סוג אירוע — persisted, but not a “real” event yet. */
+export const COCKPIT_IDENTITY_DRAFT_WARNING = 'האירוע בטיוטה'
+
+export const POLICE_EVENT_ID_DUPLICATE_ERROR =
+  'כבר קיים אירוע עם המספר הזה באותו תאריך.'
+
+export function eventLacksRequiredIdentity(draft: {
+  event_date: string
+  event_type_id: string
+  road_id: string
+}): boolean {
+  return cockpitIdentityDraftWarning(draft) !== null
+}
+
+/** Red cockpit caption: name what is still missing of תאריך / סוג / כביש. */
+export function cockpitIdentityDraftWarning(draft: {
+  event_date: string
+  event_type_id: string
+  road_id: string
+}): string | null {
+  const missing: string[] = []
+  if (!draft.event_date.trim()) missing.push('תאריך')
+  if (!draft.event_type_id.trim()) missing.push('סוג')
+  if (!draft.road_id.trim()) missing.push('כביש')
+  if (missing.length === 0) return null
+  if (missing.length === 3) return COCKPIT_IDENTITY_DRAFT_WARNING
+  if (missing.length === 1) return `חסר ${missing[0]}`
+  return `חסרים ${missing[0]} ו${missing[1]}`
+}
+
+export type SameDayPoliceEventRow = {
+  id: string
+  event_date: string
+  police_event_id: string | null
+  is_cancelled?: boolean
+}
+
+export function sameDayPoliceEventIdCollides(input: {
+  eventDate: string
+  policeEventId: string
+  currentEventId?: string | null
+  existing: SameDayPoliceEventRow[]
+}): boolean {
+  const policeId = digitsOnly(input.policeEventId)
+  const date = input.eventDate.trim()
+  if (!policeId || !date) return false
+  return input.existing.some((row) => {
+    if (row.is_cancelled) return false
+    if (input.currentEventId && row.id === input.currentEventId) return false
+    if (row.event_date.trim() !== date) return false
+    return digitsOnly(row.police_event_id ?? '') === policeId
+  })
+}
+
+export function policeEventIdForCockpitSave(input: {
+  typed: string
+  lastSaved: string
+  collides: boolean
+}): string {
+  if (!input.collides) return digitsOnly(input.typed)
+  if (digitsOnly(input.lastSaved) === digitsOnly(input.typed)) return ''
+  return digitsOnly(input.lastSaved)
+}
+
+export async function fetchSameDayPoliceEventIdRows(input: {
+  eventDate: string
+  policeEventId: string
+}): Promise<SameDayPoliceEventRow[]> {
+  const policeId = digitsOnly(input.policeEventId)
+  const eventDate = input.eventDate.trim()
+  if (!policeId || !eventDate) return []
+  const { data, error } = await supabase
+    .from('events')
+    .select('id, event_date, police_event_id, is_cancelled')
+    .eq('event_date', eventDate)
+    .eq('police_event_id', policeId)
+    .eq('is_cancelled', false)
+  if (error) throw new Error(error.message)
+  return (data ?? []) as SameDayPoliceEventRow[]
+}
+
+export async function cockpitPoliceEventIdCollides(
+  input: {
+    eventDate: string
+    policeEventId: string
+    currentEventId?: string | null
+  },
+  loadRows: (query: {
+    eventDate: string
+    policeEventId: string
+  }) => Promise<SameDayPoliceEventRow[]> = fetchSameDayPoliceEventIdRows,
+): Promise<boolean> {
+  const policeId = digitsOnly(input.policeEventId)
+  if (!policeId || !input.eventDate.trim()) return false
+  const existing = await loadRows({
+    eventDate: input.eventDate,
+    policeEventId: policeId,
+  })
+  return sameDayPoliceEventIdCollides({ ...input, existing })
 }
 
 /** Minimum to create/keep an event: date + event type + road (+ location for Places). */
@@ -721,7 +833,7 @@ export async function saveEventForm(input: {
   const foreignIds = eventForeignIds(draft, { allowPartial })
   const eventPayload = {
     event_date: draft.event_date,
-    police_event_id: draft.police_event_id.trim() || null,
+    police_event_id: digitsOnly(draft.police_event_id) || null,
     district_id: foreignIds.district_id,
     patrol_callsign: draft.patrol_callsign.trim() || null,
     event_type_id: foreignIds.event_type_id,

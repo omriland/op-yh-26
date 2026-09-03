@@ -22,6 +22,8 @@ import {
   cockpitReelType,
   cockpitShortcut,
   cockpitWindowCountLabel,
+  cockpitReelAfterLeavingRow,
+  cockpitSelectionAfterForeignEditCancel,
   filterCockpitReel,
   formatCockpitAge,
   formatCockpitClock,
@@ -97,8 +99,36 @@ describe('isAbandonedEmptyCockpitItem', () => {
     responders: [],
   }
 
-  it('is true for a date-only cockpit insert', () => {
+  it('is true for a default-date cockpit insert', () => {
     expect(isAbandonedEmptyCockpitItem(blank)).toBe(true)
+    expect(
+      isAbandonedEmptyCockpitItem({
+        ...blank,
+        event_date: '2026-08-16',
+        created_at: '2026-08-16T12:00:00.000Z',
+      }),
+    ).toBe(true)
+  })
+
+  it('is false after a date-only change from the insert day', () => {
+    expect(
+      isAbandonedEmptyCockpitItem({
+        ...blank,
+        event_date: '2026-08-15',
+        created_at: '2026-08-16T12:00:00.000Z',
+      }),
+    ).toBe(false)
+    expect(
+      isOwnAbandonedEmptyCockpitItem(
+        {
+          ...blank,
+          shift_lead_id: 'me',
+          event_date: '2026-08-15',
+          created_at: '2026-08-16T12:00:00.000Z',
+        },
+        'me',
+      ),
+    ).toBe(false)
   })
 
   it('is false once type, road, location, or a כונן exists', () => {
@@ -116,6 +146,21 @@ describe('isAbandonedEmptyCockpitItem', () => {
         'me',
       ),
     ).toBe(false)
+  })
+})
+
+describe('cockpitReelAfterLeavingRow', () => {
+  it('keeps a date-touched insert on the גלגלת when the form did not discard it', () => {
+    const reel = [item('touched', '2026-08-16T11:50:00.000Z'), item('other', '2026-08-16T11:00:00.000Z')]
+    expect(cockpitReelAfterLeavingRow(reel, 'touched', false).map((row) => row.id)).toEqual([
+      'touched',
+      'other',
+    ])
+  })
+
+  it('drops an untouched empty insert only after the form discarded it', () => {
+    const reel = [item('empty', '2026-08-16T11:50:00.000Z'), item('other', '2026-08-16T11:00:00.000Z')]
+    expect(cockpitReelAfterLeavingRow(reel, 'empty', true).map((row) => row.id)).toEqual(['other'])
   })
 })
 
@@ -515,6 +560,35 @@ describe('cockpitNeighborId', () => {
 describe('cockpit click-to-edit', () => {
   it('uses Hebrew veil copy', () => {
     expect(COCKPIT_CLICK_TO_EDIT).toBe('לחצו לעריכה')
+  })
+})
+
+describe('cockpitSelectionAfterForeignEditCancel', () => {
+  it('restores the event that was selected before the foreign row', () => {
+    expect(
+      cockpitSelectionAfterForeignEditCancel({
+        previousEventId: 'own-a',
+        currentEventId: 'foreign-b',
+      }),
+    ).toEqual({ eventId: 'own-a', editing: false })
+  })
+
+  it('keeps the current event in view-only when there was no previous selection', () => {
+    expect(
+      cockpitSelectionAfterForeignEditCancel({
+        previousEventId: undefined,
+        currentEventId: 'foreign-b',
+      }),
+    ).toEqual({ eventId: 'foreign-b', editing: false })
+  })
+
+  it('allows empty state only when nothing was selected before or now', () => {
+    expect(
+      cockpitSelectionAfterForeignEditCancel({
+        previousEventId: undefined,
+        currentEventId: undefined,
+      }),
+    ).toEqual({ eventId: undefined, editing: false })
   })
 })
 
