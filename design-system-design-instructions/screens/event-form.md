@@ -5,7 +5,7 @@ The form where the paper-form metaphor is most explicit: numbered sections (disp
 ## Theme context
 
 - Mobile: **Field**.
-- Desktop: **Command chrome** when the sidebar is showing; content (and immersive form screens without a sidebar) is **Field**. The form itself sits on a **Field paper panel** (`--surface-raised` card, max-width 720, centered in the content area). All inputs inside use Field-theme tokens (scope `data-theme="field"` on the panel).
+- Desktop: **Command chrome** when the sidebar is showing; content (and immersive form screens without a sidebar) is **Field**. The form itself sits on a **Field paper panel** (`--surface-raised` card, max-width `calc(var(--form-max) * 1.3)`, centered in `.shell__main` / the content pane after the sidebar). All inputs inside use Field-theme tokens (scope `data-theme="field"` on the panel).
 
 ## Layout
 

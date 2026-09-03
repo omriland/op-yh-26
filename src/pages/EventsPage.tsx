@@ -7,6 +7,9 @@ import {
   UNIT_EVENTS_LOAD_MORE_LABEL,
   UNIT_EVENTS_RECENT_EMPTY_TITLE,
   UNIT_EVENTS_WINDOW_DAYS,
+  canUseEventListDeleteContext,
+  deleteEvent,
+  eventDeleteConfirmTitle,
   fetchEvents,
   fetchEventsByIds,
   fetchMyEvents,
@@ -51,6 +54,8 @@ import {
 import { isMineFillOverdue } from '../lib/overdueFill'
 import { jerusalemToday } from '../lib/shifts'
 import { Button } from '../components/ui/Button'
+import { Dialog } from '../components/ui/Dialog'
+import { PointerContextMenu } from '../components/ui/PointerContextMenu'
 import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
@@ -109,6 +114,32 @@ export function EventsPage({
   const [unitWindows, setUnitWindows] = useState(1)
   const [mineTab, setMineTab] = useState<MineInboxTab>('pending')
   const [loggedQuery, setLoggedQuery] = useState('')
+  const canListDelete = scope === 'unit' && canUseEventListDeleteContext(roles)
+  const [deleteMenu, setDeleteMenu] = useState<{
+    event: EventListItem
+    x: number
+    y: number
+  } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<EventListItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  function openDeleteMenu(event: EventListItem, pointer: { x: number; y: number }) {
+    setDeleteMenu({ event, ...pointer })
+  }
+
+  async function confirmDeleteEvent() {
+    if (!confirmDelete) return
+    setDeleting(true)
+    const result = await deleteEvent(confirmDelete.id)
+    setDeleting(false)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    setConfirmDelete(null)
+    show('האירוע נמחק', 'done')
+    setReloadKey((key) => key + 1)
+  }
 
   useEffect(() => {
     let active = true
@@ -461,7 +492,11 @@ export function EventsPage({
         />
       ) : asTable ? (
         <div className="stack-4">
-          <EventsTable events={visible} onOpen={onOpen} />
+          <EventsTable
+            events={visible}
+            onOpen={onOpen}
+            onContextDelete={canListDelete ? openDeleteMenu : undefined}
+          />
           {scope === 'unit' && unitWindow?.hasMore ? (
             <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>
               {UNIT_EVENTS_LOAD_MORE_LABEL}
@@ -473,7 +508,12 @@ export function EventsPage({
           <DateGroups>
             {grouped.map(([day, items]) => (
               <DateGroup key={day} heading={formatDayHeading(day)}>
-                <EventCards events={items} stampFor={stampFor} onOpen={onOpen} />
+                <EventCards
+                  events={items}
+                  stampFor={stampFor}
+                  onOpen={onOpen}
+                  onContextDelete={canListDelete ? openDeleteMenu : undefined}
+                />
               </DateGroup>
             ))}
           </DateGroups>
@@ -484,6 +524,54 @@ export function EventsPage({
           ) : null}
         </div>
       )}
+
+      {canListDelete ? (
+        <>
+          <PointerContextMenu
+            open={Boolean(deleteMenu)}
+            pointer={deleteMenu}
+            label="פעולות אירוע"
+            onClose={() => setDeleteMenu(null)}
+            items={
+              deleteMenu
+                ? [
+                    {
+                      label: 'מחיקה',
+                      danger: true,
+                      onSelect: () => setConfirmDelete(deleteMenu.event),
+                    },
+                  ]
+                : []
+            }
+          />
+          <Dialog
+            open={Boolean(confirmDelete)}
+            title={eventDeleteConfirmTitle(confirmDelete?.police_event_id)}
+            onClose={() => !deleting && setConfirmDelete(null)}
+            footer={
+              <>
+                <Button
+                  variant="destructive"
+                  loading={deleting}
+                  loadingLabel="מוחק…"
+                  onClick={() => void confirmDeleteEvent()}
+                >
+                  מחיקה
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(null)}
+                >
+                  ביטול
+                </Button>
+              </>
+            }
+          >
+            <p className="t-body">הפעולה תמחק גם את נתוני המתנדבים המשויכים. לא ניתן לשחזר.</p>
+          </Dialog>
+        </>
+      ) : null}
     </div>
   )
 }
@@ -636,6 +724,7 @@ function EventCards({
   userId,
   collapsibleShiftGroups = false,
   mode = 'default',
+  onContextDelete,
 }: {
   events: EventListItem[]
   stampFor: (event: EventListItem) => StampDescriptor
@@ -644,6 +733,7 @@ function EventCards({
   userId?: string
   collapsibleShiftGroups?: boolean
   mode?: 'default' | 'inbox'
+  onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
 }) {
   const blocks = groupMineEventCards(events)
   return (
@@ -670,6 +760,7 @@ function EventCards({
                     fillCompletableAt: ownFillCompletableAt(event, userId),
                   })
                 }
+                onContextDelete={onContextDelete}
               />
             )
           })
@@ -717,6 +808,7 @@ function EventCards({
                 fillCompletableAt: ownFillCompletableAt(event, userId),
               })
             }
+            onContextDelete={onContextDelete}
           />
         )
       })}

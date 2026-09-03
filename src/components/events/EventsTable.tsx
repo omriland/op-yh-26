@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { formatDate, monoClass } from '../../lib/format'
 import { doneFraction, type EventListItem } from '../../lib/events'
 import { eventLeadDisplayName } from '../../lib/shiftBornEvents'
@@ -9,10 +10,13 @@ import { EventStatusTrail } from './EventStatusTrail'
 type EventsTableProps = {
   events: EventListItem[]
   onOpen: (eventId: string) => void
+  onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
 }
 
 /** Command desktop only — mobile renders the same data as cards. */
-export function EventsTable({ events, onOpen }: EventsTableProps) {
+export function EventsTable({ events, onOpen, onContextDelete }: EventsTableProps) {
+  const skipOpenUntil = useRef(0)
+
   return (
     <div className="table-wrap">
       <table className="table table--events">
@@ -35,7 +39,20 @@ export function EventsTable({ events, onOpen }: EventsTableProps) {
               <tr
                 key={event.id}
                 className={event.status === 'done' ? 'table-row--done' : undefined}
-                onClick={() => onOpen(event.id)}
+                onClick={(click) => {
+                  if (click.button !== 0 || Date.now() < skipOpenUntil.current) return
+                  onOpen(event.id)
+                }}
+                onContextMenu={
+                  onContextDelete
+                    ? (click) => {
+                        click.preventDefault()
+                        click.stopPropagation()
+                        skipOpenUntil.current = Date.now() + 400
+                        onContextDelete(event, { x: click.clientX, y: click.clientY })
+                      }
+                    : undefined
+                }
               >
                 <td className="num mono">{formatDate(event.event_date)}</td>
                 <td className={`num ${monoClass(event.police_event_id)}`}>

@@ -36,3 +36,21 @@ export function placeOverflowMenuPanel(input: PlaceOverflowMenuInput): {
     maxHeight,
   }
 }
+
+/** Keep a pointer-anchored context menu inside the viewport. */
+export function placeContextMenuAtPointer(input: {
+  pointer: { x: number; y: number }
+  viewport: { width: number; height: number }
+  panel: { width: number; height: number }
+}): { top: number; left: number } {
+  const pad = OVERFLOW_MENU_VIEWPORT_PAD
+  const left = Math.min(
+    Math.max(pad, input.pointer.x),
+    Math.max(pad, input.viewport.width - input.panel.width - pad),
+  )
+  const top = Math.min(
+    Math.max(pad, input.pointer.y),
+    Math.max(pad, input.viewport.height - input.panel.height - pad),
+  )
+  return { top, left }
+}

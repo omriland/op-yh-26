@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest'
 import {
   EVENT_DELETE_FAILED,
   EVENT_DELETE_OTHER_LEAD,
+  canUseEventListDeleteContext,
   canViewerDeleteEvent,
+  eventDeleteConfirmTitle,
   viewerMayDeleteOthersEvents,
 } from './events'
 
@@ -68,6 +70,21 @@ describe('canViewerDeleteEvent', () => {
   it('uses locked Hebrew copy', () => {
     expect(EVENT_DELETE_OTHER_LEAD).toBe('אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.')
     expect(EVENT_DELETE_FAILED).toBe('מחיקת האירוע נכשלה. בדקו את החיבור ונסו שוב.')
+  })
+})
+
+describe('event list right-click delete', () => {
+  it('is Super Admin only', () => {
+    expect(canUseEventListDeleteContext(['super_admin'])).toBe(true)
+    expect(canUseEventListDeleteContext(['super_admin', 'admin'])).toBe(true)
+    expect(canUseEventListDeleteContext(['admin'])).toBe(false)
+    expect(canUseEventListDeleteContext(['shift_lead'])).toBe(false)
+  })
+
+  it('names the police id in the confirm title', () => {
+    expect(eventDeleteConfirmTitle('12345')).toBe('למחוק את האירוע 12345?')
+    expect(eventDeleteConfirmTitle(null)).toBe('למחוק את האירוע?')
+    expect(eventDeleteConfirmTitle('  ')).toBe('למחוק את האירוע?')
   })
 })
 

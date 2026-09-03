@@ -53,24 +53,24 @@ begin
       full join jsonb_each(v_new - 'updated_at') n using (key)
       where o.value is distinct from n.value
     ) d;
-    v_row_id := new.id;
+    v_row_id := (v_new->>'id')::uuid;
     v_event_id := case
-      when tg_table_name = 'events' then new.id
-      else new.event_id
+      when tg_table_name = 'events' then (v_new->>'id')::uuid
+      else (v_new->>'event_id')::uuid
     end;
   elsif tg_op = 'INSERT' then
     v_new := to_jsonb(new);
-    v_row_id := new.id;
+    v_row_id := (v_new->>'id')::uuid;
     v_event_id := case
-      when tg_table_name = 'events' then new.id
-      else new.event_id
+      when tg_table_name = 'events' then (v_new->>'id')::uuid
+      else (v_new->>'event_id')::uuid
     end;
   elsif tg_op = 'DELETE' then
     v_old := to_jsonb(old);
-    v_row_id := old.id;
+    v_row_id := (v_old->>'id')::uuid;
     v_event_id := case
-      when tg_table_name = 'events' then old.id
-      else old.event_id
+      when tg_table_name = 'events' then (v_old->>'id')::uuid
+      else (v_old->>'event_id')::uuid
     end;
   end if;
 

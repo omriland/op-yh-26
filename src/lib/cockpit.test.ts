@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   COCKPIT_AUTOSAVE_MS,
   COCKPIT_CLICK_TO_EDIT,
+  COCKPIT_CLOCK_SKEW_MS,
   COCKPIT_WINDOW_MS,
   canDeleteCockpitDraft,
   cockpitDeleteBlock,
@@ -26,6 +27,7 @@ import {
   formatCockpitClock,
   isCockpitTypingTarget,
   isAbandonedEmptyCockpitItem,
+  isOwnAbandonedEmptyCockpitItem,
   isInCockpitWindow,
 } from './cockpit'
 
@@ -41,9 +43,14 @@ describe('cockpit window', () => {
     expect(isInCockpitWindow('2026-08-16T11:59:00.000Z', NOW)).toBe(true)
   })
 
-  it('drops events older than two hours and future rows', () => {
+  it('keeps just-created rows when the server clock is slightly ahead', () => {
+    expect(isInCockpitWindow('2026-08-16T12:00:00.066Z', NOW)).toBe(true)
+    expect(isInCockpitWindow('2026-08-16T12:01:59.000Z', NOW)).toBe(true)
+  })
+
+  it('drops events older than two hours and far-future rows', () => {
     expect(isInCockpitWindow('2026-08-16T09:59:59.000Z', NOW)).toBe(false)
-    expect(isInCockpitWindow('2026-08-16T12:00:01.000Z', NOW)).toBe(false)
+    expect(isInCockpitWindow('2026-08-16T12:02:01.000Z', NOW)).toBe(false)
   })
 
   it('sorts the גלגלת newest first', () => {
@@ -60,6 +67,7 @@ describe('cockpit window', () => {
 
   it('uses a two-hour window and 800ms autosave delay', () => {
     expect(COCKPIT_WINDOW_MS).toBe(2 * 60 * 60 * 1000)
+    expect(COCKPIT_CLOCK_SKEW_MS).toBe(2 * 60 * 1000)
     expect(COCKPIT_AUTOSAVE_MS).toBe(800)
   })
 })
@@ -97,6 +105,17 @@ describe('isAbandonedEmptyCockpitItem', () => {
     expect(isAbandonedEmptyCockpitItem({ ...blank, event_type: { name: 'תקוע' } })).toBe(false)
     expect(isAbandonedEmptyCockpitItem({ ...blank, responders: [{}] })).toBe(false)
     expect(isAbandonedEmptyCockpitItem({ ...blank, bus_lane: true })).toBe(false)
+  })
+
+  it('reuses אירוע חדש only for the viewer’s own empty insert', () => {
+    expect(isOwnAbandonedEmptyCockpitItem({ ...blank, shift_lead_id: 'me' }, 'me')).toBe(true)
+    expect(isOwnAbandonedEmptyCockpitItem({ ...blank, shift_lead_id: 'them' }, 'me')).toBe(false)
+    expect(
+      isOwnAbandonedEmptyCockpitItem(
+        { ...blank, shift_lead_id: 'me', event_type: { name: 'תאונה' } },
+        'me',
+      ),
+    ).toBe(false)
   })
 })
 

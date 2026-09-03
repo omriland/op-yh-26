@@ -1,3 +1,4 @@
+import { type MouseEvent } from 'react'
 import { Hourglass } from 'lucide-react'
 import { StampChip } from '../ui/StampChip'
 import { Button } from '../ui/Button'
@@ -22,6 +23,8 @@ type EventCardProps = {
   mode?: 'default' | 'inbox'
   /** Mine inbox: 48h+ since completable. Replaces the origin rail. */
   overdue?: boolean
+  /** Super Admin unit list: right-click / long-press to delete. */
+  onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
 }
 
 export function EventCard({
@@ -32,12 +35,20 @@ export function EventCard({
   fillLabel,
   mode = 'default',
   overdue = false,
+  onContextDelete,
 }: EventCardProps) {
   const place = [event.road?.name, event.location].filter(Boolean).join(' · ')
   const inbox = mode === 'inbox'
   const manualInbox = inbox && !overdue && event.origin === 'manual'
   const open = () => onOpen(event.id)
   const fill = () => onFill?.(event.id)
+  const onContextMenu = onContextDelete
+    ? (click: MouseEvent) => {
+        click.preventDefault()
+        click.stopPropagation()
+        onContextDelete(event, { x: click.clientX, y: click.clientY })
+      }
+    : undefined
 
   return (
     <li
@@ -49,6 +60,7 @@ export function EventCard({
       ]
         .filter(Boolean)
         .join(' ')}
+      onContextMenu={onContextMenu}
     >
       <button type="button" className="event-card" onClick={open}>
         {overdue ? <span className="visually-hidden">{OVERDUE_FILL_CARD_TIP}</span> : null}

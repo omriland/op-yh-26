@@ -6,6 +6,8 @@ import { geocodePlaceQuery } from './googlePlaces'
 import { supabase } from './supabase'
 
 export const COCKPIT_WINDOW_MS = 2 * 60 * 60 * 1000
+/** Allow a just-inserted row whose server `created_at` is slightly ahead of the client clock. */
+export const COCKPIT_CLOCK_SKEW_MS = 2 * 60 * 1000
 export const COCKPIT_AUTOSAVE_MS = 800
 export const COCKPIT_CLICK_TO_EDIT = 'לחצו לעריכה'
 
@@ -52,7 +54,7 @@ export function isInCockpitWindow(createdAt: string, now: Date): boolean {
   const created = new Date(createdAt).getTime()
   if (Number.isNaN(created)) return false
   const age = now.getTime() - created
-  return age >= 0 && age <= COCKPIT_WINDOW_MS
+  return age >= -COCKPIT_CLOCK_SKEW_MS && age <= COCKPIT_WINDOW_MS
 }
 
 export function filterCockpitReel<T extends { id: string; created_at: string }>(
@@ -420,6 +422,18 @@ export function isAbandonedEmptyCockpitItem(event: {
   if (event.road?.name.trim()) return false
   if (event.bus_lane) return false
   return true
+}
+
+/** Second אירוע חדש reuses the selected empty row only when this lead created it. */
+export function isOwnAbandonedEmptyCockpitItem(
+  event: Parameters<typeof isAbandonedEmptyCockpitItem>[0] & {
+    shift_lead_id?: string | null
+  },
+  viewerId: string | undefined | null,
+): boolean {
+  const viewer = viewerId?.trim() ?? ''
+  const lead = event.shift_lead_id?.trim() ?? ''
+  return Boolean(viewer && lead && viewer === lead && isAbandonedEmptyCockpitItem(event))
 }
 
 export function cockpitPinsMissingStoredCoords(

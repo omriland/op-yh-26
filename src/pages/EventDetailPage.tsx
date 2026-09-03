@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   deleteEvent,
+  eventDeleteConfirmTitle,
   viewerMayDeleteOthersEvents,
   fetchEventDetail,
   type EventDetail,
@@ -398,11 +399,7 @@ export function EventDetailPage({
 
       <Dialog
         open={confirmDelete}
-        title={
-          event.police_event_id
-            ? `למחוק את האירוע ${event.police_event_id}?`
-            : 'למחוק את האירוע?'
-        }
+        title={eventDeleteConfirmTitle(event.police_event_id)}
         onClose={() => !deleting && setConfirmDelete(false)}
         footer={
           <>

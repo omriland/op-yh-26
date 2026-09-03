@@ -359,6 +359,14 @@ export function EventFormPage({
     if (!current?.id || !isAbandonedEmptyEventDraft(current, initialDateRef.current)) {
       return false
     }
+    if (
+      isForeignShiftLeadEvent({
+        viewerId: user?.id,
+        shiftLeadId: current.shift_lead_id,
+      })
+    ) {
+      return false
+    }
     const eventId = current.id
     const result = await deleteEvent(eventId)
     if (!result.ok) return false
@@ -990,13 +998,14 @@ export function EventFormPage({
     <div
       className={[
         'event-form',
+        variant === 'page' ? 'event-form--standalone' : '',
         phoneLayout ? 'event-form--phone' : '',
         phoneLayout && placesLocation ? 'event-form--places' : '',
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      <div className={variant === 'cockpit' ? 'event-form__lock' : undefined}>
+      <div className={variant === 'cockpit' ? 'event-form__lock' : 'event-form__frame'}>
       <div
         className="event-form__panel"
         data-theme="field"

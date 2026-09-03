@@ -538,6 +538,16 @@ export function viewerMayDeleteOthersEvents(roles: readonly string[]): boolean {
   return roles.includes('admin') || roles.includes('super_admin')
 }
 
+/** Unit Events list right-click delete — Super Admin only, not regular admin. */
+export function canUseEventListDeleteContext(roles: readonly string[]): boolean {
+  return roles.includes('super_admin')
+}
+
+export function eventDeleteConfirmTitle(policeEventId: string | null | undefined): string {
+  const id = policeEventId?.trim()
+  return id ? `למחוק את האירוע ${id}?` : 'למחוק את האירוע?'
+}
+
 /** Admin/super_admin: any event. Shift-lead: only events they created (`shift_lead_id`). */
 export function canViewerDeleteEvent(input: {
   roles: readonly string[]

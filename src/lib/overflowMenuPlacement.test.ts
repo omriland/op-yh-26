@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { placeOverflowMenuPanel } from './overflowMenuPlacement'
+import { placeContextMenuAtPointer, placeOverflowMenuPanel } from './overflowMenuPlacement'
 
 const minWidth = 180
 
@@ -42,5 +42,27 @@ describe('placeOverflowMenuPanel', () => {
     expect(result.top).toBe(212)
     expect(result.top + result.maxHeight).toBeLessThanOrEqual(656)
     expect(result.top).toBeGreaterThanOrEqual(8)
+  })
+})
+
+describe('placeContextMenuAtPointer', () => {
+  it('opens at the pointer when the panel fits', () => {
+    expect(
+      placeContextMenuAtPointer({
+        pointer: { x: 400, y: 200 },
+        viewport: { width: 1280, height: 800 },
+        panel: { width: 180, height: 48 },
+      }),
+    ).toEqual({ top: 200, left: 400 })
+  })
+
+  it('keeps the panel inside the viewport', () => {
+    const result = placeContextMenuAtPointer({
+      pointer: { x: 1260, y: 780 },
+      viewport: { width: 1280, height: 800 },
+      panel: { width: 180, height: 48 },
+    })
+    expect(result.left).toBe(1280 - 180 - 8)
+    expect(result.top).toBe(800 - 48 - 8)
   })
 })

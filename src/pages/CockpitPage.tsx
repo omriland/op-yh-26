@@ -19,7 +19,7 @@ import {
   formatCockpitAge,
   formatCockpitClock,
   insertCockpitDraft,
-  isAbandonedEmptyCockpitItem,
+  isOwnAbandonedEmptyCockpitItem,
   isCockpitTypingTarget,
   saveEventLocationPin,
   type CockpitDeleteHintKind,
@@ -47,7 +47,7 @@ type CockpitPageProps = {
 }
 
 export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps) {
-  const { user, roles } = useAuth()
+  const { user, profile, roles } = useAuth()
   const userId = user?.id
   const isAdmin = roles.includes('admin') || roles.includes('super_admin')
   const deleteViewer = { userId, isAdmin }
@@ -127,6 +127,10 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
 
   function selectEvent(eventId: string, opts?: { editing?: boolean }) {
     if (eventId !== selectedEventId) {
+      const leaving = reel.find((row) => row.id === selectedEventId)
+      if (leaving && user && isOwnAbandonedEmptyCockpitItem(leaving, user.id)) {
+        setReel((rows) => rows.filter((row) => row.id !== leaving.id))
+      }
       void discardAbandonedEmptyEventIfAny()
       setStageEditing(Boolean(opts?.editing))
     } else if (opts?.editing) {
@@ -204,7 +208,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   async function createNew() {
     if (!user || creating) return
     const current = reel.find((row) => row.id === selectedEventId)
-    if (current && isAbandonedEmptyCockpitItem(current)) {
+    if (current && isOwnAbandonedEmptyCockpitItem(current, user.id)) {
       setStageEditing(true)
       return
     }
@@ -216,6 +220,25 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
       show(result.error, 'alert')
       return
     }
+    const draftRow: CockpitReelItem = {
+      id: result.eventId,
+      created_at: new Date().toISOString(),
+      police_event_id: null,
+      status: 'draft',
+      is_cancelled: false,
+      location: null,
+      location_lat: null,
+      location_lng: null,
+      location_pin_source: null,
+      shift_lead_id: user.id,
+      event_type: null,
+      road: null,
+      shift_lead: profile
+        ? { full_name: profile.full_name, callsign: profile.callsign }
+        : null,
+      responders: [],
+    }
+    setReel((rows) => [draftRow, ...rows.filter((row) => row.id !== draftRow.id)])
     selectEvent(result.eventId, { editing: true })
     void reloadReel().catch(() => {})
   }

@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   canReadEventAudit,
@@ -104,5 +107,47 @@ describe('eventAuditFieldDiffs', () => {
       { key: 'emergency_means', label: 'אמצעי חירום', before: 'לא', after: 'כן' },
       { key: 'notes', label: 'הערות', before: 'א', after: 'ב' },
     ])
+  })
+})
+
+const migrationsDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations')
+
+function lastFunctionDef(sql: string, name: string): string {
+  const marker = `create or replace function public.${name}`
+  const start = sql.toLowerCase().lastIndexOf(marker)
+  if (start < 0) throw new Error(`missing ${name}`)
+  const rest = sql.slice(start)
+  const end = rest.toLowerCase().indexOf('$$;', marker.length)
+  if (end < 0) throw new Error(`unclosed ${name}`)
+  return rest.slice(0, end)
+}
+
+function auditWriteSql(): string {
+  return [
+    '20260903054608_event_audit.sql',
+    '20260903092200_event_audit_row_fields.sql',
+  ]
+    .map((name) => {
+      try {
+        return readFileSync(resolve(migrationsDir, name), 'utf8')
+      } catch {
+        return ''
+      }
+    })
+    .join('\n')
+}
+
+describe('event_audit_write trigger', () => {
+  it('does not read old.event_id / new.event_id (events has no such column)', () => {
+    const fn = lastFunctionDef(auditWriteSql(), 'event_audit_write')
+    expect(fn).not.toMatch(/\b(old|new)\.event_id\b/)
+    expect(fn).toMatch(/->>'id'/)
+    expect(fn).toMatch(/->>'event_id'/)
+  })
+
+  it('does not touch NEW when an event row is deleted', () => {
+    const fn = lastFunctionDef(auditWriteSql(), 'trg_refresh_shift_log_status_from_event')
+    expect(fn).toMatch(/tg_op = 'DELETE'/)
+    expect(fn).toMatch(/old\.shift_id/)
   })
 })
