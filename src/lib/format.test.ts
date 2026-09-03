@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  applyTimeKeystroke,
   digitsOnly,
   formatDateWithWeekday,
   formatLastLogin,
   formatPlate,
+  formatTimeInput,
   hebrewWeekdayLetter,
+  isCompleteTimeInput,
   isValidOptionalPhone,
   plateNumberForSave,
 } from './format'
@@ -120,6 +123,39 @@ describe('formatLastLogin', () => {
   })
 })
 
+describe('formatTimeInput / applyTimeKeystroke', () => {
+  it('inserts a colon after the hour and stays 24-hour', () => {
+    expect(formatTimeInput('1')).toBe('1')
+    expect(formatTimeInput('14')).toBe('14')
+    expect(formatTimeInput('143')).toBe('14:3')
+    expect(formatTimeInput('1430')).toBe('14:30')
+    expect(formatTimeInput('2359')).toBe('23:59')
+  })
+
+  it('does not invent AM/PM and leaves out-of-range digits for blur validation', () => {
+    expect(formatTimeInput('2460')).toBe('24:60')
+    expect(applyTimeKeystroke('', '14:30 PM')).toBe('14:30')
+  })
+
+  it('deletes a digit when backspacing over the colon', () => {
+    expect(applyTimeKeystroke('14:30', '14:3')).toBe('14:3')
+    expect(applyTimeKeystroke('14:', '14')).toBe('1')
+    expect(applyTimeKeystroke('14', '1')).toBe('1')
+  })
+})
+
+describe('isCompleteTimeInput', () => {
+  it('accepts only full HH:mm in the 24-hour range', () => {
+    expect(isCompleteTimeInput('00:00')).toBe(true)
+    expect(isCompleteTimeInput('14:30')).toBe(true)
+    expect(isCompleteTimeInput('23:59')).toBe(true)
+    expect(isCompleteTimeInput('14')).toBe(false)
+    expect(isCompleteTimeInput('14:3')).toBe(false)
+    expect(isCompleteTimeInput('24:00')).toBe(false)
+    expect(isCompleteTimeInput('12:60')).toBe(false)
+  })
+})
+
 /** Mirrors formatDateTime output (DD.MM.YYYY, HH:mm) without importing internals. */
 function formatAbsolute(date: Date): string {
   return new Intl.DateTimeFormat('he-IL', {
@@ -129,6 +165,7 @@ function formatAbsolute(date: Date): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    hourCycle: 'h23',
   })
     .format(date)
     .replace(/\//g, '.')

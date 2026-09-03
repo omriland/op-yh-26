@@ -10,6 +10,7 @@ function jerusalemHm(date: Date): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    hourCycle: 'h23',
   }).format(date)
 }
 
@@ -29,6 +30,7 @@ function jerusalemDateTime(date: Date): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    hourCycle: 'h23',
   }).format(date)
   return raw.replace(/\//g, '.')
 }

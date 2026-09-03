@@ -32,7 +32,7 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 
 - `מתנדבים` — multi-select combobox over unit users (search by name/callsign). Selected responders render as a stacked list of **assignment rows**: avatar + name + callsign + remove icon-button (44×44, `aria-label="הסרת כונן"`).
 - Per assigned responder, the lead-owned fields, collapsed into an expandable row (chevron, mirrored):
-  - `זמן התחלה` / `זמן סיום` — native time inputs + label action `עכשיו`. UI shows time only; stored as wall datetimes: start on `event_date`, end on same day unless end clock &lt; start (then next day — confirm: `האם האירוע מסתיים ביום למחרת?`).
+  - `זמן התחלה` / `זמן סיום` — 24-hour digit-masked `HH:mm` text inputs + label action `עכשיו` (not the native `type="time"` picker, which follows the device 12/24 preference). UI shows time only; stored as wall datetimes: start on `event_date`, end on same day unless end clock &lt; start (then next day — confirm: `האם האירוע מסתיים ביום למחרת?`).
   - `קילומטרים` — numeric (manual in v1). If the assigned responder has no active (non-archived) vehicles on their profile, the field is disabled, grayed (`--surface-sunken`), and shows placeholder `מתנדב ללא רכב`. No `total_km` is stored.
   - `אמצעים` — toggle, immediately after `קילומטרים`
   - `נת״צ` — event-level toggle (`bus_lane`), immediately after `אמצעים`
