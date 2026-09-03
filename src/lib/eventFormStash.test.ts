@@ -4,8 +4,8 @@ import {
   applyStashedEventDraft,
   clearEventFormStash,
   eventFormStashId,
-  isMobileWebViewport,
   readEventFormStash,
+  shouldKeepLiveCreateDraft,
   stashEventFormDraft,
 } from './eventFormStash'
 
@@ -46,11 +46,6 @@ describe('eventFormStash', () => {
     expect(eventFormStashId('u1', 'evt-1')).not.toBe(eventFormStashId('u2', 'evt-1'))
   })
 
-  it('treats the mobile shell breakpoint as mobile web', () => {
-    expect(isMobileWebViewport(() => ({ matches: true }))).toBe(true)
-    expect(isMobileWebViewport(() => ({ matches: false }))).toBe(false)
-  })
-
   it('overlays a stashed create onto a fresh form without stealing the live lead', () => {
     const base = draft()
     const next = applyStashedEventDraft(base, {
@@ -89,5 +84,47 @@ describe('eventFormStash', () => {
     clearEventFormStash('u1', 'evt-9')
     expect(readEventFormStash('u1', 'evt-9', NOW)).toBeNull()
     expect(readEventFormStash('u1', null, NOW)).toBeNull()
+  })
+})
+
+describe('shouldKeepLiveCreateDraft', () => {
+  it('keeps a typed create that has not been saved yet', () => {
+    const live = draft({ police_event_id: '12345' })
+    expect(
+      shouldKeepLiveCreateDraft({
+        eventId: undefined,
+        loadState: 'ready',
+        draft: live,
+        initialEventDate: live.event_date,
+      }),
+    ).toBe(true)
+  })
+
+  it('does not keep an empty create, an edit route, or a loading boot', () => {
+    const empty = draft()
+    expect(
+      shouldKeepLiveCreateDraft({
+        eventId: undefined,
+        loadState: 'ready',
+        draft: empty,
+        initialEventDate: empty.event_date,
+      }),
+    ).toBe(false)
+    expect(
+      shouldKeepLiveCreateDraft({
+        eventId: 'evt-1',
+        loadState: 'ready',
+        draft: draft({ police_event_id: '1' }),
+        initialEventDate: empty.event_date,
+      }),
+    ).toBe(false)
+    expect(
+      shouldKeepLiveCreateDraft({
+        eventId: undefined,
+        loadState: 'loading',
+        draft: draft({ police_event_id: '1' }),
+        initialEventDate: empty.event_date,
+      }),
+    ).toBe(false)
   })
 })

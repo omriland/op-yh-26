@@ -53,8 +53,8 @@ import {
   EVENT_FORM_STASH_DEBOUNCE_MS,
   applyStashedEventDraft,
   clearEventFormStash,
-  isMobileWebViewport,
   readEventFormStash,
+  shouldKeepLiveCreateDraft,
   stashEventFormDraft,
 } from '../lib/eventFormStash'
 import {
@@ -167,8 +167,12 @@ export function EventFormPage({
     baselineRef.current = baseline
   }, [baseline])
 
+  const userId = user?.id
+  const leadName = profile?.full_name
+  const leadCallsign = profile?.callsign
+
   useEffect(() => {
-    if (!canManage || !user || !profile) {
+    if (!canManage || !userId || !leadName || !leadCallsign) {
       setLoadState('denied')
       return
     }
@@ -179,6 +183,18 @@ export function EventFormPage({
       return
     }
     if (eventId && draftRef.current?.id === eventId && loadState === 'ready') {
+      return
+    }
+    // Create form: keep in-memory typing across auth TOKEN_REFRESHED / profile
+    // object churn when the user switches browser tabs.
+    if (
+      shouldKeepLiveCreateDraft({
+        eventId,
+        loadState,
+        draft: draftRef.current,
+        initialEventDate: initialDateRef.current,
+      })
+    ) {
       return
     }
 
@@ -201,12 +217,12 @@ export function EventFormPage({
         let nextDraft =
           existing ??
           emptyEventDraft({
-            full_name: profile.full_name,
-            callsign: profile.callsign,
+            full_name: leadName,
+            callsign: leadCallsign,
           })
         const stashed = applyStashedEventDraft(
           nextDraft,
-          readEventFormStash(user.id, eventId ?? null, Date.now()),
+          readEventFormStash(userId, eventId ?? null, Date.now()),
         )
         if (
           stashed &&
@@ -216,10 +232,10 @@ export function EventFormPage({
           if (stashed.id && !eventId) skipReloadForId.current = stashed.id
           nextDraft = stashed
         }
-        if (blockSelfAssign && user) {
+        if (blockSelfAssign && userId) {
           nextDraft = {
             ...nextDraft,
-            responders: nextDraft.responders.filter((row) => row.responder_id !== user.id),
+            responders: nextDraft.responders.filter((row) => row.responder_id !== userId),
           }
         }
         if (focusResponderId) {
@@ -234,8 +250,8 @@ export function EventFormPage({
         initialDateRef.current = existing
           ? nextDraft.event_date
           : emptyEventDraft({
-              full_name: profile.full_name,
-              callsign: profile.callsign,
+              full_name: leadName,
+              callsign: leadCallsign,
             }).event_date
         seedOvernightConfirmed(nextDraft)
         setDraft(nextDraft)
@@ -251,9 +267,12 @@ export function EventFormPage({
     return () => {
       active = false
     }
+    // Depend on stable identity fields — not user/profile object refs.
+    // Supabase TOKEN_REFRESHED rebuilds those objects on tab focus and used to
+    // wipe an in-progress אירוע חדש.
     // loadState intentionally omitted — only boot / switch eventId
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canManage, eventId, user, profile, focusResponderId])
+  }, [canManage, eventId, userId, leadName, leadCallsign, focusResponderId])
 
   useEffect(() => {
     if (loadState !== 'ready' || !focusResponderId) return
@@ -723,7 +742,6 @@ export function EventFormPage({
     if (!user || !draft || loadState !== 'ready' || variant === 'cockpit') return
 
     const flush = () => {
-      if (!isMobileWebViewport()) return
       const current = draftRef.current
       if (!current) return
       if (isAbandonedEmptyEventDraft(current, initialDateRef.current)) {
@@ -734,7 +752,6 @@ export function EventFormPage({
     }
     stashLatest.current = flush
     if (stashTimer.current) window.clearTimeout(stashTimer.current)
-    if (!isMobileWebViewport()) return
 
     stashTimer.current = window.setTimeout(flush, EVENT_FORM_STASH_DEBOUNCE_MS)
     return () => {
