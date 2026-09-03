@@ -36,6 +36,16 @@ import { EventListSkeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 import { useRevealFirstError } from '../lib/revealFirstError'
+import {
+  clearFillDraft,
+  fillDraftSavedLabel,
+  readFillDraft,
+  stashFillDraft,
+} from '../lib/fillDraftStash'
+import { shouldKeepLiveFormBoot } from '../lib/formDraftSurvival'
+
+const SHIFT_BORN_STASH_SCOPE = 'shiftBorn'
+const SHIFT_BORN_STASH_DEBOUNCE_MS = 600
 
 type ShiftBornFillPageProps = {
   eventId: string
@@ -63,9 +73,28 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   /** Bumped on every failed submit so an identical second failure still re-focuses. */
   const [submitAttempt, setSubmitAttempt] = useState(0)
   const plateLookupTail = useRef(Promise.resolve())
+  const draftRef = useRef<ShiftBornFillDraft | null>(null)
+  const stashLatest = useRef<(() => void) | null>(null)
+  const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [localSavedAt, setLocalSavedAt] = useState<number | null>(null)
+  const [restoredFromDevice, setRestoredFromDevice] = useState(false)
+
+  useEffect(() => {
+    draftRef.current = draft
+  }, [draft])
 
   useEffect(() => {
     let active = true
+
+    if (
+      shouldKeepLiveFormBoot({
+        loadState,
+        hasTypedDraft: Boolean(draftRef.current && ctx?.event.id === eventId),
+      })
+    ) {
+      return
+    }
+
     setLoadState('loading')
     setPlatePending('')
     setPlateError(undefined)
@@ -77,7 +106,21 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           return
         }
         setCtx(next)
-        setDraft(next.draft)
+        const stashed = readFillDraft<ShiftBornFillDraft>(
+          SHIFT_BORN_STASH_SCOPE,
+          eventId,
+          Date.now(),
+        )
+        if (
+          stashed &&
+          JSON.stringify(stashed.draft) !== JSON.stringify(next.draft)
+        ) {
+          setDraft(stashed.draft)
+          setLocalSavedAt(stashed.savedAt)
+          setRestoredFromDevice(true)
+        } else {
+          setDraft(next.draft)
+        }
         setExpectedAt(next.expected_updated_at)
         setLoadState('ready')
       })
@@ -87,6 +130,8 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     return () => {
       active = false
     }
+    // loadState / ctx intentionally omitted — only boot / switch eventId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   const shiftDate = ctx?.event.shift?.shift_date ?? ctx?.event.event_date
@@ -97,6 +142,37 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     user && ctx?.event.responders.some((row) => row.responder_id === user.id),
   )
   const canWriteMedia = assigned && !ctx?.event.is_cancelled
+
+  useEffect(() => {
+    if (!draft || loadState !== 'ready' || readOnly) return
+    const flush = () => {
+      const current = draftRef.current
+      if (!current) return
+      stashFillDraft(SHIFT_BORN_STASH_SCOPE, eventId, current, Date.now())
+      setLocalSavedAt(Date.now())
+    }
+    stashLatest.current = flush
+    if (stashTimer.current) clearTimeout(stashTimer.current)
+    stashTimer.current = setTimeout(flush, SHIFT_BORN_STASH_DEBOUNCE_MS)
+    return () => {
+      if (stashTimer.current) clearTimeout(stashTimer.current)
+    }
+  }, [draft, loadState, eventId, readOnly])
+
+  useEffect(() => {
+    function flushHidden() {
+      if (document.visibilityState === 'hidden') stashLatest.current?.()
+    }
+    function flushHide() {
+      stashLatest.current?.()
+    }
+    document.addEventListener('visibilitychange', flushHidden)
+    window.addEventListener('pagehide', flushHide)
+    return () => {
+      document.removeEventListener('visibilitychange', flushHidden)
+      window.removeEventListener('pagehide', flushHide)
+    }
+  }, [])
 
   function patchDraft(patch: Partial<ShiftBornFillDraft>) {
     setDraft((current) => (current ? { ...current, ...patch } : current))
@@ -215,6 +291,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     const ok = await persist(true)
     setCompleting(false)
     if (ok) {
+      clearFillDraft(SHIFT_BORN_STASH_SCOPE, eventId)
       show('הדיווח הושלם', 'done')
       onCompleted?.()
     }
@@ -258,6 +335,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             <div className="event-form__title-block">
               <h1 className="t-title">תיעוד אירוע ממשמרת</h1>
               {savedLabel ? <p className="t-caption text-muted">{savedLabel}</p> : null}
+              {restoredFromDevice && !readOnly && localSavedAt ? (
+                <p className="t-caption text-muted">
+                  {`שוחזר מהמכשיר ${fillDraftSavedLabel(localSavedAt)}`}
+                </p>
+              ) : null}
             </div>
             <StampChip label={SHIFT_BORN_CHIP} tone="draft" />
           </div>

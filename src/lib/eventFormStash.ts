@@ -3,27 +3,29 @@ import {
   readFillDraft,
   stashFillDraft,
 } from './fillDraftStash'
-import type { EventFormDraft } from './eventForm'
+import { isAbandonedEmptyEventDraft, type EventFormDraft } from './eventForm'
 
 export const EVENT_FORM_STASH_SCOPE = 'eventForm'
 export const EVENT_FORM_STASH_DEBOUNCE_MS = 600
-
-/** Tablet + phone — same breakpoint as the mobile shell (`useIsDesktop`). */
-const MOBILE_WEB_QUERY = '(max-width: 1024px)'
 
 export function eventFormStashId(userId: string, eventId?: string | null): string {
   return `${userId}:${eventId ?? 'new'}`
 }
 
-export function isMobileWebViewport(
-  matchMedia: (query: string) => { matches: boolean } = (query) =>
-    window.matchMedia(query),
-): boolean {
-  try {
-    return matchMedia(MOBILE_WEB_QUERY).matches
-  } catch {
-    return false
-  }
+/**
+ * Keep an in-progress אירוע חדש when the boot effect re-fires for a reason
+ * that is not "open a different event" (auth object churn, lead stamp update).
+ */
+export function shouldKeepLiveCreateDraft(input: {
+  eventId?: string | null
+  loadState: 'loading' | 'ready' | 'denied'
+  draft: EventFormDraft | null
+  initialEventDate: string
+}): boolean {
+  if (input.eventId) return false
+  if (input.loadState !== 'ready') return false
+  if (!input.draft || input.draft.id) return false
+  return !isAbandonedEmptyEventDraft(input.draft, input.initialEventDate)
 }
 
 export function applyStashedEventDraft(

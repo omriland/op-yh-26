@@ -100,25 +100,39 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const vehiclesRef = useRef<VehicleDraft[] | null>(null)
   vehiclesRef.current = vehicles
+  const editingKeyRef = useRef<string | null>(null)
+  editingKeyRef.current = editingKey
   const persistingKeys = useRef(new Set<string>())
+  const profileId = profile?.id
 
   useEffect(() => {
-    if (!profile) return
+    if (!profileId) return
     let active = true
 
-    fetchOwnVehicles(profile.id)
+    fetchOwnVehicles(profileId)
       .then((rows) => {
         if (!active) return
         setVehicleError(null)
-        setVehicles(sortProfileVehicles(rows.map(toDraft)))
+        setVehicles((current) => {
+          const saved = sortProfileVehicles(rows.map(toDraft))
+          if (!current) return saved
+          // Mid-edit / unsaved add rows must survive auth object churn on tab focus.
+          if (
+            editingKeyRef.current ||
+            leftoverUnsavedVehicleDrafts(current).length > 0
+          ) {
+            return current
+          }
+          return saved
+        })
       })
       .catch(() => {
         if (!active) return
         setVehicleError('טעינת הרכבים נכשלה.')
-        setVehicles([])
+        setVehicles((current) => current ?? [])
       })
 
-    fetchOwnAddresses(profile.id)
+    fetchOwnAddresses(profileId)
       .then((rows) => {
         if (active) setAddresses(rows)
       })
@@ -140,7 +154,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
     return () => {
       active = false
     }
-  }, [profile])
+  }, [profileId])
 
   async function reloadSavedVehicles(persistedKeys: Iterable<string> = []) {
     if (!profile) return
