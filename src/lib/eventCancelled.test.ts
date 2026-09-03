@@ -3,6 +3,7 @@ import {
   CANCELLED_CLEAR_ADMIN_ONLY,
   CANCELLED_TREATED_BLOCK,
   applyCancelledChange,
+  canClearEventCancelled,
   totalTreatedQuantity,
   validateCancelledSave,
 } from './eventForm'
@@ -26,6 +27,20 @@ describe('totalTreatedQuantity', () => {
   })
 })
 
+describe('canClearEventCancelled', () => {
+  it('allows admin, super_admin, and shift_lead', () => {
+    expect(canClearEventCancelled(['admin'])).toBe(true)
+    expect(canClearEventCancelled(['super_admin'])).toBe(true)
+    expect(canClearEventCancelled(['shift_lead'])).toBe(true)
+    expect(canClearEventCancelled(['responder', 'shift_lead'])).toBe(true)
+  })
+
+  it('blocks responder-only viewers', () => {
+    expect(canClearEventCancelled(['responder'])).toBe(false)
+    expect(canClearEventCancelled([])).toBe(false)
+  })
+})
+
 describe('applyCancelledChange', () => {
   it('blocks checking cancelled when treated > 0', () => {
     expect(
@@ -33,7 +48,7 @@ describe('applyCancelledChange', () => {
         next: true,
         current: false,
         treatedTotal: 2,
-        isAdmin: true,
+        canClearCancelled: true,
       }),
     ).toEqual({ ok: false, error: CANCELLED_TREATED_BLOCK })
   })
@@ -44,29 +59,29 @@ describe('applyCancelledChange', () => {
         next: true,
         current: false,
         treatedTotal: 0,
-        isAdmin: false,
+        canClearCancelled: false,
       }),
     ).toEqual({ ok: true, is_cancelled: true })
   })
 
-  it('blocks non-admin from clearing cancelled', () => {
+  it('blocks responder-only from clearing cancelled', () => {
     expect(
       applyCancelledChange({
         next: false,
         current: true,
         treatedTotal: 0,
-        isAdmin: false,
+        canClearCancelled: false,
       }),
     ).toEqual({ ok: false, error: CANCELLED_CLEAR_ADMIN_ONLY })
   })
 
-  it('allows admin to clear cancelled', () => {
+  it('allows admin, super_admin, and shift_lead to clear cancelled', () => {
     expect(
       applyCancelledChange({
         next: false,
         current: true,
         treatedTotal: 0,
-        isAdmin: true,
+        canClearCancelled: true,
       }),
     ).toEqual({ ok: true, is_cancelled: false })
   })
@@ -78,29 +93,29 @@ describe('validateCancelledSave', () => {
       validateCancelledSave({
         is_cancelled: true,
         treatedTotal: 1,
-        isAdmin: true,
+        canClearCancelled: true,
         previousIsCancelled: false,
       }),
     ).toEqual({ form: CANCELLED_TREATED_BLOCK })
   })
 
-  it('rejects non-admin clearing cancelled', () => {
+  it('rejects responder-only clearing cancelled', () => {
     expect(
       validateCancelledSave({
         is_cancelled: false,
         treatedTotal: 0,
-        isAdmin: false,
+        canClearCancelled: false,
         previousIsCancelled: true,
       }),
     ).toEqual({ form: CANCELLED_CLEAR_ADMIN_ONLY })
   })
 
-  it('allows admin clear and cancelled with zero treated', () => {
+  it('allows lead/admin clear and cancelled with zero treated', () => {
     expect(
       validateCancelledSave({
         is_cancelled: false,
         treatedTotal: 0,
-        isAdmin: true,
+        canClearCancelled: true,
         previousIsCancelled: true,
       }),
     ).toBeNull()
@@ -108,7 +123,7 @@ describe('validateCancelledSave', () => {
       validateCancelledSave({
         is_cancelled: true,
         treatedTotal: 0,
-        isAdmin: false,
+        canClearCancelled: false,
         previousIsCancelled: false,
       }),
     ).toBeNull()

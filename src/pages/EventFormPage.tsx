@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import {
   applyCancelledChange,
+  canClearEventCancelled,
+  CANCELLED_CLEAR_ADMIN_ONLY,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
   canPersistEventDraft,
   cockpitIdentityDraftWarning,
@@ -139,6 +141,7 @@ export function EventFormPage({
   const isDesktop = useIsDesktop()
   const isAdmin = roles.includes('admin')
   const canManage = isAdmin || roles.includes('shift_lead')
+  const canClearCancelled = canClearEventCancelled(roles)
   const [blockSelfAssign] = useState(() => blockSelfAssignProp ?? !eventId)
   const phoneLayout = variant !== 'cockpit' && !isDesktop
   const cockpitPreviewing = variant === 'cockpit' && !cockpitEditing
@@ -522,7 +525,7 @@ export function EventFormPage({
         vehicleKinds: currentLookups.vehicleKinds,
         districts: currentLookups.districts,
         roads: currentLookups.roads,
-        isAdmin,
+        canClearCancelled,
         previousIsCancelled,
         allowPartial,
         blockSelfAssign,
@@ -1091,13 +1094,13 @@ export function EventFormPage({
                     id="event-is-cancelled"
                     label="בוטל"
                     checked={draft.is_cancelled}
-                    disabled={draft.is_cancelled && !isAdmin}
+                    disabled={draft.is_cancelled && !canClearCancelled}
                     onChange={(checked) => {
                       const result = applyCancelledChange({
                         next: checked,
                         current: draft.is_cancelled,
                         treatedTotal: totalTreatedQuantity(draft.responders),
-                        isAdmin,
+                        canClearCancelled,
                       })
                       if (!result.ok) {
                         setErrors((current) => ({ ...current, form: result.error }))
@@ -1127,8 +1130,8 @@ export function EventFormPage({
               >
                 {errors.form
                   ? errors.form
-                  : draft.is_cancelled && !isAdmin
-                    ? 'רק מנהל יכול לבטל סימון בוטל.'
+                  : draft.is_cancelled && !canClearCancelled
+                    ? CANCELLED_CLEAR_ADMIN_ONLY
                     : saveHint}
               </p>
               )}

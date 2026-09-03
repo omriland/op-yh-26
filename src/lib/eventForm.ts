@@ -152,7 +152,17 @@ export type EventFormDraft = {
 export const CANCELLED_TREATED_BLOCK =
   'לא ניתן לסמן בוטל כל עוד רשומים רכבים שטופלו. נקו תחילה את הכמויות.'
 
-export const CANCELLED_CLEAR_ADMIN_ONLY = 'רק מנהל יכול לבטל סימון בוטל.'
+export const CANCELLED_CLEAR_ADMIN_ONLY =
+  'רק מנהל או אחמ״ש יכולים לבטל סימון בוטל.'
+
+/** Admin, super_admin, and shift_lead may clear the cancelled flag. */
+export function canClearEventCancelled(roles: readonly string[]): boolean {
+  return (
+    roles.includes('admin') ||
+    roles.includes('super_admin') ||
+    roles.includes('shift_lead')
+  )
+}
 
 export function totalTreatedQuantity(
   responders: { treated: { quantity: number }[] }[],
@@ -168,12 +178,12 @@ export function applyCancelledChange(input: {
   next: boolean
   current: boolean
   treatedTotal: number
-  isAdmin: boolean
+  canClearCancelled: boolean
 }): { ok: true; is_cancelled: boolean } | { ok: false; error: string } {
-  const { next, current, treatedTotal, isAdmin } = input
+  const { next, current, treatedTotal, canClearCancelled } = input
   if (next === current) return { ok: true, is_cancelled: current }
   if (next && treatedTotal > 0) return { ok: false, error: CANCELLED_TREATED_BLOCK }
-  if (!next && !isAdmin) return { ok: false, error: CANCELLED_CLEAR_ADMIN_ONLY }
+  if (!next && !canClearCancelled) return { ok: false, error: CANCELLED_CLEAR_ADMIN_ONLY }
   return { ok: true, is_cancelled: next }
 }
 
@@ -193,14 +203,14 @@ export type EventFormErrors = Partial<
 export function validateCancelledSave(input: {
   is_cancelled: boolean
   treatedTotal: number
-  isAdmin: boolean
+  canClearCancelled: boolean
   previousIsCancelled: boolean
 }): EventFormErrors | null {
-  const { is_cancelled, treatedTotal, isAdmin, previousIsCancelled } = input
+  const { is_cancelled, treatedTotal, canClearCancelled, previousIsCancelled } = input
   if (is_cancelled && treatedTotal > 0) {
     return { form: CANCELLED_TREATED_BLOCK }
   }
-  if (previousIsCancelled && !is_cancelled && !isAdmin) {
+  if (previousIsCancelled && !is_cancelled && !canClearCancelled) {
     return { form: CANCELLED_CLEAR_ADMIN_ONLY }
   }
   return null
@@ -751,7 +761,7 @@ export async function saveEventForm(input: {
   vehicleKinds: LookupOption[]
   districts: LookupOption[]
   roads?: LookupOption[]
-  isAdmin: boolean
+  canClearCancelled: boolean
   previousIsCancelled: boolean
   allowPartial?: boolean
   /** Create session (including cockpit). Rejects a tampered self-assign. */
@@ -770,7 +780,8 @@ export async function saveEventForm(input: {
     }
   | { ok: false; error: string; fieldErrors?: EventFormErrors }
 > {
-  const { draft, shiftLeadId, vehicleKinds, districts, isAdmin, previousIsCancelled } = input
+  const { draft, shiftLeadId, vehicleKinds, districts, canClearCancelled, previousIsCancelled } =
+    input
   const allowPartial = Boolean(input.allowPartial)
   const rejectSelfAssign = Boolean(input.blockSelfAssign) || !draft.id
   if (rejectSelfAssign && createIncludesSelfAssign(shiftLeadId, draft.responders)) {
@@ -795,7 +806,7 @@ export async function saveEventForm(input: {
   const cancelledErrors = validateCancelledSave({
     is_cancelled: draft.is_cancelled,
     treatedTotal: totalTreatedQuantity(draft.responders),
-    isAdmin,
+    canClearCancelled,
     previousIsCancelled,
   })
   if (cancelledErrors) {
