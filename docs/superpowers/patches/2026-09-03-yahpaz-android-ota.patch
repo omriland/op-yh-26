@@ -1,4 +1,4 @@
-From e62c5709ba2d2f09b4b5e88ef08320620ea26447 Mon Sep 17 00:00:00 2001
+From 5b55ac01449a576408cf370103c57c84b4bc3de7 Mon Sep 17 00:00:00 2001
 From: Cursor Agent <cursoragent@cursor.com>
 Date: Thu, 3 Sep 2026 18:33:18 +0000
 Subject: [PATCH] feat: in-app OTA updates via PackageInstaller
@@ -11,15 +11,15 @@ prompt rather than a hard block.
 ---
  app/build.gradle.kts                          |   4 +-
  app/src/main/AndroidManifest.xml              |   6 +
- .../java/com/yahpz/responder/ApkUpdate.kt     | 189 ++++++++++++++++++
+ .../java/com/yahpz/responder/ApkUpdate.kt     | 201 ++++++++++++++++++
  .../main/java/com/yahpz/responder/AppModel.kt | 122 ++++++++++-
  .../com/yahpz/responder/AppUpdateCheck.kt     |  48 ++++-
- .../java/com/yahpz/responder/RootScreen.kt    | 182 +++++++++++++++--
- .../main/kotlin/com/yahpz/domain/AppUpdate.kt |  56 ++++++
- .../kotlin/com/yahpz/domain/AppUpdateTest.kt  |  58 ++++++
+ .../java/com/yahpz/responder/RootScreen.kt    | 182 ++++++++++++++--
+ .../main/kotlin/com/yahpz/domain/AppUpdate.kt |  56 +++++
+ .../kotlin/com/yahpz/domain/AppUpdateTest.kt  |  58 +++++
  scripts/build-release-apk.sh                  |  16 +-
  scripts/publish-apk-to-website.sh             |  15 +-
- 10 files changed, 663 insertions(+), 33 deletions(-)
+ 10 files changed, 675 insertions(+), 33 deletions(-)
  create mode 100644 app/src/main/java/com/yahpz/responder/ApkUpdate.kt
 
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
@@ -62,10 +62,10 @@ index 9bbde8c..636ba22 100644
  </manifest>
 diff --git a/app/src/main/java/com/yahpz/responder/ApkUpdate.kt b/app/src/main/java/com/yahpz/responder/ApkUpdate.kt
 new file mode 100644
-index 0000000..a986e84
+index 0000000..3e333ea
 --- /dev/null
 +++ b/app/src/main/java/com/yahpz/responder/ApkUpdate.kt
-@@ -0,0 +1,189 @@
+@@ -0,0 +1,201 @@
 +package com.yahpz.responder
 +
 +import android.app.PendingIntent
@@ -93,9 +93,13 @@ index 0000000..a986e84
 +const val UPDATE_PERMISSION_MESSAGE =
 +    "כדי להתקין עדכונים מתוך האפליקציה יש לאשר לאבן דרך התקנת אפליקציות ממקור זה."
 +
-+/** Install outcomes reported by the system after a PackageInstaller session is committed. */
++/**
++ * Install outcomes reported by the system after a PackageInstaller session is committed.
++ * A null message means the session ended without an error to show — the user backed out of
++ * the system sheet, or the install succeeded and this process is about to be replaced.
++ */
 +object ApkInstallEvents {
-+    val failures = MutableSharedFlow<String>(extraBufferCapacity = 1)
++    val outcomes = MutableSharedFlow<String?>(extraBufferCapacity = 1)
 +}
 +
 +/**
@@ -124,6 +128,8 @@ index 0000000..a986e84
 +        onVerifying: () -> Unit = {},
 +    ): Result<File> = withContext(Dispatchers.IO) {
 +        val target = updateFile(context, apkUrl)
++        // Drop APKs left by earlier releases so the cache holds one file at most.
++        updateDir(context).listFiles()?.forEach { if (it.name != target.name) it.delete() }
 +        runCatching {
 +            val connection = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
 +                connectTimeout = 15_000
@@ -176,29 +182,30 @@ index 0000000..a986e84
 +     * callback here — failures arrive on [ApkInstallEvents].
 +     */
 +    suspend fun install(context: Context, apk: File): Result<Unit> = withContext(Dispatchers.IO) {
++        val installer = context.packageManager.packageInstaller
 +        runCatching {
-+            val installer = context.packageManager.packageInstaller
 +            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
 +                .apply { setAppPackageName(context.packageName) }
 +            val sessionId = installer.createSession(params)
-+            installer.openSession(sessionId).use { session ->
-+                session.openWrite("yahpaz", 0, apk.length()).use { output ->
-+                    apk.inputStream().use { input -> input.copyTo(output) }
-+                    session.fsync(output)
++            try {
++                installer.openSession(sessionId).use { session ->
++                    session.openWrite("yahpaz", 0, apk.length()).use { output ->
++                        apk.inputStream().use { input -> input.copyTo(output) }
++                        session.fsync(output)
++                    }
++                    val callback = Intent(context, ApkInstallReceiver::class.java)
++                        .setAction(ApkInstallReceiver.ACTION_INSTALL_STATUS)
++                    val flags = PendingIntent.FLAG_UPDATE_CURRENT or
++                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
++                    val pending = PendingIntent.getBroadcast(context, sessionId, callback, flags)
++                    session.commit(pending.intentSender)
 +                }
-+                val callback = Intent(context, ApkInstallReceiver::class.java)
-+                    .setAction(ApkInstallReceiver.ACTION_INSTALL_STATUS)
-+                val flags = PendingIntent.FLAG_UPDATE_CURRENT or
-+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
-+                val pending = PendingIntent.getBroadcast(context, sessionId, callback, flags)
-+                session.commit(pending.intentSender)
++            } catch (error: Throwable) {
++                // Retries are expected in the field; do not leak staged sessions.
++                runCatching { installer.abandonSession(sessionId) }
++                throw error
 +            }
 +        }
-+    }
-+
-+    /** Removes cached APKs left behind by earlier update attempts. */
-+    fun clearCache(context: Context) {
-+        runCatching { updateDir(context).listFiles()?.forEach { it.delete() } }
 +    }
 +
 +    private fun updateDir(context: Context): File =
@@ -232,14 +239,19 @@ index 0000000..a986e84
 +    override fun onReceive(context: Context, intent: Intent) {
 +        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
 +            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-+                val confirm = confirmIntent(intent) ?: return
++                val confirm = confirmIntent(intent)
++                if (confirm == null) {
++                    ApkInstallEvents.outcomes.tryEmit(UPDATE_INSTALL_FAILED_MESSAGE)
++                    return
++                }
 +                confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 +                runCatching { context.startActivity(confirm) }
-+                    .onFailure { ApkInstallEvents.failures.tryEmit(UPDATE_INSTALL_FAILED_MESSAGE) }
++                    .onFailure { ApkInstallEvents.outcomes.tryEmit(UPDATE_INSTALL_FAILED_MESSAGE) }
 +            }
-+            PackageInstaller.STATUS_SUCCESS -> Unit
-+            PackageInstaller.STATUS_FAILURE_ABORTED -> Unit
-+            else -> ApkInstallEvents.failures.tryEmit(UPDATE_INSTALL_FAILED_MESSAGE)
++            // Success replaces this process; abort means the user backed out of the sheet.
++            PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE_ABORTED ->
++                ApkInstallEvents.outcomes.tryEmit(null)
++            else -> ApkInstallEvents.outcomes.tryEmit(UPDATE_INSTALL_FAILED_MESSAGE)
 +        }
 +    }
 +
@@ -256,7 +268,7 @@ index 0000000..a986e84
 +    }
 +}
 diff --git a/app/src/main/java/com/yahpz/responder/AppModel.kt b/app/src/main/java/com/yahpz/responder/AppModel.kt
-index d805bc3..b5a39f5 100644
+index d805bc3..25f2303 100644
 --- a/app/src/main/java/com/yahpz/responder/AppModel.kt
 +++ b/app/src/main/java/com/yahpz/responder/AppModel.kt
 @@ -1,7 +1,9 @@
@@ -315,7 +327,7 @@ index d805bc3..b5a39f5 100644
 +
 +    init {
 +        viewModelScope.launch {
-+            ApkInstallEvents.failures.collect { message ->
++            ApkInstallEvents.outcomes.collect { message ->
 +                _state.update { it.copy(updateStage = UpdateStage.IDLE, updateErrorHe = message) }
 +            }
 +        }
