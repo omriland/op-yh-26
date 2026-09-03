@@ -60,3 +60,4 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 - Assigning a responder: allowed anytime; new participation starts `pending`; status leaves draft.
 - Removing a responder who already entered data: confirm dialog `להסיר את הכונן? הנתונים שמילא יימחקו.`
 - Leave after failed save: confirm `השמירה האחרונה נכשלה. לצאת בכל זאת?`
+- Opening an event created by another אחמ״ש (web form, cockpit stage after `לחצו לעריכה`, Android form): blocking confirm first. Title `האם אתה בטוח שברצונך לערוך אירוע שהוזן על ידי {שם}?`. Body `כל שינוי שתבצע יתועד ויישמר במערכת`. Primary `עריכה` unlocks the form for this visit; secondary / X / backdrop `ביטול` leaves without writing. Own events skip the prompt.

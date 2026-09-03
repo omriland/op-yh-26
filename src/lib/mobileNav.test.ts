@@ -91,7 +91,7 @@ describe('splitMobileNav', () => {
       { view: 'users' },
       {
         menuId: 'super_admin',
-        children: [{ view: 'feedback' }, { view: 'event_locations' }],
+        children: [{ view: 'feedback' }, { view: 'event_locations' }, { view: 'event_audit' }],
       },
     ])
 

@@ -65,6 +65,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 ## Current app state
 
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
+- **Latest Netlify prod (2026-09-03):** deploy `6a9902fd09e24b0008c14c6e`, commit `8ecdaf0` (`8ecdaf0aa39f6fd725295800ac624da06dac60fb`) on `infra/bootstrap` — **ready** at https://yahpz.com
 - Core flows: auth, events, responder fill, admin users + closed lists
 - **Partner Telegram bot (2026-08-30 revise):** MCP-style connect — bot sends short `/oauth/authorize?client_id&state`; profile **חיבורים** is revoke-only (no **חבר לטלגרם**). Fill API unchanged (`responder:fill`, 60-day token). Spec: `2026-08-30-yahpaz-telegram-mcp-style-connect-design.md`; contract `/partner-api/` v1.1. **Merged to `infra/bootstrap` + Netlify prod** (deploy `6a93b72f085722000888eda6`, commit `e2bc6c3`). Edge `partner-auth` / `responder-api` added to deploy workflow but **not live** — GitHub secret `SUPABASE_ACCESS_TOKEN` missing (workflow skipped).
 - Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs

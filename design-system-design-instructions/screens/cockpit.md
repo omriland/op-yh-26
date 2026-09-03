@@ -26,7 +26,7 @@ Tab `מפה` on the visual left edge (`inset-inline-end`, Command). Opens a shee
 
 ### Stage
 
-- Selected: event form without Back or sticky Save footer. Caption = autosave pulse. Stage has `50vh` end slack so חלק ב׳ / מתנדבים can scroll up; opening the assigner scrolls that block to the start of the stage.
+- Selected: event form without Back or sticky Save footer. The form is **view-only** until the lead clicks it. Hover / keyboard focus on the stage shows a light `--surface-sunken` veil + `לחצו לעריכה` (always visible on `hover: none`). Click / Enter unlocks the same form; caption then = autosave pulse. `אירוע חדש` (button or `N`) opens already unlocked. Switching יומן rows returns to view-only. Stage has `50vh` end slack so חלק ב׳ / מתנדבים can scroll up; opening the assigner scrolls that block to the start of the stage. Unlocking another אחמ״ש’s event still shows the foreign-edit confirm (`screens/event-form.md`) before the form is writable; cancel clears the selection. Autocomplete / map-pin persist wait for that ack.
 - None selected, reel has rows: `אין אירוע נבחר` / `לחצו על אירוע חדש או בחרו שורה בגלגלת.`
 - No events: centered quiet empty — resting koala with no plate (animated WebP, still PNG if `prefers-reduced-motion`) + `אני רואה שהמשמרת שקטה ;)` + `אירוע חדש` (plus icon 30% smaller).
 

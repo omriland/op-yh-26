@@ -19,6 +19,7 @@ import {
   Ellipsis,
   Eye,
   Fuel,
+  History,
   ListChecks,
   LogOut,
   MapPin,
@@ -87,6 +88,7 @@ export type AppView =
   | 'profile'
   | 'feedback'
   | 'event_locations'
+  | 'event_audit'
 
 export type NavEntry = {
   view?: AppView
@@ -198,6 +200,7 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   profile: <UserRound size={24} strokeWidth={1.75} aria-hidden="true" />,
   feedback: <MessageSquarePlus size={24} strokeWidth={1.75} aria-hidden="true" />,
   event_locations: <MapPin size={24} strokeWidth={1.75} aria-hidden="true" />,
+  event_audit: <History size={24} strokeWidth={1.75} aria-hidden="true" />,
 }
 
 export const SUPER_ADMIN_NAV_ICON = (

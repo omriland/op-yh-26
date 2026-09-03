@@ -143,6 +143,8 @@ export type EventFormDraft = {
   is_cancelled: boolean
   /** נת״צ — event took place in a bus / public-transit lane. */
   bus_lane: boolean
+  /** Creator — not the last editor. Missing on older stashes. */
+  shift_lead_id?: string
   shift_lead: { full_name: string; callsign: string }
   responders: ResponderDraft[]
 }
@@ -222,6 +224,7 @@ export function todayJerusalem(): string {
 }
 
 export function emptyEventDraft(lead: {
+  id?: string
   full_name: string
   callsign: string
 }): EventFormDraft {
@@ -243,7 +246,8 @@ export function emptyEventDraft(lead: {
     notes: '',
     is_cancelled: false,
     bus_lane: false,
-    shift_lead: lead,
+    shift_lead_id: lead.id,
+    shift_lead: { full_name: lead.full_name, callsign: lead.callsign },
     responders: [],
   }
 }
@@ -372,7 +376,7 @@ const EVENT_EDIT_SELECT = `
       id, status, event_date, police_event_id, district_id, patrol_callsign,
       event_type_id, road_id, location, location_place_id, location_lat, location_lng,
       location_pin_source, location_pinned_at, location_pinned_by,
-      notes, is_cancelled, bus_lane,
+      notes, is_cancelled, bus_lane, shift_lead_id,
       shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
       responders:event_responders(
         id, responder_id, started_at, ended_at, total_km, emergency_means, status,
@@ -424,6 +428,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     notes: string | null
     is_cancelled: boolean
     bus_lane: boolean
+    shift_lead_id: string | null
     shift_lead: { full_name: string; callsign: string } | null
     responders: LoadedResponder[]
   }
@@ -447,6 +452,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     notes: row.notes ?? '',
     is_cancelled: row.is_cancelled ?? false,
     bus_lane: row.bus_lane ?? false,
+    shift_lead_id: row.shift_lead_id ?? undefined,
     shift_lead: row.shift_lead ?? { full_name: '—', callsign: '—' },
     responders: (row.responders ?? []).map((responder) => {
       const hasVehicle = hasActiveVehicle(responder.profile?.vehicles)

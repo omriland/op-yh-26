@@ -65,6 +65,7 @@ export function appAnalyticsPath(input: AnalyticsPathInput): string | null {
   if (input.view === 'lists') return '/lists'
   if (input.view === 'fuel_quarter') return '/fuel-quarter'
   if (input.view === 'event_locations') return '/event-locations'
+  if (input.view === 'event_audit') return '/event-audit'
   if (input.view === 'profile') return '/profile'
   return `/${input.view}`
 }

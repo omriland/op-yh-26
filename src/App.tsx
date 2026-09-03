@@ -44,6 +44,7 @@ import { ShiftsPage } from './pages/ShiftsPage'
 import { ContactsPage } from './pages/ContactsPage'
 import { FeedbackInboxPage } from './pages/FeedbackInboxPage'
 import { EventLocationsPage } from './pages/EventLocationsPage'
+import { EventAuditPage } from './pages/EventAuditPage'
 import { canManageFeedbackInbox } from './lib/userFeedback'
 import { canAccessSuperAdminNav } from './lib/superAdminAccess'
 import { IMPERSONATION_CHANGE_EVENT, isImpersonating } from './lib/impersonationStash'
@@ -564,7 +565,7 @@ function Gate() {
         icon: SUPER_ADMIN_NAV_ICON,
         section: isDesktop ? 'ניהול' : undefined,
         attention: navAttention.openFeedback,
-        alsoCurrentFor: ['feedback', 'event_locations'],
+        alsoCurrentFor: ['feedback', 'event_locations', 'event_audit'],
         children: [
           {
             view: 'feedback',
@@ -576,6 +577,11 @@ function Gate() {
             view: 'event_locations',
             label: 'מיקומים',
             icon: NAV_ICONS.event_locations,
+          },
+          {
+            view: 'event_audit',
+            label: 'יומן שינויים',
+            icon: NAV_ICONS.event_audit,
           },
         ],
       })
@@ -1010,6 +1016,8 @@ function Gate() {
             setShiftSurface({ kind: 'list' })
           }}
         />
+      ) : activeView === 'event_audit' && isSuperAdmin ? (
+        <EventAuditPage key={sectionReset} />
       ) : isAdminHub && isAdminSegment(activeView) ? (
           <div
             className={['stack-4', activeView === 'users' ? 'page--wide page--users' : '']

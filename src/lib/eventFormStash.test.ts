@@ -47,17 +47,19 @@ describe('eventFormStash', () => {
   })
 
   it('overlays a stashed create onto a fresh form without stealing the live lead', () => {
-    const base = draft()
+    const base = draft({ shift_lead_id: 'live-lead' })
     const next = applyStashedEventDraft(base, {
       ...draft({
         police_event_id: '12345',
         location: 'מחלף שורק',
         shift_lead: { full_name: 'ישן', callsign: '0' },
+        shift_lead_id: 'stale-lead',
       }),
     })
     expect(next?.police_event_id).toBe('12345')
     expect(next?.location).toBe('מחלף שורק')
     expect(next?.shift_lead).toEqual({ full_name: 'עמרי', callsign: 'Admin' })
+    expect(next?.shift_lead_id).toBe('live-lead')
   })
 
   it('rejects a stash that is not an event draft', () => {

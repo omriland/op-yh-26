@@ -64,7 +64,7 @@ import {
   needsPlacesLocation,
   shouldClearLocationOnDistrictChange,
 } from '../lib/systemDistricts'
-import { COCKPIT_AUTOSAVE_MS } from '../lib/cockpit'
+import { COCKPIT_AUTOSAVE_MS, COCKPIT_CLICK_TO_EDIT } from '../lib/cockpit'
 import { LocationPlacesField } from '../components/events/LocationPlacesField'
 import {
   applyLeadMapPin,
@@ -72,6 +72,14 @@ import {
   emptyLocationPinMeta,
   locationPinIsLocked,
 } from '../lib/locationPin'
+import {
+  FOREIGN_EVENT_EDIT_BODY,
+  FOREIGN_EVENT_EDIT_CANCEL,
+  FOREIGN_EVENT_EDIT_CONFIRM,
+  foreignEventEditLeadName,
+  foreignEventEditTitle,
+  isForeignShiftLeadEvent,
+} from '../lib/foreignEventEdit'
 
 type EventFormPageProps = {
   eventId?: string
@@ -91,6 +99,9 @@ type EventFormPageProps = {
   locationPinDrop?: { eventId: string; lat: number; lng: number; nonce: number } | null
   /** Create session: show the current user in the picker but do not allow self-assign. */
   blockSelfAssign?: boolean
+  /** Cockpit: the stage is writable. Selecting a reel row starts locked. */
+  cockpitEditing?: boolean
+  onRequestCockpitEdit?: () => void
 }
 
 type SavePulse = 'idle' | 'saving' | 'saved' | 'error'
@@ -113,6 +124,8 @@ export function EventFormPage({
   onPersisted,
   locationPinDrop,
   blockSelfAssign: blockSelfAssignProp,
+  cockpitEditing = false,
+  onRequestCockpitEdit,
 }: EventFormPageProps) {
   const { user, profile, roles } = useAuth()
   const { show } = useToast()
@@ -121,8 +134,11 @@ export function EventFormPage({
   const canManage = isAdmin || roles.includes('shift_lead')
   const [blockSelfAssign] = useState(() => blockSelfAssignProp ?? !eventId)
   const phoneLayout = variant !== 'cockpit' && !isDesktop
+  const cockpitPreviewing = variant === 'cockpit' && !cockpitEditing
   const assignSearchRef = useRef<HTMLInputElement>(null)
   const assignSectionRef = useRef<HTMLDivElement>(null)
+  const cockpitPreviewingRef = useRef(cockpitPreviewing)
+  cockpitPreviewingRef.current = cockpitPreviewing
 
   const [lookups, setLookups] = useState<EventLookups | null>(null)
   const [roster, setRoster] = useState<AssignableUser[]>([])
@@ -143,8 +159,10 @@ export function EventFormPage({
     options?: PersistOptions
   } | null>(null)
   const [sheetResponderKey, setSheetResponderKey] = useState<string | null>(null)
+  const [foreignEditAcked, setForeignEditAcked] = useState(false)
 
   const draftRef = useRef<EventFormDraft | null>(null)
+  const foreignEditAckedRef = useRef(false)
   const lookupsRef = useRef<EventLookups | null>(null)
   const baselineRef = useRef('')
   const saveChain = useRef(Promise.resolve())
@@ -166,6 +184,11 @@ export function EventFormPage({
   useEffect(() => {
     baselineRef.current = baseline
   }, [baseline])
+
+  useEffect(() => {
+    foreignEditAckedRef.current = false
+    setForeignEditAcked(false)
+  }, [eventId])
 
   const userId = user?.id
   const leadName = profile?.full_name
@@ -217,6 +240,7 @@ export function EventFormPage({
         let nextDraft =
           existing ??
           emptyEventDraft({
+            id: userId,
             full_name: leadName,
             callsign: leadCallsign,
           })
@@ -250,6 +274,7 @@ export function EventFormPage({
         initialDateRef.current = existing
           ? nextDraft.event_date
           : emptyEventDraft({
+              id: userId,
               full_name: leadName,
               callsign: leadCallsign,
             }).event_date
@@ -312,6 +337,7 @@ export function EventFormPage({
     if (!profile) return
     if (user) clearEventFormStash(user.id, draftRef.current?.id)
     const fresh = emptyEventDraft({
+      id: user?.id,
       full_name: profile.full_name,
       callsign: profile.callsign,
     })
@@ -367,6 +393,16 @@ export function EventFormPage({
       const current = draftRef.current
       const currentLookups = lookupsRef.current
       if (!current || !currentLookups) return false
+      if (cockpitPreviewingRef.current) return false
+      if (
+        isForeignShiftLeadEvent({
+          viewerId: user.id,
+          shiftLeadId: current.shift_lead_id,
+        }) &&
+        !foreignEditAckedRef.current
+      ) {
+        return false
+      }
 
       const snapshot = JSON.stringify(current)
       if (
@@ -711,12 +747,21 @@ export function EventFormPage({
     setSaving(false)
   }
 
+  const foreignEditPending =
+    !cockpitPreviewing &&
+    isForeignShiftLeadEvent({
+      viewerId: userId,
+      shiftLeadId: draft?.shift_lead_id,
+    }) &&
+    !foreignEditAcked
+
   const dialogOpen =
     leaveConfirm ||
     removeTarget !== null ||
     overnightPrompt !== null ||
     pickerOpen ||
-    sheetResponderKey !== null
+    sheetResponderKey !== null ||
+    foreignEditPending
 
   useRevealFirstError(submitAttempt)
 
@@ -731,12 +776,13 @@ export function EventFormPage({
 
   useEffect(() => {
     if (variant !== 'cockpit' || !draft || loadState !== 'ready') return
+    if (cockpitPreviewing || foreignEditPending) return
     if (JSON.stringify(draft) === baseline) return
     const timer = window.setTimeout(() => {
       void persistLatest()
     }, COCKPIT_AUTOSAVE_MS)
     return () => window.clearTimeout(timer)
-  }, [variant, draft, baseline, loadState])
+  }, [variant, draft, baseline, loadState, cockpitPreviewing, foreignEditPending])
 
   useEffect(() => {
     if (!user || !draft || loadState !== 'ready' || variant === 'cockpit') return
@@ -762,6 +808,7 @@ export function EventFormPage({
   const pinDropNonceRef = useRef<number | null>(null)
   useEffect(() => {
     if (!locationPinDrop || !user || !draft) return
+    if (cockpitPreviewing || foreignEditPending) return
     if (locationPinDrop.eventId !== (draft.id ?? eventId)) return
     if (pinDropNonceRef.current === locationPinDrop.nonce) return
     pinDropNonceRef.current = locationPinDrop.nonce
@@ -785,7 +832,7 @@ export function EventFormPage({
       ),
     )
     queueMicrotask(() => void persistLatest())
-  }, [locationPinDrop, user, draft])
+  }, [locationPinDrop, user, draft, cockpitPreviewing, foreignEditPending])
 
   useEffect(() => {
     registerAbandonedEmptyEventHandler(() =>
@@ -911,7 +958,9 @@ export function EventFormPage({
     lookups.roads.find((row) => row.id === draft.road_id)?.name ?? null
   const needsMinimum = !hasEventMinimum(draft, lookups.districts, lookups.roads)
   const saveHint =
-    savePulse === 'saving'
+    cockpitPreviewing
+      ? ''
+      : savePulse === 'saving'
       ? 'שומר…'
       : savePulse === 'saved'
         ? 'נשמר'
@@ -943,7 +992,12 @@ export function EventFormPage({
         .filter(Boolean)
         .join(' ')}
     >
-      <div className="event-form__panel" data-theme="field">
+      <div className={variant === 'cockpit' ? 'event-form__lock' : undefined}>
+      <div
+        className="event-form__panel"
+        data-theme="field"
+        inert={cockpitPreviewing || foreignEditPending || undefined}
+      >
         <header className="event-form__head">
           {variant === 'cockpit' ? null : (
           <button type="button" className="event-form__back" onClick={requestCancel}>
@@ -990,6 +1044,7 @@ export function EventFormPage({
                 </div>
                 ) : null}
               </div>
+              {cockpitPreviewing && !errors.form ? null : (
               <p
                 className={[
                   't-caption',
@@ -1003,6 +1058,7 @@ export function EventFormPage({
                     ? 'רק מנהל יכול לבטל סימון בוטל.'
                     : saveHint}
               </p>
+              )}
             </div>
             <div className="event-form__stamps">
               <StampChip {...viewerStamp(displayStatus, null)} />
@@ -1505,6 +1561,39 @@ export function EventFormPage({
         </FormStickyFooter>
         )}
       </div>
+      {cockpitPreviewing ? (
+        <button
+          type="button"
+          className="cockpit-edit-veil"
+          onClick={() => onRequestCockpitEdit?.()}
+        >
+          <span className="cockpit-edit-veil__label t-section">{COCKPIT_CLICK_TO_EDIT}</span>
+        </button>
+      ) : null}
+      </div>
+
+      <Dialog
+        open={foreignEditPending}
+        title={foreignEventEditTitle(foreignEventEditLeadName(draft.shift_lead))}
+        onClose={() => onCancel()}
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                foreignEditAckedRef.current = true
+                setForeignEditAcked(true)
+              }}
+            >
+              {FOREIGN_EVENT_EDIT_CONFIRM}
+            </Button>
+            <Button variant="secondary" onClick={() => onCancel()}>
+              {FOREIGN_EVENT_EDIT_CANCEL}
+            </Button>
+          </>
+        }
+      >
+        <p className="t-body">{FOREIGN_EVENT_EDIT_BODY}</p>
+      </Dialog>
 
       <Dialog
         open={leaveConfirm}

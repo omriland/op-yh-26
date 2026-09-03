@@ -40,6 +40,7 @@ export function applyStashedEventDraft(
     ...draft,
     event_date: draft.event_date,
     shift_lead: base.shift_lead,
+    shift_lead_id: base.shift_lead_id,
     responders: Array.isArray(draft.responders) ? draft.responders : base.responders,
   }
 }

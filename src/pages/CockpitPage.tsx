@@ -68,6 +68,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     requestId: number
   } | null>(null)
   const [introOpen, setIntroOpen] = useState(false)
+  const [stageEditing, setStageEditing] = useState(false)
   const knownEventPins = useMemo(() => cockpitEventMapPins(reel), [reel])
   const [geocodedEventPins, setGeocodedEventPins] = useState<CockpitEventPin[]>([])
   const [pinOverrides, setPinOverrides] = useState<Record<string, { lat: number; lng: number }>>(
@@ -124,8 +125,13 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     setMapEventFocus(null)
   }
 
-  function selectEvent(eventId: string) {
-    if (eventId !== selectedEventId) void discardAbandonedEmptyEventIfAny()
+  function selectEvent(eventId: string, opts?: { editing?: boolean }) {
+    if (eventId !== selectedEventId) {
+      void discardAbandonedEmptyEventIfAny()
+      setStageEditing(Boolean(opts?.editing))
+    } else if (opts?.editing) {
+      setStageEditing(true)
+    }
     clearDeletePrompt()
     onSelectEvent(eventId)
     if (mapOpen) requestMapEventFocus(eventId)
@@ -133,7 +139,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
 
   async function handleEventPinMove(eventId: string, lat: number, lng: number) {
     setPinOverrides((current) => ({ ...current, [eventId]: { lat, lng } }))
-    if (selectedEventId === eventId) {
+    if (selectedEventId === eventId && stageEditing) {
       setLocationPinDrop({ eventId, lat, lng, nonce: Date.now() })
       return
     }
@@ -199,6 +205,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     if (!user || creating) return
     const current = reel.find((row) => row.id === selectedEventId)
     if (current && isAbandonedEmptyCockpitItem(current)) {
+      setStageEditing(true)
       return
     }
     setCreating(true)
@@ -209,7 +216,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
       show(result.error, 'alert')
       return
     }
-    selectEvent(result.eventId)
+    selectEvent(result.eventId, { editing: true })
     void reloadReel().catch(() => {})
   }
 
@@ -424,7 +431,12 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             variant="cockpit"
             eventId={selectedEventId}
             blockSelfAssign
-            onCancel={() => undefined}
+            cockpitEditing={stageEditing}
+            onRequestCockpitEdit={() => setStageEditing(true)}
+            onCancel={() => {
+              setStageEditing(false)
+              onSelectEvent(undefined)
+            }}
             onSaved={() => undefined}
             onSavedAndCreateNew={() => undefined}
             onPersisted={() => {

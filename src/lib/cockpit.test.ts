@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   COCKPIT_AUTOSAVE_MS,
+  COCKPIT_CLICK_TO_EDIT,
   COCKPIT_WINDOW_MS,
   canDeleteCockpitDraft,
   cockpitDeleteBlock,
@@ -489,6 +490,12 @@ describe('cockpitNeighborId', () => {
     expect(cockpitNeighborId(ids, undefined, 1)).toBe('new')
     expect(cockpitNeighborId(ids, undefined, -1)).toBe('old')
     expect(cockpitNeighborId([], undefined, 1)).toBeUndefined()
+  })
+})
+
+describe('cockpit click-to-edit', () => {
+  it('uses Hebrew veil copy', () => {
+    expect(COCKPIT_CLICK_TO_EDIT).toBe('לחצו לעריכה')
   })
 })
 

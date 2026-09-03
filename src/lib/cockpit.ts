@@ -7,6 +7,7 @@ import { supabase } from './supabase'
 
 export const COCKPIT_WINDOW_MS = 2 * 60 * 60 * 1000
 export const COCKPIT_AUTOSAVE_MS = 800
+export const COCKPIT_CLICK_TO_EDIT = 'לחצו לעריכה'
 
 export type CockpitReelItem = {
   id: string
