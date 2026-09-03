@@ -49,6 +49,7 @@ import {
   readFillDraft,
   stashFillDraft,
 } from '../lib/fillDraftStash'
+import { shouldKeepLiveFormBoot } from '../lib/formDraftSurvival'
 import { SelectField } from '../components/ui/SelectField'
 import { TextAreaField } from '../components/ui/TextAreaField'
 import { TextField } from '../components/ui/TextField'
@@ -177,12 +178,18 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const draftRef = useRef<ShiftFormDraft | null>(null)
   const canEditResponders = canManageLead
 
+  const dirtyRef = useRef(false)
   useEffect(() => {
     draftRef.current = draft
   }, [draft])
+  useEffect(() => {
+    dirtyRef.current = dirty
+  }, [dirty])
+
+  const userId = user?.id
 
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setLoadState('denied')
       return
     }
@@ -190,6 +197,14 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     // Create: lead/admin only
     if (!shiftId && !canManageLead) {
       setLoadState('denied')
+      return
+    }
+
+    // Keep typed create / same-shift edit across auth object churn on tab focus.
+    const live = draftRef.current
+    const sameEdit = Boolean(shiftId && live?.id === shiftId)
+    const typedCreate = Boolean(!shiftId && live && !live.id && dirtyRef.current)
+    if (shouldKeepLiveFormBoot({ loadState, hasTypedDraft: sameEdit || typedCreate })) {
       return
     }
 
@@ -210,7 +225,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
         }
 
         if (existing && !canManageLead) {
-          const assigned = existing.responders.some((row) => row.responder_id === user.id)
+          const assigned = existing.responders.some((row) => row.responder_id === userId)
           if (!assigned) {
             setLoadState('denied')
             return
@@ -299,7 +314,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     return () => {
       active = false
     }
-  }, [canManageLead, shiftId, user])
+    // loadState / dirty intentionally omitted — only boot / switch shiftId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManageLead, shiftId, userId])
 
   useEffect(() => {
     if (!draft) return
@@ -398,7 +415,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     if (!draft || loadState !== 'ready') return
     const key = shiftId ?? 'new'
     const flush = () => {
-      stashFillDraft(SHIFT_STASH_SCOPE, key, draftRef.current ?? draft, Date.now())
+      const current = draftRef.current
+      if (!current) return
+      stashFillDraft(SHIFT_STASH_SCOPE, key, current, Date.now())
       setLocalSavedAt(Date.now())
     }
     stashLatest.current = flush

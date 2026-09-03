@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Megaphone } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
@@ -33,14 +33,25 @@ import {
   type BroadcastCandidate,
   type BroadcastChannel,
 } from '../lib/unitBroadcast'
+import {
+  UNIT_BROADCAST_STASH_DEBOUNCE_MS,
+  clearUnitBroadcastStash,
+  readUnitBroadcastStash,
+  stashUnitBroadcastDraft,
+} from '../lib/unitBroadcastStash'
 
 export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) {
   const { show } = useToast()
   const viewingAsOther = isImpersonating()
-  const [channel, setChannel] = useState<BroadcastChannel>('both')
-  const [audience, setAudience] = useState<BroadcastAudience>('all')
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
+  const composeSeed = useRef(readUnitBroadcastStash(Date.now()))
+  const [channel, setChannel] = useState<BroadcastChannel>(
+    () => composeSeed.current?.channel ?? 'both',
+  )
+  const [audience, setAudience] = useState<BroadcastAudience>(
+    () => composeSeed.current?.audience ?? 'all',
+  )
+  const [subject, setSubject] = useState(() => composeSeed.current?.subject ?? '')
+  const [body, setBody] = useState(() => composeSeed.current?.body ?? '')
   const [fieldErrors, setFieldErrors] = useState<{ subject?: string; body?: string }>({})
   const [candidates, setCandidates] = useState<BroadcastCandidate[] | null>(null)
   const [log, setLog] = useState<UnitBroadcastLogRow[] | null>(null)
@@ -48,6 +59,10 @@ export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) 
   const [reloadKey, setReloadKey] = useState(0)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [sending, setSending] = useState(false)
+  const stashLatest = useRef<(() => void) | null>(null)
+  const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftRef = useRef({ channel, audience, subject, body })
+  draftRef.current = { channel, audience, subject, body }
 
   useEffect(() => {
     let active = true
@@ -65,6 +80,33 @@ export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) 
       active = false
     }
   }, [reloadKey])
+
+  useEffect(() => {
+    const flush = () => {
+      stashUnitBroadcastDraft(draftRef.current, Date.now())
+    }
+    stashLatest.current = flush
+    if (stashTimer.current) clearTimeout(stashTimer.current)
+    stashTimer.current = setTimeout(flush, UNIT_BROADCAST_STASH_DEBOUNCE_MS)
+    return () => {
+      if (stashTimer.current) clearTimeout(stashTimer.current)
+    }
+  }, [channel, audience, subject, body])
+
+  useEffect(() => {
+    function onHidden() {
+      if (document.visibilityState === 'hidden') stashLatest.current?.()
+    }
+    function onPageHide() {
+      stashLatest.current?.()
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('pagehide', onPageHide)
+    }
+  }, [])
 
   const preview = useMemo(
     () => previewUnitBroadcast(candidates ?? [], { channel, audience }),
@@ -107,6 +149,7 @@ export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) 
     setSubject('')
     setBody('')
     setFieldErrors({})
+    clearUnitBroadcastStash()
     show(unitBroadcastResultCopy(result.data), 'done')
     setReloadKey((value) => value + 1)
   }

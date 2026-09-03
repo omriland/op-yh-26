@@ -48,8 +48,9 @@ type CockpitPageProps = {
 
 export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps) {
   const { user, roles } = useAuth()
+  const userId = user?.id
   const isAdmin = roles.includes('admin') || roles.includes('super_admin')
-  const deleteViewer = { userId: user?.id, isAdmin }
+  const deleteViewer = { userId, isAdmin }
   const { show } = useToast()
   const [reel, setReel] = useState<CockpitReelItem[]>([])
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -166,12 +167,12 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   }, [])
 
   useEffect(() => {
-    if (!user) return
-    setIntroOpen(!hasSeenCockpitIntro(user.id))
-  }, [user])
+    if (!userId) return
+    setIntroOpen(!hasSeenCockpitIntro(userId))
+  }, [userId])
 
   function dismissIntro() {
-    if (user) markCockpitIntroSeen(user.id)
+    if (userId) markCockpitIntroSeen(userId)
     setIntroOpen(false)
   }
 

@@ -70,6 +70,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs
 - Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
 - **Event create draft survival (2026-09-03):** `EventFormPage` boot effect depends on stable `userId` / lead name+callsign (not auth object refs). Typed אירוע חדש is kept across tab-focus `TOKEN_REFRESHED`. Local stash (`eventFormStash`) runs on all viewports (was mobile-only).
+- **Form draft survival (2026-09-03, expanded):** Same pattern on shift form, responder fill, shift-born fill (stash added), profile vehicles, unit broadcast compose, admin create-user stash keys. Shared helper: `formDraftSurvival.shouldKeepLiveFormBoot`.
 - Toasts: mobile top-center via flex (RTL-safe; no `translateX` centering); desktop bottom-inline-start. Spec: `docs/superpowers/specs/2026-08-11-mobile-toast-design.md`
 - Admin users mobile cards: ⋮ overflow menu (same actions as desktop) + internal `--space-3` rhythm; spec `2026-08-11-mobile-admin-users-card-design.md`
 - Sticky form footers: upward `--shadow-scroll-cue` while scrollport overflows (`FormStickyFooter` on responder fill / event / shift). Spec: `docs/superpowers/specs/2026-08-11-sticky-footer-scroll-cue-design.md`

@@ -281,6 +281,7 @@ function UserAndroidInstallMark({
 export function AdminUsersPage() {
   const isDesktop = useIsDesktop()
   const { user: authUser, roles, profile: authProfile } = useAuth()
+  const authUserId = authUser?.id
   const isSuperAdmin = roles.includes('super_admin')
   const viewingAsOther = isImpersonating()
   const { show } = useToast()
@@ -369,22 +370,22 @@ export function AdminUsersPage() {
   })
 
   function stashCreateDraftNow() {
-    if (!authUser) return
+    if (!authUserId) return
     const current = draftRef.current
     if (!current || current.id) return
-    stashCreateUserDraft(authUser.id, current, Date.now())
+    stashCreateUserDraft(authUserId, current, Date.now())
   }
 
   function openCreateForm() {
     setFormError(null)
     const fresh = emptyDraft()
-    if (!authUser) {
+    if (!authUserId) {
       setDraft(fresh)
       return
     }
     const restored = applyStashedCreateUserDraft(
       fresh,
-      readCreateUserStash<Draft>(authUser.id, Date.now()),
+      readCreateUserStash<Draft>(authUserId, Date.now()),
     )
     setDraft(restored && shouldStashCreateUserDraft(restored) ? restored : fresh)
   }
@@ -396,7 +397,7 @@ export function AdminUsersPage() {
   }
 
   useEffect(() => {
-    if (!authUser || !draft || draft.id) return
+    if (!authUserId || !draft || draft.id) return
 
     stashLatest.current = stashCreateDraftNow
     if (stashTimer.current) window.clearTimeout(stashTimer.current)
@@ -404,7 +405,7 @@ export function AdminUsersPage() {
     return () => {
       if (stashTimer.current) window.clearTimeout(stashTimer.current)
     }
-  }, [authUser, draft])
+  }, [authUserId, draft])
 
   useEffect(() => {
     function onHidden() {
@@ -624,7 +625,7 @@ export function AdminUsersPage() {
                 : 'המשתמש נוצר, אך שמירת הכתובות נכשלה. ערכו את המשתמש כדי לנסות שוב.',
               'alert',
             )
-            if (authUser) clearCreateUserStash(authUser.id)
+            if (authUserId) clearCreateUserStash(authUserId)
             setDraft(null)
             setReloadKey((value) => value + 1)
             return
@@ -637,7 +638,7 @@ export function AdminUsersPage() {
             : (result.message ?? 'משתמש נוצר בהצלחה'),
           'done',
         )
-        if (authUser) clearCreateUserStash(authUser.id)
+        if (authUserId) clearCreateUserStash(authUserId)
       } else {
         const original = users?.find((entry) => entry.id === draft.id)
         if (

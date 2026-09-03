@@ -51,6 +51,7 @@ import {
   readFillDraft,
   stashFillDraft,
 } from '../lib/fillDraftStash'
+import { shouldKeepLiveFormBoot } from '../lib/formDraftSurvival'
 
 const FILL_STASH_SCOPE = 'responder'
 /** Long enough to not thrash on every keystroke, short enough to survive a kill. */
@@ -90,9 +91,36 @@ export function ResponderFillPage({
   const plateLookupTail = useRef(Promise.resolve())
   const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stashLatest = useRef<(() => void) | null>(null)
+  const draftRef = useRef<ResponderFillDraft | null>(null)
+  const ctxRef = useRef<ResponderFillContext | null>(null)
+
+  useEffect(() => {
+    draftRef.current = draft
+  }, [draft])
+
+  useEffect(() => {
+    ctxRef.current = ctx
+  }, [ctx])
+
+  const userId = user?.id
 
   useEffect(() => {
     let active = true
+
+    // Same event already live — don't wipe typing when auth object identity churns.
+    if (
+      shouldKeepLiveFormBoot({
+        loadState,
+        hasTypedDraft: Boolean(
+          draftRef.current &&
+            ctxRef.current &&
+            ctxRef.current.eventId === eventId,
+        ),
+      })
+    ) {
+      return
+    }
+
     setLoadState('loading')
 
     if (fillToken) {
@@ -115,12 +143,12 @@ export function ResponderFillPage({
       }
     }
 
-    if (!user) {
+    if (!userId) {
       setLoadState('denied')
       return
     }
 
-    fetchResponderFillContext(eventId, user.id)
+    fetchResponderFillContext(eventId, userId)
       .then((next) => {
         if (!active) return
         if (!next) {
@@ -138,7 +166,9 @@ export function ResponderFillPage({
     return () => {
       active = false
     }
-  }, [eventId, user, fillToken])
+    // loadState intentionally omitted — only boot / switch event / token
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, userId, fillToken])
 
   const readOnly =
     ctx?.participationStatus === 'done' || ctx?.eventStatus === 'done'
@@ -173,7 +203,9 @@ export function ResponderFillPage({
     if (!ctx || !draft || readOnly) return
 
     const flush = () => {
-      stashFillDraft(FILL_STASH_SCOPE, ctx.assignmentId, draft, Date.now())
+      const current = draftRef.current
+      if (!current || !ctxRef.current) return
+      stashFillDraft(FILL_STASH_SCOPE, ctxRef.current.assignmentId, current, Date.now())
       setLocalSavedAt(Date.now())
     }
     stashLatest.current = flush
