@@ -44,4 +44,11 @@ describe('desktop shell cards', () => {
     expect(body).toMatch(/inset-inline-start:\s*0/)
     expect(body).toMatch(/inset-inline-end:\s*auto/)
   })
+
+  it('outlines אירוע חדש like a nav row, not a filled primary', () => {
+    const body = ruleBody(css, '.nav-item.sidebar__new-event')
+    expect(body).toMatch(/border:\s*1px solid var\(--stroke-strong\)/)
+    expect(body).not.toMatch(/accent-fill/)
+    expect(css).toMatch(/\.nav-item\s*\{[^}]*height:\s*40px/)
+  })
 })

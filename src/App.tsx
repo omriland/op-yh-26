@@ -19,7 +19,7 @@ import {
 } from './lib/adminSegments'
 import { reportsNavPlacement } from './lib/reports/access'
 import { defaultHomeView } from './lib/defaultHomeView'
-import { SHIFT_LEAD_NAV_SECTION } from './lib/sidebarCreate'
+import { SHIFT_LEAD_NAV_SECTION, isSidebarCreateEventCurrent } from './lib/sidebarCreate'
 import { discardAbandonedEmptyEventIfAny } from './lib/eventForm'
 import { AdminListsPage } from './pages/AdminListsPage'
 import { SETTINGS_BOT_KEY, type SettingsPaneKey } from './lib/settingsPanes'
@@ -101,6 +101,7 @@ function Gate() {
   const [eventSurface, setEventSurface] = useState<EventSurface>(boot.eventSurface)
   const [shiftSurface, setShiftSurface] = useState<ShiftSurface>(boot.shiftSurface)
   const [sectionReset, setSectionReset] = useState(0)
+  const [eventCreateNonce, setEventCreateNonce] = useState(0)
   const [cockpitEventId, setCockpitEventId] = useState<string | undefined>(boot.cockpitEventId)
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
@@ -843,6 +844,14 @@ function Gate() {
     navigate(fallbackView)
   }
 
+  function openNewEventForm() {
+    setLegalPage(null)
+    setView('events')
+    setEventCreateNonce((n) => n + 1)
+    setEventSurface({ kind: 'form' })
+    setShiftSurface({ kind: 'list' })
+  }
+
   return (
     <AppShell
       withSidebar={shellWithSidebar}
@@ -854,16 +863,8 @@ function Gate() {
       onNavigate={navigate}
       onHome={goHome}
       entries={entries}
-      onCreateEvent={
-        manages
-          ? () => {
-              setLegalPage(null)
-              setView('events')
-              setEventSurface({ kind: 'form' })
-              setShiftSurface({ kind: 'list' })
-            }
-          : undefined
-      }
+      onCreateEvent={manages ? openNewEventForm : undefined}
+      creatingEvent={isSidebarCreateEventCurrent(eventSurface)}
       onCreateShift={
         manages
           ? () => {
@@ -904,6 +905,7 @@ function Gate() {
         ) : null}
         {onEventHost && eventSurface.kind === 'form' ? (
         <EventFormPage
+          key={`event-form-${eventCreateNonce}`}
           eventId={eventSurface.eventId}
           focusResponderId={eventSurface.focusResponderId}
           onCancel={(result) =>
@@ -921,7 +923,7 @@ function Gate() {
             })
           }
           onSaved={(id) => setEventSurface({ kind: 'detail', eventId: id })}
-          onSavedAndCreateNew={() => setEventSurface({ kind: 'form' })}
+          onSavedAndCreateNew={openNewEventForm}
         />
       ) : onEventHost && eventSurface.kind === 'fill' ? (
         <ResponderFillPage
@@ -1061,7 +1063,7 @@ function Gate() {
           asTable={Boolean(commandShell && scope === 'unit')}
           canCreate={manages && scope === 'unit'}
           onOpen={(eventId) => setEventSurface({ kind: 'detail', eventId })}
-          onCreate={() => setEventSurface({ kind: 'form' })}
+          onCreate={openNewEventForm}
           onFill={
             hasMineList
               ? (eventId) => setEventSurface({ kind: 'fill', eventId, returnTo: 'list' })

@@ -21,6 +21,12 @@ import {
   locationPinIsLocked,
   type LocationPinSource,
 } from './locationPin'
+import {
+  EVENT_SECONDARY_LEADS_EMBED,
+  createTimeCreatorSecondary,
+  mapSecondaryLeadRows,
+  type SecondaryLead,
+} from './eventShiftLeads'
 
 export type LookupOption = { id: string; name: string; code?: string | null }
 
@@ -146,6 +152,7 @@ export type EventFormDraft = {
   /** Creator — not the last editor. Missing on older stashes. */
   shift_lead_id?: string
   shift_lead: { full_name: string; callsign: string }
+  secondary_leads: SecondaryLead[]
   responders: ResponderDraft[]
 }
 
@@ -258,6 +265,7 @@ export function emptyEventDraft(lead: {
     bus_lane: false,
     shift_lead_id: lead.id,
     shift_lead: { full_name: lead.full_name, callsign: lead.callsign },
+    secondary_leads: [],
     responders: [],
   }
 }
@@ -266,6 +274,7 @@ export function emptyEventDraft(lead: {
 export function isAbandonedEmptyEventDraft(
   draft: EventFormDraft,
   initialEventDate: string,
+  originalShiftLeadId?: string,
 ): boolean {
   if (draft.responders.length > 0) return false
   if (draft.is_cancelled) return false
@@ -280,6 +289,10 @@ export function isAbandonedEmptyEventDraft(
   if (draft.location_lat != null || draft.location_lng != null) return false
   if (draft.notes.trim()) return false
   if (draft.bus_lane) return false
+  if ((draft.secondary_leads ?? []).length > 0) return false
+  const originalLead = originalShiftLeadId?.trim() ?? ''
+  const currentLead = draft.shift_lead_id?.trim() ?? ''
+  if (originalLead && currentLead && originalLead !== currentLead) return false
   return true
 }
 
@@ -298,6 +311,11 @@ export function registerAbandonedEmptyEventHandler(
 export function mountedEventIsKeptFromAbandon(): boolean {
   if (!abandonEmptyEventPeek) return false
   return !abandonEmptyEventPeek()
+}
+
+/** True only when a mounted form peek says this is still an untouched empty insert. */
+export function mountedEventIsAbandonedEmpty(): boolean {
+  return Boolean(abandonEmptyEventPeek?.())
 }
 
 /** Drop a never-touched new event when leaving the form (nav, back, cockpit switch). */
@@ -336,6 +354,17 @@ export async function fetchEventLookups(): Promise<EventLookups> {
     fetchLookup('vehicle_kinds'),
   ])
   return { districts, eventTypes, roads, vehicleKinds }
+}
+
+export async function fetchShiftLeadUsers(): Promise<AssignableUser[]> {
+  const { data, error } = await supabase.rpc('list_shift_lead_profiles')
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as { id: string; full_name: string; callsign: string }[]).map((row) => ({
+    id: row.id,
+    full_name: row.full_name,
+    callsign: row.callsign,
+    hasVehicle: true,
+  }))
 }
 
 export async function fetchAssignableUsers(): Promise<AssignableUser[]> {
@@ -399,6 +428,7 @@ const EVENT_EDIT_SELECT = `
       location_pin_source, location_pinned_at, location_pinned_by,
       notes, is_cancelled, bus_lane, shift_lead_id,
       shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+      ${EVENT_SECONDARY_LEADS_EMBED},
       responders:event_responders(
         id, responder_id, started_at, ended_at, total_km, emergency_means, status,
         vehicle_plate, odometer_start, odometer_end, route,
@@ -451,6 +481,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     bus_lane: boolean
     shift_lead_id: string | null
     shift_lead: { full_name: string; callsign: string } | null
+    secondary_leads?: unknown
     responders: LoadedResponder[]
   }
 
@@ -475,6 +506,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     bus_lane: row.bus_lane ?? false,
     shift_lead_id: row.shift_lead_id ?? undefined,
     shift_lead: row.shift_lead ?? { full_name: '—', callsign: '—' },
+    secondary_leads: mapSecondaryLeadRows(row.secondary_leads),
     responders: (row.responders ?? []).map((responder) => {
       const hasVehicle = hasActiveVehicle(responder.profile?.vehicles)
       return {
@@ -513,12 +545,46 @@ export const COCKPIT_IDENTITY_DRAFT_WARNING = 'האירוע בטיוטה'
 export const POLICE_EVENT_ID_DUPLICATE_ERROR =
   'כבר קיים אירוע עם המספר הזה באותו תאריך.'
 
+type EventIdentityGap = 'date' | 'type' | 'road' | 'location'
+
+const IDENTITY_CAPTION: Record<Exclude<EventIdentityGap, 'location'>, string> = {
+  date: 'תאריך',
+  type: 'סוג',
+  road: 'כביש',
+}
+
+const IDENTITY_TOAST: Record<EventIdentityGap, string> = {
+  date: 'תאריך',
+  type: 'סוג אירוע',
+  road: 'כביש',
+  location: 'מיקום',
+}
+
+function joinHebrewList(items: string[]): string {
+  if (items.length === 0) return ''
+  if (items.length === 1) return items[0]!
+  if (items.length === 2) return `${items[0]} ו${items[1]}`
+  return `${items.slice(0, -1).join(', ')} ו${items[items.length - 1]}`
+}
+
+export function missingEventIdentityGaps(draft: {
+  event_date: string
+  event_type_id: string
+  road_id: string
+}): Exclude<EventIdentityGap, 'location'>[] {
+  const missing: Exclude<EventIdentityGap, 'location'>[] = []
+  if (!draft.event_date.trim()) missing.push('date')
+  if (!draft.event_type_id.trim()) missing.push('type')
+  if (!draft.road_id.trim()) missing.push('road')
+  return missing
+}
+
 export function eventLacksRequiredIdentity(draft: {
   event_date: string
   event_type_id: string
   road_id: string
 }): boolean {
-  return cockpitIdentityDraftWarning(draft) !== null
+  return missingEventIdentityGaps(draft).length > 0
 }
 
 /** Red cockpit caption: name what is still missing of תאריך / סוג / כביש. */
@@ -527,14 +593,25 @@ export function cockpitIdentityDraftWarning(draft: {
   event_type_id: string
   road_id: string
 }): string | null {
-  const missing: string[] = []
-  if (!draft.event_date.trim()) missing.push('תאריך')
-  if (!draft.event_type_id.trim()) missing.push('סוג')
-  if (!draft.road_id.trim()) missing.push('כביש')
+  const missing = missingEventIdentityGaps(draft).map((key) => IDENTITY_CAPTION[key])
   if (missing.length === 0) return null
   if (missing.length === 3) return COCKPIT_IDENTITY_DRAFT_WARNING
   if (missing.length === 1) return `חסר ${missing[0]}`
-  return `חסרים ${missing[0]} ו${missing[1]}`
+  return `חסרים ${joinHebrewList(missing)}`
+}
+
+/** Standalone create toast: list only the fields that actually blocked persist. */
+export function eventCreateBlockedMessage(errors: EventFormErrors): string {
+  const missing: string[] = []
+  if (errors.event_date) missing.push(IDENTITY_TOAST.date)
+  if (errors.event_type_id) missing.push(IDENTITY_TOAST.type)
+  if (errors.road_id) missing.push(IDENTITY_TOAST.road)
+  if (errors.location) missing.push(IDENTITY_TOAST.location)
+  const fields =
+    missing.length > 0
+      ? joinHebrewList(missing)
+      : joinHebrewList([IDENTITY_TOAST.date, IDENTITY_TOAST.type, IDENTITY_TOAST.road])
+  return `יש למלא ${fields} כדי ליצור אירוע.`
 }
 
 export type SameDayPoliceEventRow = {
@@ -777,6 +854,7 @@ export async function saveEventForm(input: {
       location_lat: number | null
       location_lng: number | null
       location_pin_source: LocationPinSource | null
+      secondary_leads: SecondaryLead[]
     }
   | { ok: false; error: string; fieldErrors?: EventFormErrors }
 > {
@@ -793,12 +871,9 @@ export async function saveEventForm(input: {
     roads: input.roads,
   })
   if (Object.keys(fieldErrors).length > 0) {
-    const needsLocation = Boolean(fieldErrors.location)
     return {
       ok: false,
-      error: needsLocation
-        ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור אירוע.'
-        : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
+      error: eventCreateBlockedMessage(fieldErrors),
       fieldErrors,
     }
   }
@@ -842,6 +917,8 @@ export async function saveEventForm(input: {
     locationPayload = applyAutoGeocodeToLocationPayload(locationPayload, coords)
   }
   const foreignIds = eventForeignIds(draft, { allowPartial })
+  const mainLeadId = draft.shift_lead_id?.trim() || shiftLeadId
+  const wasCreate = !draft.id
   const eventPayload = {
     event_date: draft.event_date,
     police_event_id: digitsOnly(draft.police_event_id) || null,
@@ -861,6 +938,7 @@ export async function saveEventForm(input: {
     bus_lane: draft.bus_lane,
     status: nextStatus,
     updated_at: new Date().toISOString(),
+    ...(draft.shift_lead_id ? { shift_lead_id: mainLeadId } : {}),
   }
 
   let eventId = draft.id
@@ -868,7 +946,6 @@ export async function saveEventForm(input: {
   const payloadWithoutBusLane = (({ bus_lane: _busLane, ...rest }) => rest)(eventPayload)
 
   if (eventId) {
-    // Keep original shift_lead_id — אחמ״ש is the creator, not the last editor.
     let { error } = await supabase.from('events').update(eventPayload).eq('id', eventId)
     if (error && isMissingBusLaneColumn(error)) {
       const retry = await supabase.from('events').update(payloadWithoutBusLane).eq('id', eventId)
@@ -880,13 +957,13 @@ export async function saveEventForm(input: {
   } else {
     let { data, error } = await supabase
       .from('events')
-      .insert({ ...eventPayload, shift_lead_id: shiftLeadId })
+      .insert({ ...eventPayload, shift_lead_id: mainLeadId })
       .select('id')
       .single()
     if (error && isMissingBusLaneColumn(error)) {
       const retry = await supabase
         .from('events')
-        .insert({ ...payloadWithoutBusLane, shift_lead_id: shiftLeadId })
+        .insert({ ...payloadWithoutBusLane, shift_lead_id: mainLeadId })
         .select('id')
         .single()
       data = retry.data as typeof data
@@ -906,6 +983,16 @@ export async function saveEventForm(input: {
     isCancelled: draft.is_cancelled,
   })
   if (!sync.ok) return sync
+
+  const creatorSecondary = wasCreate
+    ? createTimeCreatorSecondary({ creatorId: shiftLeadId, mainLeadId })
+    : null
+  const secondarySync = await syncSecondaryLeads({
+    eventId,
+    desired: draft.secondary_leads ?? [],
+    creatorSecondary,
+  })
+  if (!secondarySync.ok) return secondarySync
 
   const notifyIds = fillReadyNotifyIds(sync.previousKm, sync.nextKmRows)
   if (notifyIds.length > 0 && !draft.is_cancelled) {
@@ -950,7 +1037,77 @@ export async function saveEventForm(input: {
     location_lat: locationPayload.location_lat,
     location_lng: locationPayload.location_lng,
     location_pin_source: locationPayload.location_pin_source,
+    secondary_leads: secondarySync.secondaries,
   }
+}
+
+async function fetchSecondaryLeads(eventId: string): Promise<SecondaryLead[]> {
+  const { data, error } = await supabase
+    .from('event_secondary_leads')
+    .select(
+      'user_id, locked, added_at, profile:profiles!event_secondary_leads_user_id_fkey(full_name, callsign)',
+    )
+    .eq('event_id', eventId)
+    .order('added_at', { ascending: true })
+  if (error) return []
+  return mapSecondaryLeadRows(data)
+}
+
+async function syncSecondaryLeads(input: {
+  eventId: string
+  desired: SecondaryLead[]
+  creatorSecondary: { user_id: string; locked: false } | null
+}): Promise<{ ok: true; secondaries: SecondaryLead[] } | { ok: false; error: string }> {
+  const existing = await fetchSecondaryLeads(input.eventId)
+  const wanted = new Map<string, { locked: boolean }>()
+  for (const row of input.desired) {
+    if (row.user_id) wanted.set(row.user_id, { locked: row.locked })
+  }
+  if (input.creatorSecondary) {
+    const current = wanted.get(input.creatorSecondary.user_id)
+    wanted.set(input.creatorSecondary.user_id, {
+      locked: Boolean(current?.locked),
+    })
+  }
+
+  for (const row of existing) {
+    if (!wanted.has(row.user_id) && !row.locked) {
+      const { error } = await supabase
+        .from('event_secondary_leads')
+        .delete()
+        .eq('event_id', input.eventId)
+        .eq('user_id', row.user_id)
+        .eq('locked', false)
+      if (error) {
+        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      }
+    }
+  }
+
+  for (const [userId, row] of wanted) {
+    const found = existing.find((item) => item.user_id === userId)
+    if (!found) {
+      const { error } = await supabase.from('event_secondary_leads').insert({
+        event_id: input.eventId,
+        user_id: userId,
+        locked: row.locked,
+      })
+      if (error) {
+        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      }
+    } else if (row.locked && !found.locked) {
+      const { error } = await supabase
+        .from('event_secondary_leads')
+        .update({ locked: true })
+        .eq('event_id', input.eventId)
+        .eq('user_id', userId)
+      if (error) {
+        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      }
+    }
+  }
+
+  return { ok: true, secondaries: await fetchSecondaryLeads(input.eventId) }
 }
 
 async function syncResponders(input: {

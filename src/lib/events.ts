@@ -12,6 +12,7 @@ import {
 } from './shifts'
 import { formatDate, formatPlate } from './format'
 import { mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
+import { EVENT_SECONDARY_LEADS_EMBED } from './eventShiftLeads'
 
 export type EventResponderSummary = {
   id: string
@@ -40,6 +41,7 @@ export type EventListItem = {
   event_type: { name: string } | null
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
+  secondary_leads?: unknown
   last_saved: { full_name: string } | null
   shift: {
     shift_date: string
@@ -70,6 +72,7 @@ export const EVENT_LIST_SELECT = `
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+  ${EVENT_SECONDARY_LEADS_EMBED},
   last_saved:profiles!events_last_saved_by_fkey(full_name),
   shift:shifts!events_shift_id_fkey(
     shift_date,
@@ -326,6 +329,7 @@ const EVENT_DETAIL_SELECT = `
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+  ${EVENT_SECONDARY_LEADS_EMBED},
   last_saved:profiles!events_last_saved_by_fkey(full_name),
   shift:shifts!events_shift_id_fkey(
     shift_date,
@@ -371,6 +375,7 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+  ${EVENT_SECONDARY_LEADS_EMBED},
   last_saved:profiles!events_last_saved_by_fkey(full_name),
   shift:shifts!events_shift_id_fkey(
     shift_date,

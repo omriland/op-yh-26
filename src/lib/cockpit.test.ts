@@ -31,6 +31,7 @@ import {
   isAbandonedEmptyCockpitItem,
   isOwnAbandonedEmptyCockpitItem,
   isInCockpitWindow,
+  shouldReuseCockpitCreate,
 } from './cockpit'
 
 const NOW = new Date('2026-08-16T12:00:00.000Z')
@@ -146,6 +147,22 @@ describe('isAbandonedEmptyCockpitItem', () => {
         'me',
       ),
     ).toBe(false)
+  })
+
+  it('reuses אירוע חדש only when the mounted form is also an abandoned empty insert', () => {
+    const ownEmpty = { ...blank, shift_lead_id: 'me' }
+    expect(shouldReuseCockpitCreate(ownEmpty, 'me', true)).toBe(true)
+    expect(shouldReuseCockpitCreate(ownEmpty, 'me', false)).toBe(false)
+    expect(
+      shouldReuseCockpitCreate(
+        { ...blank, shift_lead_id: 'me', event_type: { name: 'תאונה' } },
+        'me',
+        true,
+      ),
+    ).toBe(false)
+    expect(shouldReuseCockpitCreate({ ...blank, shift_lead_id: 'them' }, 'me', true)).toBe(
+      false,
+    )
   })
 })
 

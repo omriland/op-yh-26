@@ -46,7 +46,7 @@ import {
   isRolePreviewing,
 } from '../../lib/rolePreviewStash'
 import { sidebarCreateAction, sidebarLeadNewEvent } from '../../lib/sidebarCreate'
-import { Button, IconButton } from '../ui/Button'
+import { IconButton } from '../ui/Button'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
@@ -121,6 +121,8 @@ type AppShellProps = {
   /** Desktop sidebar — אירוע חדש at the top of כלים לאחמ״ש; משמרת חדשה beside משמרות. */
   onCreateEvent?: () => void
   onCreateShift?: () => void
+  /** Create route (`/events/new`) — marks אירוע חדש current, not the previous dest. */
+  creatingEvent?: boolean
   /** Current virtual path, attached to submitted feedback. */
   feedbackPagePath?: string | null
   children: ReactNode
@@ -138,6 +140,7 @@ export function AppShell({
   entries,
   onCreateEvent,
   onCreateShift,
+  creatingEvent = false,
   feedbackPagePath = null,
   children,
 }: AppShellProps) {
@@ -166,6 +169,7 @@ export function AppShell({
             entries={entries}
             onCreateEvent={onCreateEvent}
             onCreateShift={onCreateShift}
+            creatingEvent={creatingEvent}
           />
         ) : null}
         <main
@@ -211,7 +215,12 @@ function navEntryKey(entry: NavEntry) {
   return entry.view ?? entry.menuId ?? entry.label
 }
 
-function isNavCurrent(entry: NavEntry, view: AppView): boolean {
+function isNavCurrent(
+  entry: NavEntry,
+  view: AppView,
+  createEventCurrent = false,
+): boolean {
+  if (createEventCurrent) return false
   if (entry.view === view || Boolean(entry.alsoCurrentFor?.includes(view))) return true
   return Boolean(entry.children?.some((child) => isNavCurrent(child, view)))
 }
@@ -524,6 +533,7 @@ function Sidebar({
   entries,
   onCreateEvent,
   onCreateShift,
+  creatingEvent,
 }: {
   view: AppView
   onNavigate: (view: AppView) => void
@@ -531,6 +541,7 @@ function Sidebar({
   entries: NavEntry[]
   onCreateEvent?: () => void
   onCreateShift?: () => void
+  creatingEvent: boolean
 }) {
   const [width, setWidth] = useState(() => {
     try {
@@ -624,6 +635,7 @@ function Sidebar({
           onNavigate={onNavigate}
           onCreateEvent={onCreateEvent}
           onCreateShift={onCreateShift}
+          creatingEvent={creatingEvent}
         />
       </div>
       <div className="sidebar__footer">
@@ -634,6 +646,7 @@ function Sidebar({
             onNavigate={onNavigate}
             onCreateEvent={onCreateEvent}
             onCreateShift={onCreateShift}
+            creatingEvent={creatingEvent}
           />
         ) : null}
         <UserChrome
@@ -668,12 +681,14 @@ function SidebarNavItems({
   onNavigate,
   onCreateEvent,
   onCreateShift,
+  creatingEvent,
 }: {
   entries: NavEntry[]
   view: AppView
   onNavigate: (view: AppView) => void
   onCreateEvent?: () => void
   onCreateShift?: () => void
+  creatingEvent: boolean
 }) {
   return (
     <>
@@ -687,16 +702,23 @@ function SidebarNavItems({
           <div key={navEntryKey(entry)}>
             {showSection ? <p className="sidebar__section">{entry.section}</p> : null}
             {leadNewEvent ? (
-              <Button
-                className="sidebar__new-event"
+              <button
+                type="button"
+                className="nav-item sidebar__new-event"
+                aria-current={creatingEvent ? 'page' : undefined}
                 onClick={leadNewEvent.onCreate}
-                icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
               >
+                <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
                 {leadNewEvent.label}
-              </Button>
+              </button>
             ) : null}
             {entry.children && entry.children.length > 0 ? (
-              <SidebarNavMenu entry={entry} view={view} onNavigate={onNavigate} />
+              <SidebarNavMenu
+                entry={entry}
+                view={view}
+                onNavigate={onNavigate}
+                creatingEvent={creatingEvent}
+              />
             ) : (
               <div className={create ? 'sidebar__row' : undefined}>
                 <button
@@ -704,7 +726,7 @@ function SidebarNavItems({
                   className={
                     entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
                   }
-                  aria-current={isNavCurrent(entry, view) ? 'page' : undefined}
+                  aria-current={isNavCurrent(entry, view, creatingEvent) ? 'page' : undefined}
                   aria-label={
                     entry.attention
                       ? `${entry.label}${navAttentionAriaSuffix(true)}`
@@ -739,10 +761,12 @@ function SidebarNavMenu({
   entry,
   view,
   onNavigate,
+  creatingEvent,
 }: {
   entry: NavEntry
   view: AppView
   onNavigate: (view: AppView) => void
+  creatingEvent: boolean
 }) {
   const children = entry.children ?? []
   const [open, setOpen] = useState(false)
@@ -751,7 +775,7 @@ function SidebarNavMenu({
   const panelRef = useRef<HTMLDivElement>(null)
   const closeTimer = useRef<number | null>(null)
   const menuId = useId()
-  const current = isNavCurrent(entry, view)
+  const current = isNavCurrent(entry, view, creatingEvent)
 
   function clearCloseTimer() {
     if (closeTimer.current != null) {
@@ -853,7 +877,7 @@ function SidebarNavMenu({
                   type="button"
                   role="menuitem"
                   className="menu__item"
-                  aria-current={isNavCurrent(child, view) ? 'page' : undefined}
+                  aria-current={isNavCurrent(child, view, creatingEvent) ? 'page' : undefined}
                   onClick={() => {
                     if (!child.view) return
                     setOpen(false)

@@ -3,6 +3,7 @@ import { emptyEventDraft, type EventFormDraft } from './eventForm'
 import {
   applyStashedEventDraft,
   clearEventFormStash,
+  eventFormStashForRoute,
   eventFormStashId,
   readEventFormStash,
   shouldKeepLiveCreateDraft,
@@ -46,20 +47,28 @@ describe('eventFormStash', () => {
     expect(eventFormStashId('u1', 'evt-1')).not.toBe(eventFormStashId('u2', 'evt-1'))
   })
 
-  it('overlays a stashed create onto a fresh form without stealing the live lead', () => {
+  it('keeps a create-time main pick and refreshes the live lead name when the id matches', () => {
     const base = draft({ shift_lead_id: 'live-lead' })
-    const next = applyStashedEventDraft(base, {
+    const sameId = applyStashedEventDraft(base, {
       ...draft({
         police_event_id: '12345',
-        location: 'מחלף שורק',
         shift_lead: { full_name: 'ישן', callsign: '0' },
-        shift_lead_id: 'stale-lead',
+        shift_lead_id: 'live-lead',
       }),
     })
-    expect(next?.police_event_id).toBe('12345')
-    expect(next?.location).toBe('מחלף שורק')
-    expect(next?.shift_lead).toEqual({ full_name: 'עמרי', callsign: 'Admin' })
-    expect(next?.shift_lead_id).toBe('live-lead')
+    expect(sameId?.police_event_id).toBe('12345')
+    expect(sameId?.shift_lead).toEqual({ full_name: 'עמרי', callsign: 'Admin' })
+    expect(sameId?.shift_lead_id).toBe('live-lead')
+
+    const transferred = applyStashedEventDraft(base, {
+      ...draft({
+        police_event_id: '12345',
+        shift_lead: { full_name: 'דנה', callsign: 'D1' },
+        shift_lead_id: 'dana',
+      }),
+    })
+    expect(transferred?.shift_lead_id).toBe('dana')
+    expect(transferred?.shift_lead).toEqual({ full_name: 'דנה', callsign: 'D1' })
   })
 
   it('rejects a stash that is not an event draft', () => {
@@ -67,7 +76,7 @@ describe('eventFormStash', () => {
     expect(applyStashedEventDraft(draft(), { police_event_id: '1' })).toBeNull()
   })
 
-  it('round-trips a create and keeps the create key after the row exists', () => {
+  it('round-trips a create and does not copy a saved row onto the create key', () => {
     installStorage()
     const userId = 'u1'
     const created = draft({ police_event_id: '99', location: 'כביש 1' })
@@ -76,8 +85,18 @@ describe('eventFormStash', () => {
 
     const withId = { ...created, id: 'evt-9' }
     stashEventFormDraft(userId, withId, NOW)
-    expect(readEventFormStash(userId, null, NOW)?.id).toBe('evt-9')
+    expect(readEventFormStash(userId, null, NOW)?.id).toBeUndefined()
+    expect(readEventFormStash(userId, null, NOW)?.police_event_id).toBe('99')
     expect(readEventFormStash(userId, 'evt-9', NOW)?.location).toBe('כביש 1')
+  })
+
+  it('does not let אירוע חדש hydrate into an existing event’s edit', () => {
+    const saved = draft({ id: 'evt-9', police_event_id: '12345', location: 'מחלף שורק' })
+    expect(eventFormStashForRoute(undefined, saved)).toBeNull()
+    expect(eventFormStashForRoute(null, saved)).toBeNull()
+    expect(eventFormStashForRoute('evt-9', saved)?.id).toBe('evt-9')
+    const unsaved = draft({ police_event_id: '99' })
+    expect(eventFormStashForRoute(undefined, unsaved)).toBeNull()
   })
 
   it('clears both the create key and the saved-event key', () => {

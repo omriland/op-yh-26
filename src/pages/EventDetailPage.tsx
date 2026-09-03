@@ -26,6 +26,7 @@ import {
 } from '../lib/format'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
+import { EventLeadLedgerRows } from '../components/events/EventShiftLeadsFields'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
@@ -299,13 +300,9 @@ export function EventDetailPage({
         <section className="card detail__aside stack-4">
           <h2 className="t-section">פרטי האירוע</h2>
           <Ledger>
-            <LedgerRow
-              label="אחמ״ש"
-              value={
-                event.shift_lead
-                  ? `${event.shift_lead.full_name} · ${event.shift_lead.callsign}`
-                  : undefined
-              }
+            <EventLeadLedgerRows
+              main={event.shift_lead}
+              secondaries={event.secondary_leads}
             />
             <LedgerRow label="תאריך" value={formatDate(event.event_date)} numeric />
             <LedgerRow label="מספר אירוע" value={event.police_event_id ?? undefined} numeric />

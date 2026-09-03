@@ -2009,12 +2009,6 @@ textarea.field__input {
   height: 40px;
 }
 
-.sidebar__new-event {
-  width: 100%;
-  margin-block-end: var(--space-1);
-  white-space: nowrap;
-}
-
 .events-page__create {
   flex: none;
   white-space: nowrap;
@@ -2080,6 +2074,19 @@ textarea.field__input {
   width: 2px;
   border-radius: var(--radius-sm);
   background: var(--accent);
+}
+
+.nav-item.sidebar__new-event {
+  box-sizing: border-box;
+  width: 100%;
+  margin-block-end: var(--space-1);
+  white-space: nowrap;
+  border: 1px solid var(--stroke-strong);
+}
+
+.nav-item.sidebar__new-event:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .nav-item__label {
@@ -3064,6 +3071,11 @@ html[data-keyboard-open] .event-form__footer {
   display: block;
   width: max-content;
   max-width: none;
+  cursor: default;
+}
+
+.event-list-lead__overflow {
+  white-space: nowrap;
   cursor: default;
 }
 

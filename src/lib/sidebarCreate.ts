@@ -10,6 +10,14 @@ export function sidebarLeadNewEvent(
   return null
 }
 
+/** Create (`/events/new`, including query) — not edit (`/:id/edit`). */
+export function isSidebarCreateEventCurrent(surface: {
+  kind: string
+  eventId?: string
+} | null | undefined): boolean {
+  return surface?.kind === 'form' && !surface.eventId
+}
+
 export function sidebarCreateAction(
   view: string,
   onCreateShift?: () => void,

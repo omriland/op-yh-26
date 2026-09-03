@@ -1,8 +1,9 @@
 import { useRef } from 'react'
 import { formatDate, monoClass } from '../../lib/format'
 import { doneFraction, type EventListItem } from '../../lib/events'
-import { eventLeadDisplayName } from '../../lib/shiftBornEvents'
+import { mapSecondaryLeadRows } from '../../lib/eventShiftLeads'
 import { HoverTip } from '../ui/HoverTip'
+import { EventListLeadCaption } from './EventListLeadCaption'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
@@ -72,7 +73,17 @@ export function EventsTable({ events, onOpen, onContextDelete }: EventsTableProp
                     {locationLabel}
                   </HoverTip>
                 </td>
-                <td>{eventLeadDisplayName(event.origin, event.shift_lead?.full_name) ?? '—'}</td>
+                <td>
+                  {event.origin === 'shift' ? (
+                    '—'
+                  ) : (
+                    <EventListLeadCaption
+                      main={event.shift_lead}
+                      secondaries={mapSecondaryLeadRows(event.secondary_leads)}
+                      showOverflow
+                    />
+                  )}
+                </td>
                 <td className="num mono">{doneFraction(event)}</td>
                 <td className="table-cell--status">
                   <EventStatusTrail

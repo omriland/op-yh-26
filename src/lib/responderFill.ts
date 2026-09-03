@@ -1,4 +1,9 @@
 import { plateDigits, plateNumberForSave } from './format'
+import {
+  EVENT_SECONDARY_LEADS_EMBED,
+  formatLeadsCaption,
+  mapSecondaryLeadRows,
+} from './eventShiftLeads'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 import { pickDefaultVehiclePlate, queryVehiclesWithDefaultFallback } from './defaultVehicle'
@@ -164,6 +169,7 @@ export async function fetchResponderFillContext(
           event_type:event_types(name),
           road:roads(name),
           shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+          ${EVENT_SECONDARY_LEADS_EMBED},
           responders:event_responders(
             id, responder_id, vehicle_plate, odometer_start, odometer_end,
             total_km, route, treatment_detail, treatment_notes, status, updated_at,
@@ -204,6 +210,7 @@ export async function fetchResponderFillContext(
     event_type: { name: string } | null
     road: { name: string } | null
     shift_lead: { full_name: string; callsign: string } | null
+    secondary_leads?: unknown
     responders: {
       id: string
       responder_id: string
@@ -247,6 +254,7 @@ async function fetchResponderFillContextWithPlateQuery(
           event_type:event_types(name),
           road:roads(name),
           shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+          ${EVENT_SECONDARY_LEADS_EMBED},
           responders:event_responders(
             id, responder_id, vehicle_plate, odometer_start, odometer_end,
             total_km, route, treatment_detail, treatment_notes, status, updated_at
@@ -280,6 +288,7 @@ async function fetchResponderFillContextWithPlateQuery(
     event_type: { name: string } | null
     road: { name: string } | null
     shift_lead: { full_name: string; callsign: string } | null
+    secondary_leads?: unknown
     responders: {
       id: string
       responder_id: string
@@ -320,6 +329,7 @@ function buildResponderFillContext(
     event_type: { name: string } | null
     road: { name: string } | null
     shift_lead: { full_name: string; callsign: string } | null
+    secondary_leads?: unknown
   },
   mine: {
     id: string
@@ -378,9 +388,9 @@ function buildResponderFillContext(
     is_cancelled: row.is_cancelled ?? false,
     road_name: row.road?.name ?? null,
     location: row.location,
-    shift_lead_name: row.shift_lead
-      ? `${row.shift_lead.full_name} · ${row.shift_lead.callsign}`
-      : null,
+    shift_lead_name:
+      formatLeadsCaption(row.shift_lead, mapSecondaryLeadRows(row.secondary_leads)) ||
+      null,
     totalKm,
     participationStatus: mine.status,
     updated_at: mine.updated_at,

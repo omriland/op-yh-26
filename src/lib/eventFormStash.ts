@@ -21,11 +21,12 @@ export function shouldKeepLiveCreateDraft(input: {
   loadState: 'loading' | 'ready' | 'denied'
   draft: EventFormDraft | null
   initialEventDate: string
+  originalShiftLeadId?: string
 }): boolean {
   if (input.eventId) return false
   if (input.loadState !== 'ready') return false
   if (!input.draft || input.draft.id) return false
-  return !isAbandonedEmptyEventDraft(input.draft, input.initialEventDate)
+  return !isAbandonedEmptyEventDraft(input.draft, input.initialEventDate, input.originalShiftLeadId)
 }
 
 export function applyStashedEventDraft(
@@ -35,14 +36,31 @@ export function applyStashedEventDraft(
   if (!stashed || typeof stashed !== 'object') return null
   const draft = stashed as Partial<EventFormDraft>
   if (typeof draft.event_date !== 'string') return null
+  const stashedLeadId = typeof draft.shift_lead_id === 'string' ? draft.shift_lead_id : undefined
+  const keepStashedLead = !base.id && Boolean(stashedLeadId && stashedLeadId !== base.shift_lead_id)
   return {
     ...base,
     ...draft,
     event_date: draft.event_date,
-    shift_lead: base.shift_lead,
-    shift_lead_id: base.shift_lead_id,
+    shift_lead: keepStashedLead && draft.shift_lead ? draft.shift_lead : base.shift_lead,
+    shift_lead_id: keepStashedLead && draft.shift_lead_id ? draft.shift_lead_id : base.shift_lead_id,
+    secondary_leads: Array.isArray(draft.secondary_leads)
+      ? draft.secondary_leads
+      : base.secondary_leads,
     responders: Array.isArray(draft.responders) ? draft.responders : base.responders,
   }
+}
+
+/**
+ * Create (`/events/new`) never hydrates from stash — a saved-row stash would
+ * rewrite the route to that event’s edit form. Edit routes may restore.
+ */
+export function eventFormStashForRoute(
+  eventId: string | null | undefined,
+  stashed: EventFormDraft | null,
+): EventFormDraft | null {
+  if (!stashed || !eventId) return null
+  return stashed
 }
 
 export function readEventFormStash(
@@ -64,11 +82,6 @@ export function stashEventFormDraft(
   now: number,
 ): void {
   stashFillDraft(EVENT_FORM_STASH_SCOPE, eventFormStashId(userId, draft.id), draft, now)
-  // A create that autosaved still remounts as אירוע חדש (no id in the route).
-  // Keep the create key until an explicit clear so that remount can restore.
-  if (draft.id) {
-    stashFillDraft(EVENT_FORM_STASH_SCOPE, eventFormStashId(userId, null), draft, now)
-  }
 }
 
 export function clearEventFormStash(userId: string, eventId?: string | null): void {

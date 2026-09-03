@@ -26,7 +26,7 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 | מיקום | text / Places combobox | Plain text for normal שלוחות. For system שלוחה `תחנה / אחר / משוכפל`: Google Places autocomplete (HE), free-text row always first, **required**. Spec: `2026-08-11-yahpaz-system-districts-places-location-design.md`. Coordinates (`location_lat`/`location_lng`) stay stored for the map pin and are **not** shown as a form field. Map drag does not edit כביש/מיקום. Spec: `2026-08-24-yahpaz-event-location-pin-design.md`. |
 | הערות | textarea | optional |
 
-`אחמ״ש` is not an input — it renders as a read-only ledger row (auto: creator's name + callsign) at the top of the section.
+`אחמ״ש` / `אחמ״ש ראשי` is a picker (active `shift_lead` users) at the top of the section when the viewer may change main: creating אחמ״ש, or the current main while no secondaries exist, or admin / Super Admin. After secondaries exist, only admin / Super Admin may change main. Creating אחמ״ש may pick another lead as main; the creator becomes a removable `אחמ״ש משני`. Additional secondaries: searchable add list; manual rows can be removed by lead/admin/Super Admin. Locked secondaries (auto-added when a non-main אחמ״ש persists a real field or crew change) show hint `נוסף אוטומטית בעריכה — לא ניתן להסיר` and nobody removes them. When the viewer cannot change main, it is a read-only ledger row.
 
 ### חלק ב׳ — כוננים
 
@@ -46,7 +46,7 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
   - no responders assigned → `draft` (אירוע בהזנה) — not shown on responders’ “האירועים שלי”
   - ≥1 responder assigned → `in_progress` (or keep `partial` / `done` if already there)
 - **Minimum to create:** תאריך + סוג אירוע + כביש. Autosave does not create a row until those three are set; explicit save / assign shows field errors if missing. Other fields may stay empty.
-- **Back with no input:** if the lead opens `אירוע חדש` and leaves (חזרה or another nav item) without typing or changing any field, the empty row is deleted. A date-only cockpit insert is treated the same. Changing the date, a lookup, location, notes, a pin, or assigning a כונן keeps the event.
+- **Back with no input:** if the lead opens `אירוע חדש` and leaves (חזרה or another nav item) without typing or changing any field, the empty row is deleted. A date-only cockpit insert is treated the same. Changing the date, a lookup, location, notes, a pin, assigning a כונן, picking another main אחמ״ש, or adding a secondary keeps the event.
 
 ## Footer actions (sticky on mobile, above tab bar)
 
@@ -60,4 +60,4 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 - Assigning a responder: allowed anytime; new participation starts `pending`; status leaves draft.
 - Removing a responder who already entered data: confirm dialog `להסיר את הכונן? הנתונים שמילא יימחקו.`
 - Leave after failed save: confirm `השמירה האחרונה נכשלה. לצאת בכל זאת?`
-- Opening an event created by another אחמ״ש (web form, cockpit stage after `לחצו לעריכה`, Android form): blocking confirm first. Title `האם אתה בטוח שברצונך לערוך אירוע שהוזן על ידי {שם}?`. Body `כל שינוי שתבצע יתועד ויישמר במערכת`. Primary `עריכה` unlocks the form for this visit; secondary / X / backdrop `ביטול` leaves without writing. Own events skip the prompt.
+- Opening an event created by another אחמ״ש (web form, cockpit stage after `לחצו לעריכה`, Android form): blocking confirm first. Title `האם אתה בטוח שברצונך לערוך אירוע שהוזן על ידי {שם}?` (`{שם}` = main אחמ״ש). Body `כל שינוי שתבצע יתועד ויישמר במערכת`. Primary `עריכה` unlocks the form for this visit; secondary / X / backdrop `ביטול` leaves without writing. The **main** אחמ״ש skips the prompt. A secondary אחמ״ש, and any other אחמ״ש, still see it.

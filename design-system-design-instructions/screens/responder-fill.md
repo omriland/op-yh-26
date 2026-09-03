@@ -22,7 +22,7 @@ Entry: from the card fill button or from the responder's own card on event detai
 
 ### Layout
 
-- Read-only context header first — a compact event summary card with all key ledger rows always visible (no collapse): תאריך · מספר אירוע · סוג אירוע · כביש · מיקום · אחמ״ש — so the responder is certain which event they're completing.
+- Read-only context header first — a compact event summary card with all key ledger rows always visible (no collapse): תאריך · מספר אירוע · סוג אירוע · כביש · מיקום · אחמ״ש (main + secondaries in one caption) — so the responder is certain which event they're completing.
 - Then one form section: `הפרטים שלי`.
 
 | Field | Control | Notes |

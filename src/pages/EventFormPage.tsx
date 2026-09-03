@@ -12,7 +12,9 @@ import {
   cockpitPoliceEventIdCollides,
   deriveEventStatus,
   emptyEventDraft,
+  eventCreateBlockedMessage,
   fetchAssignableUsers,
+  fetchShiftLeadUsers,
   fetchEventForEdit,
   fetchEventLookups,
   hasEventMinimum,
@@ -59,6 +61,7 @@ import {
   EVENT_FORM_STASH_DEBOUNCE_MS,
   applyStashedEventDraft,
   clearEventFormStash,
+  eventFormStashForRoute,
   readEventFormStash,
   shouldKeepLiveCreateDraft,
   stashEventFormDraft,
@@ -72,6 +75,7 @@ import {
 } from '../lib/systemDistricts'
 import { COCKPIT_AUTOSAVE_MS, COCKPIT_CLICK_TO_EDIT } from '../lib/cockpit'
 import { LocationPlacesField } from '../components/events/LocationPlacesField'
+import { EventShiftLeadsFields } from '../components/events/EventShiftLeadsFields'
 import {
   applyLeadMapPin,
   applyLocationFieldChange,
@@ -152,6 +156,7 @@ export function EventFormPage({
 
   const [lookups, setLookups] = useState<EventLookups | null>(null)
   const [roster, setRoster] = useState<AssignableUser[]>([])
+  const [shiftLeadUsers, setShiftLeadUsers] = useState<AssignableUser[]>([])
   const [draft, setDraft] = useState<EventFormDraft | null>(null)
   const [baseline, setBaseline] = useState<string>('')
   const [previousIsCancelled, setPreviousIsCancelled] = useState(false)
@@ -227,6 +232,7 @@ export function EventFormPage({
         loadState,
         draft: draftRef.current,
         initialEventDate: initialDateRef.current,
+        originalShiftLeadId: userId,
       })
     ) {
       return
@@ -238,9 +244,10 @@ export function EventFormPage({
     Promise.all([
       fetchEventLookups(),
       fetchAssignableUsers(),
+      fetchShiftLeadUsers().catch(() => [] as AssignableUser[]),
       eventId ? fetchEventForEdit(eventId) : Promise.resolve(null),
     ])
-      .then(([nextLookups, nextRoster, existing]) => {
+      .then(([nextLookups, nextRoster, nextLeads, existing]) => {
         if (!active) return
         if (eventId && !existing) {
           setLoadState('denied')
@@ -248,6 +255,7 @@ export function EventFormPage({
         }
         setLookups(nextLookups)
         setRoster(nextRoster)
+        setShiftLeadUsers(nextLeads)
         let nextDraft =
           existing ??
           emptyEventDraft({
@@ -257,14 +265,16 @@ export function EventFormPage({
           })
         const stashed = applyStashedEventDraft(
           nextDraft,
-          readEventFormStash(userId, eventId ?? null, Date.now()),
+          eventFormStashForRoute(
+            eventId ?? null,
+            readEventFormStash(userId, eventId ?? null, Date.now()),
+          ),
         )
         if (
           stashed &&
           JSON.stringify(stashed) !== JSON.stringify(nextDraft) &&
-          !isAbandonedEmptyEventDraft(stashed, nextDraft.event_date)
+          !isAbandonedEmptyEventDraft(stashed, nextDraft.event_date, userId)
         ) {
-          if (stashed.id && !eventId) skipReloadForId.current = stashed.id
           nextDraft = stashed
         }
         if (blockSelfAssign && userId) {
@@ -295,7 +305,6 @@ export function EventFormPage({
         setPreviousIsCancelled(nextDraft.is_cancelled)
         setBaseline(JSON.stringify(nextDraft))
         setLoadState('ready')
-        if (!eventId && nextDraft.id) onEventId?.(nextDraft.id)
       })
       .catch(() => {
         if (active) setLoadState('denied')
@@ -368,7 +377,7 @@ export function EventFormPage({
 
   async function discardIfAbandonedEmpty(): Promise<boolean> {
     const current = draftRef.current
-    if (!current?.id || !isAbandonedEmptyEventDraft(current, initialDateRef.current)) {
+    if (!current?.id || !isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) {
       return false
     }
     if (
@@ -426,7 +435,7 @@ export function EventFormPage({
 
       const snapshot = JSON.stringify(current)
       if (
-        isAbandonedEmptyEventDraft(current, initialDateRef.current) &&
+        isAbandonedEmptyEventDraft(current, initialDateRef.current, user.id) &&
         !options?.navigate &&
         !options?.createNew &&
         !options?.revealErrors
@@ -458,12 +467,7 @@ export function EventFormPage({
         setErrors(persistErrors)
         setSavePulse('error')
         if (options?.navigate || options?.createNew || options?.revealErrors) {
-          show(
-            persistErrors.location
-              ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור אירוע.'
-              : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
-            'alert',
-          )
+          show(eventCreateBlockedMessage(persistErrors), 'alert')
           setSubmitAttempt((n) => n + 1)
         }
         return false
@@ -566,6 +570,7 @@ export function EventFormPage({
         location_lat: result.location_lat,
         location_lng: result.location_lng,
         location_pin_source: result.location_pin_source,
+        secondary_leads: result.secondary_leads,
         responders: mergeAssignmentIds(current.responders, result.assignmentIds),
       }
       const nextDraft: EventFormDraft = {
@@ -581,6 +586,7 @@ export function EventFormPage({
         location_pin_source:
           latest.location_pin_source ??
           (latest.location === current.location ? result.location_pin_source : null),
+        secondary_leads: result.secondary_leads,
         responders: mergeAssignmentIds(latest.responders, result.assignmentIds),
       }
 
@@ -847,7 +853,7 @@ export function EventFormPage({
     const flush = () => {
       const current = draftRef.current
       if (!current) return
-      if (isAbandonedEmptyEventDraft(current, initialDateRef.current)) {
+      if (isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) {
         clearEventFormStash(user.id, current.id)
         return
       }
@@ -897,7 +903,7 @@ export function EventFormPage({
       () => {
         const current = draftRef.current
         return Boolean(
-          current && isAbandonedEmptyEventDraft(current, initialDateRef.current),
+          current && isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id),
         )
       },
     )
@@ -910,7 +916,7 @@ export function EventFormPage({
       const current = draftRef.current
       if (
         current &&
-        !isAbandonedEmptyEventDraft(current, initialDateRef.current)
+        !isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)
       ) {
         void persistLatest()
       }
@@ -941,13 +947,13 @@ export function EventFormPage({
       if (document.visibilityState !== 'hidden') return
       stashLatest.current?.()
       const current = draftRef.current
-      if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current)) return
+      if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) return
       void persistLatest()
     }
     function onPageHide() {
       stashLatest.current?.()
       const current = draftRef.current
-      if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current)) return
+      if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) return
       void persistLatest()
     }
     document.addEventListener('visibilitychange', onHidden)
@@ -1149,14 +1155,19 @@ export function EventFormPage({
               <span>פרטי האירוע</span>
             </h2>
             <div className="form-section__fields">
-              {phoneLayout ? null : (
-              <Ledger>
-                <LedgerRow
-                  label="אחמ״ש"
-                  value={`${draft.shift_lead.full_name} · ${draft.shift_lead.callsign}`}
-                />
-              </Ledger>
-              )}
+              <EventShiftLeadsFields
+                roles={roles}
+                viewerId={user?.id}
+                eventExists={Boolean(draft.id)}
+                shiftLeadId={draft.shift_lead_id}
+                shiftLead={draft.shift_lead}
+                secondaryLeads={draft.secondary_leads ?? []}
+                shiftLeadUsers={shiftLeadUsers}
+                onChange={(next) => {
+                  updateDraft(next)
+                  queueMicrotask(() => void persistLatest())
+                }}
+              />
 
               <div className="event-form__grid event-form__identity">
                 <div className="event-form__f-date">

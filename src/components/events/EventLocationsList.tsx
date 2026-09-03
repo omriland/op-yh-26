@@ -6,7 +6,25 @@ import {
   locationPinSourceHint,
   type EventLocationRow,
 } from '../../lib/eventLocationsQueue'
+import { mapSecondaryLeadRows } from '../../lib/eventShiftLeads'
 import type { LocationPlaceFields } from '../../lib/systemDistricts'
+import { EventListLeadCaption } from './EventListLeadCaption'
+
+function LocationLeadCaption({
+  row,
+  showOverflow,
+}: {
+  row: EventLocationRow
+  showOverflow: boolean
+}) {
+  return (
+    <EventListLeadCaption
+      main={row.shift_lead}
+      secondaries={mapSecondaryLeadRows(row.secondary_leads)}
+      showOverflow={showOverflow}
+    />
+  )
+}
 
 type EventLocationsListProps = {
   rows: EventLocationRow[]
@@ -85,7 +103,9 @@ function EventLocationsTable({
                   {row.police_event_id ?? '—'}
                 </td>
                 <td className="num mono">{formatDate(row.event_date)}</td>
-                <td>{row.shift_lead?.full_name ?? '—'}</td>
+                <td>
+                  <LocationLeadCaption row={row} showOverflow />
+                </td>
                 <td className="truncate">{roadAndLocation(row)}</td>
                 <td
                   className="table-cell--maps"
@@ -138,7 +158,9 @@ function EventLocationCard({
           </span>
           <span className="mono t-caption">{formatDate(row.event_date)}</span>
         </span>
-        <span className="t-body">{row.shift_lead?.full_name ?? '—'}</span>
+        <span className="t-body">
+          <LocationLeadCaption row={row} showOverflow={false} />
+        </span>
         <span className="t-body text-secondary">{roadAndLocation(row)}</span>
       </button>
       <div className="event-locations-card__maps">

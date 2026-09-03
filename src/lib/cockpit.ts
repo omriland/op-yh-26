@@ -1,4 +1,5 @@
 import { todayJerusalem } from './eventForm'
+import { EVENT_SECONDARY_LEADS_EMBED, formatLeadsCaption, mapSecondaryLeadRows, type SecondaryLead } from './eventShiftLeads'
 import { eventGeocodeQuery, eventNeedsPersistedGeocode, roadNumberForGeocode } from './eventGeocode'
 import { isUrbanRoadName } from './systemDistricts'
 import { locationPinIsLocked, type LocationPinSource } from './locationPin'
@@ -29,6 +30,7 @@ export type CockpitReelItem = {
   event_type: { name: string } | null
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
+  secondary_leads?: SecondaryLead[]
   responders: { id: string; ended_at: string | null }[]
 }
 
@@ -49,6 +51,7 @@ const COCKPIT_REEL_SELECT = `
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+  ${EVENT_SECONDARY_LEADS_EMBED},
   responders:event_responders(id, ended_at)
 `
 
@@ -96,11 +99,24 @@ export function cockpitReelPlace(event: {
 
 export function cockpitReelLead(event: {
   shift_lead: { full_name: string; callsign: string } | null
+  secondary_leads?: unknown
 }): { full_name: string; callsign: string } | null {
-  const name = event.shift_lead?.full_name.trim() ?? ''
-  const callsign = event.shift_lead?.callsign.trim() ?? ''
-  if (!name && !callsign) return null
-  return { full_name: name, callsign }
+  const secondaries = mapSecondaryLeadRows(event.secondary_leads)
+  const caption = formatLeadsCaption(event.shift_lead, secondaries)
+  if (!caption) return null
+  const mainName = event.shift_lead?.full_name.trim() ?? ''
+  const mainCallsign = event.shift_lead?.callsign.trim() ?? ''
+  if (!secondaries.length && (mainName || mainCallsign)) {
+    return { full_name: mainName, callsign: mainCallsign }
+  }
+  return { full_name: caption, callsign: '' }
+}
+
+export function cockpitReelLeadCaption(event: {
+  shift_lead: { full_name: string; callsign: string } | null
+  secondary_leads?: unknown
+}): string {
+  return formatLeadsCaption(event.shift_lead, mapSecondaryLeadRows(event.secondary_leads))
 }
 
 export type CockpitDeleteBlock = 'responders' | 'other_lead'
@@ -481,6 +497,19 @@ export function isOwnAbandonedEmptyCockpitItem(
   const viewer = viewerId?.trim() ?? ''
   const lead = event.shift_lead_id?.trim() ?? ''
   return Boolean(viewer && lead && viewer === lead && isAbandonedEmptyCockpitItem(event))
+}
+
+/**
+ * Reuse the selected גלגלת row only when it is this lead’s untouched empty
+ * insert *and* the mounted form agrees. A missing peek must insert, not
+ * open whatever event is currently selected.
+ */
+export function shouldReuseCockpitCreate(
+  event: Parameters<typeof isOwnAbandonedEmptyCockpitItem>[0],
+  viewerId: string | undefined | null,
+  mountedFormIsAbandonedEmpty: boolean,
+): boolean {
+  return mountedFormIsAbandonedEmpty && isOwnAbandonedEmptyCockpitItem(event, viewerId)
 }
 
 export function cockpitPinsMissingStoredCoords(

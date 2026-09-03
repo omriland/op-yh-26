@@ -1,4 +1,5 @@
 import { isAbandonedEmptyCockpitItem } from './cockpit'
+import { EVENT_SECONDARY_LEADS_EMBED } from './eventShiftLeads'
 import type { LocationPlaceFields } from './systemDistricts'
 import type { LocationPinSource } from './locationPin'
 import type { EventStatus } from './status'
@@ -26,6 +27,7 @@ export type EventLocationRow = {
   road: { name: string } | null
   event_type: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
+  secondary_leads?: unknown
   responders: { id: string }[]
   /** Client-only: Google formatted address after a Maps pick. Not persisted. */
   maps_label?: string | null
@@ -48,6 +50,7 @@ export const EVENT_LOCATIONS_SELECT = `
   road:roads(name),
   event_type:event_types(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
+  ${EVENT_SECONDARY_LEADS_EMBED},
   responders:event_responders(id)
 `
 

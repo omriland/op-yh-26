@@ -40,6 +40,7 @@ function row(partial: Partial<EventListItem> & Pick<EventListItem, 'id' | 'statu
 describe('EVENT_LIST_SELECT embeds', () => {
   it('hints both profile FKs so PostgREST does not return 300', () => {
     expect(EVENT_LIST_SELECT).toContain('profiles!events_shift_lead_id_fkey')
+    expect(EVENT_LIST_SELECT).toContain('event_secondary_leads')
     expect(EVENT_LIST_SELECT).toContain('profiles!events_last_saved_by_fkey')
     expect(EVENT_LIST_SELECT).toContain('frozen_over_60km')
     expect(EVENT_LIST_SELECT).toContain('frozen_suspicious_duplicate')

@@ -22,7 +22,7 @@ The record itself. This screen is where the document metaphor is strongest: an e
 
 Card with form-section heading `פרטי האירוע` sitting on its rule. Content = **ledger rows** (dl/dt/dd):
 
-`אחמ״ש` · `תאריך` · `מספר אירוע` (mono) · `שלוחה` · `או״ק ניידת` (mono) · `סוג אירוע` · `כביש` · `מיקום` · `נת״צ` (`כן`/`לא`) · `הערות` (notes render full-width below the ledger as a paragraph, `--type-body`, with label above).
+`אחמ״ש` (or `אחמ״ש ראשי` when secondaries exist) · one `אחמ״ש משני` ledger row per secondary · `תאריך` · `מספר אירוע` (mono) · `שלוחה` · `או״ק ניידת` (mono) · `סוג אירוע` · `כביש` · `מיקום` · `נת״צ` (`כן`/`לא`) · `הערות` (notes render full-width below the ledger as a paragraph, `--type-body`, with label above).
 
 **מדיה** sits on this event block after notes (crew-wide, including shift-born): two contact-sheet bands `לפני הטיפול` / `במהלך/לאחר הטיפול`, 3-up square thumbs. Empty → `אין תמונות לאירוע זה.` Assigned responders may add after their fill is done; admin / shift-lead view without being assigned. Cancelled events are view-only. Desktop lightbox is wide (`--content-max`): photo at inline-start, `תיאור` + assigned vehicles at inline-end.
 

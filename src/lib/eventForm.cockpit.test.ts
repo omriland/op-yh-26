@@ -4,6 +4,7 @@ import {
   POLICE_EVENT_ID_DUPLICATE_ERROR,
   canPersistEventDraft,
   cockpitIdentityDraftWarning,
+  eventCreateBlockedMessage,
   cockpitPoliceEventIdCollides,
   discardAbandonedEmptyEventIfAny,
   emptyEventDraft,
@@ -11,6 +12,7 @@ import {
   eventLacksRequiredIdentity,
   isAbandonedEmptyEventDraft,
   isMissingBusLaneColumn,
+  mountedEventIsAbandonedEmpty,
   mountedEventIsKeptFromAbandon,
   policeEventIdForCockpitSave,
   registerAbandonedEmptyEventHandler,
@@ -100,6 +102,33 @@ describe('isAbandonedEmptyEventDraft', () => {
       ),
     ).toBe(false)
   })
+
+  it('keeps the event after a create-time main transfer or a secondary אחמ״ש', () => {
+    const empty = draft()
+    expect(
+      isAbandonedEmptyEventDraft(
+        draft({ shift_lead_id: 'other-lead' }),
+        empty.event_date,
+        'creator',
+      ),
+    ).toBe(false)
+    expect(
+      isAbandonedEmptyEventDraft(
+        draft({
+          secondary_leads: [
+            {
+              user_id: 'other-lead',
+              locked: false,
+              full_name: 'דנה',
+              callsign: 'D1',
+            },
+          ],
+        }),
+        empty.event_date,
+        'creator',
+      ),
+    ).toBe(false)
+  })
 })
 
 describe('discardAbandonedEmptyEventIfAny', () => {
@@ -124,6 +153,20 @@ describe('discardAbandonedEmptyEventIfAny', () => {
     )
     expect(await discardAbandonedEmptyEventIfAny()).toBe(true)
     expect(mountedEventIsKeptFromAbandon()).toBe(false)
+  })
+
+  it('treats a missing peek as not-empty so Create will insert, not reuse', () => {
+    expect(mountedEventIsAbandonedEmpty()).toBe(false)
+    registerAbandonedEmptyEventHandler(
+      async () => false,
+      () => false,
+    )
+    expect(mountedEventIsAbandonedEmpty()).toBe(false)
+    registerAbandonedEmptyEventHandler(
+      async () => true,
+      () => true,
+    )
+    expect(mountedEventIsAbandonedEmpty()).toBe(true)
   })
 })
 
@@ -191,6 +234,40 @@ describe('cockpitIdentityDraftWarning', () => {
         draft({ event_date: '2026-09-03', road_id: 'r1', event_type_id: 't1' }),
       ),
     ).toBeNull()
+  })
+})
+
+describe('eventCreateBlockedMessage', () => {
+  it('lists only the fields that are actually missing', () => {
+    expect(eventCreateBlockedMessage({ event_date: 'x', event_type_id: 'x', road_id: 'x' })).toBe(
+      'יש למלא תאריך, סוג אירוע וכביש כדי ליצור אירוע.',
+    )
+    expect(eventCreateBlockedMessage({ event_type_id: 'x', road_id: 'x' })).toBe(
+      'יש למלא סוג אירוע וכביש כדי ליצור אירוע.',
+    )
+    expect(eventCreateBlockedMessage({ road_id: 'x' })).toBe(
+      'יש למלא כביש כדי ליצור אירוע.',
+    )
+    expect(eventCreateBlockedMessage({ event_type_id: 'x' })).toBe(
+      'יש למלא סוג אירוע כדי ליצור אירוע.',
+    )
+    expect(eventCreateBlockedMessage({ event_date: 'x' })).toBe(
+      'יש למלא תאריך כדי ליצור אירוע.',
+    )
+    expect(eventCreateBlockedMessage({ event_date: 'x', road_id: 'x' })).toBe(
+      'יש למלא תאריך וכביש כדי ליצור אירוע.',
+    )
+    expect(
+      eventCreateBlockedMessage({
+        event_date: 'x',
+        event_type_id: 'x',
+        road_id: 'x',
+        location: 'x',
+      }),
+    ).toBe('יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור אירוע.')
+    expect(eventCreateBlockedMessage({ location: 'x' })).toBe(
+      'יש למלא מיקום כדי ליצור אירוע.',
+    )
   })
 })
 

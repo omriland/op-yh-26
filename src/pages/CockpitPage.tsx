@@ -19,11 +19,11 @@ import {
   formatCockpitAge,
   formatCockpitClock,
   insertCockpitDraft,
-  isOwnAbandonedEmptyCockpitItem,
   isCockpitTypingTarget,
   cockpitReelAfterLeavingRow,
   cockpitSelectionAfterForeignEditCancel,
   saveEventLocationPin,
+  shouldReuseCockpitCreate,
   type CockpitDeleteHintKind,
   type CockpitEventPin,
   type CockpitReelItem,
@@ -32,7 +32,7 @@ import { hasSeenCockpitIntro, markCockpitIntroSeen } from '../lib/cockpitIntro'
 import { deleteEvent } from '../lib/events'
 import {
   discardAbandonedEmptyEventIfAny,
-  mountedEventIsKeptFromAbandon,
+  mountedEventIsAbandonedEmpty,
   todayJerusalem,
 } from '../lib/eventForm'
 import { monoClass } from '../lib/format'
@@ -226,11 +226,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   async function createNew() {
     if (!user || creating) return
     const current = reel.find((row) => row.id === selectedEventId)
-    if (
-      current &&
-      isOwnAbandonedEmptyCockpitItem(current, user.id) &&
-      !mountedEventIsKeptFromAbandon()
-    ) {
+    if (current && shouldReuseCockpitCreate(current, user.id, mountedEventIsAbandonedEmpty())) {
       setStageEditing(true)
       return
     }
