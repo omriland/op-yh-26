@@ -2535,32 +2535,101 @@ html[data-keyboard-open] .event-form__footer {
   margin-block-end: var(--space-6);
 }
 
-/* Document header for the responder's own record list: title, then a ledger line.
-   Not a greeting and not a counter tile — 01-identity.md ("not a dashboard"). */
-/* Unit-list search: own row under the title, above the status chips. */
-.events-search {
-  display: flex;
-  width: 100%;
-  max-width: 100%;
-  margin-block-start: calc(-1 * var(--space-2));
-  margin-block-end: var(--space-4);
-}
-
-.events-search + .chips,
-.events-others-toggle + .chips {
+.page-head:has(+ .events-toolbar) {
   margin-block-end: var(--space-6);
 }
 
-.events-others-toggle {
-  margin-block-end: var(--space-4);
+/* Unit list toolbar: stacked on mobile (search, then status + אחרים);
+   one compact row on desktop ≥1025. */
+.events-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  margin-block-end: var(--space-6);
+}
+
+.events-toolbar__search {
+  min-width: 0;
+  width: 100%;
+}
+
+.events-toolbar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.events-toolbar__status {
+  flex: 1 1 12em;
+  min-width: 0;
+}
+
+.events-toolbar__status .select-field,
+.events-toolbar__status .field__control {
+  width: 100%;
+}
+
+.events-toolbar__others {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  height: auto;
+  padding-inline: var(--space-4);
+  white-space: nowrap;
+}
+
+.events-toolbar__others-full {
+  display: none;
 }
 
 @media (min-width: 1025px) {
-  .events-search {
-    width: 280px;
+  .page-head:has(+ .events-toolbar) {
+    margin-block-end: var(--space-4);
+  }
+
+  .events-toolbar {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .events-toolbar__search {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .events-toolbar__filters {
+    flex: none;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .events-toolbar__status {
+    flex: 0 1 14em;
+    min-width: 8em;
+  }
+
+  .events-toolbar__others {
+    height: 44px;
+    padding-inline: var(--space-3);
+  }
+
+  .events-toolbar__others-short {
+    display: none;
+  }
+
+  .events-toolbar__others-full {
+    display: inline;
   }
 }
 
+/* Document header for the responder's own record list: title, then a ledger line.
+   Not a greeting and not a counter tile — 01-identity.md ("not a dashboard"). */
 .mine-head {
   display: flex;
   flex-direction: column;

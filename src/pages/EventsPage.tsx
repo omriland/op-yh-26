@@ -55,13 +55,12 @@ import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
-import { FilterChips } from '../components/ui/FilterChips'
 import { EventCard } from '../components/events/EventCard'
 import { MineInboxTabs } from '../components/events/MineInboxTabs'
 import { MineLoggedEventRow } from '../components/events/MineLoggedEventRow'
 import { MineShiftEventGroup } from '../components/events/MineShiftEventGroup'
 import { EventsTable } from '../components/events/EventsTable'
-import { Toggle } from '../components/ui/Toggle'
+import { SelectField } from '../components/ui/SelectField'
 import { useToast } from '../components/ui/Toast'
 import {
   SHOW_OTHERS_CREATED_EVENTS_LABEL,
@@ -328,8 +327,8 @@ export function EventsPage({
       )}
 
       {scope === 'unit' ? (
-        <>
-          <label className="field__control events-search">
+        <div className="events-toolbar">
+          <label className="field__control events-toolbar__search">
             <span className="visually-hidden">חיפוש אירועים</span>
             <input
               className="field__input field__input--with-affix"
@@ -342,25 +341,41 @@ export function EventsPage({
               <Search size={20} strokeWidth={1.75} />
             </span>
           </label>
-          {showOthersControl ? (
-            <div className="events-others-toggle">
-              <Toggle
-                label={SHOW_OTHERS_CREATED_EVENTS_LABEL}
-                checked={showOthersCreated}
-                onChange={(next) => {
-                  setShowOthersCreated(next)
-                  writeShowOthersCreatedEvents(next)
+          <div className="events-toolbar__filters">
+            <div className="events-toolbar__status">
+              <SelectField
+                label="סינון לפי סטטוס תיעוד"
+                hideLabel
+                options={EVENT_FILTERS.map((row) => ({ value: row.value, label: row.label }))}
+                value={filter}
+                onChange={(event) => {
+                  const next = EVENT_FILTERS.find((row) => row.value === event.target.value)
+                  if (next) setFilter(next.value)
                 }}
               />
             </div>
-          ) : null}
-          <FilterChips
-            options={EVENT_FILTERS}
-            value={filter}
-            onChange={setFilter}
-            label="סינון לפי סטטוס תיעוד"
-          />
-        </>
+            {showOthersControl ? (
+              <button
+                type="button"
+                className="chip events-toolbar__others"
+                aria-pressed={showOthersCreated}
+                aria-label={SHOW_OTHERS_CREATED_EVENTS_LABEL}
+                onClick={() => {
+                  const next = !showOthersCreated
+                  setShowOthersCreated(next)
+                  writeShowOthersCreatedEvents(next)
+                }}
+              >
+                <span className="events-toolbar__others-short" aria-hidden="true">
+                  אחרים
+                </span>
+                <span className="events-toolbar__others-full" aria-hidden="true">
+                  {SHOW_OTHERS_CREATED_EVENTS_LABEL}
+                </span>
+              </button>
+            ) : null}
+          </div>
+        </div>
       ) : (
         <MineInboxTabs
           tab={mineTab}

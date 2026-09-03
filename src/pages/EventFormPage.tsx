@@ -1247,7 +1247,7 @@ export function EventFormPage({
                         : `${draft.responders.length} מתנדבים משובצים`}
                   </p>
                   <Button
-                    variant={phoneLayout ? 'ghost' : 'secondary'}
+                    variant="secondary"
                     icon={phoneLayout ? undefined : <Plus size={20} strokeWidth={1.75} />}
                     onClick={() => (pickerOpen ? setPickerOpen(false) : openAssigner())}
                     aria-expanded={pickerOpen}

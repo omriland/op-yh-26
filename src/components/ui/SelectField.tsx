@@ -34,6 +34,8 @@ type SelectFieldProps = {
   /** Filter field at the top of the menu — used for long closed lists like כביש. */
   searchable?: boolean
   searchPlaceholder?: string
+  /** Hide the visible label (keep it for assistive tech). Toolbar / compact rows. */
+  hideLabel?: boolean
 }
 
 export function SelectField({
@@ -53,6 +55,7 @@ export function SelectField({
   name,
   searchable = false,
   searchPlaceholder = 'חיפוש',
+  hideLabel = false,
 }: SelectFieldProps) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
@@ -240,7 +243,7 @@ export function SelectField({
 
   return (
     <div className="field select-field" ref={rootRef}>
-      <label className="field__label" htmlFor={fieldId}>
+      <label className={hideLabel ? 'visually-hidden' : 'field__label'} htmlFor={fieldId}>
         {label}
         {required ? <span className="visually-hidden"> שדה חובה</span> : null}
       </label>
