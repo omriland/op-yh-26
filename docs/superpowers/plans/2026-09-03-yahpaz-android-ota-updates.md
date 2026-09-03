@@ -1,5 +1,10 @@
 # Android OTA updates — Implementation Plan
 
+> **Status: implemented.** Tasks 1–7 are done. Android code ships as
+> `docs/superpowers/patches/2026-09-03-yahpaz-android-ota.patch`; web changes are on
+> this branch. Task 8 (bootstrap release + on-device checks) needs the signing
+> keystore and a real phone, so it stays open.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** In-app download + PackageInstaller OTA for the sideloaded אבן דרך Android app, with soft and force update modes, using an extended `version.json` on yahpz.com.

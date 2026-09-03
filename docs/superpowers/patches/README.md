@@ -1,0 +1,36 @@
+# Cross-repo patches
+
+Changes that belong to a sibling repository but were produced from `op-yh-26`.
+Apply them in the target repo, review, then commit there — nothing here is
+consumed by the website build.
+
+## `2026-09-03-yahpaz-android-ota.patch` → `yahpaz-android`
+
+In-app OTA updates (design: `../specs/2026-09-03-yahpaz-android-ota-updates-design.md`).
+
+```bash
+cd /Users/omrilandman/CursorProjects/today-i/yahpaz-android
+git checkout -b android-ota-updates
+git am /path/to/op-yh-26/docs/superpowers/patches/2026-09-03-yahpaz-android-ota.patch
+```
+
+Verified against `omriland/yahpaz-android@main` (`9545bd1`) with `git apply --check`.
+
+Contents:
+
+| File | Change |
+|---|---|
+| `domain/…/AppUpdate.kt` | `UpdateMode`, `decideUpdateMode`, `sha256Matches`, `canInstallInApp`, progress copy helpers |
+| `domain/…/AppUpdateTest.kt` | 10 unit tests covering the above |
+| `app/…/ApkUpdate.kt` | Download to app cache, SHA-256 + size verification, `PackageInstaller` session, install-status receiver |
+| `app/…/AppUpdateCheck.kt` | Manifest gains `apkSha256` / `apkSizeBytes`; `checkAppUpdate` returns soft or force |
+| `app/…/AppModel.kt` | Update state machine (download → verify → install), soft dismissal, foreground re-check |
+| `app/…/RootScreen.kt` | Force screen installs in-app; new dismissible soft dialog; shared update controls |
+| `AndroidManifest.xml` | `REQUEST_INSTALL_PACKAGES` + receiver registration |
+| `app/build.gradle.kts` | versionCode 25 / versionName 0.3.14 |
+| `scripts/*.sh` | Release scripts write `apkSha256` / `apkSizeBytes` and honor `MIN_VERSION_CODE` |
+
+Verified on this branch: `./gradlew :domain:test` (10 update tests pass),
+`:app:compileDebugKotlin`, and `:app:assembleDebug` all succeed against
+Android SDK 35. Device behavior (permission prompt, system install sheet,
+install over a previous release) still needs a real phone.

@@ -1,7 +1,7 @@
 # Yahpaz — Android OTA updates (sideload, no Play Store)
 
 **Date:** 2026-09-03  
-**Status:** Draft for review  
+**Status:** Implemented (pending on-device verification and a signed release)  
 **Repos:** `yahpaz-android` (primary), `op-yh-26` / yahpz.com (manifest + APK hosting)  
 **Builds on:** `2026-08-18-yahpaz-android-sideload-force-update-design.md`, `2026-09-01-yahpaz-super-admin-android-install-design.md`
 
@@ -207,6 +207,18 @@ Recommend: one forced browser-based bump to the OTA client, then never rely on b
 - Staged rollout percentages (all clients see same `version.json`)  
 - Push-triggered “update available” (can add later via FCM once Android push exists)  
 - Changing Super Admin UI beyond existing עדכני mark  
+
+## Implementation
+
+Website (`op-yh-26`, this repo):
+
+- `public/android/version.json` now carries `apkSha256` + `apkSizeBytes`
+- `npm run android:checksum` regenerates them from the APK `apkUrl` points at; `--check` fails when stale
+- `supportsInAppUpdate()` in `src/lib/androidDownload.ts`
+- `/android` page states that later updates happen inside the app
+
+Android (`yahpaz-android`): delivered as `docs/superpowers/patches/2026-09-03-yahpaz-android-ota.patch`
+because this agent cannot push to that repository. See `docs/superpowers/patches/README.md`.
 
 ## Success criteria
 
