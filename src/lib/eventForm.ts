@@ -11,6 +11,7 @@ import {
   eventNeedsPersistedGeocode,
 } from './eventGeocode'
 import { geocodePlaceQuery } from './googlePlaces'
+import { isCompleteTimeInput } from './format'
 import {
   LOCATION_REQUIRED_ERROR,
   needsPlacesLocation,
@@ -95,7 +96,7 @@ export function toTimeInput(value: string | null | undefined): string {
 
 /** End clock earlier than start ⇒ overnight (end on event_date + 1). */
 export function isOvernightEnd(startTime: string, endTime: string): boolean {
-  if (!startTime.trim() || !endTime.trim()) return false
+  if (!isCompleteTimeInput(startTime) || !isCompleteTimeInput(endTime)) return false
   return endTime < startTime
 }
 
@@ -113,7 +114,12 @@ export function wallTimestamp(
 ): string | null {
   const time = timeHm.trim()
   if (!time || !eventDate) return null
-  const normalized = time.length === 5 ? `${time}:00` : time
+  // Reject partial / non-24h values from the digit-masked time field.
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(time)) return null
+  const hour = Number(time.slice(0, 2))
+  const minute = Number(time.slice(3, 5))
+  if (hour > 23 || minute > 59) return null
+  const normalized = time.length === 5 ? `${time}:00` : time.slice(0, 8)
   return `${addDaysYmd(eventDate, dayOffset)}T${normalized}`
 }
 

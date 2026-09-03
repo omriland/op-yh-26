@@ -11,6 +11,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat('he-IL', {
   hour: '2-digit',
   minute: '2-digit',
   hour12: false,
+  hourCycle: 'h23',
 })
 
 const relativeFormatter = new Intl.RelativeTimeFormat('he-IL', { numeric: 'auto' })
@@ -76,6 +77,39 @@ export function formatTime(value: string | null | undefined): string | undefined
       ? value.split(' ')[1]!
       : value
   return timePart.slice(0, 5)
+}
+
+/** Digits → `HH:mm` as the user types (colon after the hour). Always 24-hour. */
+export function formatTimeInput(digits: string): string {
+  const cleaned = digitsOnly(digits).slice(0, 4)
+  const hour = cleaned.slice(0, 2)
+  const minute = cleaned.slice(2)
+  return [hour, minute].filter((part) => part.length > 0).join(':')
+}
+
+/**
+ * Same backspace semantics as Android: deleting over `:` removes a digit.
+ * Always yields 24-hour `H` / `HH` / `HH:m` / `HH:mm` (never AM/PM).
+ */
+export function applyTimeKeystroke(previous: string, incoming: string): string {
+  const previousDigits = digitsOnly(previous)
+  let nextDigits = digitsOnly(incoming).slice(0, 4)
+  if (
+    nextDigits === previousDigits &&
+    incoming.length < previous.length &&
+    previousDigits.length > 0
+  ) {
+    nextDigits = previousDigits.slice(0, -1)
+  }
+  return formatTimeInput(nextDigits)
+}
+
+/** Complete valid 24-hour `HH:mm` (00–23:00–59). */
+export function isCompleteTimeInput(value: string): boolean {
+  if (!/^\d{2}:\d{2}$/.test(value)) return false
+  const hour = Number(value.slice(0, 2))
+  const minute = Number(value.slice(3, 5))
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
 }
 
 /** YYYY-MM-DD prefix from a wall `timestamp` / ISO string. */

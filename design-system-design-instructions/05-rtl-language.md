@@ -39,7 +39,8 @@ Numbers alone (odometer, ק״מ, counts) do NOT need isolation — bare digits r
 | Data | Format | Example |
 |---|---|---|
 | Dates | `DD.MM.YYYY` | `09.08.2026` |
-| Date + time | `DD.MM.YYYY, HH:mm` (24h) | `09.08.2026, 14:30` |
+| Date + time | `DD.MM.YYYY, HH:mm` (24h, `hourCycle: h23`) | `09.08.2026, 14:30` |
+| Time only (inputs + display) | `HH:mm` 24h — never AM/PM | `14:30`, `08:05` |
 | Relative (lists) | Hebrew relative for < 7 days | `לפני שעתיים`, `אתמול` |
 | Kilometers | number + spaced unit | `142 ק״מ` |
 | Plate | mono, LTR isolate, hyphenated | `12-345-67` |
