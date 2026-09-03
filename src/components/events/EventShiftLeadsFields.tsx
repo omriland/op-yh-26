@@ -7,7 +7,6 @@ import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 import type { AssignableUser } from '../../lib/eventForm'
 import {
-  MAIN_LEAD_LABEL,
   MAIN_LEAD_LOCKED_HINT,
   SECONDARY_LEAD_ADD,
   SECONDARY_LEAD_LABEL,
