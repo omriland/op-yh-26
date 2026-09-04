@@ -22,6 +22,7 @@
 - Do not add Netlify Functions. `netlify.toml` stays static assets and headers only.
 - Do not kill or restart the user's `npm run dev` Vite server.
 - The IPA and manifest use **fixed filenames** (`Yahpaz.ipa`, `manifest.plist`), unlike Android's versioned APK. The manifest embeds an absolute IPA URL, so a versioned filename would require regenerating the manifest URL on every release for no benefit. Freshness comes from cache headers.
+- **`npx tsc --noEmit` checks nothing in this repo.** The root `tsconfig.json` is a solution file with `"files": []`, so it exits 0 in a fraction of a second without compiling `src`. Always typecheck with `npx tsc -p tsconfig.app.json --noEmit`, which is what `npm run build` runs.
 
 ---
 
@@ -503,7 +504,7 @@ The catch-all `/*` → `/index.html` redirect at the bottom of the file does **n
 
 - [ ] **Step 4: Verify the build still passes typecheck**
 
-Run: `npx tsc --noEmit`
+Run: `npx tsc -p tsconfig.app.json --noEmit`
 
 Expected: no output, exit 0.
 
@@ -614,7 +615,7 @@ The function's declared return type changes from
 
 - [ ] **Step 7: Typecheck**
 
-Run: `npx tsc --noEmit`
+Run: `npx tsc -p tsconfig.app.json --noEmit`
 
 Expected: exit 0. Any error here means a `legalPage` union was missed — widen it rather than casting.
 
@@ -823,7 +824,7 @@ leaving every declaration block unchanged.
 
 - [ ] **Step 4: Typecheck and test**
 
-Run: `npx tsc --noEmit && npx vitest run`
+Run: `npx tsc -p tsconfig.app.json --noEmit && npx vitest run`
 
 Expected: exit 0, all tests green.
 
@@ -979,7 +980,7 @@ Leave the in-body Android download CTA at `LoginPage.tsx:189` alone. It is an An
 
 - [ ] **Step 4: Typecheck and test**
 
-Run: `cd /Users/omrilandman/CursorProjects/today-i/op-yh-26 && npx tsc --noEmit && npx vitest run`
+Run: `cd /Users/omrilandman/CursorProjects/today-i/op-yh-26 && npx tsc -p tsconfig.app.json --noEmit && npx vitest run`
 
 Expected: exit 0, all green.
 
@@ -1052,6 +1053,65 @@ On an **unregistered** iPhone, tap install in Safari. Expected: iOS downloads an
 - [ ] **Step 7: Record the outcome**
 
 Update the spec's rollout section with the verified date and the profile expiry from Task 2 Step 5. The expiry date is what plan 3's guard counts down to.
+
+---
+
+### Task 9: Retire the AltStore install path
+
+The old sideload route must not outlive the new one. `yahpaz-ios/README.md`, the GitHub Pages
+site at `omriland.github.io/yahpaz-ios`, and `docs/altstore.json` all still tell volunteers to
+install through AltStore — a path whose free signature expires every 7 days and whose build
+script Task 2 deletes. Leaving them live points people at something that no longer exists.
+
+**Files:**
+- Delete: `/Users/omrilandman/CursorProjects/today-i/yahpaz-ios/docs/altstore.json`
+- Modify: `/Users/omrilandman/CursorProjects/today-i/yahpaz-ios/docs/index.html`
+- Modify: `/Users/omrilandman/CursorProjects/today-i/yahpaz-ios/README.md`
+
+**Interfaces:**
+- Consumes: the `/ios` page from Task 6 and the scripts from Tasks 2 and 7.
+
+- [ ] **Step 1: Replace the GitHub Pages install page**
+
+Rewrite `docs/index.html` as a signpost: keep the existing `:root` custom properties, `body`,
+`main`, `h1`, `.kicker`, `.card`, `a.btn` and `.note` rules verbatim so it still looks like the
+product, and replace the whole `<main>` body with a single card. Add
+`<link rel="canonical" href="https://yahpz.com/ios" />` and
+`<meta http-equiv="refresh" content="5; url=https://yahpz.com/ios" />` in the head.
+
+Card copy, Hebrew, exactly:
+
+- `<h2>` — `ההתקנה עברה לאתר יחפ״צ`
+- `<p>` — `העמוד הזה כבר לא בשימוש. ההתקנה מתבצעת עכשיו ישירות מ־yahpz.com, בדפדפן ספארי באייפון.`
+- `a.btn` to `https://yahpz.com/ios` — `מעבר לעמוד ההתקנה`
+- `.note` — `ההתקנה אפשרית רק במכשיר שנרשם מראש אצל מנהל המערכת. אם עוד לא נרשמתם - פנו אליו.`
+
+- [ ] **Step 2: Rewrite the README install section**
+
+Replace the `**Install:**` line with `**Install:** [yahpz.com/ios](https://yahpz.com/ios) — Safari on iPhone only`,
+and replace the whole `## Install` section with the Ad Hoc explanation: no App Store, no
+TestFlight, no AltStore; a device installs only if its UDID was registered in team
+`477WWCHXU7` *before* the build was signed; Safari only; the 100-device and 12-month limits;
+a link to the spec; and a "Cutting a release" block naming `./scripts/build-adhoc.sh` then
+`./scripts/publish-ios.sh`.
+
+In the `## Build` section, drop the `./scripts/build-ipa.sh` line — Task 2 deleted that script.
+
+- [ ] **Step 3: Confirm nothing still points at AltStore**
+
+Run: `rg -n "altstore|AltStore|build-ipa|releases/download" README.md docs/`
+
+Expected: the only hit is the prose sentence in the README that explicitly says AltStore is
+no longer used. A hit in `docs/` means the Pages site still advertises the dead path.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd /Users/omrilandman/CursorProjects/today-i/yahpaz-ios
+git rm docs/altstore.json
+git add README.md docs/index.html
+git commit -m "Retire the AltStore install path for yahpz.com/ios"
+```
 
 ---
 
