@@ -14,6 +14,7 @@ import {
   fetchAndroidApkHref,
   isAndroidMobile,
 } from '../lib/androidDownload'
+import { IOS_FOOTER_LINK } from '../lib/iosDownload'
 import { PRIVACY_FOOTER_LINK } from '../lib/privacyPolicy'
 
 type Mode = 'signin' | 'reset' | 'reset-sent' | 'set-password' | 'password-set'
@@ -22,6 +23,7 @@ type LoginPageProps = {
   /** Force set-password UI (invite / recovery redirect). */
   forceSetPassword?: boolean
   onOpenAndroid?: () => void
+  onOpenIos?: () => void
   onOpenPrivacy?: () => void
 }
 
@@ -32,6 +34,7 @@ const UNIT_LINE_2 = 'לפינוי צירים'
 export function LoginPage({
   forceSetPassword = false,
   onOpenAndroid,
+  onOpenIos,
   onOpenPrivacy,
 }: LoginPageProps) {
   const {
@@ -450,6 +453,16 @@ export function LoginPage({
           ) : (
             <a className="login__footer-link" href={ANDROID_FOOTER_LINK.href}>
               {ANDROID_FOOTER_LINK.label}
+            </a>
+          )}
+          <span className="login__footer-sep" aria-hidden="true" />
+          {onOpenIos ? (
+            <button type="button" className="login__footer-link" onClick={onOpenIos}>
+              {IOS_FOOTER_LINK.label}
+            </button>
+          ) : (
+            <a className="login__footer-link" href={IOS_FOOTER_LINK.href}>
+              {IOS_FOOTER_LINK.label}
             </a>
           )}
           {onOpenPrivacy ? (
