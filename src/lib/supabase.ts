@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { authStorage } from './authStorage'
 import { capturePasswordSetupIntentFromUrl } from './passwordSetup'
 
 // Capture invite/recovery markers before the client consumes the URL hash.
@@ -13,6 +14,8 @@ if (!url || !anon) {
 
 export const supabase = createClient(url ?? '', anon ?? '', {
   auth: {
+    persistSession: true,
+    storage: authStorage,
     // Durable invite URLs use ?type=invite without an Auth token_hash.
     // Do not treat them as implicit-grant callbacks.
     detectSessionInUrl: (callbackUrl) => {
