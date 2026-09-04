@@ -14,7 +14,7 @@ Full-bleed in `.shell__main` (no page padding). Desktop: row — יומן `calc(
 ### יומן משמרת
 
 - No `גלגלת` heading. Head: Jerusalem clock (`--type-numeric-lg`, `aria-label="שעון ירושלים"`) + caption `N בחלון` + primary **אירוע חדש** (plus icon). Loading verb: `יוצר…`. `aria-label` on the aside is `יומן משמרת`.
-- Rows (scan, not cards): police id as hero (`--type-numeric-lg`); if none, `אירוע חדש` in `--text-muted` (`--type-body-strong`, never mono). One line `סוג · כביש · מיקום` (`--type-body`, `--text-secondary`, ellipsis). Stamp chip + אחמ״ש `שם · או״ק` (`t-caption`, callsign `mono`); when secondaries exist, the same caption packs main then each secondary. Age on a dotted ledger leader: `עכשיו` / `לפני דקה` / `לפני N דק׳`.
+- Rows (scan, not cards): police id as hero (`--type-numeric-lg`); if none, `אירוע חדש` in `--text-muted` (`--type-body-strong`, never mono). One line `סוג · כביש · מיקום` (`--type-body`, `--text-secondary`, ellipsis). Stamp chip + אחמ״ש `שם · או״ק` (`t-caption`, callsign `mono`); when secondaries exist, the same caption packs main then each secondary. Age on a dotted ledger leader: `עכשיו` / `לפני דקה` / `לפני N דק׳` under 1 hour; `לפני שעה` / `לפני N שע׳` / `לפני N שע׳ M דק׳` from 60 minutes.
 - Current row: `--accent-subtle` + `--accent` ink, 2px accent bar at inline-start (same recipe as sidebar), `aria-current="true"`. Desktop: 2px accent at inline-end that meets the stage hairline (open-folder cue).
 - Empty: `אין אירועים מחמש השעות האחרונות.`
 - Load error: `לא ניתן לטעון את הגלגלת` / `בדקו את החיבור ונסו שוב.` / `נסיון נוסף`.

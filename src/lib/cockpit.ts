@@ -177,8 +177,17 @@ export function formatCockpitAge(iso: string, now: Date): string {
   const elapsed = now.getTime() - created
   if (elapsed < 60_000) return 'עכשיו'
   const minutes = Math.floor(elapsed / 60_000)
-  if (minutes === 1) return 'לפני דקה'
-  return `לפני ${minutes} דק׳`
+  if (minutes < 60) {
+    if (minutes === 1) return 'לפני דקה'
+    return `לפני ${minutes} דק׳`
+  }
+  const hours = Math.floor(minutes / 60)
+  const leftover = minutes % 60
+  if (leftover === 0) {
+    if (hours === 1) return 'לפני שעה'
+    return `לפני ${hours} שע׳`
+  }
+  return `לפני ${hours} שע׳ ${leftover} דק׳`
 }
 
 export type CockpitEventPin = {

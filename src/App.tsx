@@ -891,16 +891,6 @@ function Gate() {
       entries={entries}
       onCreateEvent={manages ? openNewEventForm : undefined}
       creatingEvent={isSidebarCreateEventCurrent(eventSurface)}
-      onCreateShift={
-        manages
-          ? () => {
-              setLegalPage(null)
-              setView('shifts')
-              setShiftSurface({ kind: 'form' })
-              setEventSurface({ kind: 'list' })
-            }
-          : undefined
-      }
       feedbackPagePath={analyticsPath}
     >
       {legalPage === 'privacy' ? (

@@ -46,8 +46,7 @@ import {
   clearRolePreviewStash,
   isRolePreviewing,
 } from '../../lib/rolePreviewStash'
-import { sidebarCreateAction, sidebarLeadNewEvent } from '../../lib/sidebarCreate'
-import { IconButton } from '../ui/Button'
+import { sidebarLeadNewEvent } from '../../lib/sidebarCreate'
 import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
@@ -119,9 +118,8 @@ type AppShellProps = {
   /** Wordmark → role home (unit events / mine / profile). */
   onHome: () => void
   entries: NavEntry[]
-  /** Desktop sidebar — אירוע חדש at the top of כלים לאחמ״ש; משמרת חדשה beside משמרות. */
+  /** Desktop sidebar — אירוע חדש at the top of כלים לאחמ״ש. Shift create lives on the shifts page. */
   onCreateEvent?: () => void
-  onCreateShift?: () => void
   /** Create route (`/events/new`) — marks אירוע חדש current, not the previous dest. */
   creatingEvent?: boolean
   /** Current virtual path, attached to submitted feedback. */
@@ -140,7 +138,6 @@ export function AppShell({
   onHome,
   entries,
   onCreateEvent,
-  onCreateShift,
   creatingEvent = false,
   feedbackPagePath = null,
   children,
@@ -169,7 +166,6 @@ export function AppShell({
             onHome={onHome}
             entries={entries}
             onCreateEvent={onCreateEvent}
-            onCreateShift={onCreateShift}
             creatingEvent={creatingEvent}
           />
         ) : null}
@@ -533,7 +529,6 @@ function Sidebar({
   onHome,
   entries,
   onCreateEvent,
-  onCreateShift,
   creatingEvent,
 }: {
   view: AppView
@@ -541,7 +536,6 @@ function Sidebar({
   onHome: () => void
   entries: NavEntry[]
   onCreateEvent?: () => void
-  onCreateShift?: () => void
   creatingEvent: boolean
 }) {
   const [width, setWidth] = useState(() => {
@@ -635,7 +629,6 @@ function Sidebar({
           view={view}
           onNavigate={onNavigate}
           onCreateEvent={onCreateEvent}
-          onCreateShift={onCreateShift}
           creatingEvent={creatingEvent}
         />
       </div>
@@ -646,7 +639,6 @@ function Sidebar({
             view={view}
             onNavigate={onNavigate}
             onCreateEvent={onCreateEvent}
-            onCreateShift={onCreateShift}
             creatingEvent={creatingEvent}
           />
         ) : null}
@@ -681,14 +673,12 @@ function SidebarNavItems({
   view,
   onNavigate,
   onCreateEvent,
-  onCreateShift,
   creatingEvent,
 }: {
   entries: NavEntry[]
   view: AppView
   onNavigate: (view: AppView) => void
   onCreateEvent?: () => void
-  onCreateShift?: () => void
   creatingEvent: boolean
 }) {
   return (
@@ -696,7 +686,6 @@ function SidebarNavItems({
       {entries.map((entry, index) => {
         const prev = entries[index - 1]
         const showSection = entry.section && entry.section !== prev?.section
-        const create = entry.view ? sidebarCreateAction(entry.view, onCreateShift) : null
         const leadNewEvent =
           showSection ? sidebarLeadNewEvent(entry.section, onCreateEvent) : null
         return (
@@ -721,35 +710,24 @@ function SidebarNavItems({
                 creatingEvent={creatingEvent}
               />
             ) : (
-              <div className={create ? 'sidebar__row' : undefined}>
-                <button
-                  type="button"
-                  className={
-                    entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
-                  }
-                  aria-current={isNavCurrent(entry, view, creatingEvent) ? 'page' : undefined}
-                  aria-label={
-                    entry.attention
-                      ? `${entry.label}${navAttentionAriaSuffix(true)}`
-                      : undefined
-                  }
-                  onClick={() => {
-                    if (entry.view) onNavigate(entry.view)
-                  }}
-                >
-                  <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-                  {entry.label}
-                </button>
-                {create ? (
-                  <IconButton
-                    className="sidebar__create"
-                    label={create.label}
-                    onClick={create.onCreate}
-                  >
-                    <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
-                  </IconButton>
-                ) : null}
-              </div>
+              <button
+                type="button"
+                className={
+                  entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
+                }
+                aria-current={isNavCurrent(entry, view, creatingEvent) ? 'page' : undefined}
+                aria-label={
+                  entry.attention
+                    ? `${entry.label}${navAttentionAriaSuffix(true)}`
+                    : undefined
+                }
+                onClick={() => {
+                  if (entry.view) onNavigate(entry.view)
+                }}
+              >
+                <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
+                {entry.label}
+              </button>
             )}
           </div>
         )

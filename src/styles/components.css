@@ -2055,25 +2055,6 @@ textarea.field__input {
   margin-block-start: auto;
 }
 
-.sidebar__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.sidebar__row .nav-item {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.sidebar__create {
-  flex: none;
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
-}
-
 .events-page__create {
   flex: none;
   white-space: nowrap;
@@ -2084,7 +2065,7 @@ textarea.field__input {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: 40px;
+  height: 36px;
   padding-inline: var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);
@@ -4386,28 +4367,6 @@ html[data-keyboard-open] .event-form__footer {
   background: transparent;
   color: inherit;
   text-align: start;
-}
-
-.user-card__email-btn {
-  display: block;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-.user-card__email-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
-}
-
-.user-card__details p {
-  margin: 0;
 }
 
 .overflow-menu {

@@ -517,10 +517,17 @@ describe('formatCockpitAge', () => {
     expect(formatCockpitAge('2026-08-16T11:59:01.000Z', NOW)).toBe('עכשיו')
   })
 
-  it('uses compact Hebrew minutes inside the two-hour window', () => {
+  it('uses compact Hebrew minutes under one hour', () => {
     expect(formatCockpitAge('2026-08-16T11:59:00.000Z', NOW)).toBe('לפני דקה')
+    expect(formatCockpitAge('2026-08-16T11:53:00.000Z', NOW)).toBe('לפני 7 דק׳')
     expect(formatCockpitAge('2026-08-16T11:48:00.000Z', NOW)).toBe('לפני 12 דק׳')
-    expect(formatCockpitAge('2026-08-16T10:30:00.000Z', NOW)).toBe('לפני 90 דק׳')
+  })
+
+  it('switches to hours once the age is 60 minutes or more', () => {
+    expect(formatCockpitAge('2026-08-16T11:00:00.000Z', NOW)).toBe('לפני שעה')
+    expect(formatCockpitAge('2026-08-16T10:30:00.000Z', NOW)).toBe('לפני 1 שע׳ 30 דק׳')
+    expect(formatCockpitAge('2026-08-16T10:00:00.000Z', NOW)).toBe('לפני 2 שע׳')
+    expect(formatCockpitAge('2026-08-16T09:53:00.000Z', NOW)).toBe('לפני 2 שע׳ 7 דק׳')
   })
 })
 

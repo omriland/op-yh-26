@@ -1129,7 +1129,6 @@ export function AdminUsersPage() {
               <tr>
                 <th>שם מלא</th>
                 <th>או״ק</th>
-                <th>דוא״ל</th>
                 <th>טלפון</th>
                 <th>תפקיד</th>
                 <th>סטטוס</th>
@@ -1174,9 +1173,6 @@ export function AdminUsersPage() {
                     </span>
                   </td>
                   <td className={monoClass(user.callsign)}>{user.callsign}</td>
-                  <td>
-                    <span className="ltr">{user.email}</span>
-                  </td>
                   <td className="num table-cell--nowrap">
                     {user.phone ? (
                       <span className={`ltr ${monoClass(user.phone)}`}>
@@ -1332,11 +1328,6 @@ export function AdminUsersPage() {
                       ) : null}
                       {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
                     </div>
-                    <button type="button" className="user-card__email-btn" onClick={openEdit}>
-                      <span className="t-caption text-muted">
-                        <span className="ltr">{user.email}</span>
-                      </span>
-                    </button>
                   </div>
                 ) : (
                   <div className="user-card__details user-card__details--static">
@@ -1361,9 +1352,6 @@ export function AdminUsersPage() {
                       ) : null}
                       {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
                     </div>
-                    <p className="t-caption text-muted">
-                      <span className="ltr">{user.email}</span>
-                    </p>
                   </div>
                 )}
               </div>

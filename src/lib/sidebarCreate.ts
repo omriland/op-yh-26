@@ -18,12 +18,3 @@ export function isSidebarCreateEventCurrent(surface: {
   return surface?.kind === 'form' && !surface.eventId
 }
 
-export function sidebarCreateAction(
-  view: string,
-  onCreateShift?: () => void,
-): { onCreate: () => void; label: string } | null {
-  if (view === 'shifts' && onCreateShift) {
-    return { onCreate: onCreateShift, label: 'משמרת חדשה' }
-  }
-  return null
-}

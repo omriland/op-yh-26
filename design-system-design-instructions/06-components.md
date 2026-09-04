@@ -140,7 +140,7 @@ Header row: `--surface-sunken`, `--type-label` `--text-secondary`, height 40 px.
 
 **Bottom tab bar** (mobile): height 56 px + `env(safe-area-inset-bottom)`, `--surface-raised`, top hairline. 3–4 tabs by role (see screen blueprints). When a role has more destinations, the last tab is `עוד` and opens a bottom sheet of the rest. Tab: icon 24 px + `--type-caption` label; active = `--accent` icon+label + 2px top indicator bar; inactive = `--text-muted`. No badges with counts unless a blueprint says so.
 
-**Sidebar** (desktop Command chrome): floating card, 240 px at inline-start, `--radius-lg`, hairline, `data-theme="command"`. Top: wordmark `אבן דרך` + unit line. Then nav. Nav item: height 40 px, radius `--radius-sm`, icon 20 + label `--type-body`, gap `--space-3`, padding-inline `--space-3`. Active: `--accent-subtle` bg + `--accent` text + 2px inline-start indicator. Section labels (`--type-label`, `--text-muted`) between groups. Pinned footer at block-end: `פרופיל`, then admin `הגדרות`, then availability + user menu. Main nav scrolls independently. Content beside the sidebar is a matching Field card.
+**Sidebar** (desktop Command chrome): floating card, 240 px at inline-start, `--radius-lg`, hairline, `data-theme="command"`. Top: wordmark `אבן דרך` + unit line. Then nav. Nav item: height 36 px, radius `--radius-sm`, icon 20 + label `--type-body`, gap `--space-3`, padding-inline `--space-3`. Active: `--accent-subtle` bg + `--accent` text + 2px inline-start indicator. Section labels (`--type-label`, `--text-muted`) between groups. Pinned footer at block-end: `פרופיל`, then admin `הגדרות`, then availability + user menu. Main nav scrolls independently. Content beside the sidebar is a matching Field card.
 
 ---
 
