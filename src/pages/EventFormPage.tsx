@@ -22,6 +22,7 @@ import {
   hasEventMinimum,
   isOtherEventTypeId,
   EVENT_TYPE_DETAIL_MAX_LENGTH,
+  STATION_MAX_LENGTH,
   isAbandonedEmptyEventDraft,
   policeEventIdForCockpitSave,
   sameDayPoliceEventIdCollides,
@@ -74,6 +75,7 @@ import {
   applyDistrictChangeLocation,
   applyDistrictChangeRoad,
   districtCodeById,
+  districtNeedsStation,
   needsPlacesLocation,
   shouldClearLocationOnDistrictChange,
 } from '../lib/systemDistricts'
@@ -1273,6 +1275,9 @@ export function EventFormPage({
                       district_id: nextId,
                       road_id: nextRoadId,
                       ...locationFields,
+                      ...(districtNeedsStation(lookups.districts, nextId)
+                        ? {}
+                        : { station: '' }),
                       ...(shouldClearLocationOnDistrictChange(previousCode, nextCode)
                         ? emptyLocationPinMeta()
                         : {}),
@@ -1285,6 +1290,15 @@ export function EventFormPage({
                     queueMicrotask(() => void persistLatest())
                   }}
                 />
+                {districtNeedsStation(lookups.districts, draft.district_id) ? (
+                  <TextField
+                    label="תחנה"
+                    value={draft.station}
+                    maxLength={STATION_MAX_LENGTH}
+                    onChange={(event) => updateDraft({ station: event.target.value })}
+                    onBlur={() => void persistLatest()}
+                  />
+                ) : null}
                 </div>
 
                 <div className="event-form__f-type">

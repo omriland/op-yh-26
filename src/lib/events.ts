@@ -1,4 +1,8 @@
-import { isMissingBusLaneColumn, isMissingEventTypeDetailColumn } from './eventForm'
+import {
+  isMissingBusLaneColumn,
+  isMissingEventTypeDetailColumn,
+  isMissingStationColumn,
+} from './eventForm'
 import { addCalendarDays } from './mineListSections'
 import { searchQueryVariants } from './searchQuery'
 import type { EventOrigin } from './shiftBornEvents'
@@ -298,6 +302,7 @@ export type EventResponderDetail = {
 export type EventDetail = Omit<EventListItem, 'responders'> & {
   notes: string | null
   event_type_detail: string | null
+  station: string | null
   bus_lane: boolean
   road_id: string | null
   location_lat: number | null
@@ -322,6 +327,7 @@ const EVENT_DETAIL_SELECT = `
   location_pin_source,
   notes,
   event_type_detail,
+  station,
   bus_lane,
   status,
   is_cancelled,
@@ -369,6 +375,7 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
   location_pin_source,
   notes,
   event_type_detail,
+  station,
   bus_lane,
   status,
   is_cancelled,
@@ -430,6 +437,7 @@ function normalizeEventDetail(raw: EventDetailRaw): EventDetail {
   return {
     ...raw,
     event_type_detail: raw.event_type_detail ?? null,
+    station: raw.station ?? null,
     bus_lane: Boolean(raw.bus_lane),
     treated_plates,
     shared_plates: treated_plates,
@@ -447,10 +455,19 @@ export async function fetchEventDetail(eventId: string): Promise<EventDetail | n
     .eq('id', eventId)
     .maybeSingle()
 
-  if (error && (isMissingBusLaneColumn(error) || isMissingEventTypeDetailColumn(error))) {
+  if (
+    error &&
+    (isMissingBusLaneColumn(error) ||
+      isMissingEventTypeDetailColumn(error) ||
+      isMissingStationColumn(error))
+  ) {
     const retry = await supabase
       .from('events')
-      .select(EVENT_DETAIL_SELECT.replace(/\n  event_type_detail,/, '').replace(/\n  bus_lane,/, ''))
+      .select(
+        EVENT_DETAIL_SELECT.replace(/\n  event_type_detail,/, '')
+          .replace(/\n  station,/, '')
+          .replace(/\n  bus_lane,/, ''),
+      )
       .eq('id', eventId)
       .maybeSingle()
     data = retry.data as typeof data
@@ -474,14 +491,18 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
     .eq('id', eventId)
     .maybeSingle()
 
-  if (error && (isMissingBusLaneColumn(error) || isMissingEventTypeDetailColumn(error))) {
+  if (
+    error &&
+    (isMissingBusLaneColumn(error) ||
+      isMissingEventTypeDetailColumn(error) ||
+      isMissingStationColumn(error))
+  ) {
     const retry = await supabase
       .from('events')
       .select(
-        EVENT_DETAIL_SELECT_NO_PLATES.replace(/\n  event_type_detail,/, '').replace(
-          /\n  bus_lane,/,
-          '',
-        ),
+        EVENT_DETAIL_SELECT_NO_PLATES.replace(/\n  event_type_detail,/, '')
+          .replace(/\n  station,/, '')
+          .replace(/\n  bus_lane,/, ''),
       )
       .eq('id', eventId)
       .maybeSingle()

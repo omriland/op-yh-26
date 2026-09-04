@@ -51,6 +51,14 @@ export function districtNeedsPlacesLocation(
   return isSystemDistrictCode(districtCodeById(districts, districtId))
 }
 
+/** Optional תחנה name — same system שלוחה as Places מיקום (תחנה / אחר / משוכפל). */
+export function districtNeedsStation(
+  districts: { id: string; code?: string | null }[],
+  districtId: string,
+): boolean {
+  return districtNeedsPlacesLocation(districts, districtId)
+}
+
 /** Urban street-address road — live name is `עירוני`; legacy was `עירוני (101)`. */
 export function isUrbanRoadName(name: string | null | undefined): boolean {
   return Boolean(name?.includes('עירוני'))

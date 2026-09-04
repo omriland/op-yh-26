@@ -5444,13 +5444,15 @@ html[data-keyboard-open] .event-form__footer {
   min-width: 0;
 }
 
-.event-form__f-type {
+.event-form__f-type,
+.event-form__f-district {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
 
-.event-form--phone .event-form__f-type {
+.event-form--phone .event-form__f-type,
+.event-form--phone .event-form__f-district {
   gap: var(--space-3);
 }
 

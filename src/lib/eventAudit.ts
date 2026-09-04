@@ -34,6 +34,7 @@ const FIELD_LABELS: Record<string, string> = {
   patrol_callsign: 'או״ק סיור',
   event_type_id: 'סוג אירוע',
   event_type_detail: 'פירוט סוג אירוע',
+  station: 'תחנה',
   notes: 'הערות',
   road_id: 'כביש',
   location: 'מיקום',

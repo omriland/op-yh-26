@@ -308,6 +308,7 @@ export function EventDetailPage({
             <LedgerRow label="תאריך" value={formatDate(event.event_date)} numeric />
             <LedgerRow label="מספר אירוע" value={event.police_event_id ?? undefined} numeric />
             <LedgerRow label="שלוחה" value={event.district?.name} />
+            {event.station ? <LedgerRow label="תחנה" value={event.station} /> : null}
             <LedgerRow label="או״ק ניידת" value={event.patrol_callsign ?? undefined} numeric />
             <LedgerRow label="סוג אירוע" value={event.event_type?.name} />
             {isOtherEventTypeName(event.event_type?.name) && event.event_type_detail ? (

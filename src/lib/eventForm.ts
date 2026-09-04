@@ -14,6 +14,7 @@ import { geocodePlaceQuery } from './googlePlaces'
 import { digitsOnly, isCompleteTimeInput } from './format'
 import {
   LOCATION_REQUIRED_ERROR,
+  districtNeedsStation,
   needsPlacesLocation,
 } from './systemDistricts'
 import {
@@ -33,6 +34,7 @@ export type LookupOption = { id: string; name: string; code?: string | null }
 /** Closed-list name for "other" — shows an optional short details field. */
 export const OTHER_EVENT_TYPE_NAME = 'אחר'
 export const EVENT_TYPE_DETAIL_MAX_LENGTH = 80
+export const STATION_MAX_LENGTH = 80
 
 export function isOtherEventTypeName(name: string | null | undefined): boolean {
   return (name ?? '').trim() === OTHER_EVENT_TYPE_NAME
@@ -55,6 +57,17 @@ export function eventTypeDetailForSave(input: {
   const trimmed = input.detail.trim()
   if (!trimmed) return null
   return trimmed.slice(0, EVENT_TYPE_DETAIL_MAX_LENGTH)
+}
+
+export function stationForSave(input: {
+  districtId: string
+  districts: { id: string; code?: string | null }[]
+  station: string
+}): string | null {
+  if (!districtNeedsStation(input.districts, input.districtId)) return null
+  const trimmed = input.station.trim()
+  if (!trimmed) return null
+  return trimmed.slice(0, STATION_MAX_LENGTH)
 }
 
 export type AssignableUser = {
@@ -175,6 +188,8 @@ export type EventFormDraft = {
   notes: string
   /** Optional short text when סוג אירוע is אחר. */
   event_type_detail: string
+  /** Optional short station name when שלוחה is תחנה / אחר / משוכפל. */
+  station: string
   is_cancelled: boolean
   /** נת״צ — event took place in a bus / public-transit lane. */
   bus_lane: boolean
@@ -291,6 +306,7 @@ export function emptyEventDraft(lead: {
     location_pinned_by: null,
     notes: '',
     event_type_detail: '',
+    station: '',
     is_cancelled: false,
     bus_lane: false,
     shift_lead_id: lead.id,
@@ -319,6 +335,7 @@ export function isAbandonedEmptyEventDraft(
   if (draft.location_lat != null || draft.location_lng != null) return false
   if (draft.notes.trim()) return false
   if (draft.event_type_detail.trim()) return false
+  if ((draft.station ?? '').trim()) return false
   if (draft.bus_lane) return false
   if ((draft.secondary_leads ?? []).length > 0) return false
   const originalLead = originalShiftLeadId?.trim() ?? ''
@@ -466,25 +483,44 @@ export function isMissingEventTypeDetailColumn(error: {
   )
 }
 
+/** PostgREST 42703 / PGRST204 when `events.station` has not been migrated yet. */
+export function isMissingStationColumn(error: {
+  code?: string
+  message?: string
+} | null): boolean {
+  const message = error?.message ?? ''
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    /events\.station|column.*station/i.test(message)
+  )
+}
+
 function isMissingOptionalEventColumn(error: {
   code?: string
   message?: string
 } | null): boolean {
-  return isMissingBusLaneColumn(error) || isMissingEventTypeDetailColumn(error)
+  return (
+    isMissingBusLaneColumn(error) ||
+    isMissingEventTypeDetailColumn(error) ||
+    isMissingStationColumn(error)
+  )
 }
 
 function stripOptionalEventColumnsFromSelect(select: string): string {
   return select
     .replace(', event_type_detail', '')
     .replace(/\n  event_type_detail,/, '')
+    .replace(', station', '')
+    .replace(/\n  station,/, '')
     .replace(', bus_lane', '')
     .replace(/\n  bus_lane,/, '')
 }
 
 function stripOptionalEventColumnsFromPayload<T extends Record<string, unknown>>(
   payload: T,
-): Omit<T, 'bus_lane' | 'event_type_detail'> {
-  const { bus_lane: _busLane, event_type_detail: _detail, ...rest } = payload
+): Omit<T, 'bus_lane' | 'event_type_detail' | 'station'> {
+  const { bus_lane: _busLane, event_type_detail: _detail, station: _station, ...rest } = payload
   return rest
 }
 
@@ -492,7 +528,7 @@ const EVENT_EDIT_SELECT = `
       id, status, event_date, police_event_id, district_id, patrol_callsign,
       event_type_id, road_id, location, location_place_id, location_lat, location_lng,
       location_pin_source, location_pinned_at, location_pinned_by,
-      notes, event_type_detail, is_cancelled, bus_lane, shift_lead_id,
+      notes, event_type_detail, station, is_cancelled, bus_lane, shift_lead_id,
       shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
       ${EVENT_SECONDARY_LEADS_EMBED},
       responders:event_responders(
@@ -544,6 +580,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     location_pinned_by: string | null
     notes: string | null
     event_type_detail: string | null
+    station: string | null
     is_cancelled: boolean
     bus_lane: boolean
     shift_lead_id: string | null
@@ -570,6 +607,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     location_pinned_by: row.location_pinned_by ?? null,
     notes: row.notes ?? '',
     event_type_detail: row.event_type_detail ?? '',
+    station: row.station ?? '',
     is_cancelled: row.is_cancelled ?? false,
     bus_lane: row.bus_lane ?? false,
     shift_lead_id: row.shift_lead_id ?? undefined,
@@ -1052,6 +1090,11 @@ export async function saveEventForm(input: {
       eventTypeId: draft.event_type_id,
       eventTypes: input.eventTypes ?? [],
       detail: draft.event_type_detail,
+    }),
+    station: stationForSave({
+      districtId: draft.district_id,
+      districts,
+      station: draft.station,
     }),
     is_cancelled: draft.is_cancelled,
     bus_lane: draft.bus_lane,
