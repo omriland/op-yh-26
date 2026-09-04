@@ -54,6 +54,7 @@ If they say “the app”, “responders”, or a product feature without a plat
 - Ship a phone feature on iOS “for parity” during the hold.
 - Publish under Hive team `5GXFELD6MM`.
 - Treat `today-i` Electron AGENTS.md as the Yahpaz spec.
+- Revert Android force-update to a browser APK download. Sideload updates stay in-app (`SideloadApkInstaller`).
 
 ## Verify
 
