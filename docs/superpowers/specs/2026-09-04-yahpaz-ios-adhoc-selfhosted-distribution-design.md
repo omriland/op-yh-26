@@ -53,6 +53,29 @@ with no mid-year remedy. The admin console (Unit 2) exists to make that visible 
 documented escape hatch is switching to TestFlight, so the App Store Connect app record for
 `com.yahpz.responder` must be created and kept alive even though we do not use it.
 
+### Accepted risks
+
+**The published IPA exposes every registered device UDID. Accepted 2026-09-04.**
+`Payload/Yahpaz.app/embedded.mobileprovision` inside `https://yahpz.com/ios/Yahpaz.ipa` is
+readable by anyone who downloads the file. It lists the Apple team ID and the complete
+`ProvisionedDevices` array — one UDID today, up to 100 volunteers' devices after batch
+enrollment — and each published build records that roster in git history permanently.
+
+This is not fixable within OTA distribution: iOS's install daemon cannot present
+credentials, so the IPA must be anonymously fetchable over HTTPS. Serving it from an
+unguessable per-release path was considered and rejected as security through obscurity that
+would also break the fixed-filename manifest contract. The exposure is accepted because a
+UDID on its own is inert — Apple removed app access to it in iOS 7, it grants no access to
+the device, and it cannot be used to enroll a device in someone else's team.
+
+**iPhones in Safari's "Request Desktop Website" mode cannot install. Accepted 2026-09-04.**
+That per-site setting makes an iPhone report a `Macintosh` user agent, so `isIosDevice`
+returns false and `/ios` hides the install button behind the "open this on an iPhone"
+notice. The available fix — falling back to `navigator.maxTouchPoints` — would also show the
+button to iPads, which cannot run the app at all (`UIDeviceFamily [1]`), turning a rare
+confusing case into a common one. The setting is rare, non-default, and the page already
+tells the reader to use Safari on an iPhone. Revisit only if a volunteer actually hits it.
+
 ## Current state
 
 - `yahpaz-ios` team `477WWCHXU7`, bundle `com.yahpz.responder`, deployment target iOS 17.
