@@ -34,6 +34,7 @@ import { EventsPage } from './pages/EventsPage'
 import { LoginPage } from './pages/LoginPage'
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
 import { AndroidDownloadPage } from './pages/AndroidDownloadPage'
+import { IosDownloadPage } from './pages/IosDownloadPage'
 import { DeleteDataPage } from './pages/DeleteDataPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { LiveTrackPage } from './pages/LiveTrackPage'
@@ -62,6 +63,7 @@ import { loadFillByToken } from './lib/responderFillToken'
 import { captureAppPageview } from './lib/posthog'
 import { appAnalyticsPath } from './lib/posthogAppPath'
 import { isAndroidDownloadPath } from './lib/androidDownload'
+import { isIosDownloadPath } from './lib/iosDownload'
 import { isDeleteDataPath } from './lib/deleteDataPage'
 import { verifyPrivacyPageAccess } from './lib/privacyPageAccess'
 import { isPrivacyPath, parsePrivacyTokenFromSearch } from './lib/privacyPageToken'
@@ -84,7 +86,7 @@ function readWindowBoot() {
       eventSurface: { kind: 'list' } as EventSurface,
       shiftSurface: { kind: 'list' } as ShiftSurface,
       cockpitEventId: undefined as string | undefined,
-      legalPage: null as 'privacy' | 'android' | 'delete_data' | null,
+      legalPage: null as 'privacy' | 'android' | 'ios' | 'delete_data' | null,
     }
   }
   return readBootRoute(window.location.pathname)
@@ -99,7 +101,7 @@ function Gate() {
   ).current
   const homeAdoptedRef = useRef(false)
   const [view, setView] = useState<AppView | null>(boot.view)
-  const [legalPage, setLegalPage] = useState<'privacy' | 'android' | 'delete_data' | null>(boot.legalPage)
+  const [legalPage, setLegalPage] = useState<'privacy' | 'android' | 'ios' | 'delete_data' | null>(boot.legalPage)
   const [eventSurface, setEventSurface] = useState<EventSurface>(boot.eventSurface)
   const [shiftSurface, setShiftSurface] = useState<ShiftSurface>(boot.shiftSurface)
   const [sectionReset, setSectionReset] = useState(0)
@@ -293,7 +295,12 @@ function Gate() {
       return
     }
 
-    if (legalPage === 'android' || legalPage === 'privacy' || legalPage === 'delete_data') {
+    if (
+      legalPage === 'android' ||
+      legalPage === 'ios' ||
+      legalPage === 'privacy' ||
+      legalPage === 'delete_data'
+    ) {
       applyAppUrl(window.history, window.location, {
         view: view ?? fallbackView,
         eventSurface,
@@ -350,6 +357,10 @@ function Gate() {
         setLegalPage('android')
         return
       }
+      if (parsed.kind === 'ios') {
+        setLegalPage('ios')
+        return
+      }
       if (parsed.kind === 'delete_data') {
         setLegalPage('delete_data')
         return
@@ -380,9 +391,14 @@ function Gate() {
     setLegalPage('android')
   }
 
+  function openIosDownload() {
+    setLegalPage('ios')
+  }
+
   function closeLegalPage() {
     if (
       isAndroidDownloadPath(window.location.pathname) ||
+      isIosDownloadPath(window.location.pathname) ||
       isDeleteDataPath(window.location.pathname) ||
       isPrivacyPath(window.location.pathname)
     ) {
@@ -695,6 +711,16 @@ function Gate() {
     )
   }
 
+  if (legalPage === 'ios') {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <IosDownloadPage onBack={closeLegalPage} />
+        </main>
+      </div>
+    )
+  }
+
   // Invite/recovery gate is driven by intent, not by an existing session.
   // verifyOtp may still be binding the session; never fall through to sign-in.
   if (passwordSetupReason) {
@@ -703,6 +729,7 @@ function Gate() {
         key={`setup-${passwordSetupReason}`}
         forceSetPassword
         onOpenAndroid={openAndroidDownload}
+        onOpenIos={openIosDownload}
         onOpenPrivacy={() => setLegalPage('privacy')}
       />
     )
@@ -786,6 +813,7 @@ function Gate() {
           <LoginPage
             key="signin"
             onOpenAndroid={openAndroidDownload}
+            onOpenIos={openIosDownload}
             onOpenPrivacy={() => setLegalPage('privacy')}
           />
         )}
@@ -885,6 +913,7 @@ function Gate() {
       showSecurityBadge={shouldShowSecurityBadge(immersiveSurface) && legalPage === null}
       onOpenPrivacy={() => setLegalPage('privacy')}
       onOpenAndroid={openAndroidDownload}
+      onOpenIos={openIosDownload}
       view={activeView}
       onNavigate={navigate}
       onHome={goHome}

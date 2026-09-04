@@ -1,5 +1,6 @@
 import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
 import { ANDROID_FOOTER_LINK } from '../../lib/androidDownload'
+import { IOS_FOOTER_LINK } from '../../lib/iosDownload'
 import { CLOUDFLARE_SECURITY_BADGE, SNYK_SECURITY_BADGE } from '../../lib/securityBadge'
 
 /** Snyk dog mark (Simple Icons path) — fill via currentColor for both themes. */
@@ -36,9 +37,11 @@ function CloudflareLogo() {
 export function SnykBadge({
   onOpenPrivacy,
   onOpenAndroid,
+  onOpenIos,
 }: {
   onOpenPrivacy: () => void
   onOpenAndroid?: () => void
+  onOpenIos?: () => void
 }) {
   return (
     <footer className="security-badge">
@@ -74,6 +77,14 @@ export function SnykBadge({
           <span className="security-badge__sep" aria-hidden="true" />
           <button type="button" className="security-badge__link" onClick={onOpenAndroid}>
             {ANDROID_FOOTER_LINK.label}
+          </button>
+        </>
+      ) : null}
+      {onOpenIos ? (
+        <>
+          <span className="security-badge__sep" aria-hidden="true" />
+          <button type="button" className="security-badge__link" onClick={onOpenIos}>
+            {IOS_FOOTER_LINK.label}
           </button>
         </>
       ) : null}

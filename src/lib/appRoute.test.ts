@@ -94,6 +94,7 @@ describe('parseAppPath', () => {
   it('keeps reserved and unknown paths out of app views', () => {
     expect(parseAppPath('/')).toEqual({ kind: 'home' })
     expect(parseAppPath('/android')).toEqual({ kind: 'android' })
+    expect(parseAppPath('/ios')).toEqual({ kind: 'ios' })
     expect(parseAppPath('/delete-data')).toEqual({ kind: 'delete_data' })
     expect(parseAppPath('/privacy')).toEqual({ kind: 'privacy' })
     expect(parseAppPath('/oauth/authorize')).toEqual({ kind: 'oauth' })
@@ -172,6 +173,7 @@ describe('appPath', () => {
     expect(appPath(listState('event_locations'))).toBe('/event-locations')
     expect(appPath(listState('event_audit'))).toBe('/event-audit')
     expect(appPath({ ...listState('profile'), legalPage: 'privacy' })).toBe('/privacy')
+    expect(appPath({ ...listState('profile'), legalPage: 'ios' })).toBe('/ios')
     expect(appPath({ ...listState('profile'), legalPage: 'delete_data' })).toBe('/delete-data')
   })
 })
@@ -179,6 +181,7 @@ describe('appPath', () => {
 describe('readBootRoute', () => {
   it('boots legal pages and app screens from the pathname', () => {
     expect(readBootRoute('/android').legalPage).toBe('android')
+    expect(readBootRoute('/ios').legalPage).toBe('ios')
     expect(readBootRoute('/delete-data').legalPage).toBe('delete_data')
     expect(readBootRoute('/privacy').legalPage).toBe('privacy')
     expect(readBootRoute('/events/evt-1')).toEqual({

@@ -9,6 +9,15 @@ describe('appAnalyticsPath', () => {
     ).toBeNull()
   })
 
+  it('maps legal pages including ios with loading guard', () => {
+    expect(
+      appAnalyticsPath({ signedIn: false, legalPage: 'ios', view: 'mine' }),
+    ).toBe('/ios')
+    expect(
+      appAnalyticsPath({ loading: true, signedIn: false, legalPage: 'ios', view: 'mine' }),
+    ).toBeNull()
+  })
+
   it('maps signed-out and gate screens', () => {
     expect(appAnalyticsPath({ signedIn: false, view: 'mine' })).toBe('/login')
     expect(

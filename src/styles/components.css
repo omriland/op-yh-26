@@ -2316,7 +2316,8 @@ textarea.field__input {
   color: var(--text-primary);
 }
 
-.android-download {
+.android-download,
+.ios-download {
   max-width: 36rem;
   margin-inline: auto;
   padding-block: var(--space-4);
@@ -2325,20 +2326,23 @@ textarea.field__input {
   gap: var(--space-4);
 }
 
-.android-download__header {
+.android-download__header,
+.ios-download__header {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.android-download__panel {
+.android-download__panel,
+.ios-download__panel {
   padding: var(--space-4);
   background: var(--surface-raised);
   border: 1px solid var(--stroke-hairline);
   border-radius: var(--radius-md, 8px);
 }
 
-.android-download__steps {
+.android-download__steps,
+.ios-download__steps {
   margin: 0;
   padding-inline-start: 1.25rem;
   display: flex;
@@ -2347,6 +2351,7 @@ textarea.field__input {
 }
 
 .android-download a.btn,
+.ios-download a.btn,
 .login__android-actions a.btn {
   display: inline-flex;
   align-items: center;

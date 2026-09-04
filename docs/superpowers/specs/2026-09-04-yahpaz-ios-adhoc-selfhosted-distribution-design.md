@@ -53,6 +53,29 @@ with no mid-year remedy. The admin console (Unit 2) exists to make that visible 
 documented escape hatch is switching to TestFlight, so the App Store Connect app record for
 `com.yahpz.responder` must be created and kept alive even though we do not use it.
 
+### Accepted risks
+
+**The published IPA exposes every registered device UDID. Accepted 2026-09-04.**
+`Payload/Yahpaz.app/embedded.mobileprovision` inside `https://yahpz.com/ios/Yahpaz.ipa` is
+readable by anyone who downloads the file. It lists the Apple team ID and the complete
+`ProvisionedDevices` array — one UDID today, up to 100 volunteers' devices after batch
+enrollment — and each published build records that roster in git history permanently.
+
+This is not fixable within OTA distribution: iOS's install daemon cannot present
+credentials, so the IPA must be anonymously fetchable over HTTPS. Serving it from an
+unguessable per-release path was considered and rejected as security through obscurity that
+would also break the fixed-filename manifest contract. The exposure is accepted because a
+UDID on its own is inert — Apple removed app access to it in iOS 7, it grants no access to
+the device, and it cannot be used to enroll a device in someone else's team.
+
+**iPhones in Safari's "Request Desktop Website" mode cannot install. Accepted 2026-09-04.**
+That per-site setting makes an iPhone report a `Macintosh` user agent, so `isIosDevice`
+returns false and `/ios` hides the install button behind the "open this on an iPhone"
+notice. The available fix — falling back to `navigator.maxTouchPoints` — would also show the
+button to iPads, which cannot run the app at all (`UIDeviceFamily [1]`), turning a rare
+confusing case into a common one. The setting is rare, non-default, and the page already
+tells the reader to use Safari on an iPhone. Revisit only if a volunteer actually hits it.
+
 ## Current state
 
 - `yahpaz-ios` team `477WWCHXU7`, bundle `com.yahpz.responder`, deployment target iOS 17.
@@ -289,14 +312,27 @@ app will not launch, with no in-app explanation.
 
 ## Rollout
 
+Ordered by risk, not by dependency. The uncertain part is whether the signing → manifest →
+`itms-services` → Safari chain works end to end at all; if it does not, the enrollment
+service would have been built on sand. So the walking skeleton comes first and the
+enrollment machinery is added around a proven install path.
+
+**Plan 1 — walking skeleton** (`docs/superpowers/plans/2026-09-04-yahpaz-ios-adhoc-distribution-skeleton.md`)
+
 1. Mint the `Apple Distribution` certificate. If this fails, the membership is not actually
    active and everything else is blocked.
 2. Create the App Store Connect record for `com.yahpz.responder` and leave it dormant — the
    TestFlight escape hatch if the device cap bites.
-3. Migration + `ios-enroll` + admin console.
-4. Pipeline and `/ios` page.
-5. Pilot with 3–5 volunteers through the complete two-visit flow.
-6. Batch-enroll the unit. Expect the first wave to consume most of the annual budget.
+3. Units 3 and 4: the Ad Hoc build pipeline and the `/ios` install page, with one
+   hand-registered pilot UDID.
+4. Verify a real install on a real iPhone from yahpz.com.
+
+**Plan 2 — enrollment and console:** Units 1 and 2. Removes the manual UDID step and makes
+the 100-slot budget visible. Then pilot 3–5 volunteers through the full two-visit flow
+before batch-enrolling the unit; expect the first wave to consume most of the annual budget.
+
+**Plan 3 — in-app guards:** Unit 5. Plan 1 ships `version.json` with `minBuild: 1` so that
+no gate is enforced before a client exists that can read it.
 
 ## Open questions
 
