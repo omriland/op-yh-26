@@ -52,7 +52,7 @@ export function IosDownloadPage({ onBack }: IosDownloadPageProps) {
       {iphone ? (
         <div className="ios-download__panel stack-3">
           {!safari && (
-            <div className="banner banner--warning t-body" role="alert">
+            <div className="banner banner--alert t-body" role="alert">
               יש לפתוח את העמוד הזה בדפדפן ספארי. בדפדפנים אחרים כפתור ההתקנה
               לא יגיב.
             </div>

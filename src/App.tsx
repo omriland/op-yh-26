@@ -63,7 +63,7 @@ import { loadFillByToken } from './lib/responderFillToken'
 import { captureAppPageview } from './lib/posthog'
 import { appAnalyticsPath } from './lib/posthogAppPath'
 import { isAndroidDownloadPath } from './lib/androidDownload'
-import { IOS_DOWNLOAD_PATH, isIosDownloadPath } from './lib/iosDownload'
+import { isIosDownloadPath } from './lib/iosDownload'
 import { isDeleteDataPath } from './lib/deleteDataPage'
 import { verifyPrivacyPageAccess } from './lib/privacyPageAccess'
 import { isPrivacyPath, parsePrivacyTokenFromSearch } from './lib/privacyPageToken'
@@ -434,34 +434,32 @@ function Gate() {
 
   const analyticsPath = useMemo(
     () =>
-      legalPage === 'ios'
-        ? IOS_DOWNLOAD_PATH
-        : appAnalyticsPath({
-            loading:
-              loading ||
-              !fillBootDone ||
-              tokenFill.status === 'checking' ||
-              privacyGate.status === 'checking',
-            signedIn: Boolean(session),
-            passwordSetup: Boolean(passwordSetupReason),
-            tokenFill: tokenFill.status === 'idle' ? 'idle' : tokenFill.status,
-            tokenEventId: tokenFill.status === 'ready' ? tokenFill.eventId : undefined,
-            tracking: Boolean(trackToken),
-            otp: loginOtp.state,
-            legalPage,
-            oauthAuthorize:
-              typeof window !== 'undefined' && isOAuthAuthorizePath(window.location.pathname),
-            view: view ?? fallbackView,
-            eventKind: eventSurface.kind,
-            eventId:
-              (view ?? fallbackView) === 'cockpit'
-                ? cockpitEventId
-                : eventSurface.kind === 'list'
-                  ? undefined
-                  : eventSurface.eventId,
-            shiftKind: shiftSurface.kind,
-            shiftId: shiftSurface.kind === 'list' ? undefined : shiftSurface.shiftId,
-          }),
+      appAnalyticsPath({
+        loading:
+          loading ||
+          !fillBootDone ||
+          tokenFill.status === 'checking' ||
+          privacyGate.status === 'checking',
+        signedIn: Boolean(session),
+        passwordSetup: Boolean(passwordSetupReason),
+        tokenFill: tokenFill.status === 'idle' ? 'idle' : tokenFill.status,
+        tokenEventId: tokenFill.status === 'ready' ? tokenFill.eventId : undefined,
+        tracking: Boolean(trackToken),
+        otp: loginOtp.state,
+        legalPage,
+        oauthAuthorize:
+          typeof window !== 'undefined' && isOAuthAuthorizePath(window.location.pathname),
+        view: view ?? fallbackView,
+        eventKind: eventSurface.kind,
+        eventId:
+          (view ?? fallbackView) === 'cockpit'
+            ? cockpitEventId
+            : eventSurface.kind === 'list'
+              ? undefined
+              : eventSurface.eventId,
+        shiftKind: shiftSurface.kind,
+        shiftId: shiftSurface.kind === 'list' ? undefined : shiftSurface.shiftId,
+      }),
     [
       loading,
       fillBootDone,
