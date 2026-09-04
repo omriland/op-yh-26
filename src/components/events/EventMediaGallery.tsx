@@ -41,6 +41,8 @@ export type EventMediaGalleryProps = {
   viewerId: string | null
   error?: string
   onUnfinishedChange?: (count: number) => void
+  /** Increment to drop the last unfinished, not-yet-uploading photo. */
+  dropUnfinishedTick?: number
 }
 
 type MediaDraft = {
@@ -113,6 +115,7 @@ export function EventMediaGallery({
   viewerId,
   error,
   onUnfinishedChange,
+  dropUnfinishedTick = 0,
 }: EventMediaGalleryProps) {
   const inputId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -151,6 +154,18 @@ export function EventMediaGallery({
   useEffect(() => {
     onUnfinishedChange?.(drafts.filter((draft) => !draft.takenWhen).length)
   }, [drafts, onUnfinishedChange])
+
+  useEffect(() => {
+    if (dropUnfinishedTick <= 0) return
+    setDrafts((current) => {
+      const last = [...current]
+        .reverse()
+        .find((draft) => !draft.takenWhen && !draft.uploading)
+      if (!last) return current
+      URL.revokeObjectURL(last.previewUrl)
+      return current.filter((draft) => draft.key !== last.key)
+    })
+  }, [dropUnfinishedTick])
 
   useEffect(() => {
     return () => {

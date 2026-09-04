@@ -22,6 +22,22 @@ export function fillDraftKey(scope: string, id: string): string {
   return `${PREFIX}${scope}.${id}`
 }
 
+export type FillBackAction = 'drop_unfinished_photo' | 'show_docs' | 'leave'
+
+/**
+ * Back while an unfinished photo is open must drop that photo first.
+ * On a media pane with no leftover photo, return to תיעוד. Otherwise leave
+ * (caller persists the typed draft before navigating away).
+ */
+export function decideFillBack(
+  onMediaPane: boolean,
+  unfinishedMediaDraftCount: number,
+): FillBackAction {
+  if (unfinishedMediaDraftCount > 0) return 'drop_unfinished_photo'
+  if (onMediaPane) return 'show_docs'
+  return 'leave'
+}
+
 function storage(): Storage | null {
   try {
     if (typeof window === 'undefined') return null

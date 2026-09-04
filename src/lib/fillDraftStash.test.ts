@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FILL_DRAFT_MAX_AGE_MS,
   clearFillDraft,
+  decideFillBack,
   fillDraftKey,
   fillDraftSavedLabel,
   readFillDraft,
@@ -101,5 +102,18 @@ describe('fillDraftStash', () => {
 
   it('formats the saved-at label as a 24-hour clock', () => {
     expect(fillDraftSavedLabel(Date.UTC(2026, 7, 20, 3, 14), 'en-GB')).toMatch(/^\d{2}:\d{2}$/)
+  })
+
+  it('drops an unfinished photo before leaving, even off the media pane', () => {
+    expect(decideFillBack(true, 1)).toBe('drop_unfinished_photo')
+    expect(decideFillBack(false, 2)).toBe('drop_unfinished_photo')
+  })
+
+  it('returns from the media pane to תיעוד when no photo is unfinished', () => {
+    expect(decideFillBack(true, 0)).toBe('show_docs')
+  })
+
+  it('leaves from תיעוד after the caller persists', () => {
+    expect(decideFillBack(false, 0)).toBe('leave')
   })
 })

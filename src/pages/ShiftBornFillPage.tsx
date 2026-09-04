@@ -38,6 +38,7 @@ import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 import { useRevealFirstError } from '../lib/revealFirstError'
 import {
   clearFillDraft,
+  decideFillBack,
   fillDraftSavedLabel,
   readFillDraft,
   stashFillDraft,
@@ -66,6 +67,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [platePending, setPlatePending] = useState('')
   const [plateError, setPlateError] = useState<string | undefined>()
   const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
+  const [dropUnfinishedTick, setDropUnfinishedTick] = useState(0)
   const [mediaError, setMediaError] = useState<string | undefined>()
   /** Someone else saved this event while it was open here; the local text is kept. */
   const [conflict, setConflict] = useState(false)
@@ -173,6 +175,28 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
       window.removeEventListener('pagehide', flushHide)
     }
   }, [])
+
+  function persistLocalDraft() {
+    stashLatest.current?.()
+  }
+
+  function leaveFill() {
+    persistLocalDraft()
+    onBack()
+  }
+
+  function handleFillBack() {
+    switch (decideFillBack(false, unfinishedMediaDrafts)) {
+      case 'drop_unfinished_photo':
+        setDropUnfinishedTick((tick) => tick + 1)
+        return
+      case 'show_docs':
+        persistLocalDraft()
+        return
+      case 'leave':
+        leaveFill()
+    }
+  }
 
   function patchDraft(patch: Partial<ShiftBornFillDraft>) {
     setDraft((current) => (current ? { ...current, ...patch } : current))
@@ -327,7 +351,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     <div className="responder-fill">
       <div className="event-form__panel" data-theme="field">
         <div className="event-form__head">
-          <button type="button" className="event-form__back" onClick={onBack}>
+          <button type="button" className="event-form__back" onClick={handleFillBack}>
             <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" />
             חזרה
           </button>
@@ -418,6 +442,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               showEmptyCopy={false}
               viewerId={user?.id ?? null}
               error={mediaError}
+              dropUnfinishedTick={dropUnfinishedTick}
               onUnfinishedChange={(count) => {
                 setUnfinishedMediaDrafts(count)
                 if (count === 0) setMediaError(undefined)

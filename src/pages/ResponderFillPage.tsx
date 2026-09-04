@@ -47,6 +47,7 @@ import { useDesktopFormSubmit } from '../lib/useDesktopFormSubmit'
 import { useRevealFirstError } from '../lib/revealFirstError'
 import {
   clearFillDraft,
+  decideFillBack,
   fillDraftSavedLabel,
   readFillDraft,
   stashFillDraft,
@@ -82,6 +83,7 @@ export function ResponderFillPage({
   const [savingDraft, setSavingDraft] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
+  const [dropUnfinishedTick, setDropUnfinishedTick] = useState(0)
   const [localSavedAt, setLocalSavedAt] = useState<number | null>(null)
   const [restoredFromDevice, setRestoredFromDevice] = useState(false)
   /** Bumped on every failed submit so an identical second failure still re-focuses. */
@@ -233,6 +235,28 @@ export function ResponderFillPage({
       window.removeEventListener('pagehide', flushOnHide)
     }
   }, [])
+
+  function persistLocalDraft() {
+    stashLatest.current?.()
+  }
+
+  function leaveFill() {
+    persistLocalDraft()
+    onBack()
+  }
+
+  function handleFillBack() {
+    switch (decideFillBack(false, unfinishedMediaDrafts)) {
+      case 'drop_unfinished_photo':
+        setDropUnfinishedTick((tick) => tick + 1)
+        return
+      case 'show_docs':
+        persistLocalDraft()
+        return
+      case 'leave':
+        leaveFill()
+    }
+  }
 
   function patchDraft(patch: Partial<ResponderFillDraft>) {
     setDraft((current) => (current ? { ...current, ...patch } : current))
@@ -438,7 +462,7 @@ export function ResponderFillPage({
     <div className="responder-fill">
       <div className="event-form__panel" data-theme="field">
         <div className="event-form__head">
-          <button type="button" className="event-form__back" onClick={onBack}>
+          <button type="button" className="event-form__back" onClick={handleFillBack}>
             <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" />
             חזרה
           </button>
@@ -554,6 +578,7 @@ export function ResponderFillPage({
                     viewerId={user?.id ?? null}
                     error={errors.event_media}
                     onUnfinishedChange={setUnfinishedMediaDrafts}
+                    dropUnfinishedTick={dropUnfinishedTick}
                   />
                 )}
               </>
@@ -649,6 +674,7 @@ export function ResponderFillPage({
                     viewerId={user?.id ?? null}
                     error={errors.event_media}
                     onUnfinishedChange={setUnfinishedMediaDrafts}
+                    dropUnfinishedTick={dropUnfinishedTick}
                   />
                 )}
                 <TextAreaField
