@@ -289,14 +289,27 @@ app will not launch, with no in-app explanation.
 
 ## Rollout
 
+Ordered by risk, not by dependency. The uncertain part is whether the signing → manifest →
+`itms-services` → Safari chain works end to end at all; if it does not, the enrollment
+service would have been built on sand. So the walking skeleton comes first and the
+enrollment machinery is added around a proven install path.
+
+**Plan 1 — walking skeleton** (`docs/superpowers/plans/2026-09-04-yahpaz-ios-adhoc-distribution-skeleton.md`)
+
 1. Mint the `Apple Distribution` certificate. If this fails, the membership is not actually
    active and everything else is blocked.
 2. Create the App Store Connect record for `com.yahpz.responder` and leave it dormant — the
    TestFlight escape hatch if the device cap bites.
-3. Migration + `ios-enroll` + admin console.
-4. Pipeline and `/ios` page.
-5. Pilot with 3–5 volunteers through the complete two-visit flow.
-6. Batch-enroll the unit. Expect the first wave to consume most of the annual budget.
+3. Units 3 and 4: the Ad Hoc build pipeline and the `/ios` install page, with one
+   hand-registered pilot UDID.
+4. Verify a real install on a real iPhone from yahpz.com.
+
+**Plan 2 — enrollment and console:** Units 1 and 2. Removes the manual UDID step and makes
+the 100-slot budget visible. Then pilot 3–5 volunteers through the full two-visit flow
+before batch-enrolling the unit; expect the first wave to consume most of the annual budget.
+
+**Plan 3 — in-app guards:** Unit 5. Plan 1 ships `version.json` with `minBuild: 1` so that
+no gate is enforced before a client exists that can read it.
 
 ## Open questions
 
