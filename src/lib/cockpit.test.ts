@@ -41,8 +41,8 @@ function item(id: string, createdAt: string) {
 }
 
 describe('cockpit window', () => {
-  it('keeps events created within the last two hours', () => {
-    expect(isInCockpitWindow('2026-08-16T10:00:00.000Z', NOW)).toBe(true)
+  it('keeps events created within the last five hours', () => {
+    expect(isInCockpitWindow('2026-08-16T07:00:00.000Z', NOW)).toBe(true)
     expect(isInCockpitWindow('2026-08-16T11:59:00.000Z', NOW)).toBe(true)
   })
 
@@ -51,8 +51,8 @@ describe('cockpit window', () => {
     expect(isInCockpitWindow('2026-08-16T12:01:59.000Z', NOW)).toBe(true)
   })
 
-  it('drops events older than two hours and far-future rows', () => {
-    expect(isInCockpitWindow('2026-08-16T09:59:59.000Z', NOW)).toBe(false)
+  it('drops events older than five hours and far-future rows', () => {
+    expect(isInCockpitWindow('2026-08-16T06:59:59.000Z', NOW)).toBe(false)
     expect(isInCockpitWindow('2026-08-16T12:02:01.000Z', NOW)).toBe(false)
   })
 
@@ -60,7 +60,7 @@ describe('cockpit window', () => {
     const rows = filterCockpitReel(
       [
         item('old', '2026-08-16T10:10:00.000Z'),
-        item('stale', '2026-08-16T09:00:00.000Z'),
+        item('stale', '2026-08-16T06:00:00.000Z'),
         item('new', '2026-08-16T11:50:00.000Z'),
       ],
       NOW,
@@ -68,8 +68,8 @@ describe('cockpit window', () => {
     expect(rows.map((row) => row.id)).toEqual(['new', 'old'])
   })
 
-  it('uses a two-hour window and 800ms autosave delay', () => {
-    expect(COCKPIT_WINDOW_MS).toBe(2 * 60 * 60 * 1000)
+  it('uses a five-hour window and 800ms autosave delay', () => {
+    expect(COCKPIT_WINDOW_MS).toBe(5 * 60 * 60 * 1000)
     expect(COCKPIT_CLOCK_SKEW_MS).toBe(2 * 60 * 1000)
     expect(COCKPIT_AUTOSAVE_MS).toBe(800)
   })

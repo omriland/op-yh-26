@@ -386,7 +386,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
         ) : reel.length === 0 ? (
           <div className="cockpit__reel-body">
             <p className="t-caption text-muted cockpit__reel-empty">
-              אין אירועים מהשעתיים האחרונות.
+              אין אירועים מחמש השעות האחרונות.
             </p>
           </div>
         ) : (

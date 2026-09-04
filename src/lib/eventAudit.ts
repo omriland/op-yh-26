@@ -33,6 +33,7 @@ const FIELD_LABELS: Record<string, string> = {
   district_id: 'שלוחה',
   patrol_callsign: 'או״ק סיור',
   event_type_id: 'סוג אירוע',
+  event_type_detail: 'פירוט סוג אירוע',
   notes: 'הערות',
   road_id: 'כביש',
   location: 'מיקום',

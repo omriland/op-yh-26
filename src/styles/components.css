@@ -5396,6 +5396,16 @@ html[data-keyboard-open] .event-form__footer {
   min-width: 0;
 }
 
+.event-form__f-type {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.event-form--phone .event-form__f-type {
+  gap: var(--space-3);
+}
+
 .event-form__identity > .event-form__f-date { grid-area: date; }
 .event-form__identity > .event-form__f-police { grid-area: police; }
 .event-form__identity > .event-form__f-type { grid-area: type; }

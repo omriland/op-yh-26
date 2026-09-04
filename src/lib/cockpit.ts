@@ -6,7 +6,7 @@ import { locationPinIsLocked, type LocationPinSource } from './locationPin'
 import { geocodePlaceQuery } from './googlePlaces'
 import { supabase } from './supabase'
 
-export const COCKPIT_WINDOW_MS = 2 * 60 * 60 * 1000
+export const COCKPIT_WINDOW_MS = 5 * 60 * 60 * 1000
 /** Allow a just-inserted row whose server `created_at` is slightly ahead of the client clock. */
 export const COCKPIT_CLOCK_SKEW_MS = 2 * 60 * 1000
 export const COCKPIT_AUTOSAVE_MS = 800

@@ -30,6 +30,33 @@ import {
 
 export type LookupOption = { id: string; name: string; code?: string | null }
 
+/** Closed-list name for "other" — shows an optional short details field. */
+export const OTHER_EVENT_TYPE_NAME = 'אחר'
+export const EVENT_TYPE_DETAIL_MAX_LENGTH = 80
+
+export function isOtherEventTypeName(name: string | null | undefined): boolean {
+  return (name ?? '').trim() === OTHER_EVENT_TYPE_NAME
+}
+
+export function isOtherEventTypeId(
+  eventTypeId: string,
+  eventTypes: { id: string; name: string }[],
+): boolean {
+  const name = eventTypes.find((row) => row.id === eventTypeId)?.name
+  return isOtherEventTypeName(name)
+}
+
+export function eventTypeDetailForSave(input: {
+  eventTypeId: string
+  eventTypes: { id: string; name: string }[]
+  detail: string
+}): string | null {
+  if (!isOtherEventTypeId(input.eventTypeId, input.eventTypes)) return null
+  const trimmed = input.detail.trim()
+  if (!trimmed) return null
+  return trimmed.slice(0, EVENT_TYPE_DETAIL_MAX_LENGTH)
+}
+
 export type AssignableUser = {
   id: string
   full_name: string
@@ -146,6 +173,8 @@ export type EventFormDraft = {
   location_pinned_at: string | null
   location_pinned_by: string | null
   notes: string
+  /** Optional short text when סוג אירוע is אחר. */
+  event_type_detail: string
   is_cancelled: boolean
   /** נת״צ — event took place in a bus / public-transit lane. */
   bus_lane: boolean
@@ -261,6 +290,7 @@ export function emptyEventDraft(lead: {
     location_pinned_at: null,
     location_pinned_by: null,
     notes: '',
+    event_type_detail: '',
     is_cancelled: false,
     bus_lane: false,
     shift_lead_id: lead.id,
@@ -288,6 +318,7 @@ export function isAbandonedEmptyEventDraft(
   if (draft.location_place_id) return false
   if (draft.location_lat != null || draft.location_lng != null) return false
   if (draft.notes.trim()) return false
+  if (draft.event_type_detail.trim()) return false
   if (draft.bus_lane) return false
   if ((draft.secondary_leads ?? []).length > 0) return false
   const originalLead = originalShiftLeadId?.trim() ?? ''
@@ -422,11 +453,46 @@ export function isMissingBusLaneColumn(error: {
   )
 }
 
+/** PostgREST 42703 / PGRST204 when `events.event_type_detail` has not been migrated yet. */
+export function isMissingEventTypeDetailColumn(error: {
+  code?: string
+  message?: string
+} | null): boolean {
+  const message = error?.message ?? ''
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    /events\.event_type_detail|column.*event_type_detail/i.test(message)
+  )
+}
+
+function isMissingOptionalEventColumn(error: {
+  code?: string
+  message?: string
+} | null): boolean {
+  return isMissingBusLaneColumn(error) || isMissingEventTypeDetailColumn(error)
+}
+
+function stripOptionalEventColumnsFromSelect(select: string): string {
+  return select
+    .replace(', event_type_detail', '')
+    .replace(/\n  event_type_detail,/, '')
+    .replace(', bus_lane', '')
+    .replace(/\n  bus_lane,/, '')
+}
+
+function stripOptionalEventColumnsFromPayload<T extends Record<string, unknown>>(
+  payload: T,
+): Omit<T, 'bus_lane' | 'event_type_detail'> {
+  const { bus_lane: _busLane, event_type_detail: _detail, ...rest } = payload
+  return rest
+}
+
 const EVENT_EDIT_SELECT = `
       id, status, event_date, police_event_id, district_id, patrol_callsign,
       event_type_id, road_id, location, location_place_id, location_lat, location_lng,
       location_pin_source, location_pinned_at, location_pinned_by,
-      notes, is_cancelled, bus_lane, shift_lead_id,
+      notes, event_type_detail, is_cancelled, bus_lane, shift_lead_id,
       shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
       ${EVENT_SECONDARY_LEADS_EMBED},
       responders:event_responders(
@@ -438,7 +504,7 @@ const EVENT_EDIT_SELECT = `
       )
     `
 
-const EVENT_EDIT_SELECT_NO_BUS_LANE = EVENT_EDIT_SELECT.replace(', bus_lane', '')
+const EVENT_EDIT_SELECT_NO_OPTIONAL = stripOptionalEventColumnsFromSelect(EVENT_EDIT_SELECT)
 
 export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft | null> {
   let { data, error } = await supabase
@@ -447,10 +513,10 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     .eq('id', eventId)
     .maybeSingle()
 
-  if (error && isMissingBusLaneColumn(error)) {
+  if (error && isMissingOptionalEventColumn(error)) {
     const retry = await supabase
       .from('events')
-      .select(EVENT_EDIT_SELECT_NO_BUS_LANE)
+      .select(EVENT_EDIT_SELECT_NO_OPTIONAL)
       .eq('id', eventId)
       .maybeSingle()
     data = retry.data as typeof data
@@ -477,6 +543,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     location_pinned_at: string | null
     location_pinned_by: string | null
     notes: string | null
+    event_type_detail: string | null
     is_cancelled: boolean
     bus_lane: boolean
     shift_lead_id: string | null
@@ -502,6 +569,7 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     location_pinned_at: row.location_pinned_at ?? null,
     location_pinned_by: row.location_pinned_by ?? null,
     notes: row.notes ?? '',
+    event_type_detail: row.event_type_detail ?? '',
     is_cancelled: row.is_cancelled ?? false,
     bus_lane: row.bus_lane ?? false,
     shift_lead_id: row.shift_lead_id ?? undefined,
@@ -838,6 +906,7 @@ export async function saveEventForm(input: {
   vehicleKinds: LookupOption[]
   districts: LookupOption[]
   roads?: LookupOption[]
+  eventTypes?: LookupOption[]
   canClearCancelled: boolean
   previousIsCancelled: boolean
   allowPartial?: boolean
@@ -934,6 +1003,11 @@ export async function saveEventForm(input: {
     location_pinned_at: locationPayload.location_pinned_at,
     location_pinned_by: locationPayload.location_pinned_by,
     notes: draft.notes.trim() || null,
+    event_type_detail: eventTypeDetailForSave({
+      eventTypeId: draft.event_type_id,
+      eventTypes: input.eventTypes ?? [],
+      detail: draft.event_type_detail,
+    }),
     is_cancelled: draft.is_cancelled,
     bus_lane: draft.bus_lane,
     status: nextStatus,
@@ -943,12 +1017,12 @@ export async function saveEventForm(input: {
 
   let eventId = draft.id
 
-  const payloadWithoutBusLane = (({ bus_lane: _busLane, ...rest }) => rest)(eventPayload)
+  const payloadWithoutOptional = stripOptionalEventColumnsFromPayload(eventPayload)
 
   if (eventId) {
     let { error } = await supabase.from('events').update(eventPayload).eq('id', eventId)
-    if (error && isMissingBusLaneColumn(error)) {
-      const retry = await supabase.from('events').update(payloadWithoutBusLane).eq('id', eventId)
+    if (error && isMissingOptionalEventColumn(error)) {
+      const retry = await supabase.from('events').update(payloadWithoutOptional).eq('id', eventId)
       error = retry.error
     }
     if (error) {
@@ -960,10 +1034,10 @@ export async function saveEventForm(input: {
       .insert({ ...eventPayload, shift_lead_id: mainLeadId })
       .select('id')
       .single()
-    if (error && isMissingBusLaneColumn(error)) {
+    if (error && isMissingOptionalEventColumn(error)) {
       const retry = await supabase
         .from('events')
-        .insert({ ...payloadWithoutBusLane, shift_lead_id: mainLeadId })
+        .insert({ ...payloadWithoutOptional, shift_lead_id: mainLeadId })
         .select('id')
         .single()
       data = retry.data as typeof data

@@ -9,6 +9,7 @@ import {
   type EventDetail,
   type EventResponderDetail,
 } from '../lib/events'
+import { isOtherEventTypeName } from '../lib/eventForm'
 import { responderCardShowsOdometers, responderCardStartsOpen } from '../lib/responderCard'
 import { eventGeocodeQuery, eventNeedsPersistedGeocode } from '../lib/eventGeocode'
 import { geocodePlaceQuery } from '../lib/googlePlaces'
@@ -309,6 +310,9 @@ export function EventDetailPage({
             <LedgerRow label="שלוחה" value={event.district?.name} />
             <LedgerRow label="או״ק ניידת" value={event.patrol_callsign ?? undefined} numeric />
             <LedgerRow label="סוג אירוע" value={event.event_type?.name} />
+            {isOtherEventTypeName(event.event_type?.name) && event.event_type_detail ? (
+              <LedgerRow label="פירוט" value={event.event_type_detail} />
+            ) : null}
             {event.is_cancelled ? <LedgerRow label="בוטל" value="כן" /> : null}
             <LedgerRow label="כביש" value={event.road?.name} />
             <LedgerRow label="מיקום" value={event.location ?? undefined} />

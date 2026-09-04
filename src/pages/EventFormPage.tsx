@@ -18,6 +18,8 @@ import {
   fetchEventForEdit,
   fetchEventLookups,
   hasEventMinimum,
+  isOtherEventTypeId,
+  EVENT_TYPE_DETAIL_MAX_LENGTH,
   isAbandonedEmptyEventDraft,
   policeEventIdForCockpitSave,
   isOvernightEnd,
@@ -528,6 +530,7 @@ export function EventFormPage({
         vehicleKinds: currentLookups.vehicleKinds,
         districts: currentLookups.districts,
         roads: currentLookups.roads,
+        eventTypes: currentLookups.eventTypes,
         canClearCancelled,
         previousIsCancelled,
         allowPartial,
@@ -1266,11 +1269,28 @@ export function EventFormPage({
                   error={errors.event_type_id}
                   options={lookups.eventTypes.map((row) => ({ value: row.id, label: row.name }))}
                   onChange={(event) => {
-                    updateDraft({ event_type_id: event.target.value })
+                    const nextId = event.target.value
+                    updateDraft({
+                      event_type_id: nextId,
+                      ...(isOtherEventTypeId(nextId, lookups.eventTypes)
+                        ? {}
+                        : { event_type_detail: '' }),
+                    })
                     setErrors((current) => ({ ...current, event_type_id: undefined }))
                     queueMicrotask(() => void persistLatest())
                   }}
                 />
+                {isOtherEventTypeId(draft.event_type_id, lookups.eventTypes) ? (
+                  <TextField
+                    label="פירוט"
+                    value={draft.event_type_detail}
+                    maxLength={EVENT_TYPE_DETAIL_MAX_LENGTH}
+                    onChange={(event) =>
+                      updateDraft({ event_type_detail: event.target.value })
+                    }
+                    onBlur={() => void persistLatest()}
+                  />
+                ) : null}
                 </div>
 
                 <div className="event-form__f-road">
