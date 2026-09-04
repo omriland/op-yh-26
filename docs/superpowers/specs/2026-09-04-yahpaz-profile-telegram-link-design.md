@@ -49,7 +49,7 @@ Profile (חיבורים, empty state)
 ### Testing
 
 - Vitest: `buildPartnerAuthorizeUrl` and `randomOAuthState` are already covered by `partnerOAuth.test.ts` — no new URL/state-token tests needed. No new test for `fetchPartnerApps()` either: `partnerApi.ts` has no test file today, and none of its existing wrappers (`fetchPartnerGrants`, `fetchPartnerClientInfo`, `approvePartnerAuthorize`, etc.) have direct unit tests — no precedent to follow, so it stays untested at this layer, consistent with the rest of the file.
-- Manual/code-review: profile empty state shows the button only when exactly one active app exists; clicking it lands on the existing consent screen; approving redirects to `t.me/<bot>?start=…` as it does today for the bot-initiated path.
+- Manual/code-review: profile empty state shows the button when one or more active apps exist (linking to the oldest when more than one, per the "Which bot/client" decision above); clicking it lands on the existing consent screen; approving redirects to `t.me/<bot>?start=…` as it does today for the bot-initiated path.
 
 ## Part B — Future: event-assignment Telegram notifications (plan only, not built now)
 
