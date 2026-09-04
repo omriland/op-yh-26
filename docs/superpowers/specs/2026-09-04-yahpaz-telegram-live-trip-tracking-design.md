@@ -37,6 +37,19 @@ Today live location tracking only starts when a shift lead attaches a responder 
 | Stop on report complete | Yes — `responder-api` `complete` (mode `"complete"` of `handleSave`) also clears the track token and deletes the live-location row for that assignment |
 | Stop from Telegram | Bot calls the new `stop_live_track` action when it detects the volunteer stopped sharing or the `live_period` ended. No bot command needed for this. |
 | SMS eligibility / allowlist (`LIVE_TRACK_SMS_ALLOWLIST`) | Does not apply — this path has no SMS step, so no allowlist gate |
+| Consent scope | Reuses the existing `responder:fill` grant — no new scope, no updated consent screen. See "Consent scope" below. |
+
+## Consent scope
+
+This spec deliberately **reuses the existing `responder:fill` grant** for `start_live_track`/`stop_live_track`, rather than introducing a new OAuth scope with its own consent screen. This needs calling out explicitly because it touches a locked decision in two depended-upon specs: `2026-08-24-...-partner-responder-api-design.md`'s consent copy lists only report-filling ("השלמת דיווחי אירועים: קילומטרים, טיפול, לוחיות, מדיה") with no mention of location, and `2026-08-30-...-telegram-mcp-style-connect-design.md` names "expanding scope beyond `responder:fill`" as a non-goal.
+
+**Rationale for reusing the existing grant rather than adding a new scope:** live tracking is not a passive, always-on capability unlocked by the grant — it only starts when the volunteer takes an explicit, per-trip action (`/trip` in the bot, or later accepting an assignment notification per "Future integration" below), for one assignment they already have write access to via the same grant (the same `loadAssignment(admin, userId, eventId)` scoping that already lets them fill/complete that assignment's report). The grant already authorizes the bot to read and write everything about the volunteer's own open assignments on their behalf; sharing a live position for the duration of that same assignment is treated as within that envelope, not a new category of access.
+
+**This is the intended permanent design, confirmed explicitly, not a v1 shortcut:** there is exactly one consent moment — linking the Telegram bot (`2026-08-30-...-telegram-mcp-style-connect-design.md`'s `/oauth/authorize` flow). No separate GPS-specific consent prompt is ever shown, at link time or at `/trip` time, now or planned later. A future slice that wants tracking to persist independently of an explicit volunteer action, or wants a shift lead / dispatcher to trigger it from the bot side on the volunteer's behalf, would be a materially different capability and should revisit this — but "notify the volunteer of a new assignment and let them immediately start tracking" (below) is not that case and stays under the single existing consent.
+
+## Future integration: starting from an event-assignment notification (not built now)
+
+`2026-09-04-yahpaz-profile-telegram-link-design.md`'s Part B plans a signed webhook (`assignment_created`, delivered to the bot server's `webhook_url`, payload `{ id, user_id, event_id, event_type, ...minimal event summary }`) that lets the bot message a volunteer when they're newly assigned to an event. That Part B is plan-only and not built — this spec does not build it either. It's noted here only because, once it exists, it changes `/trip`'s entry point: instead of the volunteer running `/trip` cold and the bot calling `list_open_events` to ask which assignment (see "Multiple open assignments" above), the assignment-notification message already carries `event_id`. An "accept" action on that message can call `start_live_track { event_id }` directly, skipping `list_open_events` entirely for that path. `start_live_track` as specified above already supports this with no changes — it takes `event_id` and doesn't care how the bot obtained it. `/trip` run cold (no known `event_id`) keeps needing the `list_open_events` picker step; this becomes a second, more direct entry point into the same action, not a replacement for it.
 
 ## Architecture
 
@@ -92,10 +105,11 @@ Request:
 
 Behavior (mirrors `responder-track`'s `handleStart`, minus SMS, for exactly this one assignment):
 
-1. `loadAssignment` → 404 `אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.` if not found
-2. `standaloneOrError(assignment, forWrite: true)` → same `shift_born` / `cancelled` / `locked` errors as `save_draft`
-3. Mint a fresh opaque token (`randomTrackToken` — reuse from `responder-track`'s helpers or duplicate the small crypto helper; see Implementation notes), hash it, set `track_token_hash` / `track_token_expires_at` (mint + 7 days) on the `event_responders` row
-4. Response: `{ ok: true, track_token, expires_at }`
+1. Missing/blank `event_id` → 400 `חסר מזהה אירוע.`, same pattern as `save_draft`/`get_event`
+2. `loadAssignment` → 404 `אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.` if not found
+3. `standaloneOrError(assignment, true)` → same `shift_born` / `cancelled` / `locked` errors as `save_draft`
+4. Mint a fresh opaque token: add a `randomTrackToken()` export to `supabase/functions/_shared/partnerCrypto.ts` (same shape as `responder-track`'s local `randomTrackToken` — unprefixed base64url of 32 random bytes, reusing the already-exported `randomBytes`), import it into `responder-api`. `responder-track`'s own local copy is left as-is — it is not touched by this slice. Hash the token with the already-imported `sha256Hex`, set `track_token_hash` / `track_token_expires_at` (mint + 7 days) on the `event_responders` row
+5. Response: `{ ok: true, track_token, expires_at }`
 
 Re-calling `start_live_track` for an assignment that already has a live, unexpired token simply re-mints (same as the SMS path re-minting is guarded by `tracking_sms_sent_at` there — here there is no "sent once" concept, so re-issuing is fine and expected if the bot restarts a `/trip` flow).
 
@@ -109,16 +123,19 @@ Request:
 
 Behavior (mirrors `responder-track`'s `handleStop`, scoped to the caller's own assignment):
 
-1. `loadAssignment` → same 404 as above
-2. Delete the `event_responder_live_locations` row for this assignment id (if any)
-3. Clear `track_token_hash` / `track_token_expires_at`
-4. Response: `{ ok: true }`
+1. Missing/blank `event_id` → 400 `חסר מזהה אירוע.`
+2. `loadAssignment` → same 404 as above
+3. Delete the `event_responder_live_locations` row for this assignment id (if any)
+4. Clear `track_token_hash` / `track_token_expires_at`
+5. Response: `{ ok: true }`
 
-Idempotent — calling it when nothing is active is not an error.
+Idempotent — calling it when nothing is active is not an error. Deliberately does **not** call `standaloneOrError` — stopping tracking should succeed even on a cancelled/done assignment, matching the fact that `stop_live_track` is also invoked from inside `complete` itself.
 
 ### `complete` (existing action, extended)
 
 In `handleSave` mode `"complete"`, after the existing update to `event_responders` (`status: 'done'`) succeeds, also run the same cleanup as `stop_live_track` (delete the live-location row, clear the track token) for that assignment. `save_draft` (mode `"draft"`) is unaffected — an in-progress report does not stop tracking.
+
+**Cleanup failure must not fail `complete`.** Same principle as `2026-08-17-...-live-location-tracking-design.md`'s "event save never depends on SMS or GPS succeeding": if the live-location delete or token-clear errors, log it and still return the existing success response (`{ ok: true, eventStatus, participationStatus }`). The report is done regardless of whether tracking cleanup succeeded; a stale token left behind is caught by the token's own 7-day expiry and by the map's 30-second pin staleness rule.
 
 ## Data model
 
@@ -142,13 +159,13 @@ This repo does not build or own these; they belong to the Telegram bot server, s
 
 ## Known limitations (documented, not solved in v1)
 
-- **Concurrent SMS start**: if a shift lead triggers `responder-track` `start` (SMS) for an assignment that already has an active bot-driven track, it overwrites `track_token_hash` — the bot's cached token stops matching and its next `ping` fails with `code: "invalid"`. The bot should treat that as "tracking was stopped externally" and prompt the volunteer to run `/trip` again. Not solved here, same class as the existing "links to oldest registered app" limitation in the profile-connect design.
+- **Concurrent start, either direction**: if a shift lead triggers `responder-track` `start` (SMS) for an assignment that already has an active bot-driven track, it overwrites `track_token_hash` — the bot's cached token stops matching and its next `ping` fails with `code: "invalid"`. The bot should treat that as "tracking was stopped externally" and prompt the volunteer to run `/trip` again. The reverse also holds: if the volunteer runs `/trip` (or the bot re-calls `start_live_track`) while a shift-lead-triggered SMS tracker page is already open and live, the new token overwrites the old one and the web tracker page's next `ping` silently fails the same way — with no bot-side awareness, since the bot isn't watching that page. Neither direction is solved here, same class as the existing "links to oldest registered app" limitation in the profile-connect design.
 - **No mid-trip assignment switch**: if the volunteer picks the wrong assignment when asked, they must let the wrong track go stale (30s, per the existing staleness rule) or the bot must call `stop_live_track` on the wrong one and `start_live_track` on the right one — no atomic "switch" action.
 
 ## Testing (implementation)
 
 - Pure: no new pure logic beyond what `liveTrack.ts` already covers (token TTL math, ping shape) — `start_live_track`/`stop_live_track` are thin Edge Function handlers over existing helpers
-- Edge Function unit-style coverage (matching existing `responder-api`/`responder-track` test conventions in this repo, if any): `start_live_track` rejects `shift_born`/`cancelled`/`done` assignments and assignments not owned by the caller; `stop_live_track` is idempotent and scoped to the caller; `complete` clears an active track token and live row
+- No Edge Function test convention exists today (`supabase/functions/` has no `*.test.ts` files); this slice does not introduce one. Verification is manual, per below, same as `responder-track`/`responder-api`'s existing actions
 - No live Telegram or GPS in automated tests — manual verification requires a real bot server, out of scope for this repo's test suite
 - Manual (once a bot server exists): `/trip` → pick assignment → share live location → pin appears on ops map within one Telegram update cycle → complete the report → pin disappears and token is cleared
 
