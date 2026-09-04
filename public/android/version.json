@@ -1,7 +1,7 @@
 {
-  "minVersionCode": 24,
+  "minVersionCode": 30,
   "latestVersionCode": 30,
   "latestVersionName": "0.3.19",
   "apkUrl": "https://yahpz.com/android/yahpaz-0.3.19.apk",
-  "messageHe": ""
+  "messageHe": "יש גרסה חדשה של האפליקציה. יש להוריד ולהתקין כדי להמשיך."
 }
