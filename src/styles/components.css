@@ -2264,10 +2264,41 @@ textarea.field__input {
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
+.security-badge__vendors {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.security-badge__logos {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .security-badge__logo {
   flex: none;
   width: 20px;
   height: 20px;
+}
+
+.security-badge__vendor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: inherit;
+  text-decoration: none;
+}
+
+.security-badge__vendor:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .security-badge__link:focus-visible {

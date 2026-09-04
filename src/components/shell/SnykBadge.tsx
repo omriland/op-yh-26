@@ -1,6 +1,6 @@
 import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
 import { ANDROID_FOOTER_LINK } from '../../lib/androidDownload'
-import { SNYK_SECURITY_BADGE } from '../../lib/securityBadge'
+import { CLOUDFLARE_SECURITY_BADGE, SNYK_SECURITY_BADGE } from '../../lib/securityBadge'
 
 /** Snyk dog mark (Simple Icons path) — fill via currentColor for both themes. */
 function SnykLogo() {
@@ -21,6 +21,18 @@ function SnykLogo() {
   )
 }
 
+function CloudflareLogo() {
+  return (
+    <img
+      className="security-badge__logo"
+      src={CLOUDFLARE_SECURITY_BADGE.logoSrc}
+      width={20}
+      height={20}
+      alt=""
+    />
+  )
+}
+
 export function SnykBadge({
   onOpenPrivacy,
   onOpenAndroid,
@@ -30,16 +42,29 @@ export function SnykBadge({
 }) {
   return (
     <footer className="security-badge">
-      <a
-        className="security-badge__link"
-        href={SNYK_SECURITY_BADGE.href}
-        target="_blank"
-        rel="noopener noreferrer"
-        dir="ltr"
-      >
-        <SnykLogo />
+      <span className="security-badge__vendors" dir="ltr">
+        <span className="security-badge__logos">
+          <a
+            className="security-badge__vendor"
+            href={SNYK_SECURITY_BADGE.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Snyk"
+          >
+            <SnykLogo />
+          </a>
+          <a
+            className="security-badge__vendor"
+            href={CLOUDFLARE_SECURITY_BADGE.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Cloudflare"
+          >
+            <CloudflareLogo />
+          </a>
+        </span>
         <span className="security-badge__label">{SNYK_SECURITY_BADGE.label}</span>
-      </a>
+      </span>
       <span className="security-badge__sep" aria-hidden="true" />
       <button type="button" className="security-badge__link" onClick={onOpenPrivacy}>
         {PRIVACY_FOOTER_LINK.label}
