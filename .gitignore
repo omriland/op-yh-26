@@ -28,3 +28,6 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Subagent-driven-development worktrees
+.worktrees/
