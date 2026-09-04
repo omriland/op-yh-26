@@ -2,7 +2,7 @@
 
 export type EventStatus = 'draft' | 'in_progress' | 'partial' | 'done'
 export type ParticipationStatus = 'pending' | 'in_progress' | 'done'
-export type StampTone = 'done' | 'partial' | 'pending' | 'draft'
+export type StampTone = 'done' | 'partial' | 'pending' | 'draft' | 'alert'
 export type TrailPhase = 'past' | 'current' | 'future'
 
 export type StampDescriptor = { label: string; tone: StampTone }
@@ -50,6 +50,31 @@ export function eventStamp(status: EventStatus): StampDescriptor {
   return EVENT_STAMPS[status]
 }
 
+/** Lead-facing last-step copy when documentation is `done` but responder KM is still missing. */
+export const MISSING_KM_STAMP: StampDescriptor = { label: 'חסר ק״מ', tone: 'alert' }
+
+/**
+ * Viewer-relative documentation stamp for אחמ״ש lists.
+ * Does not change event/participation status — only the lead-facing label.
+ */
+export function reportingDocumentationStamp(
+  status: EventStatus,
+  missingKm: boolean,
+): StampDescriptor {
+  return overlayMissingKmOnDoneStamp(eventStamp(status), missingKm)
+}
+
+/** Replace a green הושלם stamp when any responder KM is still missing. */
+export function overlayMissingKmOnDoneStamp(
+  stamp: StampDescriptor,
+  missingKm: boolean,
+): StampDescriptor {
+  if (missingKm && stamp.tone === 'done' && stamp.label === 'הושלם') {
+    return MISSING_KM_STAMP
+  }
+  return stamp
+}
+
 export type ParticipationNameSplit = {
   done: string[]
   draft: string[]
@@ -73,12 +98,19 @@ export function splitRespondersByParticipation(
 }
 
 /** Full pipeline for the desktop Events table status column. */
-export function eventStatusTrailSteps(status: EventStatus): EventStatusTrailStep[] {
+export function eventStatusTrailSteps(
+  status: EventStatus,
+  options?: { missingKm?: boolean },
+): EventStatusTrailStep[] {
   const currentIndex = EVENT_STATUS_ORDER.indexOf(status)
+  const missingKm = options?.missingKm === true
   return EVENT_STATUS_ORDER.map((stepStatus, index) => {
-    const stamp = EVENT_STAMPS[stepStatus]
     const phase: TrailPhase =
       index < currentIndex ? 'past' : index === currentIndex ? 'current' : 'future'
+    const stamp =
+      phase === 'current' && stepStatus === 'done' && missingKm
+        ? MISSING_KM_STAMP
+        : EVENT_STAMPS[stepStatus]
     return { status: stepStatus, label: stamp.label, tone: stamp.tone, phase }
   })
 }
@@ -93,6 +125,26 @@ export function participationStamp(status: ParticipationStatus, isViewer: boolea
     return { label: 'טיוטה נשמרה', tone: 'draft' }
   }
   return { label: isViewer ? 'ממתין לתיעוד' : 'ממתין למתנדב', tone: 'pending' }
+}
+
+/** Responder-facing: they finished; the lead has not entered KM yet. Stamp stays הושלם. */
+export const LEAD_KM_PENDING_NOTE = 'אחמ״ש טרם הזין ק״מ'
+
+export function leadKmPendingNote(
+  participation: ParticipationStatus | null | undefined,
+  totalKm: number | null | undefined,
+): string | null {
+  if (participation !== 'done' || totalKm != null) return null
+  return LEAD_KM_PENDING_NOTE
+}
+
+/** Mine inbox: fill still open, or fill done but lead KM is missing. */
+export function mineInboxIsOpen(
+  participation: ParticipationStatus | null | undefined,
+  totalKm: number | null | undefined,
+): boolean {
+  if (participation !== 'done') return true
+  return totalKm == null
 }
 
 /** Mine-list / own-card CTA after draft save vs first open. */

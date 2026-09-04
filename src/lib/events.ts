@@ -646,6 +646,14 @@ export function ownParticipation(
   return event.responders.find((row) => row.responder_id === userId)?.status ?? null
 }
 
+export function ownResponderKm(
+  event: EventListItem,
+  userId: string | undefined,
+): number | null {
+  if (!userId) return null
+  return event.responders.find((row) => row.responder_id === userId)?.total_km ?? null
+}
+
 export function ownFillCompletableAt(
   event: EventListItem,
   userId: string | undefined,

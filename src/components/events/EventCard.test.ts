@@ -193,6 +193,40 @@ describe('EventCard default (unit list)', () => {
     expect(html).not.toContain('role="alert"')
   })
 
+  it('renders the lead-facing חסר ק״מ stamp when passed from the unit list', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({ status: 'done' }),
+        stamp: { label: 'חסר ק״מ', tone: 'alert' },
+        onOpen: () => undefined,
+        incompleteFields: ['ק״מ'],
+        incompleteSpoken: 'חסרים: ק״מ',
+      }),
+    )
+
+    expect(html).toContain('חסר ק״מ')
+    expect(html).toContain('stamp--alert')
+    expect(html).not.toContain('stamp--done')
+    expect(html).toContain('פרטים חסרים:')
+  })
+
+  it('keeps הושלם for the responder and adds the lead-KM caption', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({ status: 'done' }),
+        stamp: { label: 'הושלם', tone: 'done' },
+        leadKmNote: 'אחמ״ש טרם הזין ק״מ',
+        onOpen: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('הושלם')
+    expect(html).toContain('stamp--done')
+    expect(html).toContain('אחמ״ש טרם הזין ק״מ')
+    expect(html).toContain('stamp-stack__note')
+    expect(html).not.toContain('stamp--alert')
+  })
+
   it('shows a snowflake on frozen unit-list cards', () => {
     const html = renderToStaticMarkup(
       createElement(EventCard, {

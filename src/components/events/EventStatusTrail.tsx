@@ -1,7 +1,7 @@
 import { HoverTip } from '../ui/HoverTip'
 import {
-  eventStamp,
   eventStatusTrailSteps,
+  reportingDocumentationStamp,
   type EventStatus,
   type ParticipationStatus,
 } from '../../lib/status'
@@ -14,13 +14,18 @@ type TrailResponder = {
 
 type EventStatusTrailProps = {
   status: EventStatus
+  missingKm?: boolean
   responders?: TrailResponder[]
 }
 
 /** Desktop Events table — compact pipeline with current label under the active node. */
-export function EventStatusTrail({ status, responders = [] }: EventStatusTrailProps) {
-  const steps = eventStatusTrailSteps(status)
-  const current = eventStamp(status)
+export function EventStatusTrail({
+  status,
+  missingKm = false,
+  responders = [],
+}: EventStatusTrailProps) {
+  const steps = eventStatusTrailSteps(status, { missingKm })
+  const current = reportingDocumentationStamp(status, missingKm)
   const done = responders.filter((row) => row.status === 'done')
   const draft = responders.filter((row) => row.status === 'in_progress')
   const pending = responders.filter((row) => row.status === 'pending')

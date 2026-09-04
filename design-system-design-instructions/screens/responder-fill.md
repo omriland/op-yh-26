@@ -45,6 +45,6 @@ Empty required fields show the dotted fill-in line — the blank on the form.
 
 ### States
 
-- **Already done:** the flow opens read-only (ledger rows, no inputs) with stamp `הושלם` and caption `הדיווח הושלם ב־09.08.2026, 14:30. רק אחמ״ש יכול לערוך לאחר סיום.` Other fill fields stay locked. **מדיה** stays writable for the assigned responder (event not cancelled). Shift-lead/admin correct lead-owned fields via `עריכת אירוע`.
+- **Already done:** the flow opens read-only (ledger rows, no inputs) with stamp `הושלם` and caption `הדיווח הושלם ב־09.08.2026, 14:30. רק אחמ״ש יכול לערוך לאחר סיום.` If the lead has not entered `total_km` yet, add caption `אחמ״ש טרם הזין ק״מ` under the green stamp (red) — do not replace `הושלם`. The event stays on `ממתינים לתיעוד` until the lead enters KM. Other fill fields stay locked. **מדיה** stays writable for the assigned responder (event not cancelled). Shift-lead/admin correct lead-owned fields via `עריכת אירוע`.
 - **Connection failure on save:** error toast + data retained in the form; `סיום דיווח` re-enabled. No silent loss, ever.
 - **The event closed meanwhile** (edge): show info banner `האירוע נסגר. לא ניתן לערוך את הדיווח.` and render read-only.

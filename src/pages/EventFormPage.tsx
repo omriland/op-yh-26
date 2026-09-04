@@ -96,6 +96,11 @@ import {
   foreignEventEditTitle,
   isForeignShiftLeadEvent,
 } from '../lib/foreignEventEdit'
+import {
+  ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR,
+  isAssignedVolunteerEventEditBlocked,
+} from '../lib/assignedVolunteerEventEdit'
+import { AssignedVolunteerEditBlockedDialog } from '../components/events/AssignedVolunteerEditBlockedDialog'
 
 type EventFormPageProps = {
   eventId?: string
@@ -154,11 +159,8 @@ export function EventFormPage({
   const canClearCancelled = canClearEventCancelled(roles)
   const [blockSelfAssign] = useState(() => blockSelfAssignProp ?? !eventId)
   const phoneLayout = variant !== 'cockpit' && !isDesktop
-  const cockpitPreviewing = variant === 'cockpit' && !cockpitEditing
   const assignSearchRef = useRef<HTMLInputElement>(null)
   const assignSectionRef = useRef<HTMLDivElement>(null)
-  const cockpitPreviewingRef = useRef(cockpitPreviewing)
-  cockpitPreviewingRef.current = cockpitPreviewing
 
   const [lookups, setLookups] = useState<EventLookups | null>(null)
   const [roster, setRoster] = useState<AssignableUser[]>([])
@@ -166,7 +168,9 @@ export function EventFormPage({
   const [draft, setDraft] = useState<EventFormDraft | null>(null)
   const [baseline, setBaseline] = useState<string>('')
   const [previousIsCancelled, setPreviousIsCancelled] = useState(false)
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied'>('loading')
+  const [loadState, setLoadState] = useState<
+    'loading' | 'ready' | 'denied' | 'assigned_blocked'
+  >('loading')
   const [errors, setErrors] = useState<EventFormErrors>({})
   /** Bumped on every failed submit so an identical second failure still re-focuses. */
   const [submitAttempt, setSubmitAttempt] = useState(0)
@@ -181,9 +185,16 @@ export function EventFormPage({
   } | null>(null)
   const [sheetResponderKey, setSheetResponderKey] = useState<string | null>(null)
   const [foreignEditAcked, setForeignEditAcked] = useState(false)
+  const [assignedVolunteerBlocked, setAssignedVolunteerBlocked] = useState(false)
+  const [assignedEditDialog, setAssignedEditDialog] = useState(false)
+  const cockpitPreviewing =
+    variant === 'cockpit' && (!cockpitEditing || assignedVolunteerBlocked)
+  const cockpitPreviewingRef = useRef(cockpitPreviewing)
+  cockpitPreviewingRef.current = cockpitPreviewing
 
   const draftRef = useRef<EventFormDraft | null>(null)
   const foreignEditAckedRef = useRef(false)
+  const assignedVolunteerBlockedRef = useRef(false)
   const lookupsRef = useRef<EventLookups | null>(null)
   const baselineRef = useRef('')
   const saveChain = useRef(Promise.resolve())
@@ -210,6 +221,9 @@ export function EventFormPage({
   useEffect(() => {
     foreignEditAckedRef.current = false
     setForeignEditAcked(false)
+    assignedVolunteerBlockedRef.current = false
+    setAssignedVolunteerBlocked(false)
+    setAssignedEditDialog(false)
   }, [eventId])
 
   const userId = user?.id
@@ -256,7 +270,23 @@ export function EventFormPage({
       .then(([nextLookups, nextRoster, nextLeads, existing]) => {
         if (!active) return
         if (eventId && !existing) {
+          assignedVolunteerBlockedRef.current = false
+          setAssignedVolunteerBlocked(false)
           setLoadState('denied')
+          return
+        }
+        const blocked = Boolean(
+          existing &&
+            isAssignedVolunteerEventEditBlocked({
+              viewerId: userId,
+              responderIds: existing.responders.map((row) => row.responder_id),
+              secondaryLeadIds: existing.secondary_leads.map((row) => row.user_id),
+            }),
+        )
+        assignedVolunteerBlockedRef.current = blocked
+        setAssignedVolunteerBlocked(blocked)
+        if (blocked && variant !== 'cockpit') {
+          setLoadState('assigned_blocked')
           return
         }
         setLookups(nextLookups)
@@ -324,7 +354,7 @@ export function EventFormPage({
     // wipe an in-progress אירוע חדש.
     // loadState intentionally omitted — only boot / switch eventId
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canManage, eventId, userId, leadName, leadCallsign, focusResponderId])
+  }, [canManage, eventId, userId, leadName, leadCallsign, focusResponderId, variant])
 
   useEffect(() => {
     if (loadState !== 'ready' || !focusResponderId) return
@@ -429,6 +459,10 @@ export function EventFormPage({
       const currentLookups = lookupsRef.current
       if (!current || !currentLookups) return false
       if (cockpitPreviewingRef.current) return false
+      if (assignedVolunteerBlockedRef.current) {
+        show(ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, 'alert')
+        return false
+      }
       if (
         isForeignShiftLeadEvent({
           viewerId: user.id,
@@ -545,6 +579,7 @@ export function EventFormPage({
       const result = await saveEventForm({
         draft: draftToSave,
         shiftLeadId: user.id,
+        viewerId: user.id,
         vehicleKinds: currentLookups.vehicleKinds,
         districts: currentLookups.districts,
         roads: currentLookups.roads,
@@ -842,6 +877,7 @@ export function EventFormPage({
 
   const foreignEditPending =
     !cockpitPreviewing &&
+    !assignedVolunteerBlocked &&
     isForeignShiftLeadEvent({
       viewerId: userId,
       shiftLeadId: draft?.shift_lead_id,
@@ -854,7 +890,8 @@ export function EventFormPage({
     overnightPrompt !== null ||
     pickerOpen ||
     sheetResponderKey !== null ||
-    foreignEditPending
+    foreignEditPending ||
+    assignedEditDialog
 
   useRevealFirstError(submitAttempt)
 
@@ -1022,6 +1059,20 @@ export function EventFormPage({
       <EmptyState
         icon={<UserRound size={40} strokeWidth={1.75} />}
         title="אין לך הרשאה לפעולה זו."
+        action={
+          <Button variant="secondary" onClick={() => onCancel()}>
+            חזרה
+          </Button>
+        }
+      />
+    )
+  }
+
+  if (loadState === 'assigned_blocked') {
+    return (
+      <EmptyState
+        icon={<UserRound size={40} strokeWidth={1.75} />}
+        title={ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR}
         action={
           <Button variant="secondary" onClick={() => onCancel()}>
             חזרה
@@ -1718,12 +1769,23 @@ export function EventFormPage({
         <button
           type="button"
           className="cockpit-edit-veil"
-          onClick={() => onRequestCockpitEdit?.()}
+          onClick={() => {
+            if (assignedVolunteerBlocked) {
+              setAssignedEditDialog(true)
+              return
+            }
+            onRequestCockpitEdit?.()
+          }}
         >
           <span className="cockpit-edit-veil__label t-section">{COCKPIT_CLICK_TO_EDIT}</span>
         </button>
       ) : null}
       </div>
+
+      <AssignedVolunteerEditBlockedDialog
+        open={assignedEditDialog}
+        onClose={() => setAssignedEditDialog(false)}
+      />
 
       <Dialog
         open={foreignEditPending}

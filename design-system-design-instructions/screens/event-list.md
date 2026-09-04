@@ -39,8 +39,9 @@ Row click → event detail. Super Admin only (not regular admin / אחמ״ש): r
 
 ## Status logic (viewer-relative — from product spec)
 
-- Desktop **table** column: compact 4-node pipeline + current stamp (`אירוע בהזנה` / `ממתין לתיעוד` / `תועד חלקית` / `הושלם`); no participation override.
-- Cards / detail / form stamps: Event `done` → `הושלם`; `partial` → `תועד חלקית`; `in_progress` → `ממתין לתיעוד`; `draft` → `אירוע בהזנה`.
+- Desktop **table** column: compact 4-node pipeline + current stamp (`אירוע בהזנה` / `ממתין לתיעוד` / `תועד חלקית` / `הושלם`); no participation override. Exception for אחמ״ש: if the event would otherwise be `הושלם` but any responder `total_km` is still missing, the last node stays on the `done` slot but uses `--status-alert` and the label `חסר ק״מ`. Responder `done` in the DB is unchanged.
+- Unit **cards** (mobile אחמ״ש list): same overlay — stamp `חסר ק״מ` / `--status-alert` instead of green `הושלם` when KM is missing. Mine-list / fill stamps stay `הושלם` for the responder. If their own `total_km` is still null, add caption `אחמ״ש טרם הזין ק״מ` under that green stamp (red `--status-alert`) — it does not replace `הושלם`. Those rows stay on `ממתינים לתיעוד` until the lead enters KM.
+- Cards / detail / form stamps otherwise: Event `done` → `הושלם`; `partial` → `תועד חלקית`; `in_progress` → `ממתין לתיעוד`; `draft` → `אירוע בהזנה`.
 - Cards / detail only: viewer's own open participation may still override to `ממתין לתיעוד שלך` / `טיוטה נשמרה`.
 
 ## States

@@ -85,6 +85,11 @@ export function isEventIncomplete(event: EventListItem): boolean {
   return missingEventFields(event).size > 0
 }
 
+/** True when any assigned responder still has null `total_km` (0 is filled). */
+export function eventHasMissingResponderKm(event: EventListItem): boolean {
+  return missingEventFields(event).has('responder_km')
+}
+
 /** Split a unit list so incomplete events can be pinned above the rest. */
 export function partitionIncompleteEvents(events: EventListItem[]): {
   incomplete: EventListItem[]

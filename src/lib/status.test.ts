@@ -4,6 +4,10 @@ import {
   EVENT_STATUS_ORDER,
   eventStamp,
   eventStatusTrailSteps,
+  leadKmPendingNote,
+  mineInboxIsOpen,
+  overlayMissingKmOnDoneStamp,
+  reportingDocumentationStamp,
   shiftStamp,
   splitRespondersByParticipation,
 } from './status'
@@ -82,5 +86,73 @@ describe('eventStatusTrailSteps', () => {
       'past',
       'current',
     ])
+  })
+
+  it('keeps the last node on done but labels it חסר ק״מ when KM is missing', () => {
+    const steps = eventStatusTrailSteps('done', { missingKm: true })
+    expect(steps.map((step) => step.phase)).toEqual(['past', 'past', 'past', 'current'])
+    expect(steps[3]).toMatchObject({
+      status: 'done',
+      label: 'חסר ק״מ',
+      tone: 'alert',
+      phase: 'current',
+    })
+    expect(steps.slice(0, 3).every((step) => step.tone !== 'alert')).toBe(true)
+  })
+
+  it('does not overlay חסר ק״מ when the trail is not yet הושלם', () => {
+    const steps = eventStatusTrailSteps('partial', { missingKm: true })
+    expect(steps[2]).toMatchObject({ label: 'תועד חלקית', tone: 'partial', phase: 'current' })
+    expect(steps[3]).toMatchObject({ label: 'הושלם', tone: 'done', phase: 'future' })
+  })
+})
+
+describe('reportingDocumentationStamp', () => {
+  it('maps done + missing KM to red חסר ק״מ without inventing a status', () => {
+    expect(reportingDocumentationStamp('done', true)).toEqual({
+      label: 'חסר ק״מ',
+      tone: 'alert',
+    })
+    expect(reportingDocumentationStamp('done', false)).toEqual({
+      label: 'הושלם',
+      tone: 'done',
+    })
+  })
+
+  it('does not override earlier pipeline stamps even if KM is missing', () => {
+    expect(reportingDocumentationStamp('partial', true)).toEqual(eventStamp('partial'))
+    expect(reportingDocumentationStamp('in_progress', true)).toEqual(eventStamp('in_progress'))
+  })
+
+  it('overlays only a green הושלם stamp', () => {
+    expect(overlayMissingKmOnDoneStamp({ label: 'הושלם', tone: 'done' }, true)).toEqual({
+      label: 'חסר ק״מ',
+      tone: 'alert',
+    })
+    expect(overlayMissingKmOnDoneStamp({ label: 'הושלם', tone: 'done' }, false)).toEqual({
+      label: 'הושלם',
+      tone: 'done',
+    })
+    expect(overlayMissingKmOnDoneStamp({ label: 'טיוטה נשמרה', tone: 'draft' }, true)).toEqual({
+      label: 'טיוטה נשמרה',
+      tone: 'draft',
+    })
+  })
+})
+
+describe('leadKmPendingNote', () => {
+  it('keeps הושלם and only notes that the lead has not logged KM', () => {
+    expect(leadKmPendingNote('done', null)).toBe('אחמ״ש טרם הזין ק״מ')
+    expect(leadKmPendingNote('done', 0)).toBeNull()
+    expect(leadKmPendingNote('done', 12)).toBeNull()
+    expect(leadKmPendingNote('in_progress', null)).toBeNull()
+    expect(leadKmPendingNote(null, null)).toBeNull()
+  })
+
+  it('keeps done-without-KM events on ממתינים לתיעוד', () => {
+    expect(mineInboxIsOpen('pending', null)).toBe(true)
+    expect(mineInboxIsOpen('done', null)).toBe(true)
+    expect(mineInboxIsOpen('done', 0)).toBe(false)
+    expect(mineInboxIsOpen('done', 12)).toBe(false)
   })
 })

@@ -55,6 +55,41 @@ describe('EventsTable incomplete pin', () => {
     expect(html.indexOf('event-card__type')).toBeLessThan(html.indexOf('incomplete-notice'))
   })
 
+  it('shows red חסר ק״מ on the last trail step when done but KM is missing', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventsTable, {
+        events: [
+          event({
+            status: 'done',
+            responders: [
+              {
+                id: 'r1',
+                responder_id: 'u1',
+                status: 'done',
+                total_km: null,
+                started_at: '2026-09-03T06:00:00+03:00',
+                ended_at: '2026-09-03T07:00:00+03:00',
+                profile: { full_name: 'אלכסנדר', callsign: '738' },
+              },
+            ],
+          }),
+        ],
+        onOpen: () => undefined,
+        incompleteNoticeFor: () => ({
+          fields: ['ק״מ'],
+          spoken: 'חסרים: ק״מ',
+        }),
+      }),
+    )
+
+    expect(html).toContain('חסר ק״מ')
+    expect(html).toContain('event-status-trail__node--tone-alert')
+    expect(html).toContain('event-status-trail__label--alert')
+    expect(html).toContain('פרטים חסרים:')
+    expect(html).not.toContain('event-status-trail__label--done')
+    expect(html).not.toContain('table-row--done')
+  })
+
   it('keeps done tint when the row is complete', () => {
     const html = renderToStaticMarkup(
       createElement(EventsTable, {

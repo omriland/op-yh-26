@@ -11,7 +11,8 @@ import {
   type ResponderFillErrors,
 } from '../lib/responderFill'
 import { loadFillByToken, saveFillByToken } from '../lib/responderFillToken'
-import { participationStamp } from '../lib/status'
+import { leadKmPendingNote, participationStamp } from '../lib/status'
+import { StampWithNote } from '../components/ui/StampWithNote'
 import {
   digitsOnly,
   formatDate,
@@ -37,7 +38,6 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { SelectField } from '../components/ui/SelectField'
-import { StampChip } from '../components/ui/StampChip'
 import { TextAreaField } from '../components/ui/TextAreaField'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
@@ -457,6 +457,7 @@ export function ResponderFillPage({
   }
 
   const stamp = participationStamp(ctx.participationStatus, true)
+  const kmNote = leadKmPendingNote(ctx.participationStatus, ctx.totalKm)
 
   return (
     <div className="responder-fill">
@@ -474,6 +475,7 @@ export function ResponderFillPage({
                   {ctx.updated_at
                     ? `הדיווח הושלם ב־${formatDateTime(ctx.updated_at)}. `
                     : 'הדיווח הושלם. '}
+                  {kmNote ? `${kmNote}. ` : ''}
                   רק אחמ״ש יכול לערוך לאחר סיום.
                 </p>
               ) : localSavedAt ? (
@@ -487,9 +489,9 @@ export function ResponderFillPage({
               )}
             </div>
             {justCompleted ? (
-              <StampChip label="הושלם" tone="done" press />
+              <StampWithNote label="הושלם" tone="done" press note={kmNote} />
             ) : (
-              <StampChip {...stamp} />
+              <StampWithNote {...stamp} note={kmNote} />
             )}
           </div>
         </div>

@@ -19,6 +19,7 @@ import {
   missingSearchEventIds,
   ownFillCompletableAt,
   ownParticipation,
+  ownResponderKm,
   partitionUnitEventsByWindow,
   searchUnitEventIds,
   unitEventsListHint,
@@ -26,9 +27,12 @@ import {
 } from '../lib/events'
 import {
   EVENT_FILTERS,
+  leadKmPendingNote,
   mineFillCtaLabel,
+  mineInboxIsOpen,
   participationStamp,
   viewerStamp,
+  overlayMissingKmOnDoneStamp,
   type EventStatus,
   type StampDescriptor,
 } from '../lib/status'
@@ -78,6 +82,7 @@ import {
   incompleteFieldLabels,
   incompleteNoticeLabel,
   missingEventFields,
+  eventHasMissingResponderKm,
   partitionIncompleteEvents,
 } from '../lib/eventIncomplete'
 
@@ -244,7 +249,7 @@ export function EventsPage({
   const stampFor = useMemo(
     () => (event: EventListItem) => {
       if (event.origin === 'shift') {
-        return shiftBornFillStamp({
+        const stamp = shiftBornFillStamp({
           status: event.status,
           police_event_id: event.police_event_id,
           treatment_detail: event.treatment_detail,
@@ -253,10 +258,15 @@ export function EventsPage({
           road_id: event.road?.name,
           treated_count: event.shared_treated?.length ?? 0,
         })
+        if (scope !== 'unit') return stamp
+        return overlayMissingKmOnDoneStamp(stamp, eventHasMissingResponderKm(event))
       }
       const mine = ownParticipation(event, user?.id)
       if (scope === 'mine') return participationStamp(mine ?? 'pending', true)
-      return viewerStamp(event.status, mine)
+      return overlayMissingKmOnDoneStamp(
+        viewerStamp(event.status, mine),
+        eventHasMissingResponderKm(event),
+      )
     },
     [scope, user?.id],
   )
@@ -294,8 +304,12 @@ export function EventsPage({
 
     // Open assignments first — the responder's list is a to-do list.
     return [...filtered].sort((a, b) => {
-      const aOpen = ownParticipation(a, user?.id) !== 'done' ? 0 : 1
-      const bOpen = ownParticipation(b, user?.id) !== 'done' ? 0 : 1
+      const aOpen = mineInboxIsOpen(ownParticipation(a, user?.id), ownResponderKm(a, user?.id))
+        ? 0
+        : 1
+      const bOpen = mineInboxIsOpen(ownParticipation(b, user?.id), ownResponderKm(b, user?.id))
+        ? 0
+        : 1
       return aOpen - bOpen
     })
   }, [events, filter, query, scope, user?.id, searchIds, unitWindow])
@@ -306,7 +320,9 @@ export function EventsPage({
     return partitionMineList(events, {
       dateOf: (event) => event.event_date,
       bucket: (event) =>
-        ownParticipation(event, user?.id) !== 'done' ? 'pending' : 'logged',
+        mineInboxIsOpen(ownParticipation(event, user?.id), ownResponderKm(event, user?.id))
+          ? 'pending'
+          : 'logged',
       today: jerusalemToday(),
       windowsLoaded: loggedWindows,
     })
@@ -317,7 +333,9 @@ export function EventsPage({
   }, [loggedQuery, mineSections])
   const openMineCount = useMemo(() => {
     if (scope !== 'mine' || !events) return 0
-    return events.filter((event) => ownParticipation(event, user?.id) !== 'done').length
+    return events.filter((event) =>
+      mineInboxIsOpen(ownParticipation(event, user?.id), ownResponderKm(event, user?.id)),
+    ).length
   }, [events, scope, user?.id])
 
   return (
@@ -475,6 +493,7 @@ export function EventsPage({
             onQueryChange={setLoggedQuery}
             stampFor={stampFor}
             onOpen={onOpen}
+            userId={user?.id}
             hasMore={mineSections.hasMoreLogged}
             onLoadMore={() => setLoggedWindows((windows) => windows + 1)}
           />
@@ -647,6 +666,7 @@ function MineLoggedList({
   onQueryChange,
   stampFor,
   onOpen,
+  userId,
   hasMore,
   onLoadMore,
 }: {
@@ -655,6 +675,7 @@ function MineLoggedList({
   onQueryChange: (value: string) => void
   stampFor: (event: EventListItem) => StampDescriptor
   onOpen: (eventId: string) => void
+  userId?: string
   hasMore: boolean
   onLoadMore: () => void
 }) {
@@ -695,6 +716,7 @@ function MineLoggedList({
               key={event.id}
               event={event}
               stamp={stampFor(event)}
+              leadKmNote={leadKmPendingNote(ownParticipation(event, userId), ownResponderKm(event, userId))}
               onOpen={onOpen}
             />
           ))}
@@ -741,6 +763,7 @@ function EventCards({
                 key={event.id}
                 event={event}
                 stamp={stampFor(event)}
+                leadKmNote={leadKmPendingNote(mineStatus, ownResponderKm(event, userId))}
                 onOpen={onOpen}
                 onFill={fillLabel && onFill ? onFill : undefined}
                 fillLabel={fillLabel ?? undefined}
@@ -789,6 +812,7 @@ function EventCards({
             key={event.id}
             event={event}
             stamp={stampFor(event)}
+            leadKmNote={leadKmPendingNote(mineStatus, ownResponderKm(event, userId))}
             onOpen={onOpen}
             onFill={fillLabel && onFill ? onFill : undefined}
             fillLabel={fillLabel ?? undefined}

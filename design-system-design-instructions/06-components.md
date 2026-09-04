@@ -73,6 +73,7 @@ Statuses only. Never for categories, roles, or counts.
 | Status label | Ink |
 |---|---|
 | `הושלם` | `--status-done` |
+| `חסר ק״מ` | `--status-alert` — אחמ״ש lists only, when documentation is `done` but responder KM is still missing |
 | `תועד חלקית` | `--status-partial` |
 | `ממתין לתיעוד` | `--status-pending` |
 | `ממתין לתיעוד שלך` / `ממתין לכונן` | `--status-pending` |

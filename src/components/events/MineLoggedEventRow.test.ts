@@ -43,9 +43,25 @@ describe('MineLoggedEventRow', () => {
     expect(html).toContain('פינוי רכב')
     expect(html).toContain('כביש 6 · מחלף אייל')
     expect(html).toContain('הושלם')
+    expect(html).not.toContain('אחמ״ש טרם הזין ק״מ')
     expect(html).toContain('12345')
     expect(html).not.toContain('השלמת התיעוד שלי')
     expect(html).not.toContain('פרטי האירוע')
     expect(html).toContain('list-rows__item')
+  })
+
+  it('keeps הושלם and notes that the lead has not logged KM', () => {
+    const html = renderToStaticMarkup(
+      createElement(MineLoggedEventRow, {
+        event: event(),
+        stamp: { label: 'הושלם', tone: 'done' },
+        leadKmNote: 'אחמ״ש טרם הזין ק״מ',
+        onOpen: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('הושלם')
+    expect(html).toContain('stamp--done')
+    expect(html).toContain('אחמ״ש טרם הזין ק״מ')
   })
 })

@@ -16,7 +16,9 @@ import { geocodePlaceQuery } from '../lib/googlePlaces'
 import { saveEventGeocodePin } from '../lib/cockpit'
 import { SYSTEM_DISTRICT_NAMES, isUrbanRoadName } from '../lib/systemDistricts'
 import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
-import { mineFillCtaLabel, cancelledStamp, participationStamp, viewerStamp } from '../lib/status'
+import { mineFillCtaLabel, cancelledStamp, leadKmPendingNote, participationStamp, viewerStamp } from '../lib/status'
+import { StampChip } from '../components/ui/StampChip'
+import { StampWithNote } from '../components/ui/StampWithNote'
 import {
   formatDate,
   formatEndTime,
@@ -29,14 +31,16 @@ import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
 import { EventLeadLedgerRows } from '../components/events/EventShiftLeadsFields'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
+import { AssignedVolunteerEditBlockedDialog } from '../components/events/AssignedVolunteerEditBlockedDialog'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
+import { isAssignedVolunteerEventEditBlocked } from '../lib/assignedVolunteerEventEdit'
+import { mapSecondaryLeadRows } from '../lib/eventShiftLeads'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Avatar } from '../components/ui/Avatar'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { OverflowMenu } from '../components/ui/OverflowMenu'
 import { Skeleton } from '../components/ui/Skeleton'
-import { StampChip } from '../components/ui/StampChip'
 import { useToast } from '../components/ui/Toast'
 import { ShiftBornFillPage } from './ShiftBornFillPage'
 
@@ -67,6 +71,7 @@ export function EventDetailPage({
   const [deleting, setDeleting] = useState(false)
   const [mapFailed, setMapFailed] = useState(false)
   const [geocodeCoords, setGeocodeCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [assignedEditBlockedOpen, setAssignedEditBlockedOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -196,6 +201,13 @@ export function EventDetailPage({
   }
 
   const mine = event.responders.find((row) => row.responder_id === user?.id)?.status ?? null
+  const mineKm = event.responders.find((row) => row.responder_id === user?.id)?.total_km ?? null
+  const mineLeadKmNote = leadKmPendingNote(mine, mineKm)
+  const assignedEditBlocked = isAssignedVolunteerEventEditBlocked({
+    viewerId: user?.id,
+    responderIds: event.responders.map((row) => row.responder_id),
+    secondaryLeadIds: mapSecondaryLeadRows(event.secondary_leads).map((row) => row.user_id),
+  })
   const doneCount = event.responders.filter((row) => row.status === 'done').length
   const eventLabel = event.police_event_id ? `אירוע ${event.police_event_id}` : 'אירוע ללא מספר'
   const subLine = [
@@ -231,6 +243,22 @@ export function EventDetailPage({
     onBack()
   }
 
+  function requestEventEdit() {
+    if (assignedEditBlocked) {
+      setAssignedEditBlockedOpen(true)
+      return
+    }
+    onEdit?.()
+  }
+
+  function requestLeadFieldsEdit(responderId: string) {
+    if (assignedEditBlocked) {
+      setAssignedEditBlockedOpen(true)
+      return
+    }
+    onEditLeadFields?.(responderId)
+  }
+
   const letterhead = (
     <div className="detail__letterhead">
       {backButton}
@@ -247,14 +275,14 @@ export function EventDetailPage({
         </div>
         <span className="event-stamps">
           {event.is_cancelled ? <StampChip {...cancelledStamp()} header /> : null}
-          <StampChip {...viewerStamp(event.status, mine)} header />
+          <StampWithNote {...viewerStamp(event.status, mine)} header note={mineLeadKmNote} />
         </span>
       </div>
 
       {canEdit || canDelete ? (
         <div className="detail__actions">
           {canEdit ? (
-            <Button variant="secondary" onClick={onEdit}>
+            <Button variant="secondary" onClick={requestEventEdit}>
               עריכת אירוע
             </Button>
           ) : null}
@@ -383,7 +411,7 @@ export function EventDetailPage({
                   }
                   onEditLeadFields={
                     onEditLeadFields
-                      ? () => onEditLeadFields(responder.responder_id)
+                      ? () => requestLeadFieldsEdit(responder.responder_id)
                       : undefined
                   }
                   showLeadKm={canSeeLeadKm}
@@ -398,6 +426,11 @@ export function EventDetailPage({
           )}
         </section>
       </div>
+
+      <AssignedVolunteerEditBlockedDialog
+        open={assignedEditBlockedOpen}
+        onClose={() => setAssignedEditBlockedOpen(false)}
+      />
 
       <Dialog
         open={confirmDelete}
@@ -476,7 +509,10 @@ function ResponderCard({
               </span>
             </span>
           </span>
-          <StampChip {...participationStamp(responder.status, isViewer)} />
+          <StampWithNote
+            {...participationStamp(responder.status, isViewer)}
+            note={isViewer ? leadKmPendingNote(responder.status, responder.total_km) : null}
+          />
           <ChevronDown
             size={20}
             strokeWidth={1.75}

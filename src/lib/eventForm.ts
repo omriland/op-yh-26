@@ -28,6 +28,7 @@ import {
   mapSecondaryLeadRows,
   type SecondaryLead,
 } from './eventShiftLeads'
+import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocked } from './assignedVolunteerEventEdit'
 
 export type LookupOption = { id: string; name: string; code?: string | null }
 
@@ -986,6 +987,7 @@ export function mergeAssignmentIds(
 export async function saveEventForm(input: {
   draft: EventFormDraft
   shiftLeadId: string
+  viewerId?: string
   vehicleKinds: LookupOption[]
   districts: LookupOption[]
   roads?: LookupOption[]
@@ -1016,6 +1018,16 @@ export async function saveEventForm(input: {
   const rejectSelfAssign = Boolean(input.blockSelfAssign) || !draft.id
   if (rejectSelfAssign && createIncludesSelfAssign(shiftLeadId, draft.responders)) {
     return { ok: false, error: SELF_ASSIGN_ON_CREATE_ERROR }
+  }
+  if (
+    draft.id &&
+    isAssignedVolunteerEventEditBlocked({
+      viewerId: input.viewerId ?? shiftLeadId,
+      responderIds: draft.responders.map((row) => row.responder_id),
+      secondaryLeadIds: (draft.secondary_leads ?? []).map((row) => row.user_id),
+    })
+  ) {
+    return { ok: false, error: ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR }
   }
 
   const fieldErrors = canPersistEventDraft(draft, districts, {

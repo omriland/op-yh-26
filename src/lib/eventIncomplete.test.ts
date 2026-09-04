@@ -4,6 +4,7 @@ import {
   incompleteFieldLabels,
   incompleteNoticeLabel,
   isEventIncomplete,
+  eventHasMissingResponderKm,
   missingEventFields,
   partitionIncompleteEvents,
 } from './eventIncomplete'
@@ -68,7 +69,13 @@ describe('missingEventFields', () => {
     expect(missingEventFields(event({ responders: [responder({ total_km: null })] }))).toEqual(
       new Set(['responder_km']),
     )
+    expect(eventHasMissingResponderKm(event({ responders: [responder({ total_km: null })] }))).toBe(
+      true,
+    )
     expect(missingEventFields(event({ responders: [responder({ total_km: 0 })] }))).toEqual(new Set())
+    expect(eventHasMissingResponderKm(event({ responders: [responder({ total_km: 0 })] }))).toBe(
+      false,
+    )
     expect(
       missingEventFields(
         event({

@@ -1,6 +1,6 @@
 import { type MouseEvent } from 'react'
 import { Hourglass } from 'lucide-react'
-import { StampChip } from '../ui/StampChip'
+import { StampWithNote } from '../ui/StampWithNote'
 import { Button } from '../ui/Button'
 import { HoverTip } from '../ui/HoverTip'
 import { formatDate, monoClass } from '../../lib/format'
@@ -16,6 +16,8 @@ import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
 type EventCardProps = {
   event: EventListItem
   stamp: StampDescriptor
+  /** Responder archive: lead has not entered KM yet. Stamp stays הושלם. */
+  leadKmNote?: string | null
   onOpen: (eventId: string) => void
   /** Mine list: open participation → footer CTA */
   onFill?: (eventId: string) => void
@@ -34,6 +36,7 @@ type EventCardProps = {
 export function EventCard({
   event,
   stamp,
+  leadKmNote,
   onOpen,
   onFill,
   fillLabel,
@@ -114,7 +117,7 @@ export function EventCard({
       </button>
       <EventFrozenNotice flags={event} />
       <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>
-        <StampChip {...stamp} />
+        <StampWithNote {...stamp} note={leadKmNote} />
       </button>
       {onFill && fillLabel ? (
         <div className="event-card__fill">

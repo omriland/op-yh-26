@@ -451,6 +451,12 @@ textarea.field__input {
   border-style: dashed;
 }
 
+.stamp--alert {
+  --stamp-ink: var(--status-alert);
+  --stamp-tint: var(--status-alert-tint);
+  --stamp-text: var(--status-alert-on-tint);
+}
+
 .stamp--header {
   padding: 6px 14px;
   font-size: 13px;
@@ -563,6 +569,11 @@ textarea.field__input {
   border-style: dashed;
 }
 
+.event-status-trail__node--tone-alert {
+  border-color: var(--status-alert);
+  background: var(--status-alert);
+}
+
 .event-status-trail__label {
   width: max-content;
   max-width: none;
@@ -586,6 +597,10 @@ textarea.field__input {
 
 .event-status-trail__label--draft {
   color: var(--status-draft);
+}
+
+.event-status-trail__label--alert {
+  color: var(--status-alert-on-tint);
 }
 
 .table tbody td.table-cell--status {
@@ -863,6 +878,19 @@ textarea.field__input {
   padding: var(--space-3) var(--space-4);
   border-block-end: 1px solid var(--stroke-hairline);
   background: var(--surface-raised);
+}
+
+.stamp-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: end;
+}
+
+.stamp-stack__note {
+  max-width: 11rem;
+  color: var(--status-alert);
 }
 
 .event-card__stamp {

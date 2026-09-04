@@ -1,4 +1,4 @@
-import { StampChip } from '../ui/StampChip'
+import { StampWithNote } from '../ui/StampWithNote'
 import { formatDate, monoClass } from '../../lib/format'
 import type { StampDescriptor } from '../../lib/status'
 import type { EventListItem } from '../../lib/events'
@@ -9,10 +9,12 @@ import { EventFrozenMark } from './EventFrozenMark'
 type MineLoggedEventRowProps = {
   event: EventListItem
   stamp: StampDescriptor
+  /** Responder archive: lead has not entered KM yet. Stamp stays הושלם. */
+  leadKmNote?: string | null
   onOpen: (eventId: string) => void
 }
 
-export function MineLoggedEventRow({ event, stamp, onOpen }: MineLoggedEventRowProps) {
+export function MineLoggedEventRow({ event, stamp, leadKmNote, onOpen }: MineLoggedEventRowProps) {
   const place = [event.road?.name, event.location].filter(Boolean).join(' · ')
   const idLabel =
     event.origin === 'shift'
@@ -39,7 +41,7 @@ export function MineLoggedEventRow({ event, stamp, onOpen }: MineLoggedEventRowP
             ) : null}
           </span>
         </span>
-        <StampChip {...stamp} />
+        <StampWithNote {...stamp} note={leadKmNote} />
       </button>
     </li>
   )
