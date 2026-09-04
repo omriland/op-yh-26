@@ -147,5 +147,13 @@ describe('shouldKeepLiveCreateDraft', () => {
         initialEventDate: empty.event_date,
       }),
     ).toBe(false)
+    expect(
+      shouldKeepLiveCreateDraft({
+        eventId: undefined,
+        loadState: 'assigned_blocked',
+        draft: draft({ police_event_id: '1' }),
+        initialEventDate: empty.event_date,
+      }),
+    ).toBe(false)
   })
 })
