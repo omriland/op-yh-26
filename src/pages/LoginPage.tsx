@@ -3,9 +3,16 @@ import { AlertCircle, Download, KeyRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { monoClass } from '../lib/format'
 import { passwordStrengthError } from '../lib/passwordRules'
+import {
+  readBrowserPassword,
+  readRememberLogin,
+  storeBrowserPassword,
+  writeRememberLogin,
+} from '../lib/rememberLogin'
 import { timingSafeEqual } from '../lib/timingSafeEqual'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
+import { Checkbox } from '../components/ui/Checkbox'
 import { StampChip } from '../components/ui/StampChip'
 import { PasswordField, TextField } from '../components/ui/TextField'
 import { captureEvent } from '../lib/posthog'
@@ -50,8 +57,9 @@ export function LoginPage({
     signOut,
   } = useAuth()
   const [mode, setMode] = useState<Mode>(forceSetPassword ? 'set-password' : 'signin')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => readRememberLogin().email ?? '')
   const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(() => readRememberLogin().remember)
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -64,6 +72,18 @@ export function LoginPage({
     if (!forceSetPassword && !passwordSetupReason) return
     setMode((current) => (current === 'password-set' ? current : 'set-password'))
   }, [forceSetPassword, passwordSetupReason])
+
+  useEffect(() => {
+    let cancelled = false
+    void readBrowserPassword().then((cred) => {
+      if (cancelled || !cred) return
+      setEmail((current) => current || cred.email)
+      setPassword((current) => current || cred.password)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!showAndroidCta) return
@@ -84,12 +104,15 @@ export function LoginPage({
     event.preventDefault()
     setBusy(true)
     setError(null)
-    const result = await signIn(email.trim(), password)
+    const trimmedEmail = email.trim()
+    writeRememberLogin({ remember, email: trimmedEmail })
+    const result = await signIn(trimmedEmail, password)
     setBusy(false)
     if (result.error) {
       captureEvent('login_failed')
       setError(result.error)
     } else {
+      if (remember) void storeBrowserPassword(trimmedEmail, password)
       captureEvent('login_succeeded')
     }
   }
@@ -223,8 +246,9 @@ export function LoginPage({
               <div className="login__fields">
                 <TextField
                   label="דוא״ל"
+                  name="email"
                   type="email"
-                  autoComplete="email"
+                  autoComplete="username"
                   inputMode="email"
                   isolate
                   required
@@ -234,10 +258,18 @@ export function LoginPage({
 
                 <PasswordField
                   label="סיסמה"
+                  name="password"
                   autoComplete="current-password"
                   required
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                />
+
+                <Checkbox
+                  id="login-remember"
+                  label="זכור אותי במכשיר זה ל־30 יום"
+                  checked={remember}
+                  onChange={setRemember}
                 />
               </div>
 

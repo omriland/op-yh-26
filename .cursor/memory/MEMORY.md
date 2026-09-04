@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-04
+Last updated: 2026-09-04 (remember-me login)
 
 ## What this is
 
@@ -25,6 +25,7 @@ Repo: `yhpz-2026`
 ## Auth / admin seed
 
 - Auth: email + password (Supabase)
+- **Remember me (web, 2026-09-04):** login checkbox `זכור אותי במכשיר זה ל־30 יום` (default on). Session stays in `localStorage` for 30 days from that login; email is prefilled next time. Unchecked → `sessionStorage` (browser close signs out) and email is forgotten. Password is never stored by the app (browser password manager / Credential Management API only). Helper: `src/lib/rememberLogin.ts`.
 - Seed admin: `omriland@gmail.com` — profile עמרי לנדמן / callsign Admin — roles `admin`, `shift_lead`, **`super_admin`**
 - `super_admin`: DB-only grant (trigger blocks JWT insert/delete); not in role checkboxes/invite. Capabilities: set user password (`set_password`); change user email (`set_email` — Auth + `profiles.email`); impersonate active non–super-admin users (`impersonate` / `stop_impersonation` + `impersonation_audit`). Specs: `2026-08-11-yahpaz-super-admin-set-password-design.md`, `2026-08-11-yahpaz-super-admin-impersonation-design.md`
 - `profiles.must_change_password` + RPC `clear_must_change_password()` for force-change gate after admin-set password

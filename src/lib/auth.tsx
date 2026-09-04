@@ -26,6 +26,11 @@ import {
 import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
 import { identifyPosthogUser, resetPosthogUser } from './posthog'
 import { passwordStrengthError } from './passwordRules'
+import {
+  ensureRememberSessionUntil,
+  isRememberLoginEnabled,
+  isRememberSessionExpired,
+} from './rememberLogin'
 import { supabase } from './supabase'
 
 export type AppRole = 'admin' | 'shift_lead' | 'responder' | 'super_admin'
@@ -182,6 +187,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await supabase.auth.getSession()
       if (!mounted) return
 
+      const setupIntent = getPasswordSetupReason()
+      if (
+        data.session?.user &&
+        !setupIntent &&
+        isRememberLoginEnabled() &&
+        isRememberSessionExpired()
+      ) {
+        await supabase.auth.signOut({ scope: 'local' })
+        if (!mounted) return
+        setSession(null)
+        setProfile(null)
+        setRoles([])
+        setPasswordSetupReason(null)
+        setLoading(false)
+        return
+      }
+
+      if (data.session?.user && isRememberLoginEnabled()) {
+        ensureRememberSessionUntil()
+      }
+
       if (data.session?.user) {
         const prepared = await prepareSession(data.session)
         if (!mounted) return
@@ -215,6 +241,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // signs out any prior session first; clearing here dropped users on the
         // normal login screen (especially in a clean/incognito browser).
         setLoading(false)
+        return
+      }
+
+      if (
+        event !== 'PASSWORD_RECOVERY' &&
+        isRememberLoginEnabled() &&
+        isRememberSessionExpired()
+      ) {
+        await supabase.auth.signOut({ scope: 'local' })
         return
       }
 
