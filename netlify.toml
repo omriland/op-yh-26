@@ -28,6 +28,23 @@
     Cache-Control = "public, max-age=300"
 
 [[headers]]
+  for = "/ios/version.json"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/ios/manifest.plist"
+  [headers.values]
+    Content-Type = "application/xml"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/ios/Yahpaz.ipa"
+  [headers.values]
+    Content-Type = "application/octet-stream"
+    Cache-Control = "public, max-age=300"
+
+[[headers]]
   for = "/partner-api/openapi.yaml"
   [headers.values]
     Content-Type = "application/yaml; charset=utf-8"
