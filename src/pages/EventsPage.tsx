@@ -74,6 +74,12 @@ import {
   unitEventsCreatedByFilter,
   writeShowOthersCreatedEvents,
 } from '../lib/unitEventsScope'
+import {
+  incompleteFieldLabels,
+  incompleteNoticeLabel,
+  missingEventFields,
+  partitionIncompleteEvents,
+} from '../lib/eventIncomplete'
 
 type EventsPageProps = {
   scope: 'unit' | 'mine'
@@ -491,38 +497,25 @@ export function EventsPage({
           onLoadMore={() => setUnitWindows((windows) => windows + 1)}
         />
       ) : asTable ? (
-        <div className="stack-4">
-          <EventsTable
-            events={visible}
-            onOpen={onOpen}
-            onContextDelete={canListDelete ? openDeleteMenu : undefined}
-          />
-          {scope === 'unit' && unitWindow?.hasMore ? (
-            <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>
-              {UNIT_EVENTS_LOAD_MORE_LABEL}
-            </Button>
-          ) : null}
-        </div>
+        <UnitTableList
+          scope={scope}
+          visible={visible}
+          onOpen={onOpen}
+          onContextDelete={canListDelete ? openDeleteMenu : undefined}
+          hasMore={scope === 'unit' && Boolean(unitWindow?.hasMore)}
+          onLoadMore={() => setUnitWindows((windows) => windows + 1)}
+        />
       ) : (
-        <div className="stack-4">
-          <DateGroups>
-            {grouped.map(([day, items]) => (
-              <DateGroup key={day} heading={formatDayHeading(day)}>
-                <EventCards
-                  events={items}
-                  stampFor={stampFor}
-                  onOpen={onOpen}
-                  onContextDelete={canListDelete ? openDeleteMenu : undefined}
-                />
-              </DateGroup>
-            ))}
-          </DateGroups>
-          {scope === 'unit' && unitWindow?.hasMore ? (
-            <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>
-              {UNIT_EVENTS_LOAD_MORE_LABEL}
-            </Button>
-          ) : null}
-        </div>
+        <UnitCardList
+          scope={scope}
+          visible={visible}
+          grouped={grouped}
+          stampFor={stampFor}
+          onOpen={onOpen}
+          onContextDelete={canListDelete ? openDeleteMenu : undefined}
+          hasMore={scope === 'unit' && Boolean(unitWindow?.hasMore)}
+          onLoadMore={() => setUnitWindows((windows) => windows + 1)}
+        />
       )}
 
       {canListDelete ? (
@@ -813,6 +806,124 @@ function EventCards({
         )
       })}
     </ul>
+  )
+}
+
+function UnitTableList({
+  scope,
+  visible,
+  onOpen,
+  onContextDelete,
+  hasMore,
+  onLoadMore,
+}: {
+  scope: 'unit' | 'mine'
+  visible: EventListItem[]
+  onOpen: (eventId: string) => void
+  onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
+  hasMore: boolean
+  onLoadMore: () => void
+}) {
+  const { incomplete, rest } =
+    scope === 'unit' ? partitionIncompleteEvents(visible) : { incomplete: [], rest: visible }
+
+  return (
+    <div className="stack-4">
+      {incomplete.length > 0 ? (
+        <EventsTable
+          caption="דורשים השלמת פרטים"
+          events={incomplete}
+          onOpen={onOpen}
+          onContextDelete={onContextDelete}
+          incompleteNoticeFor={(event) => {
+            const fields = missingEventFields(event)
+            return {
+              fields: incompleteFieldLabels(fields),
+              spoken: incompleteNoticeLabel(fields),
+            }
+          }}
+        />
+      ) : null}
+      {rest.length > 0 ? (
+        <EventsTable events={rest} onOpen={onOpen} onContextDelete={onContextDelete} />
+      ) : null}
+      {hasMore ? (
+        <Button variant="secondary" block onClick={onLoadMore}>
+          {UNIT_EVENTS_LOAD_MORE_LABEL}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+function UnitCardList({
+  scope,
+  visible,
+  grouped,
+  stampFor,
+  onOpen,
+  onContextDelete,
+  hasMore,
+  onLoadMore,
+}: {
+  scope: 'unit' | 'mine'
+  visible: EventListItem[]
+  grouped: [string, EventListItem[]][]
+  stampFor: (event: EventListItem) => StampDescriptor
+  onOpen: (eventId: string) => void
+  onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
+  hasMore: boolean
+  onLoadMore: () => void
+}) {
+  const { incomplete: incompleteEvents } =
+    scope === 'unit' ? partitionIncompleteEvents(visible) : { incomplete: [] }
+  const incompleteIds = new Set(incompleteEvents.map((e) => e.id))
+  const restGrouped =
+    scope === 'unit' && incompleteEvents.length > 0
+      ? grouped.map(([day, items]) => [day, items.filter((e) => !incompleteIds.has(e.id))] as [string, EventListItem[]]).filter(([, items]) => items.length > 0)
+      : grouped
+
+  return (
+    <div className="stack-4">
+      {incompleteEvents.length > 0 ? (
+        <section className="events-incomplete-section">
+          <h2 className="events-incomplete-heading">דורשים השלמת פרטים</h2>
+          <ul className="stack-3">
+            {incompleteEvents.map((event) => {
+              const fields = missingEventFields(event)
+              return (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  stamp={stampFor(event)}
+                  onOpen={onOpen}
+                  onContextDelete={onContextDelete}
+                  incompleteFields={incompleteFieldLabels(fields)}
+                  incompleteSpoken={incompleteNoticeLabel(fields)}
+                />
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
+      <DateGroups>
+        {restGrouped.map(([day, items]) => (
+          <DateGroup key={day} heading={formatDayHeading(day)}>
+            <EventCards
+              events={items}
+              stampFor={stampFor}
+              onOpen={onOpen}
+              onContextDelete={onContextDelete}
+            />
+          </DateGroup>
+        ))}
+      </DateGroups>
+      {hasMore ? (
+        <Button variant="secondary" block onClick={onLoadMore}>
+          {UNIT_EVENTS_LOAD_MORE_LABEL}
+        </Button>
+      ) : null}
+    </div>
   )
 }
 

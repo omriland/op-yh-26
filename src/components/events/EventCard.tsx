@@ -11,6 +11,7 @@ import { policeEventLabel } from '../../lib/shiftBornEvents'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventFrozenNotice } from './EventFrozenNotice'
+import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
 
 type EventCardProps = {
   event: EventListItem
@@ -25,6 +26,9 @@ type EventCardProps = {
   overdue?: boolean
   /** Super Admin unit list: right-click / long-press to delete. */
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
+  /** Unit list: missing required fields as a ledger line under the header. */
+  incompleteFields?: string[]
+  incompleteSpoken?: string
 }
 
 export function EventCard({
@@ -36,6 +40,8 @@ export function EventCard({
   mode = 'default',
   overdue = false,
   onContextDelete,
+  incompleteFields,
+  incompleteSpoken,
 }: EventCardProps) {
   const place = [event.road?.name, event.location].filter(Boolean).join(' · ')
   const inbox = mode === 'inbox'
@@ -57,6 +63,9 @@ export function EventCard({
         'event-card-shell',
         overdue ? 'event-card-shell--overdue' : '',
         manualInbox ? 'event-card-shell--manual' : '',
+        incompleteFields && incompleteFields.length > 0 && !overdue
+          ? 'event-card-shell--incomplete'
+          : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -96,6 +105,12 @@ export function EventCard({
             </span>
           ) : null}
         </span>
+        {incompleteFields && incompleteFields.length > 0 ? (
+          <IncompleteFieldsNotice
+            fields={incompleteFields}
+            spoken={incompleteSpoken ?? `חסרים: ${incompleteFields.join(' · ')}`}
+          />
+        ) : null}
       </button>
       <EventFrozenNotice flags={event} />
       <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>

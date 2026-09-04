@@ -33,6 +33,8 @@ The landing screen after login. Role-filtered: shift-leads/admins land on unit `
 | כוננים | done-count fraction `2/3` | mono |
 | סטטוס תיעוד | compact pipeline + stamp | event-level position dots + current stamp label (not viewer-relative) |
 
+**Completion queue (אחמ״ש unit list):** events with missing required fields pin above the rest under `דורשים השלמת פרטים`, including `ממתין לתיעוד`. This is a ledger queue, not an alert: heading uses `--type-label` / `--text-secondary` (desktop as `<caption>` inside the table wrap; mobile as `h2` above the card stack). Data rows stay unwashed. Missing fields are a second line — desktop: full-width meta row under the data row (`--surface-sunken`, dotted hairline); mobile: own block under the card header (hairline, no rail, no tint brick). Line anatomy: marker `השלמה` in `--status-partial-on-tint` (never `--status-partial` on paper — fails contrast) + field names as dotted form-blanks (`--text-primary`, `1.5px dotted var(--status-partial)`). Not a stamp. Not stuffed under סוג אירוע. Pin set and field checks stay in `eventIncomplete.ts`.
+
 Row click → event detail. Super Admin only (not regular admin / אחמ״ש): right-click a table row, or long-press a mobile card, opens a one-item menu `מחיקה` (destructive) at the pointer. Confirm dialog matches event detail: title `למחוק את האירוע 12345?` (or `למחוק את האירוע?` when no police id), body `הפעולה תמחק גם את נתוני המתנדבים המשויכים. לא ניתן לשחזר.`, destructive `מחיקה` / secondary `ביטול`. Success toast `האירוע נמחק`. Do not offer this on `האירועים שלי`. Sort default: `event_date` desc. Content max-width uses `page--wide` (~20% past default).
 
 ## Status logic (viewer-relative — from product spec)

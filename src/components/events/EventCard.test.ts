@@ -174,6 +174,25 @@ describe('EventCard default (unit list)', () => {
     expect(html).not.toContain('event-card-shell--manual')
   })
 
+  it('shows the missing-fields notice on the unit list', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event(),
+        stamp,
+        onOpen: () => undefined,
+        incompleteFields: ['ק״מ'],
+        incompleteSpoken: 'חסרים: ק״מ',
+      }),
+    )
+
+    expect(html).toContain('event-card-shell--incomplete')
+    expect(html).toContain('incomplete-notice')
+    expect(html).toContain('פרטים חסרים:')
+    expect(html).toContain('ק״מ')
+    expect(html).toContain('חסרים: ק״מ')
+    expect(html).not.toContain('role="alert"')
+  })
+
   it('shows a snowflake on frozen unit-list cards', () => {
     const html = renderToStaticMarkup(
       createElement(EventCard, {

@@ -19,6 +19,9 @@ export type EventResponderSummary = {
   responder_id: string
   status: ParticipationStatus
   fill_completable_at?: string | null
+  total_km: number | null
+  started_at: string | null
+  ended_at: string | null
   profile: { full_name: string; callsign: string } | null
 }
 
@@ -86,6 +89,9 @@ export const EVENT_LIST_SELECT = `
     responder_id,
     status,
     fill_completable_at,
+    total_km,
+    started_at,
+    ended_at,
     profile:profiles(full_name, callsign)
   )
 `

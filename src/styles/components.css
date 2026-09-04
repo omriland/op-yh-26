@@ -800,6 +800,71 @@ textarea.field__input {
   flex-shrink: 0;
 }
 
+/* Completion-queue notice — ledger blanks, not an alert wash. */
+.event-card-shell--incomplete {
+  border-inline-start: 3px solid var(--status-alert);
+}
+
+.event-card .incomplete-notice {
+  margin-block-start: var(--space-1);
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.incomplete-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.incomplete-notice__mark {
+  flex: none;
+  color: var(--status-partial-on-tint);
+  font: 600 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+}
+
+.incomplete-notice__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.incomplete-notice__field {
+  color: var(--text-primary);
+  font: 400 12px/16px var(--font-ui);
+  border-block-end: 1.5px dotted var(--status-partial);
+  padding-block-end: 1px;
+}
+
+.events-incomplete-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.events-incomplete-heading {
+  margin: 0;
+  padding-block-start: var(--space-2);
+  padding-block-end: var(--space-2);
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+}
+
+.table caption.events-incomplete-heading {
+  caption-side: top;
+  text-align: start;
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 1px solid var(--stroke-hairline);
+  background: var(--surface-raised);
+}
+
 .event-card__stamp {
   grid-area: stamp;
   align-self: start;
@@ -2882,6 +2947,21 @@ html[data-keyboard-open] .event-form__footer {
   background: var(--status-done-tint);
 }
 
+.table--events tbody tr.table-row--needs-completion > td:first-child,
+.table--events tbody tr.table-row--completion-meta > td {
+  border-inline-start: 3px solid var(--status-alert);
+}
+
+.table--events tbody tr.table-row--completion-meta {
+  border-block-start: 1px dotted var(--stroke-hairline);
+}
+
+.table--events tbody tr.table-row--completion-meta td {
+  height: auto;
+  padding-block: var(--space-2);
+  vertical-align: middle;
+}
+
 .table-wrap--event-locations {
   overflow: visible;
 }
@@ -3191,6 +3271,15 @@ html[data-keyboard-open] .event-form__footer {
 
   .table--events tbody tr.table-row--done:hover {
     background: var(--status-done-tint);
+  }
+
+  .table--events tbody tr.table-row--needs-completion:hover + .table-row--completion-meta,
+  .table--events tbody tr.table-row--needs-completion:has(+ .table-row--completion-meta:hover) {
+    background: var(--accent-subtle);
+  }
+
+  .table--events tbody tr.table-row--completion-meta:hover {
+    background: var(--accent-subtle);
   }
 
   .table--event-locations tbody tr.table-row--missing-map:hover {
