@@ -424,7 +424,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
           </div>
         </section>
 
-        <section className="card card--disabled" aria-disabled="true" inert>
+        <section className="card">
           <h2 className="t-section">חיבורים</h2>
           <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
             חיבור חד־פעמי לבוט בטלגרם. אחרי האישור אפשר לדווח אירועים בצ׳אט.
@@ -441,9 +441,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
                   פתחו את הבוט בטלגרם ושלחו קישור חיבור. אחרי האישור יופיע כאן החיבור לביטול.
                 </p>
                 {isAdmin && onOpenBotSettings ? (
-                  <Button disabled onClick={onOpenBotSettings}>
-                    רישום בוט
-                  </Button>
+                  <Button onClick={onOpenBotSettings}>רישום בוט</Button>
                 ) : null}
               </div>
             ) : (
@@ -454,7 +452,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
                       <LedgerRow label="יישום" value={grant.name} />
                       <LedgerRow label="בתוקף עד" value={formatDateTime(grant.expires_at)} />
                     </Ledger>
-                    <Button variant="destructive" disabled onClick={() => setRevokeId(grant.id)}>
+                    <Button variant="destructive" onClick={() => setRevokeId(grant.id)}>
                       בטל גישה
                     </Button>
                   </div>
