@@ -16,6 +16,18 @@ git am /path/to/op-yh-26/docs/superpowers/patches/2026-09-03-yahpaz-android-ota.
 
 Verified against `omriland/yahpaz-android@main` (`9545bd1`) with `git apply --check`.
 
+Building a signed release APK requires the keystore behind the published builds
+(`CN=Yahpaz`, cert SHA-256 `b35ec91aca13ab524f0382e548f1a3d4ef66076271c77c6d8e1135e4bb373045`).
+Android rejects an update signed with any other key, so this must run on a
+machine that has it. To host 0.3.14 for manual install without prompting anyone:
+
+```bash
+cd yahpaz-android
+./gradlew :app:assembleRelease
+KEEP_MANIFEST=1 WEB_BRANCH=cursor/android-ota-updates-plan-9eb4 \
+  scripts/publish-apk-to-website.sh
+```
+
 Contents:
 
 | File | Change |

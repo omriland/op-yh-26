@@ -1,4 +1,4 @@
-From 8ca26c54ef7839728a61c2fe9b1be76589e7eb7a Mon Sep 17 00:00:00 2001
+From 3e5ac6bca0f758e0f0ed65ecb6872d4a6ed317ee Mon Sep 17 00:00:00 2001
 From: Cursor Agent <cursoragent@cursor.com>
 Date: Thu, 3 Sep 2026 18:33:18 +0000
 Subject: [PATCH] feat: in-app OTA updates via PackageInstaller
@@ -18,8 +18,8 @@ prompt rather than a hard block.
  .../main/kotlin/com/yahpz/domain/AppUpdate.kt |  56 +++++
  .../kotlin/com/yahpz/domain/AppUpdateTest.kt  |  58 +++++
  scripts/build-release-apk.sh                  |  16 +-
- scripts/publish-apk-to-website.sh             |  49 ++++-
- 10 files changed, 703 insertions(+), 39 deletions(-)
+ scripts/publish-apk-to-website.sh             |  64 +++++-
+ 10 files changed, 715 insertions(+), 42 deletions(-)
  create mode 100644 app/src/main/java/com/yahpz/responder/ApkUpdate.kt
 
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
@@ -948,10 +948,10 @@ index fcd161c..4c29f36 100755
  echo "Version: $WEB_PUBLIC/version.json (code=$VERSION_CODE name=$VERSION_NAME)"
  echo "URL: $APK_URL"
 diff --git a/scripts/publish-apk-to-website.sh b/scripts/publish-apk-to-website.sh
-index 6753ee5..acf3921 100755
+index 6753ee5..0e6219d 100755
 --- a/scripts/publish-apk-to-website.sh
 +++ b/scripts/publish-apk-to-website.sh
-@@ -1,6 +1,15 @@
+@@ -1,6 +1,19 @@
  #!/usr/bin/env bash
  # Publish a built APK + version.json into op-yh-26 (yahpz.com /android).
 +#
@@ -964,18 +964,36 @@ index 6753ee5..acf3921 100755
 +#   MIN_VERSION_CODE   Force floor for older clients. Defaults to this build,
 +#                      which forces everyone. Set it to the previous release to
 +#                      publish a soft (dismissible) update instead.
++#   WEB_BRANCH         Branch to commit onto in op-yh-26. An existing remote
++#                      branch is added to, not reset. Defaults to a new
++#                      per-version branch.
++#   WEB_BASE_BRANCH    Base for a new branch (default infra/bootstrap).
  set -euo pipefail
  ROOT="$(cd "$(dirname "$0")/.." && pwd)"
  APK_SRC="${1:-}"
-@@ -28,20 +37,44 @@ git pull origin infra/bootstrap
+@@ -22,26 +35,55 @@ if [[ ! -d "$WEB_ROOT/.git" ]]; then
+   git clone --depth 1 https://github.com/omriland/op-yh-26.git "$WEB_ROOT"
+ fi
+ cd "$WEB_ROOT"
+-git fetch origin infra/bootstrap
+-git checkout infra/bootstrap
+-git pull origin infra/bootstrap
++WEB_BASE_BRANCH="${WEB_BASE_BRANCH:-infra/bootstrap}"
++BRANCH="${WEB_BRANCH:-cursor/android-${VERSION_NAME}-website-2580}"
++
++git fetch origin "$WEB_BASE_BRANCH"
++if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
++  # Branch already exists (an open PR, say) — add to it rather than reset it.
++  git fetch origin "$BRANCH"
++  git checkout -B "$BRANCH" "origin/$BRANCH"
++else
++  git checkout -B "$BRANCH" "origin/$WEB_BASE_BRANCH"
++fi
  
  mkdir -p public/android
  cp "$APK_SRC" "public/android/$APK_NAME"
 -rm -f public/android/yahpaz.apk
 -cat > public/android/version.json <<JSON
-+
-+BRANCH="cursor/android-${VERSION_NAME}-website-2580"
-+git checkout -B "$BRANCH"
 +git add "public/android/$APK_NAME"
 +
 +if [[ "${KEEP_MANIFEST:-0}" == "1" ]]; then
