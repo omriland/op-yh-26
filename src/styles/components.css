@@ -646,15 +646,6 @@ textarea.field__input {
   background: var(--surface-raised);
 }
 
-.card--disabled {
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.card--disabled .btn:disabled {
-  opacity: 1;
-}
-
 @media (min-width: 1025px) {
   .card {
     padding: var(--space-5);

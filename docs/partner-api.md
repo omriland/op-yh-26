@@ -58,7 +58,7 @@ All calls are `POST` with `Content-Type: application/json`.
 
 ## 1. Link a volunteer (MCP-style connection)
 
-You never collect אבן דרך passwords. The volunteer logs in on yahpz.com and taps **אשר גישה**. There is **no** “connect” button on the profile — only your bot should send the link.
+You never collect אבן דרך passwords. The volunteer logs in on yahpz.com and taps **אשר גישה**. The volunteer's profile page also has its own "link with Telegram" entry point that starts the same flow — either path lands them on the same consent screen described below.
 
 ### 1.1 Open the consent page
 

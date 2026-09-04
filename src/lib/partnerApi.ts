@@ -23,6 +23,13 @@ export type PartnerClientInfo = {
   redirect_uri: string
 }
 
+export type PartnerApp = {
+  name: string
+  client_id: string
+  telegram_bot_username: string
+  redirect_uri: string
+}
+
 async function readFunctionPayload<T>(
   data: unknown,
   error: { context?: Response; message?: string } | null,
@@ -92,6 +99,16 @@ export async function fetchPartnerGrants(): Promise<
   })
   if (!result.ok) return result
   return { ok: true, grants: result.data.grants ?? [] }
+}
+
+export async function fetchPartnerApps(): Promise<
+  { ok: true; apps: PartnerApp[] } | { ok: false; error: string }
+> {
+  const result = await invokePartnerAuth<{ apps?: PartnerApp[] }>({
+    action: 'list_apps',
+  })
+  if (!result.ok) return result
+  return { ok: true, apps: result.data.apps ?? [] }
 }
 
 export async function revokePartnerGrant(

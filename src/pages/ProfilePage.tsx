@@ -4,7 +4,14 @@ import { useAuth, type AppRole } from '../lib/auth'
 import { formatDateTime, formatNumber, formatPhone, formatPlate, monoClass } from '../lib/format'
 import { formatLifetimeStatsUpdatedAt } from '../lib/profileLifetimeStats'
 import { addressKindLabel, fetchOwnAddresses, type UserAddressRow } from '../lib/userAddresses'
-import { fetchPartnerGrants, revokePartnerGrant, type PartnerGrant } from '../lib/partnerApi'
+import {
+  fetchPartnerApps,
+  fetchPartnerGrants,
+  revokePartnerGrant,
+  type PartnerApp,
+  type PartnerGrant,
+} from '../lib/partnerApi'
+import { buildPartnerAuthorizeUrl, randomOAuthState } from '../lib/partnerOAuth'
 import { canChooseDefaultVehicle } from '../lib/defaultVehicle'
 import {
   DEFAULT_VEHICLE_LABEL,
@@ -87,6 +94,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
   const [vehicleError, setVehicleError] = useState<string | null>(null)
   const [addresses, setAddresses] = useState<UserAddressRow[] | null>(null)
   const [grants, setGrants] = useState<PartnerGrant[] | null>(null)
+  const [apps, setApps] = useState<PartnerApp[] | null>(null)
   const [grantError, setGrantError] = useState<string | null>(null)
   const [revokeId, setRevokeId] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
@@ -149,6 +157,11 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
         setGrants([])
         setGrantError(result.error)
       }
+    })
+
+    fetchPartnerApps().then((result) => {
+      if (!active) return
+      setApps(result.ok ? result.apps : [])
     })
 
     return () => {
@@ -424,7 +437,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
           </div>
         </section>
 
-        <section className="card card--disabled" aria-disabled="true" inert>
+        <section className="card">
           <h2 className="t-section">חיבורים</h2>
           <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
             חיבור חד־פעמי לבוט בטלגרם. אחרי האישור אפשר לדווח אירועים בצ׳אט.
@@ -438,12 +451,24 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
               <div className="stack-3">
                 <p className="t-body">עדיין לא מחוברים.</p>
                 <p className="t-caption text-muted">
-                  פתחו את הבוט בטלגרם ושלחו קישור חיבור. אחרי האישור יופיע כאן החיבור לביטול.
+                  פתחו את הבוט בטלגרם ושלחו קישור חיבור, או קשרו ישירות מכאן. אחרי האישור יופיע כאן החיבור לביטול.
                 </p>
-                {isAdmin && onOpenBotSettings ? (
-                  <Button disabled onClick={onOpenBotSettings}>
-                    רישום בוט
+                {apps && apps.length > 0 ? (
+                  <Button
+                    onClick={() => {
+                      const url = buildPartnerAuthorizeUrl({
+                        clientId: apps[0].client_id,
+                        state: randomOAuthState(),
+                        origin: window.location.origin,
+                      })
+                      window.location.assign(url)
+                    }}
+                  >
+                    קישור לטלגרם
                   </Button>
+                ) : null}
+                {isAdmin && onOpenBotSettings ? (
+                  <Button onClick={onOpenBotSettings}>רישום בוט</Button>
                 ) : null}
               </div>
             ) : (
@@ -454,7 +479,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
                       <LedgerRow label="יישום" value={grant.name} />
                       <LedgerRow label="בתוקף עד" value={formatDateTime(grant.expires_at)} />
                     </Ledger>
-                    <Button variant="destructive" disabled onClick={() => setRevokeId(grant.id)}>
+                    <Button variant="destructive" onClick={() => setRevokeId(grant.id)}>
                       בטל גישה
                     </Button>
                   </div>
