@@ -449,10 +449,10 @@ Content-Type: application/json
 
 | HTTP | `error` | `code` | Meaning |
 |---|---|---|---|
-| 400 | קישור המעקב אינו תקין או שפג תוקפו. | `invalid` | Missing/unrecognized `track_token` |
+| 400 | קישור המעקב אינו תקין או שפג תוקפו. | `invalid` | `track_token` is blank/missing from the request |
 | 400 | קישור המעקב אינו תקין או שפג תוקפו. | `expired` | Token past its 7-day cap |
 | 400 | מיקום לא תקין. | `invalid` | `lat`/`lng` missing or out of range |
-| 409 | המעקב הסתיים. | `ended` | Tracking was stopped (`stop_live_track` / `complete` / assignment removed) |
+| 409 | המעקב הסתיים. | `ended` | Token not recognized, **or** tracking was stopped (`stop_live_track` / `complete` / assignment removed) — the server cannot tell these apart, so treat both the same: stop sending pings and call `start_live_track` again if the volunteer wants to keep sharing |
 
 On any of these, stop sending pings for that `track_token` and, if the volunteer wants to keep sharing, call `start_live_track` again to get a fresh token.
 
@@ -901,13 +901,13 @@ Replace with:
               schema:
                 $ref: "#/components/schemas/OkResponse"
         "400":
-          description: Invalid token, invalid lat/lng, or expired token
+          description: Blank track_token, out-of-range lat/lng, or an expired token
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorWithCode"
               examples:
-                invalidToken:
+                missingToken:
                   value:
                     error: קישור המעקב אינו תקין או שפג תוקפו.
                     code: invalid
@@ -920,7 +920,7 @@ Replace with:
                     error: מיקום לא תקין.
                     code: invalid
         "409":
-          description: Tracking already ended for this assignment
+          description: Token not recognized, or tracking already stopped for this assignment (the server cannot tell these apart)
           content:
             application/json:
               schema:
@@ -947,7 +947,7 @@ git commit -m "Document start_live_track/stop_live_track and the live-location p
 
 ---
 
-## Task 4: Final review
+### Task 4: Final review
 
 - [ ] Dispatch a final code-reviewer subagent over the whole diff (all three tasks together) against the spec at `docs/superpowers/specs/2026-09-04-yahpaz-telegram-live-trip-tracking-design.md` — confirm no scope creep (no frontend changes, no new tables, no changes to `responder-track/index.ts` itself), and that the "Known limitations" and "Consent scope" sections of the spec are still accurately reflected by what was built (nothing built here should have quietly added a new consent screen or scope check).
 - [ ] Use superpowers:finishing-a-development-branch to decide merge / PR / keep-as-is with the user.
