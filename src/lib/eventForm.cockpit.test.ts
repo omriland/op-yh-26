@@ -17,6 +17,8 @@ import {
   policeEventIdForCockpitSave,
   registerAbandonedEmptyEventHandler,
   sameDayPoliceEventIdCollides,
+  attachEventIdAfterFailedSave,
+  ownResumableEventId,
   type EventFormDraft,
   type LookupOption,
 } from './eventForm'
@@ -376,6 +378,61 @@ describe('sameDayPoliceEventIdCollides', () => {
         collides: true,
       }),
     ).toBe('')
+  })
+})
+
+describe('ownResumableEventId', () => {
+  const mine = {
+    id: 'evt-mine',
+    event_date: '2026-09-03',
+    police_event_id: '12345',
+    is_cancelled: false,
+    shift_lead_id: 'lead-1',
+  }
+
+  it('resumes the single own same-day row when the client still has no id', () => {
+    expect(
+      ownResumableEventId({
+        viewerLeadId: 'lead-1',
+        existing: [mine],
+      }),
+    ).toBe('evt-mine')
+  })
+
+  it('does not steal another lead’s event or guess among two of our own', () => {
+    expect(
+      ownResumableEventId({
+        viewerLeadId: 'lead-1',
+        existing: [{ ...mine, shift_lead_id: 'other' }],
+      }),
+    ).toBeNull()
+    expect(
+      ownResumableEventId({
+        viewerLeadId: 'lead-1',
+        existing: [mine, { ...mine, id: 'evt-mine-2' }],
+      }),
+    ).toBeNull()
+  })
+
+  it('does nothing once this form already has the row id', () => {
+    expect(
+      ownResumableEventId({
+        currentEventId: 'evt-mine',
+        viewerLeadId: 'lead-1',
+        existing: [mine],
+      }),
+    ).toBeNull()
+  })
+})
+
+describe('attachEventIdAfterFailedSave', () => {
+  it('keeps a create form pointed at the row that landed after a timed-out insert', () => {
+    const create = draft({ id: undefined, police_event_id: '12345' })
+    expect(attachEventIdAfterFailedSave(create, 'evt-landed').id).toBe('evt-landed')
+    expect(attachEventIdAfterFailedSave({ ...create, id: 'evt-existing' }, 'evt-landed').id).toBe(
+      'evt-existing',
+    )
+    expect(attachEventIdAfterFailedSave(create, undefined).id).toBeUndefined()
   })
 })
 

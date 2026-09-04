@@ -687,6 +687,33 @@ export type SameDayPoliceEventRow = {
   event_date: string
   police_event_id: string | null
   is_cancelled?: boolean
+  shift_lead_id?: string | null
+}
+
+/** Own same-day מספר אירוע after a create whose response never came back. */
+export function ownResumableEventId(input: {
+  currentEventId?: string | null
+  viewerLeadId: string
+  existing: Array<{
+    id: string
+    shift_lead_id?: string | null
+    is_cancelled?: boolean
+  }>
+}): string | null {
+  if (input.currentEventId) return null
+  const mine = input.existing.filter(
+    (row) => !row.is_cancelled && row.shift_lead_id === input.viewerLeadId,
+  )
+  return mine.length === 1 ? mine[0]!.id : null
+}
+
+/** Keep the form on the row that landed when the client saw a failed create. */
+export function attachEventIdAfterFailedSave<T extends { id?: string }>(
+  draft: T,
+  eventId?: string | null,
+): T {
+  if (!eventId || draft.id) return draft
+  return { ...draft, id: eventId }
 }
 
 export function sameDayPoliceEventIdCollides(input: {
@@ -725,12 +752,30 @@ export async function fetchSameDayPoliceEventIdRows(input: {
   if (!policeId || !eventDate) return []
   const { data, error } = await supabase
     .from('events')
-    .select('id, event_date, police_event_id, is_cancelled')
+    .select('id, event_date, police_event_id, is_cancelled, shift_lead_id')
     .eq('event_date', eventDate)
     .eq('police_event_id', policeId)
     .eq('is_cancelled', false)
   if (error) throw new Error(error.message)
   return (data ?? []) as SameDayPoliceEventRow[]
+}
+
+async function lookupOwnResumableEventId(input: {
+  eventDate: string
+  policeEventId: string
+  viewerLeadId: string
+  currentEventId?: string | null
+}): Promise<string | null> {
+  try {
+    const existing = await fetchSameDayPoliceEventIdRows(input)
+    return ownResumableEventId({
+      currentEventId: input.currentEventId,
+      viewerLeadId: input.viewerLeadId,
+      existing,
+    })
+  } catch {
+    return null
+  }
 }
 
 export async function cockpitPoliceEventIdCollides(
@@ -925,7 +970,7 @@ export async function saveEventForm(input: {
       location_pin_source: LocationPinSource | null
       secondary_leads: SecondaryLead[]
     }
-  | { ok: false; error: string; fieldErrors?: EventFormErrors }
+  | { ok: false; error: string; fieldErrors?: EventFormErrors; eventId?: string }
 > {
   const { draft, shiftLeadId, vehicleKinds, districts, canClearCancelled, previousIsCancelled } =
     input
@@ -1016,8 +1061,18 @@ export async function saveEventForm(input: {
   }
 
   let eventId = draft.id
+  const policeEventId = eventPayload.police_event_id
 
   const payloadWithoutOptional = stripOptionalEventColumnsFromPayload(eventPayload)
+
+  if (!eventId && policeEventId) {
+    eventId =
+      (await lookupOwnResumableEventId({
+        eventDate: draft.event_date,
+        policeEventId,
+        viewerLeadId: mainLeadId,
+      })) ?? undefined
+  }
 
   if (eventId) {
     let { error } = await supabase.from('events').update(eventPayload).eq('id', eventId)
@@ -1026,7 +1081,7 @@ export async function saveEventForm(input: {
       error = retry.error
     }
     if (error) {
-      return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.', eventId }
     }
   } else {
     let { data, error } = await supabase
@@ -1044,9 +1099,32 @@ export async function saveEventForm(input: {
       error = retry.error
     }
     if (error || !data) {
-      return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      const recovered =
+        policeEventId
+          ? await lookupOwnResumableEventId({
+              eventDate: draft.event_date,
+              policeEventId,
+              viewerLeadId: mainLeadId,
+            })
+          : null
+      if (!recovered) {
+        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      }
+      eventId = recovered
+      let retryError = (
+        await supabase.from('events').update(eventPayload).eq('id', eventId)
+      ).error
+      if (retryError && isMissingOptionalEventColumn(retryError)) {
+        retryError = (
+          await supabase.from('events').update(payloadWithoutOptional).eq('id', eventId)
+        ).error
+      }
+      if (retryError) {
+        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.', eventId }
+      }
+    } else {
+      eventId = data.id as string
     }
-    eventId = data.id as string
   }
 
   const sync = await syncResponders({
@@ -1056,7 +1134,7 @@ export async function saveEventForm(input: {
     vehicleKinds,
     isCancelled: draft.is_cancelled,
   })
-  if (!sync.ok) return sync
+  if (!sync.ok) return { ...sync, eventId }
 
   const creatorSecondary = wasCreate
     ? createTimeCreatorSecondary({ creatorId: shiftLeadId, mainLeadId })
@@ -1066,7 +1144,7 @@ export async function saveEventForm(input: {
     desired: draft.secondary_leads ?? [],
     creatorSecondary,
   })
-  if (!secondarySync.ok) return secondarySync
+  if (!secondarySync.ok) return { ...secondarySync, eventId }
 
   const notifyIds = fillReadyNotifyIds(sync.previousKm, sync.nextKmRows)
   if (notifyIds.length > 0 && !draft.is_cancelled) {

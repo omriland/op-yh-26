@@ -468,7 +468,19 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
     return json(400, { error: "האירוע לא נמצא.", code: "gone", event_id: assignment.event_id });
   }
 
-  if (assignment.status === "done" || event.status === "done") {
+  if (assignment.status === "done") {
+    if (mode === "complete") {
+      return json(200, {
+        ok: true,
+        eventStatus: event.status,
+        participationStatus: "done",
+      });
+    }
+    return json(400, {
+      error: "לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.",
+    });
+  }
+  if (event.status === "done") {
     return json(400, {
       error: "לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.",
     });
@@ -522,8 +534,6 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
     return json(400, { error: "קילומטרים חייבים להיות מספר." });
   }
 
-  const nextStatus = mode === "complete" ? "done" : "in_progress";
-
   const { data: updated, error } = await adminClient
     .from("event_responders")
     .update({
@@ -533,7 +543,7 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
       route: draft.route.trim() || null,
       treatment_detail: draft.treatment_detail.trim() || null,
       treatment_notes: draft.treatment_notes.trim() || null,
-      status: nextStatus,
+      status: "in_progress",
       updated_at: new Date().toISOString(),
     })
     .eq("id", assignment.id)
@@ -541,6 +551,20 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
     .maybeSingle();
 
   if (error || !updated) {
+    if (mode === "complete") {
+      const { data: landed } = await adminClient
+        .from("event_responders")
+        .select("status")
+        .eq("id", assignment.id)
+        .maybeSingle();
+      if (landed?.status === "done") {
+        return json(200, {
+          ok: true,
+          eventStatus: event.status,
+          participationStatus: "done",
+        });
+      }
+    }
     return json(400, { error: "שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב." });
   }
 
@@ -569,6 +593,28 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
     }
   }
 
+  if (mode === "complete") {
+    const { data: completed, error: doneError } = await adminClient
+      .from("event_responders")
+      .update({
+        status: "done",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", assignment.id)
+      .select("id")
+      .maybeSingle();
+    if (doneError || !completed) {
+      const { data: landed } = await adminClient
+        .from("event_responders")
+        .select("status")
+        .eq("id", assignment.id)
+        .maybeSingle();
+      if (landed?.status !== "done") {
+        return json(400, { error: "שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב." });
+      }
+    }
+  }
+
   const { data: eventStatus } = await adminClient.rpc("apply_event_status_from_participations", {
     p_event_id: assignment.event_id,
   });
@@ -576,7 +622,7 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
   return json(200, {
     ok: true,
     eventStatus: eventStatus ?? null,
-    participationStatus: nextStatus,
+    participationStatus: mode === "complete" ? "done" : "in_progress",
   });
 }
 

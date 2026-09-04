@@ -9,7 +9,9 @@ import {
   POLICE_EVENT_ID_DUPLICATE_ERROR,
   canPersistEventDraft,
   cockpitIdentityDraftWarning,
-  cockpitPoliceEventIdCollides,
+  attachEventIdAfterFailedSave,
+  fetchSameDayPoliceEventIdRows,
+  ownResumableEventId,
   deriveEventStatus,
   emptyEventDraft,
   eventCreateBlockedMessage,
@@ -22,6 +24,7 @@ import {
   EVENT_TYPE_DETAIL_MAX_LENGTH,
   isAbandonedEmptyEventDraft,
   policeEventIdForCockpitSave,
+  sameDayPoliceEventIdCollides,
   isOvernightEnd,
   isSelfAssignDisabledInPicker,
   mergeAssignmentIds,
@@ -478,12 +481,25 @@ export function EventFormPage({
       let policeIdBlocked = false
       if (allowPartial && current.police_event_id.trim()) {
         try {
-          const collides = await cockpitPoliceEventIdCollides({
+          const existing = await fetchSameDayPoliceEventIdRows({
             eventDate: current.event_date,
             policeEventId: current.police_event_id,
-            currentEventId: current.id,
           })
-          if (collides) {
+          const ownId = ownResumableEventId({
+            currentEventId: current.id,
+            viewerLeadId: user.id,
+            existing,
+          })
+          if (ownId) {
+            draftToSave = { ...current, id: ownId }
+          } else if (
+            sameDayPoliceEventIdCollides({
+              eventDate: current.event_date,
+              policeEventId: current.police_event_id,
+              currentEventId: current.id,
+              existing,
+            })
+          ) {
             policeIdBlocked = true
             const lastSaved = lastPersistedPoliceIdRef.current
             draftToSave = {
@@ -538,6 +554,16 @@ export function EventFormPage({
       })
 
       if (!result.ok) {
+        const recovered = attachEventIdAfterFailedSave(
+          draftRef.current ?? current,
+          result.eventId ?? draftToSave.id,
+        )
+        if (recovered.id && recovered.id !== current.id) {
+          draftRef.current = recovered
+          setDraft(recovered)
+          skipReloadForId.current = recovered.id
+          onEventId?.(recovered.id)
+        }
         if (result.fieldErrors) setErrors(result.fieldErrors)
         setSavePulse('error')
         if (

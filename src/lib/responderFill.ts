@@ -73,6 +73,24 @@ export function deriveEventStatusAfterParticipation(
   return 'in_progress'
 }
 
+export const RESPONDER_FILL_LOCKED_ERROR = 'לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.'
+export const RESPONDER_FILL_NETWORK_ERROR = 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.'
+
+export type FillWriteGate = 'proceed' | 'locked' | 'already_complete'
+
+/** Completing an already-done assignment is success; draft saves stay locked. */
+export function gateResponderFillWrite(input: {
+  complete: boolean
+  participationStatus: ParticipationStatus
+  eventStatus: EventStatus | null | undefined
+}): FillWriteGate {
+  if (input.participationStatus === 'done') {
+    return input.complete ? 'already_complete' : 'locked'
+  }
+  if (input.eventStatus === 'done') return 'locked'
+  return 'proceed'
+}
+
 export function emptyResponderFillDraft(): ResponderFillDraft {
   return {
     vehicle_plate: '',
@@ -450,50 +468,63 @@ async function saveParticipation(input: {
     .maybeSingle()
 
   if (currentError) {
-    return { ok: false, error: 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.' }
+    return { ok: false, error: RESPONDER_FILL_NETWORK_ERROR }
   }
   if (!current) {
     return { ok: false, error: 'לא נמצא דיווח לעדכון.' }
   }
 
+  const complete = input.status === 'done'
   const participationStatus = current.status as ParticipationStatus
   const nestedEvent = (current as { event?: { status: EventStatus } | { status: EventStatus }[] | null })
     .event
   const eventStatusRaw = Array.isArray(nestedEvent)
     ? nestedEvent[0]?.status
     : nestedEvent?.status
-  if (participationStatus === 'done' || eventStatusRaw === 'done') {
-    return {
-      ok: false,
-      error: 'לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.',
-    }
+  const gate = gateResponderFillWrite({
+    complete,
+    participationStatus,
+    eventStatus: eventStatusRaw,
+  })
+  if (gate === 'already_complete') {
+    return { ok: true, eventStatus: eventStatusRaw ?? null }
+  }
+  if (gate === 'locked') {
+    return { ok: false, error: RESPONDER_FILL_LOCKED_ERROR }
   }
 
+  const fieldWrite = {
+    vehicle_plate: plateNumberForSave(input.draft.vehicle_plate),
+    odometer_start: start,
+    odometer_end: end,
+    route: input.draft.route.trim() || null,
+    treatment_detail: input.draft.treatment_detail.trim() || null,
+    treatment_notes: input.draft.treatment_notes.trim() || null,
+    updated_at: new Date().toISOString(),
+  }
+
+  // Keep status writable until plates are saved — RLS blocks plate writes after done.
   const { data: updated, error } = await supabase
     .from('event_responders')
     .update({
-      vehicle_plate: plateNumberForSave(input.draft.vehicle_plate),
-      odometer_start: start,
-      odometer_end: end,
-      route: input.draft.route.trim() || null,
-      treatment_detail: input.draft.treatment_detail.trim() || null,
-      treatment_notes: input.draft.treatment_notes.trim() || null,
-      status: input.status,
-      updated_at: new Date().toISOString(),
+      ...fieldWrite,
+      status: 'in_progress',
     })
     .eq('id', input.assignmentId)
     .select('id')
     .maybeSingle()
 
   if (error) {
-    return { ok: false, error: 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.' }
-  }
-  // RLS can filter the row with no error — treat empty update as locked.
-  if (!updated) {
-    return {
-      ok: false,
-      error: 'לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.',
+    if (complete && (await participationIsDone(input.assignmentId))) {
+      return { ok: true, eventStatus: await refreshEventStatus(input.eventId) }
     }
+    return { ok: false, error: RESPONDER_FILL_NETWORK_ERROR }
+  }
+  if (!updated) {
+    if (complete && (await participationIsDone(input.assignmentId))) {
+      return { ok: true, eventStatus: await refreshEventStatus(input.eventId) }
+    }
+    return { ok: false, error: RESPONDER_FILL_LOCKED_ERROR }
   }
 
   const { error: deletePlatesError } = await supabase
@@ -501,7 +532,7 @@ async function saveParticipation(input: {
     .delete()
     .eq('event_responder_id', input.assignmentId)
   if (deletePlatesError) {
-    return { ok: false, error: 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.' }
+    return { ok: false, error: RESPONDER_FILL_NETWORK_ERROR }
   }
   if (input.draft.treated_plates.length > 0) {
     const { error: plateError } = await supabase.from('event_treated_plates').insert(
@@ -516,11 +547,38 @@ async function saveParticipation(input: {
         sort_order: index,
       })),
     )
-    if (plateError) return { ok: false, error: 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.' }
+    if (plateError) return { ok: false, error: RESPONDER_FILL_NETWORK_ERROR }
+  }
+
+  if (complete) {
+    const { data: completed, error: doneError } = await supabase
+      .from('event_responders')
+      .update({
+        status: 'done',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.assignmentId)
+      .select('id')
+      .maybeSingle()
+    if ((doneError || !completed) && !(await participationIsDone(input.assignmentId))) {
+      return {
+        ok: false,
+        error: doneError ? RESPONDER_FILL_NETWORK_ERROR : RESPONDER_FILL_LOCKED_ERROR,
+      }
+    }
   }
 
   const eventStatus = await refreshEventStatus(input.eventId)
   return { ok: true, eventStatus }
+}
+
+async function participationIsDone(assignmentId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('event_responders')
+    .select('status')
+    .eq('id', assignmentId)
+    .maybeSingle()
+  return data?.status === 'done'
 }
 
 export async function saveResponderFillDraft(input: {

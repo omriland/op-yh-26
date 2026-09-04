@@ -3,6 +3,7 @@ import { EVENT_MEDIA_LEFTOVER_ERROR } from './eventMedia'
 import {
   deriveEventStatusAfterParticipation,
   emptyResponderFillDraft,
+  gateResponderFillWrite,
   validateResponderFillDraft,
   type ResponderFillDraft,
 } from './responderFill'
@@ -217,5 +218,47 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
       0,
     )
     expect(errors.event_media).toBeUndefined()
+  })
+})
+
+describe('gateResponderFillWrite', () => {
+  it('treats a second complete after the write landed as success', () => {
+    expect(
+      gateResponderFillWrite({
+        complete: true,
+        participationStatus: 'done',
+        eventStatus: 'in_progress',
+      }),
+    ).toBe('already_complete')
+  })
+
+  it('still locks a draft save on a completed participation', () => {
+    expect(
+      gateResponderFillWrite({
+        complete: false,
+        participationStatus: 'done',
+        eventStatus: 'in_progress',
+      }),
+    ).toBe('locked')
+  })
+
+  it('locks when the event is already done', () => {
+    expect(
+      gateResponderFillWrite({
+        complete: true,
+        participationStatus: 'in_progress',
+        eventStatus: 'done',
+      }),
+    ).toBe('locked')
+  })
+
+  it('lets an in-progress complete proceed', () => {
+    expect(
+      gateResponderFillWrite({
+        complete: true,
+        participationStatus: 'in_progress',
+        eventStatus: 'in_progress',
+      }),
+    ).toBe('proceed')
   })
 })
