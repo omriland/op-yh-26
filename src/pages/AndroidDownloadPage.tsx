@@ -63,6 +63,10 @@ export function AndroidDownloadPage({ onBack }: AndroidDownloadPageProps) {
               (לעיתים מאחורי «פרטים נוספים» או תפריט דומה). זה תקין להתקנה מחוץ לחנות.
             </li>
           </ol>
+          <p className="t-caption text-muted">
+            את ההתקנה הזו עושים פעם אחת. מהגרסה הבאה האפליקציה מציעה את העדכון בתוכה,
+            ואין צורך להוריד קובץ מהדפדפן.
+          </p>
           {apkHref ? (
             <a className="btn btn--primary btn--block" href={apkHref} download>
               <Download size={20} strokeWidth={1.75} aria-hidden="true" />

@@ -6,6 +6,7 @@ import {
   fetchAndroidApkHref,
   isAndroidDownloadPath,
   isAndroidMobile,
+  supportsInAppUpdate,
 } from './androidDownload'
 
 describe('isAndroidMobile', () => {
@@ -84,5 +85,34 @@ describe('fetchAndroidApkHref', () => {
       '/android/yahpaz-0.1.2.apk',
     )
     expect(fetchImpl).toHaveBeenCalledOnce()
+  })
+
+  it('still resolves when the manifest carries OTA fields', async () => {
+    const fetchImpl = vi.fn(async () =>
+      Response.json({
+        minVersionCode: 25,
+        latestVersionCode: 25,
+        apkUrl: 'https://yahpz.com/android/yahpaz-0.3.14.apk',
+        apkSha256: 'a'.repeat(64),
+        apkSizeBytes: 18_432_000,
+      }),
+    )
+    await expect(fetchAndroidApkHref(fetchImpl as unknown as typeof fetch)).resolves.toBe(
+      '/android/yahpaz-0.3.14.apk',
+    )
+  })
+})
+
+describe('supportsInAppUpdate', () => {
+  it('requires a 64 character hex digest', () => {
+    expect(supportsInAppUpdate({ apkSha256: 'A'.repeat(64) })).toBe(true)
+    expect(supportsInAppUpdate({ apkSha256: `  ${'f'.repeat(64)}  ` })).toBe(true)
+  })
+
+  it('rejects missing or malformed digests', () => {
+    expect(supportsInAppUpdate({})).toBe(false)
+    expect(supportsInAppUpdate({ apkSha256: '' })).toBe(false)
+    expect(supportsInAppUpdate({ apkSha256: 'abc' })).toBe(false)
+    expect(supportsInAppUpdate({ apkSha256: 'z'.repeat(64) })).toBe(false)
   })
 })

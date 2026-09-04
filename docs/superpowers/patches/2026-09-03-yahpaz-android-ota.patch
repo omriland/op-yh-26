@@ -1,0 +1,1043 @@
+From 3e5ac6bca0f758e0f0ed65ecb6872d4a6ed317ee Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Thu, 3 Sep 2026 18:33:18 +0000
+Subject: [PATCH] feat: in-app OTA updates via PackageInstaller
+
+Sideloaded builds now download and install their own updates instead of
+sending volunteers to a browser download page. The published manifest
+carries a SHA-256 the app verifies before committing an install session,
+and updates between the minimum and latest build show a dismissible
+prompt rather than a hard block.
+---
+ app/build.gradle.kts                          |   4 +-
+ app/src/main/AndroidManifest.xml              |   6 +
+ .../java/com/yahpz/responder/ApkUpdate.kt     | 201 ++++++++++++++++++
+ .../main/java/com/yahpz/responder/AppModel.kt | 122 ++++++++++-
+ .../com/yahpz/responder/AppUpdateCheck.kt     |  48 ++++-
+ .../java/com/yahpz/responder/RootScreen.kt    | 182 ++++++++++++++--
+ .../main/kotlin/com/yahpz/domain/AppUpdate.kt |  56 +++++
+ .../kotlin/com/yahpz/domain/AppUpdateTest.kt  |  58 +++++
+ scripts/build-release-apk.sh                  |  16 +-
+ scripts/publish-apk-to-website.sh             |  64 +++++-
+ 10 files changed, 715 insertions(+), 42 deletions(-)
+ create mode 100644 app/src/main/java/com/yahpz/responder/ApkUpdate.kt
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 8c59fd8..00f3ca5 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -21,8 +21,8 @@ android {
+         applicationId = "com.yahpz.responder"
+         minSdk = 26
+         targetSdk = 35
+-        versionCode = 24
+-        versionName = "0.3.13"
++        versionCode = 25
++        versionName = "0.3.14"
+     }
+ 
+     androidResources {
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 9bbde8c..636ba22 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -6,6 +6,8 @@
+     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+     <uses-permission android:name="android.permission.RECORD_AUDIO" />
++    <!-- Sideloaded distribution: the app installs its own updates from yahpz.com. -->
++    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+ 
+     <uses-feature
+         android:name="android.hardware.microphone"
+@@ -48,5 +50,9 @@
+                     android:scheme="https" />
+             </intent-filter>
+         </activity>
++
++        <receiver
++            android:name=".ApkInstallReceiver"
++            android:exported="false" />
+     </application>
+ </manifest>
+diff --git a/app/src/main/java/com/yahpz/responder/ApkUpdate.kt b/app/src/main/java/com/yahpz/responder/ApkUpdate.kt
+new file mode 100644
+index 0000000..3e333ea
+--- /dev/null
++++ b/app/src/main/java/com/yahpz/responder/ApkUpdate.kt
+@@ -0,0 +1,201 @@
++package com.yahpz.responder
++
++import android.app.PendingIntent
++import android.content.BroadcastReceiver
++import android.content.Context
++import android.content.Intent
++import android.content.pm.PackageInstaller
++import android.net.Uri
++import android.os.Build
++import android.provider.Settings
++import com.yahpz.domain.sha256Matches
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.flow.MutableSharedFlow
++import kotlinx.coroutines.withContext
++import java.io.File
++import java.net.HttpURLConnection
++import java.net.URL
++import java.security.MessageDigest
++import kotlin.coroutines.coroutineContext
++
++const val UPDATE_DOWNLOAD_FAILED_MESSAGE = "ההורדה נכשלה. בדקו את החיבור ונסו שוב."
++const val UPDATE_CORRUPT_MESSAGE = "הקובץ פגום. נסו שוב."
++const val UPDATE_INSTALL_FAILED_MESSAGE = "ההתקנה נכשלה. נסו שוב או הורידו מהאתר."
++const val UPDATE_PERMISSION_MESSAGE =
++    "כדי להתקין עדכונים מתוך האפליקציה יש לאשר לאבן דרך התקנת אפליקציות ממקור זה."
++
++/**
++ * Install outcomes reported by the system after a PackageInstaller session is committed.
++ * A null message means the session ended without an error to show — the user backed out of
++ * the system sheet, or the install succeeded and this process is about to be replaced.
++ */
++object ApkInstallEvents {
++    val outcomes = MutableSharedFlow<String?>(extraBufferCapacity = 1)
++}
++
++/**
++ * Downloads a published APK into app-private cache and hands it to the system installer.
++ * The system still shows its own confirmation sheet — sideloaded apps cannot install silently.
++ */
++object ApkUpdate {
++
++    fun canInstallPackages(context: Context): Boolean =
++        context.packageManager.canRequestPackageInstalls()
++
++    fun unknownSourcesSettingsIntent(context: Context): Intent =
++        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
++            .setData(Uri.parse("package:${context.packageName}"))
++
++    /**
++     * Streams [apkUrl] to cache, then verifies size and SHA-256 before returning the file.
++     * Deletes the partial file on any failure so a retry starts clean.
++     */
++    suspend fun download(
++        context: Context,
++        apkUrl: String,
++        expectedSha256: String,
++        expectedSizeBytes: Long,
++        onProgress: (downloaded: Long, total: Long) -> Unit,
++        onVerifying: () -> Unit = {},
++    ): Result<File> = withContext(Dispatchers.IO) {
++        val target = updateFile(context, apkUrl)
++        // Drop APKs left by earlier releases so the cache holds one file at most.
++        updateDir(context).listFiles()?.forEach { if (it.name != target.name) it.delete() }
++        runCatching {
++            val connection = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
++                connectTimeout = 15_000
++                readTimeout = 30_000
++                requestMethod = "GET"
++                instanceFollowRedirects = true
++            }
++            try {
++                if (connection.responseCode !in 200..299) error("HTTP ${connection.responseCode}")
++                val reported = connection.contentLengthLong
++                val total = if (reported > 0) reported else expectedSizeBytes
++                connection.inputStream.use { input ->
++                    target.outputStream().use { output ->
++                        val buffer = ByteArray(64 * 1024)
++                        var downloaded = 0L
++                        while (true) {
++                            coroutineContext.ensureActive()
++                            val read = input.read(buffer)
++                            if (read <= 0) break
++                            output.write(buffer, 0, read)
++                            downloaded += read
++                            onProgress(downloaded, total)
++                        }
++                        output.flush()
++                    }
++                }
++            } finally {
++                connection.disconnect()
++            }
++            target
++        }.recoverCatching {
++            target.delete()
++            throw it
++        }.mapCatching { file ->
++            onVerifying()
++            if (expectedSizeBytes > 0 && file.length() != expectedSizeBytes) {
++                file.delete()
++                error("size mismatch")
++            }
++            if (!sha256Matches(expectedSha256, sha256Hex(file))) {
++                file.delete()
++                error("checksum mismatch")
++            }
++            file
++        }
++    }
++
++    /**
++     * Commits a full-install session. Success replaces this process, so there is no success
++     * callback here — failures arrive on [ApkInstallEvents].
++     */
++    suspend fun install(context: Context, apk: File): Result<Unit> = withContext(Dispatchers.IO) {
++        val installer = context.packageManager.packageInstaller
++        runCatching {
++            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
++                .apply { setAppPackageName(context.packageName) }
++            val sessionId = installer.createSession(params)
++            try {
++                installer.openSession(sessionId).use { session ->
++                    session.openWrite("yahpaz", 0, apk.length()).use { output ->
++                        apk.inputStream().use { input -> input.copyTo(output) }
++                        session.fsync(output)
++                    }
++                    val callback = Intent(context, ApkInstallReceiver::class.java)
++                        .setAction(ApkInstallReceiver.ACTION_INSTALL_STATUS)
++                    val flags = PendingIntent.FLAG_UPDATE_CURRENT or
++                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
++                    val pending = PendingIntent.getBroadcast(context, sessionId, callback, flags)
++                    session.commit(pending.intentSender)
++                }
++            } catch (error: Throwable) {
++                // Retries are expected in the field; do not leak staged sessions.
++                runCatching { installer.abandonSession(sessionId) }
++                throw error
++            }
++        }
++    }
++
++    private fun updateDir(context: Context): File =
++        File(context.cacheDir, "updates").apply { mkdirs() }
++
++    private fun updateFile(context: Context, apkUrl: String): File {
++        val name = apkUrl.substringAfterLast('/').ifBlank { "yahpaz-update.apk" }
++        val safe = name.filter { it.isLetterOrDigit() || it == '.' || it == '-' || it == '_' }
++        return File(updateDir(context), safe.ifBlank { "yahpaz-update.apk" })
++    }
++
++    private fun sha256Hex(file: File): String {
++        val digest = MessageDigest.getInstance("SHA-256")
++        file.inputStream().use { input ->
++            val buffer = ByteArray(64 * 1024)
++            while (true) {
++                val read = input.read(buffer)
++                if (read <= 0) break
++                digest.update(buffer, 0, read)
++            }
++        }
++        return digest.digest().joinToString("") { "%02x".format(it) }
++    }
++}
++
++/**
++ * Receives PackageInstaller session status. The pending-user-action step is what opens the
++ * system install sheet; everything except success or user cancel surfaces a Hebrew failure.
++ */
++class ApkInstallReceiver : BroadcastReceiver() {
++    override fun onReceive(context: Context, intent: Intent) {
++        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
++            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
++                val confirm = confirmIntent(intent)
++                if (confirm == null) {
++                    ApkInstallEvents.outcomes.tryEmit(UPDATE_INSTALL_FAILED_MESSAGE)
++                    return
++                }
++                confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++                runCatching { context.startActivity(confirm) }
++                    .onFailure { ApkInstallEvents.outcomes.tryEmit(UPDATE_INSTALL_FAILED_MESSAGE) }
++            }
++            // Success replaces this process; abort means the user backed out of the sheet.
++            PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE_ABORTED ->
++                ApkInstallEvents.outcomes.tryEmit(null)
++            else -> ApkInstallEvents.outcomes.tryEmit(UPDATE_INSTALL_FAILED_MESSAGE)
++        }
++    }
++
++    private fun confirmIntent(intent: Intent): Intent? =
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
++            intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
++        } else {
++            @Suppress("DEPRECATION")
++            intent.getParcelableExtra(Intent.EXTRA_INTENT) as? Intent
++        }
++
++    companion object {
++        const val ACTION_INSTALL_STATUS = "com.yahpz.responder.INSTALL_STATUS"
++    }
++}
+diff --git a/app/src/main/java/com/yahpz/responder/AppModel.kt b/app/src/main/java/com/yahpz/responder/AppModel.kt
+index d805bc3..25f2303 100644
+--- a/app/src/main/java/com/yahpz/responder/AppModel.kt
++++ b/app/src/main/java/com/yahpz/responder/AppModel.kt
+@@ -1,7 +1,9 @@
+ package com.yahpz.responder
+ 
++import android.content.Context
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.viewModelScope
++import com.yahpz.domain.UpdateMode
+ import com.yahpz.domain.IMPERSONATION_STARTED
+ import com.yahpz.domain.IMPERSONATION_STOPPED
+ import com.yahpz.domain.ROLE_PREVIEW_STARTED
+@@ -64,6 +66,9 @@ import kotlinx.coroutines.launch
+ 
+ enum class AppTab { INBOX, SHIFTS, CONTACTS, UNIT_EVENTS, UNIT_SHIFTS, TOOLS, REPORTS, PROFILE }
+ 
++/** Progress of an in-app APK update, from tapping עדכון to the system install sheet. */
++enum class UpdateStage { IDLE, DOWNLOADING, VERIFYING, INSTALLING, NEEDS_PERMISSION }
++
+ enum class ToolsDestination {
+     HUB, REPORT_CATALOG, REPORT, ADMIN_USERS, NEW_EVENT, EDIT_EVENT, NEW_SHIFT, EDIT_SHIFT, BROADCAST, FUEL_QUARTER, CLOSED_LISTS, COCKPIT
+ }
+@@ -82,7 +87,12 @@ fun appTabForMobileView(view: String): AppTab = when (view) {
+ 
+ data class AppUiState(
+     val booting: Boolean = true,
+-    val forceUpdate: ForceUpdateRequired? = null,
++    val appUpdate: AppUpdateAvailable? = null,
++    val softUpdateDismissed: Boolean = false,
++    val updateStage: UpdateStage = UpdateStage.IDLE,
++    val updateDownloadedBytes: Long = 0L,
++    val updateTotalBytes: Long = 0L,
++    val updateErrorHe: String? = null,
+     val userId: String? = null,
+     val profile: ProfileRecord? = null,
+     val actualRoles: List<String> = emptyList(),
+@@ -149,6 +159,13 @@ data class AppUiState(
+     val privacyOpen: Boolean = false,
+     val feedbackHiddenUntilRefresh: Boolean = false,
+ ) {
++    /** Blocking gate: the installed build is below the published minimum. */
++    val forceUpdate: AppUpdateAvailable? get() = appUpdate?.takeIf { it.mode == UpdateMode.Force }
++
++    /** Dismissible nag: newer build published, current one still allowed. */
++    val softUpdate: AppUpdateAvailable?
++        get() = appUpdate?.takeIf { it.mode == UpdateMode.Soft && !softUpdateDismissed }
++
+     val isSignedIn: Boolean get() = userId != null && profile != null
+     val canManageUnit: Boolean get() = managesUnit(roles)
+     val canAdmin: Boolean get() = isAdmin(roles)
+@@ -160,13 +177,23 @@ class AppModel : ViewModel() {
+     val state: StateFlow<AppUiState> = _state
+     private var toastJob: Job? = null
+     private var lastAndroidReportAtMs: Long? = null
++    private var updateJob: Job? = null
++
++    init {
++        viewModelScope.launch {
++            ApkInstallEvents.outcomes.collect { message ->
++                _state.update { it.copy(updateStage = UpdateStage.IDLE, updateErrorHe = message) }
++            }
++        }
++    }
+ 
+     fun bootstrap() {
+         viewModelScope.launch {
+             _state.update { it.copy(booting = true) }
+-            val forceUpdate = checkForceUpdate(BuildConfig.VERSION_CODE)
+-            if (forceUpdate != null) {
+-                _state.update { it.copy(forceUpdate = forceUpdate, booting = false) }
++            val update = checkAppUpdate(BuildConfig.VERSION_CODE)
++            _state.update { it.copy(appUpdate = update) }
++            if (update?.mode == UpdateMode.Force) {
++                _state.update { it.copy(booting = false) }
+                 reportAndroidSessionIfDue()
+                 return@launch
+             }
+@@ -176,12 +203,95 @@ class AppModel : ViewModel() {
+             } else {
+                 _state.update { it.copy(userId = null, profile = null) }
+             }
+-            _state.update { it.copy(forceUpdate = null, booting = false) }
++            _state.update { it.copy(booting = false) }
+         }
+     }
+ 
+     fun onForeground() {
+-        viewModelScope.launch { reportAndroidSessionIfDue() }
++        viewModelScope.launch {
++            reportAndroidSessionIfDue()
++            if (_state.value.updateStage == UpdateStage.IDLE) {
++                checkAppUpdate(BuildConfig.VERSION_CODE)?.let { update ->
++                    _state.update { it.copy(appUpdate = update) }
++                }
++            }
++        }
++    }
++
++    /**
++     * Downloads the published APK, verifies it, and opens the system install sheet.
++     * Sideloaded apps cannot install silently — the user still confirms once.
++     */
++    fun startAppUpdate(context: Context) {
++        val update = _state.value.appUpdate ?: return
++        if (!update.canInstallInApp) return
++        if (updateJob?.isActive == true) return
++        if (!ApkUpdate.canInstallPackages(context)) {
++            _state.update {
++                it.copy(updateStage = UpdateStage.NEEDS_PERMISSION, updateErrorHe = null)
++            }
++            return
++        }
++        updateJob = viewModelScope.launch {
++            _state.update {
++                it.copy(
++                    updateStage = UpdateStage.DOWNLOADING,
++                    updateDownloadedBytes = 0L,
++                    updateTotalBytes = update.apkSizeBytes,
++                    updateErrorHe = null,
++                )
++            }
++            val downloaded = ApkUpdate.download(
++                context = context,
++                apkUrl = update.apkUrl,
++                expectedSha256 = update.apkSha256,
++                expectedSizeBytes = update.apkSizeBytes,
++                onProgress = { done, total ->
++                    _state.update { it.copy(updateDownloadedBytes = done, updateTotalBytes = total) }
++                },
++                onVerifying = {
++                    _state.update { it.copy(updateStage = UpdateStage.VERIFYING) }
++                },
++            )
++            val apk = downloaded.getOrElse { error ->
++                if (error is CancellationException) throw error
++                _state.update {
++                    it.copy(
++                        updateStage = UpdateStage.IDLE,
++                        updateErrorHe = downloadFailureMessage(error),
++                    )
++                }
++                return@launch
++            }
++            _state.update { it.copy(updateStage = UpdateStage.INSTALLING) }
++            ApkUpdate.install(context, apk).onFailure {
++                _state.update {
++                    it.copy(updateStage = UpdateStage.IDLE, updateErrorHe = UPDATE_INSTALL_FAILED_MESSAGE)
++                }
++            }
++        }
++    }
++
++    fun cancelAppUpdate() {
++        updateJob?.cancel()
++        updateJob = null
++        _state.update {
++            it.copy(updateStage = UpdateStage.IDLE, updateDownloadedBytes = 0L, updateErrorHe = null)
++        }
++    }
++
++    /** Soft nag only: hidden until the next cold start. */
++    fun dismissSoftUpdate() {
++        _state.update { it.copy(softUpdateDismissed = true) }
++    }
++
++    fun clearUpdateError() {
++        _state.update { it.copy(updateErrorHe = null) }
++    }
++
++    private fun downloadFailureMessage(error: Throwable): String {
++        val corrupt = error.message?.contains("mismatch") == true
++        return if (corrupt) UPDATE_CORRUPT_MESSAGE else UPDATE_DOWNLOAD_FAILED_MESSAGE
+     }
+ 
+     fun applyIncomingUrl(url: String) {
+diff --git a/app/src/main/java/com/yahpz/responder/AppUpdateCheck.kt b/app/src/main/java/com/yahpz/responder/AppUpdateCheck.kt
+index b516f53..d0892f4 100644
+--- a/app/src/main/java/com/yahpz/responder/AppUpdateCheck.kt
++++ b/app/src/main/java/com/yahpz/responder/AppUpdateCheck.kt
+@@ -1,6 +1,8 @@
+ package com.yahpz.responder
+ 
+-import com.yahpz.domain.needsForceUpdate
++import com.yahpz.domain.UpdateMode
++import com.yahpz.domain.canInstallInApp
++import com.yahpz.domain.decideUpdateMode
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import kotlinx.serialization.Serializable
+@@ -14,9 +16,24 @@ data class AppVersionManifest(
+     val latestVersionCode: Int = minVersionCode,
+     val latestVersionName: String = "",
+     val apkUrl: String = "",
++    val apkSha256: String = "",
++    val apkSizeBytes: Long = 0L,
+     val messageHe: String = DEFAULT_FORCE_UPDATE_MESSAGE,
+ )
+ 
++/** What the app should show after comparing the installed build with the manifest. */
++data class AppUpdateAvailable(
++    val mode: UpdateMode,
++    val messageHe: String,
++    val apkUrl: String,
++    val apkSha256: String,
++    val apkSizeBytes: Long,
++    val latestVersionName: String,
++) {
++    /** In-app download + install is only safe when the manifest publishes a checksum. */
++    val canInstallInApp: Boolean get() = canInstallInApp(apkUrl, apkSha256)
++}
++
+ data class ForceUpdateRequired(
+     val messageHe: String,
+     val apkUrl: String,
+@@ -27,13 +44,34 @@ private val versionJson = Json { ignoreUnknownKeys = true }
+ const val DEFAULT_FORCE_UPDATE_MESSAGE =
+     "יש גרסה חדשה של האפליקציה. יש להוריד ולהתקין כדי להמשיך."
+ 
+-suspend fun checkForceUpdate(currentVersionCode: Int): ForceUpdateRequired? =
++const val DEFAULT_SOFT_UPDATE_MESSAGE =
++    "יש גרסה חדשה של האפליקציה. מומלץ לעדכן."
++
++suspend fun checkForceUpdate(currentVersionCode: Int): ForceUpdateRequired? {
++    val update = checkAppUpdate(currentVersionCode) ?: return null
++    if (update.mode != UpdateMode.Force) return null
++    return ForceUpdateRequired(messageHe = update.messageHe, apkUrl = update.apkUrl)
++}
++
++/** Null when the installed build is current or the manifest cannot be read (fail open). */
++suspend fun checkAppUpdate(currentVersionCode: Int): AppUpdateAvailable? =
+     withContext(Dispatchers.IO) {
+         val manifest = fetchPreferredAppVersionManifest() ?: return@withContext null
+-        if (!needsForceUpdate(currentVersionCode, manifest.minVersionCode)) return@withContext null
+-        ForceUpdateRequired(
+-            messageHe = manifest.messageHe,
++        val mode = decideUpdateMode(
++            currentVersionCode = currentVersionCode,
++            minVersionCode = manifest.minVersionCode,
++            latestVersionCode = manifest.latestVersionCode,
++        )
++        if (mode == UpdateMode.None) return@withContext null
++        val fallbackMessage =
++            if (mode == UpdateMode.Force) DEFAULT_FORCE_UPDATE_MESSAGE else DEFAULT_SOFT_UPDATE_MESSAGE
++        AppUpdateAvailable(
++            mode = mode,
++            messageHe = manifest.messageHe.ifBlank { fallbackMessage },
+             apkUrl = manifest.apkUrl.ifBlank { AppConfig.defaultApkUrl },
++            apkSha256 = manifest.apkSha256,
++            apkSizeBytes = manifest.apkSizeBytes,
++            latestVersionName = manifest.latestVersionName,
+         )
+     }
+ 
+diff --git a/app/src/main/java/com/yahpz/responder/RootScreen.kt b/app/src/main/java/com/yahpz/responder/RootScreen.kt
+index 6c90a9d..21410c8 100644
+--- a/app/src/main/java/com/yahpz/responder/RootScreen.kt
++++ b/app/src/main/java/com/yahpz/responder/RootScreen.kt
+@@ -30,9 +30,12 @@ import androidx.compose.material.icons.outlined.Contacts
+ import androidx.compose.material.icons.outlined.MoreHoriz
+ import androidx.compose.material.icons.outlined.Person
+ import androidx.compose.material.icons.outlined.Schedule
++import androidx.compose.material3.AlertDialog
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.LinearProgressIndicator
++import androidx.compose.material3.TextButton
+ import androidx.compose.material3.ModalBottomSheet
+ import androidx.compose.material3.NavigationBar
+ import androidx.compose.material3.NavigationBarItem
+@@ -58,6 +61,8 @@ import com.yahpz.domain.normalizeLoginEmail
+ import com.yahpz.domain.normalizeLoginSecret
+ import com.yahpz.domain.canStartRolePreview
+ import com.yahpz.domain.defaultMobileView
++import com.yahpz.domain.downloadProgressFraction
++import com.yahpz.domain.formatDownloadProgressHe
+ import com.yahpz.domain.mobileNavEntries
+ import com.yahpz.domain.parseRolePreviewRole
+ import com.yahpz.domain.splitMobileNav
+@@ -66,9 +71,10 @@ import kotlinx.coroutines.launch
+ @Composable
+ fun RootScreen(app: AppModel, ui: AppUiState) {
+     var feedbackOpen by remember { mutableStateOf(false) }
++    val forceUpdate = ui.forceUpdate
+     val trackBlocking = ui.trackToken != null && ui.fillEventId == null && !ui.mustChangePassword
+     val showFeedbackFab = ui.isSignedIn &&
+-        ui.forceUpdate == null &&
++        forceUpdate == null &&
+         !ui.privacyOpen &&
+         !trackBlocking &&
+         shouldShowFeedbackFab(ui.feedbackHiddenUntilRefresh, ui.toolsDestination, ui.fillEventId != null) &&
+@@ -83,7 +89,7 @@ fun RootScreen(app: AppModel, ui: AppUiState) {
+         Box(Modifier.weight(1f).fillMaxSize()) {
+         when {
+             ui.booting -> SafeEdgeScreen { Booting() }
+-            ui.forceUpdate != null -> SafeEdgeScreen { ForceUpdateScreen(ui.forceUpdate) }
++            forceUpdate != null -> SafeEdgeScreen { ForceUpdateScreen(app, ui, forceUpdate) }
+             ui.trackToken != null && !ui.isSignedIn -> SafeEdgeScreen {
+                 LiveTrackScreen(ui.trackToken, app::closeTrack)
+             }
+@@ -104,7 +110,7 @@ fun RootScreen(app: AppModel, ui: AppUiState) {
+             else -> MainTabs(app, ui, showFeedbackFab) { feedbackOpen = true }
+         }
+         if (
+-            ui.forceUpdate == null &&
++            forceUpdate == null &&
+             ui.isSignedIn &&
+             ui.trackToken != null &&
+             ui.fillEventId == null &&
+@@ -128,10 +134,24 @@ fun RootScreen(app: AppModel, ui: AppUiState) {
+         }
+         }
+     }
+-    if (ui.privacyOpen && ui.forceUpdate == null) {
++    if (ui.privacyOpen && forceUpdate == null) {
+         PrivacyPolicyScreen(onClose = app::closePrivacy)
+     }
+-    if (feedbackOpen && ui.isSignedIn && ui.forceUpdate == null) {
++    val softUpdate = ui.softUpdate
++    if (
++        softUpdate != null &&
++        forceUpdate == null &&
++        !ui.booting &&
++        ui.isSignedIn &&
++        !ui.mustChangePassword &&
++        ui.fillEventId == null &&
++        ui.trackToken == null &&
++        !ui.privacyOpen &&
++        !feedbackOpen
++    ) {
++        SoftUpdateDialog(app, ui, softUpdate)
++    }
++    if (feedbackOpen && ui.isSignedIn && forceUpdate == null) {
+         FeedbackSheet(
+             pagePath = feedbackPagePathForUi(ui),
+             onDismiss = { feedbackOpen = false },
+@@ -179,8 +199,7 @@ private fun Booting() {
+ }
+ 
+ @Composable
+-private fun ForceUpdateScreen(update: ForceUpdateRequired) {
+-    val context = LocalContext.current
++private fun ForceUpdateScreen(app: AppModel, ui: AppUiState, update: AppUpdateAvailable) {
+     Box(
+         modifier = Modifier
+             .fillMaxSize()
+@@ -202,19 +221,148 @@ private fun ForceUpdateScreen(update: ForceUpdateRequired) {
+                     color = CommandTheme.textSecondary,
+                     textAlign = TextAlign.Center,
+                 )
+-                Spacer(Modifier.height(24.dp))
+-            } else {
+-                Spacer(Modifier.height(24.dp))
+             }
+-            PrimaryButton(
+-                title = "הורדה והתקנה",
+-                onClick = {
+-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(update.apkUrl))
+-                    context.startActivity(intent)
+-                },
+-                command = true,
++            Spacer(Modifier.height(24.dp))
++            UpdateActions(app, ui, update, command = true)
++        }
++    }
++}
++
++@Composable
++private fun SoftUpdateDialog(app: AppModel, ui: AppUiState, update: AppUpdateAvailable) {
++    val busy = ui.updateStage != UpdateStage.IDLE
++    AlertDialog(
++        onDismissRequest = { if (!busy) app.dismissSoftUpdate() },
++        containerColor = FieldTheme.raised,
++        title = {
++            Text("עדכון זמין", style = TypeScale.title, color = FieldTheme.textPrimary)
++        },
++        text = {
++            Column {
++                Text(
++                    text = update.messageHe,
++                    style = TypeScale.body,
++                    color = FieldTheme.textSecondary,
++                )
++                Spacer(Modifier.height(16.dp))
++                UpdateActions(app, ui, update, command = false)
++            }
++        },
++        confirmButton = {},
++        dismissButton = {
++            if (!busy) {
++                TextButton(onClick = { app.dismissSoftUpdate() }) {
++                    Text("מאוחר יותר", style = TypeScale.bodyStrong, color = FieldTheme.textMuted)
++                }
++            }
++        },
++    )
++}
++
++/**
++ * Shared update controls for the force screen and the soft dialog: download progress,
++ * the unknown-sources permission step, and the website fallback.
++ */
++@Composable
++private fun UpdateActions(
++    app: AppModel,
++    ui: AppUiState,
++    update: AppUpdateAvailable,
++    command: Boolean,
++) {
++    val context = LocalContext.current
++    val bodyColor = if (command) CommandTheme.textSecondary else FieldTheme.textSecondary
++    val openWebsite = {
++        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.apkUrl)))
++    }
++
++    Column(
++        modifier = Modifier.fillMaxWidth(),
++        horizontalAlignment = Alignment.CenterHorizontally,
++        verticalArrangement = Arrangement.spacedBy(12.dp),
++    ) {
++        ui.updateErrorHe?.let { error ->
++            Text(
++                text = error,
++                style = TypeScale.caption,
++                color = FieldTheme.alert,
++                textAlign = TextAlign.Center,
+             )
+         }
++
++        when (ui.updateStage) {
++            UpdateStage.DOWNLOADING, UpdateStage.VERIFYING -> {
++                val fraction = downloadProgressFraction(ui.updateDownloadedBytes, ui.updateTotalBytes)
++                if (fraction != null) {
++                    LinearProgressIndicator(
++                        progress = { fraction },
++                        modifier = Modifier.fillMaxWidth(),
++                        color = if (command) CommandTheme.accent else FieldTheme.accent,
++                    )
++                } else {
++                    LinearProgressIndicator(
++                        modifier = Modifier.fillMaxWidth(),
++                        color = if (command) CommandTheme.accent else FieldTheme.accent,
++                    )
++                }
++                Text(
++                    text = if (ui.updateStage == UpdateStage.VERIFYING) {
++                        "מאמת את הקובץ…"
++                    } else {
++                        formatDownloadProgressHe(ui.updateDownloadedBytes, ui.updateTotalBytes)
++                    },
++                    style = TypeScale.caption,
++                    color = bodyColor,
++                )
++                GhostButton(title = "ביטול", onClick = app::cancelAppUpdate)
++            }
++
++            UpdateStage.INSTALLING -> {
++                Text(
++                    text = "ההתקנה מתחילה. אשרו בחלון של המערכת.",
++                    style = TypeScale.caption,
++                    color = bodyColor,
++                    textAlign = TextAlign.Center,
++                )
++            }
++
++            UpdateStage.NEEDS_PERMISSION -> {
++                Text(
++                    text = UPDATE_PERMISSION_MESSAGE,
++                    style = TypeScale.caption,
++                    color = bodyColor,
++                    textAlign = TextAlign.Center,
++                )
++                PrimaryButton(
++                    title = "מעבר להגדרות",
++                    onClick = {
++                        context.startActivity(ApkUpdate.unknownSourcesSettingsIntent(context))
++                    },
++                    command = command,
++                )
++                GhostButton(
++                    title = "כבר אישרתי — נסו שוב",
++                    onClick = { app.startAppUpdate(context) },
++                )
++            }
++
++            UpdateStage.IDLE -> {
++                if (update.canInstallInApp) {
++                    PrimaryButton(
++                        title = "עדכון עכשיו",
++                        onClick = { app.startAppUpdate(context) },
++                        command = command,
++                    )
++                    GhostButton(title = "הורדה מהאתר", onClick = openWebsite)
++                } else {
++                    PrimaryButton(
++                        title = "הורדה והתקנה",
++                        onClick = openWebsite,
++                        command = command,
++                    )
++                }
++            }
++        }
+     }
+ }
+ 
+diff --git a/domain/src/main/kotlin/com/yahpz/domain/AppUpdate.kt b/domain/src/main/kotlin/com/yahpz/domain/AppUpdate.kt
+index 3e36fc1..fb47b8e 100644
+--- a/domain/src/main/kotlin/com/yahpz/domain/AppUpdate.kt
++++ b/domain/src/main/kotlin/com/yahpz/domain/AppUpdate.kt
+@@ -3,3 +3,59 @@ package com.yahpz.domain
+ /** True when the installed build is below the server minimum (hard force update). */
+ fun needsForceUpdate(currentVersionCode: Int, minVersionCode: Int): Boolean =
+     currentVersionCode < minVersionCode
++
++/** How the app should react to the published version manifest. */
++enum class UpdateMode { None, Soft, Force }
++
++/**
++ * Force below the minimum, soft between the minimum and the latest published build.
++ * A latest lower than the minimum is treated as the minimum.
++ */
++fun decideUpdateMode(currentVersionCode: Int, minVersionCode: Int, latestVersionCode: Int): UpdateMode {
++    val latest = maxOf(latestVersionCode, minVersionCode)
++    return when {
++        currentVersionCode < minVersionCode -> UpdateMode.Force
++        currentVersionCode < latest -> UpdateMode.Soft
++        else -> UpdateMode.None
++    }
++}
++
++/** Hex digest compare for a downloaded APK. Blank expected never matches. */
++fun sha256Matches(expectedHex: String?, actualHex: String?): Boolean {
++    val expected = expectedHex?.trim()?.lowercase().orEmpty()
++    val actual = actualHex?.trim()?.lowercase().orEmpty()
++    if (expected.isEmpty() || actual.isEmpty()) return false
++    return expected == actual
++}
++
++/** Null when the total size is unknown, so the UI can fall back to an indeterminate bar. */
++fun downloadProgressFraction(downloadedBytes: Long, totalBytes: Long): Float? {
++    if (totalBytes <= 0L || downloadedBytes < 0L) return null
++    return (downloadedBytes.toDouble() / totalBytes.toDouble()).coerceIn(0.0, 1.0).toFloat()
++}
++
++/** `12.3 מ״ב מתוך 18.4 מ״ב`, or just the downloaded part when the total is unknown. */
++fun formatDownloadProgressHe(downloadedBytes: Long, totalBytes: Long): String {
++    val done = formatMegabytesHe(downloadedBytes)
++    if (totalBytes <= 0L) return done
++    return "$done מתוך ${formatMegabytesHe(totalBytes)}"
++}
++
++private fun formatMegabytesHe(bytes: Long): String {
++    val mb = bytes.coerceAtLeast(0L).toDouble() / (1024.0 * 1024.0)
++    val rounded = kotlin.math.round(mb * 10.0) / 10.0
++    val whole = rounded.toLong()
++    val tenth = kotlin.math.round((rounded - whole) * 10.0).toLong()
++    return "$whole.$tenth מ״ב"
++}
++
++/**
++ * In-app install needs a checksum to verify the download. Without one the app
++ * falls back to opening the APK URL in a browser.
++ */
++fun canInstallInApp(apkUrl: String?, apkSha256: String?): Boolean {
++    val url = apkUrl?.trim().orEmpty()
++    if (!url.startsWith("https://")) return false
++    if (!url.endsWith(".apk")) return false
++    return apkSha256?.trim()?.length == 64 && apkSha256.trim().all { it.isDigit() || it.lowercaseChar() in 'a'..'f' }
++}
+diff --git a/domain/src/test/kotlin/com/yahpz/domain/AppUpdateTest.kt b/domain/src/test/kotlin/com/yahpz/domain/AppUpdateTest.kt
+index 0c26c9f..23a1be1 100644
+--- a/domain/src/test/kotlin/com/yahpz/domain/AppUpdateTest.kt
++++ b/domain/src/test/kotlin/com/yahpz/domain/AppUpdateTest.kt
+@@ -1,5 +1,6 @@
+ package com.yahpz.domain
+ 
++import org.junit.Assert.assertEquals
+ import org.junit.Assert.assertFalse
+ import org.junit.Assert.assertTrue
+ import org.junit.Test
+@@ -16,4 +17,61 @@ class AppUpdateTest {
+         assertFalse(needsForceUpdate(2, 2))
+         assertFalse(needsForceUpdate(3, 2))
+     }
++
++    @Test
++    fun `mode is force below the minimum`() {
++        assertEquals(UpdateMode.Force, decideUpdateMode(23, minVersionCode = 24, latestVersionCode = 25))
++        assertEquals(UpdateMode.Force, decideUpdateMode(20, minVersionCode = 24, latestVersionCode = 24))
++    }
++
++    @Test
++    fun `mode is soft between the minimum and the latest`() {
++        assertEquals(UpdateMode.Soft, decideUpdateMode(24, minVersionCode = 24, latestVersionCode = 25))
++    }
++
++    @Test
++    fun `mode is none on the latest build or newer`() {
++        assertEquals(UpdateMode.None, decideUpdateMode(25, minVersionCode = 24, latestVersionCode = 25))
++        assertEquals(UpdateMode.None, decideUpdateMode(26, minVersionCode = 24, latestVersionCode = 25))
++    }
++
++    @Test
++    fun `latest below min never downgrades the force gate`() {
++        assertEquals(UpdateMode.Force, decideUpdateMode(23, minVersionCode = 24, latestVersionCode = 10))
++        assertEquals(UpdateMode.None, decideUpdateMode(24, minVersionCode = 24, latestVersionCode = 10))
++    }
++
++    @Test
++    fun `sha compare ignores case and padding`() {
++        assertTrue(sha256Matches("AbCd", " abcd "))
++        assertFalse(sha256Matches("ab", "cd"))
++        assertFalse(sha256Matches("", ""))
++        assertFalse(sha256Matches(null, "abcd"))
++        assertFalse(sha256Matches("abcd", null))
++    }
++
++    @Test
++    fun `progress fraction is null without a known total`() {
++        assertEquals(null, downloadProgressFraction(1_000, 0))
++        assertEquals(0.5f, downloadProgressFraction(500, 1_000))
++        assertEquals(1f, downloadProgressFraction(2_000, 1_000))
++    }
++
++    @Test
++    fun `progress copy is Hebrew megabytes`() {
++        assertEquals("1.0 מ״ב מתוך 2.0 מ״ב", formatDownloadProgressHe(1024L * 1024L, 2L * 1024L * 1024L))
++        assertEquals("1.5 מ״ב", formatDownloadProgressHe(1_572_864L, 0L))
++        assertEquals("0.0 מ״ב מתוך 2.0 מ״ב", formatDownloadProgressHe(0L, 2L * 1024L * 1024L))
++    }
++
++    @Test
++    fun `in-app install needs an https apk url and a 64 char digest`() {
++        val digest = "a".repeat(64)
++        assertTrue(canInstallInApp("https://yahpz.com/android/yahpaz-0.3.14.apk", digest))
++        assertFalse(canInstallInApp("http://yahpz.com/android/yahpaz-0.3.14.apk", digest))
++        assertFalse(canInstallInApp("https://yahpz.com/android/version.json", digest))
++        assertFalse(canInstallInApp("https://yahpz.com/android/yahpaz-0.3.14.apk", null))
++        assertFalse(canInstallInApp("https://yahpz.com/android/yahpaz-0.3.14.apk", "abc"))
++        assertFalse(canInstallInApp("https://yahpz.com/android/yahpaz-0.3.14.apk", "z".repeat(64)))
++    }
+ }
+diff --git a/scripts/build-release-apk.sh b/scripts/build-release-apk.sh
+index fcd161c..4c29f36 100755
+--- a/scripts/build-release-apk.sh
++++ b/scripts/build-release-apk.sh
+@@ -44,16 +44,30 @@ cp "$SRC" "$WEB_PUBLIC/$APK_NAME"
+ # Drop the unversioned name so browsers/download UIs don't reuse a stale file.
+ rm -f "$ROOT/dist/yahpaz.apk" "$WEB_PUBLIC/yahpaz.apk"
+ 
++# In-app OTA verifies these before handing the APK to PackageInstaller.
++APK_SHA256="$(sha256sum "$WEB_PUBLIC/$APK_NAME" | awk '{print $1}')"
++APK_SIZE="$(wc -c < "$WEB_PUBLIC/$APK_NAME" | tr -d ' ')"
++
++# MIN_VERSION_CODE forces older clients to update. Leave it at the previous
++# release to ship a soft (dismissible) update instead.
++MIN_VERSION_CODE="${MIN_VERSION_CODE:-$VERSION_CODE}"
++
+ cat > "$WEB_PUBLIC/version.json" <<EOF
+ {
+-  "minVersionCode": ${VERSION_CODE},
++  "minVersionCode": ${MIN_VERSION_CODE},
+   "latestVersionCode": ${VERSION_CODE},
+   "latestVersionName": "${VERSION_NAME}",
+   "apkUrl": "${APK_URL}",
++  "apkSha256": "${APK_SHA256}",
++  "apkSizeBytes": ${APK_SIZE},
+   "messageHe": "יש גרסה חדשה של האפליקציה. יש להוריד ולהתקין כדי להמשיך."
+ }
+ EOF
+ 
++# Keep the GitHub-hosted fallback feed in sync with yahpz.com.
++mkdir -p "$ROOT/site/android"
++cp "$WEB_PUBLIC/version.json" "$ROOT/site/android/version.json"
++
+ echo "APK: $WEB_PUBLIC/$APK_NAME"
+ echo "Version: $WEB_PUBLIC/version.json (code=$VERSION_CODE name=$VERSION_NAME)"
+ echo "URL: $APK_URL"
+diff --git a/scripts/publish-apk-to-website.sh b/scripts/publish-apk-to-website.sh
+index 6753ee5..0e6219d 100755
+--- a/scripts/publish-apk-to-website.sh
++++ b/scripts/publish-apk-to-website.sh
+@@ -1,6 +1,19 @@
+ #!/usr/bin/env bash
+ # Publish a built APK + version.json into op-yh-26 (yahpz.com /android).
++#
+ # Usage: scripts/publish-apk-to-website.sh [path-to-apk]
++#
++# Env:
++#   KEEP_MANIFEST=1    Host the APK without touching version.json. Nobody is
++#                      prompted or forced; the build is reachable only by its
++#                      direct URL, for installing on your own device first.
++#   MIN_VERSION_CODE   Force floor for older clients. Defaults to this build,
++#                      which forces everyone. Set it to the previous release to
++#                      publish a soft (dismissible) update instead.
++#   WEB_BRANCH         Branch to commit onto in op-yh-26. An existing remote
++#                      branch is added to, not reset. Defaults to a new
++#                      per-version branch.
++#   WEB_BASE_BRANCH    Base for a new branch (default infra/bootstrap).
+ set -euo pipefail
+ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ APK_SRC="${1:-}"
+@@ -22,26 +35,55 @@ if [[ ! -d "$WEB_ROOT/.git" ]]; then
+   git clone --depth 1 https://github.com/omriland/op-yh-26.git "$WEB_ROOT"
+ fi
+ cd "$WEB_ROOT"
+-git fetch origin infra/bootstrap
+-git checkout infra/bootstrap
+-git pull origin infra/bootstrap
++WEB_BASE_BRANCH="${WEB_BASE_BRANCH:-infra/bootstrap}"
++BRANCH="${WEB_BRANCH:-cursor/android-${VERSION_NAME}-website-2580}"
++
++git fetch origin "$WEB_BASE_BRANCH"
++if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
++  # Branch already exists (an open PR, say) — add to it rather than reset it.
++  git fetch origin "$BRANCH"
++  git checkout -B "$BRANCH" "origin/$BRANCH"
++else
++  git checkout -B "$BRANCH" "origin/$WEB_BASE_BRANCH"
++fi
+ 
+ mkdir -p public/android
+ cp "$APK_SRC" "public/android/$APK_NAME"
+-rm -f public/android/yahpaz.apk
+-cat > public/android/version.json <<JSON
++git add "public/android/$APK_NAME"
++
++if [[ "${KEEP_MANIFEST:-0}" == "1" ]]; then
++  COMMIT_MESSAGE="Host Android ${VERSION_NAME} without announcing it."
++else
++  rm -f public/android/yahpaz.apk
++
++  # In-app OTA verifies these before handing the APK to PackageInstaller.
++  APK_SHA256="$(sha256sum "public/android/$APK_NAME" | awk '{print $1}')"
++  APK_SIZE="$(wc -c < "public/android/$APK_NAME" | tr -d ' ')"
++  MIN_VERSION_CODE="${MIN_VERSION_CODE:-$VERSION_CODE}"
++
++  cat > public/android/version.json <<JSON
+ {
+-  "minVersionCode": ${VERSION_CODE},
++  "minVersionCode": ${MIN_VERSION_CODE},
+   "latestVersionCode": ${VERSION_CODE},
+   "latestVersionName": "${VERSION_NAME}",
+   "apkUrl": "${APK_URL}",
+-  "messageHe": "יש גרסה חדשה של האפליקציה (כולל סריקת לוחיות ניסיונית). אם ההתקנה נכשלת — הסירו את הגרסה הישנה ואז התקינו מחדש."
++  "apkSha256": "${APK_SHA256}",
++  "apkSizeBytes": ${APK_SIZE},
++  "messageHe": "יש גרסה חדשה של האפליקציה. מומלץ לעדכן."
+ }
+ JSON
+ 
+-BRANCH="cursor/android-${VERSION_NAME}-website-2580"
+-git checkout -B "$BRANCH"
+-git add "public/android/$APK_NAME" public/android/version.json
+-git -c user.email=cursoragent@cursor.com -c user.name=Cursor commit -m "Force-update Android clients to ${VERSION_NAME}."
++  git add public/android/version.json public/android/yahpaz.apk 2>/dev/null || git add public/android/version.json
++  if [[ "$MIN_VERSION_CODE" == "$VERSION_CODE" ]]; then
++    COMMIT_MESSAGE="Force-update Android clients to ${VERSION_NAME}."
++  else
++    COMMIT_MESSAGE="Offer Android ${VERSION_NAME} as an optional update."
++  fi
++fi
++
++git -c user.email=cursoragent@cursor.com -c user.name=Cursor commit -m "$COMMIT_MESSAGE"
+ git push -u origin "$BRANCH"
+ echo "Pushed $BRANCH — merge to infra/bootstrap for production."
++if [[ "${KEEP_MANIFEST:-0}" == "1" ]]; then
++  echo "version.json untouched. Install yourself from: $APK_URL"
++fi
+-- 
+2.43.0
+

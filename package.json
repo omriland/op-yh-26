@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "contrast": "node scripts/contrast-check.mjs",
+    "android:checksum": "node scripts/android-manifest-checksum.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

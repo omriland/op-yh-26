@@ -13,7 +13,18 @@ export type AndroidVersionManifest = {
   latestVersionCode?: number
   latestVersionName?: string
   apkUrl: string
+  /** Hex digest the Android app verifies before installing an in-app download. */
+  apkSha256?: string
+  apkSizeBytes?: number
   messageHe?: string
+}
+
+/** The Android app only installs in-app when the manifest publishes a usable digest. */
+export function supportsInAppUpdate(
+  manifest: Pick<AndroidVersionManifest, 'apkSha256'>,
+): boolean {
+  const digest = manifest.apkSha256?.trim().toLowerCase()
+  return !!digest && /^[0-9a-f]{64}$/.test(digest)
 }
 
 /**
