@@ -25,13 +25,15 @@ export function isIosDevice(userAgent: string): boolean {
 
 /**
  * True only for real mobile Safari. Chrome (CriOS), Firefox (FxiOS), Edge
- * (EdgiOS), Opera and bare in-app WKWebViews all drop `itms-services://`
- * links on the floor with no error, so the page must warn instead.
+ * (EdgiOS), Opera and in-app WKWebViews all drop `itms-services://` links
+ * with no error, so the page must warn instead. Many in-app browsers append
+ * `Safari/604.1` to their UA but only genuine Safari emits `Version/<n>`;
+ * requiring both tokens avoids an endless third-party denylist.
  */
 export function isIosSafari(userAgent: string): boolean {
   if (!isIosDevice(userAgent)) return false
   if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\//i.test(userAgent)) return false
-  return /Safari/i.test(userAgent)
+  return /Version\/\d/i.test(userAgent) && /Safari/i.test(userAgent)
 }
 
 export function isIosDownloadPath(pathname: string): boolean {
@@ -46,7 +48,8 @@ export function itmsInstallHref(manifestUrl: string): string | null {
   try {
     const url = new URL(raw)
     if (url.protocol !== 'https:') return null
-    if (url.hostname !== 'yahpz.com') return null
+    const host = url.hostname.toLowerCase()
+    if (host !== 'yahpz.com' && host !== 'www.yahpz.com') return null
     if (!url.pathname.endsWith('.plist')) return null
     return `itms-services://?action=download-manifest&url=${encodeURIComponent(url.toString())}`
   } catch {

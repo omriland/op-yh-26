@@ -13,9 +13,14 @@ type IosDownloadPageProps = {
 }
 
 export function IosDownloadPage({ onBack }: IosDownloadPageProps) {
-  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
-  const iphone = useMemo(() => isIosDevice(ua), [ua])
-  const safari = useMemo(() => isIosSafari(ua), [ua])
+  const iphone = useMemo(
+    () => (typeof navigator === 'undefined' ? false : isIosDevice(navigator.userAgent)),
+    [],
+  )
+  const safari = useMemo(
+    () => (typeof navigator === 'undefined' ? false : isIosSafari(navigator.userAgent)),
+    [],
+  )
   const [installHref, setInstallHref] = useState<string | null>(null)
 
   useEffect(() => {

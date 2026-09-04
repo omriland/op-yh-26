@@ -15,6 +15,8 @@ const IPHONE_CHROME =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.0.0 Mobile/15E148 Safari/604.1'
 const IPHONE_WEBVIEW =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148'
+const IPHONE_GOOGLE_APP =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.000000000 Mobile/15E148 Safari/604.1'
 const ANDROID =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
 const MAC =
@@ -49,6 +51,10 @@ describe('isIosSafari', () => {
   it('rejects desktop Safari', () => {
     expect(isIosSafari(MAC)).toBe(false)
   })
+
+  it('rejects the Google app in-app browser, which fakes Safari without Version/', () => {
+    expect(isIosSafari(IPHONE_GOOGLE_APP)).toBe(false)
+  })
 })
 
 describe('ios download paths', () => {
@@ -68,6 +74,12 @@ describe('itmsInstallHref', () => {
   it('wraps a yahpz.com manifest url', () => {
     expect(itmsInstallHref('https://yahpz.com/ios/manifest.plist')).toBe(
       'itms-services://?action=download-manifest&url=https%3A%2F%2Fyahpz.com%2Fios%2Fmanifest.plist',
+    )
+  })
+
+  it('accepts www.yahpz.com manifest urls', () => {
+    expect(itmsInstallHref('https://www.yahpz.com/ios/manifest.plist')).toBe(
+      'itms-services://?action=download-manifest&url=https%3A%2F%2Fwww.yahpz.com%2Fios%2Fmanifest.plist',
     )
   })
 

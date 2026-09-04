@@ -358,7 +358,7 @@ function Gate() {
         return
       }
       if (parsed.kind === 'ios') {
-        openIosDownload()
+        setLegalPage('ios')
         return
       }
       if (parsed.kind === 'delete_data') {
