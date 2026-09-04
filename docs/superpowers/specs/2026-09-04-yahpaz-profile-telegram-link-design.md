@@ -20,7 +20,7 @@ Separately, there's a future need: when a volunteer with a linked Telegram accou
 | Topic | Choice |
 |---|---|
 | Consent step | Reuse the existing `/oauth/authorize` consent screen (`OAuthAuthorizePage.tsx`) — do not skip straight to Telegram |
-| Which bot/client | Fetch active apps via the existing `partner-auth` `list_apps` action. Exactly one → link to it. Zero → hide the button (today's copy-only empty state stays). More than one → use the first, i.e. oldest by `created_at` (`list_apps` orders ascending) — no picker; not exercised in practice |
+| Which bot/client | Fetch active apps via the existing `partner-auth` `list_apps` action. Exactly one → link to it. Zero → hide the button (today's copy-only empty state stays). More than one → use the first, i.e. oldest by `created_at` (`list_apps` orders ascending) — no picker; not exercised in practice. **Known limitation, not built now:** this silently assumes a single bot. If a second active client is ever registered (via `admin_create_client`), the button keeps working but always links to the oldest one — a volunteer has no way to choose or even see that a second app exists. Whoever adds a second client must revisit this (build a picker, or otherwise make the choice explicit) before that second bot is usable from the profile; it will not fail loudly on its own |
 | New backend code | None. `list_apps`, `client_info`, and `authorize` actions already exist and already require only an active session (not admin) |
 | `state` | Client-generated random token, passed through like the bot's own CSRF token; `handleAuthorize` already stores it optionally |
 | Navigation | A real browser navigation (`window.location.assign(...)`), not an SPA client-side route change — see below |
