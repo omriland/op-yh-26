@@ -459,6 +459,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
                       const url = buildPartnerAuthorizeUrl({
                         clientId: apps[0].client_id,
                         state: randomOAuthState(),
+                        origin: window.location.origin,
                       })
                       window.location.assign(url)
                     }}
