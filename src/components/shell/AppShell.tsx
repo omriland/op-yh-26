@@ -39,6 +39,7 @@ import {
   IMPERSONATION_CHANGE_EVENT,
   isImpersonating,
 } from '../../lib/impersonationStash'
+import { isMenuOutsideClick } from '../../lib/overlayDismiss'
 import { canStartRolePreview } from '../../lib/rolePreview'
 import {
   ROLE_PREVIEW_CHANGE_EVENT,
@@ -329,7 +330,7 @@ function UserChrome({
     if (!open) return
 
     const onPointerDown = (event: MouseEvent) => {
-      if (!anchorRef.current?.contains(event.target as Node)) setOpen(false)
+      if (isMenuOutsideClick(event.target, anchorRef.current)) setOpen(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {

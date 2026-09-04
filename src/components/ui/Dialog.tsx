@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 
@@ -104,7 +105,9 @@ export function Dialog({
 
   if (!open) return null
 
-  return (
+  // Body portal escapes .appbar / .tabbar stacking (both z-index 20). In-tree
+  // sheets from the avatar menu sat under the mobile tab bar.
+  return createPortal(
     <div className="dialog-root" role="presentation">
       {/* Backdrop dismissal stays available to pointers but leaves the tab order to
           the dialog's own controls, which the close button already covers. */}
@@ -136,6 +139,7 @@ export function Dialog({
         <div className="dialog__body">{children}</div>
         {footer ? <footer className="dialog__footer">{footer}</footer> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

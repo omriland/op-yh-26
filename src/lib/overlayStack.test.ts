@@ -19,4 +19,9 @@ describe('overlay stack', () => {
   it('keeps select menus above dialogs so they can open in the user edit form', () => {
     expect(zIndexFor('.select-field__menu')).toBeGreaterThan(zIndexFor('.dialog-root'))
   })
+
+  it('keeps dialogs above the mobile tab bar once portaled to body', () => {
+    expect(zIndexFor('.dialog-root')).toBeGreaterThan(zIndexFor('.tabbar'))
+    expect(zIndexFor('.dialog-root')).toBeGreaterThan(zIndexFor('.appbar'))
+  })
 })

@@ -5,6 +5,14 @@ import { describe, expect, it } from 'vitest'
 
 const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), './Dialog.tsx'), 'utf8')
 
+describe('Dialog portal', () => {
+  it('renders on document.body so appbar stacking cannot trap it under the tab bar', () => {
+    expect(src).toContain("from 'react-dom'")
+    expect(src).toContain('createPortal')
+    expect(src).toContain('document.body')
+  })
+})
+
 describe('Dialog focus trap', () => {
   it('does not re-run initial focus when parent re-renders with a new onClose', () => {
     // Typing in a form dialog (e.g. משתמש חדש) recreates an inline onClose every
