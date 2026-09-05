@@ -7,10 +7,12 @@ import {
 } from "../_shared/cors.ts";
 import {
   constantTimeEqual,
+  hmacSha256Hex,
   randomAccessToken,
   randomClientId,
   randomClientSecret,
   randomStartParam,
+  randomWebhookSecret,
   sha256Hex,
 } from "../_shared/partnerCrypto.ts";
 
@@ -197,6 +199,12 @@ Deno.serve(async (req: Request) => {
     }
     if (action === "admin_delete_client") {
       return handleAdminDelete(admin, cfg, req, body);
+    }
+    if (action === "admin_set_webhook") {
+      return handleAdminSetWebhook(admin, cfg, req, body);
+    }
+    if (action === "deliver_webhooks") {
+      return handleDeliverWebhooks(admin, cfg.service, req);
     }
 
     return json(400, { error: "פעולה לא מוכרת." });
@@ -511,7 +519,7 @@ async function handleAdminList(
 
   const { data, error } = await admin
     .from("oauth_clients")
-    .select("id, name, client_id, telegram_bot_username, is_active, created_at")
+    .select("id, name, client_id, telegram_bot_username, is_active, webhook_url, created_at")
     .order("created_at", { ascending: false });
   if (error) return json(400, { error: "לא ניתן לטעון יישומים." });
   return json(200, { clients: data ?? [] });
@@ -563,4 +571,164 @@ async function handleAdminDelete(
   const { error } = await admin.from("oauth_clients").delete().eq("id", client.id);
   if (error) return json(400, { error: "לא ניתן להסיר את הבוט." });
   return json(200, { ok: true });
+}
+
+function isHttpsUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+async function handleAdminSetWebhook(
+  admin: SupabaseClient,
+  cfg: { url: string; anon: string },
+  req: Request,
+  body: JsonBody,
+): Promise<Response> {
+  const user = await userFromRequest(req, cfg.url, cfg.anon);
+  if (!user) return json(401, { error: "יש להתחבר מחדש." });
+  if (!(await requireAdmin(admin, user.id))) {
+    return json(403, { error: "אין הרשאה." });
+  }
+
+  const clientId = trim(body.client_id);
+  const client = await findClientByPublicId(admin, clientId);
+  if (!client) return json(400, { error: "היישום אינו מוכר." });
+
+  const webhookUrl = trim(body.webhook_url);
+
+  if (!webhookUrl) {
+    const { error } = await admin
+      .from("oauth_clients")
+      .update({ webhook_url: null, webhook_secret: null })
+      .eq("id", client.id);
+    if (error) return json(400, { error: "לא ניתן לעדכן webhook." });
+    return json(200, { ok: true, webhook_url: null });
+  }
+
+  if (!isHttpsUrl(webhookUrl)) {
+    return json(400, { error: "כתובת ה-webhook חייבת להתחיל ב-https://." });
+  }
+
+  const secret = randomWebhookSecret();
+  const { error } = await admin
+    .from("oauth_clients")
+    .update({ webhook_url: webhookUrl, webhook_secret: secret })
+    .eq("id", client.id);
+  if (error) return json(400, { error: "לא ניתן לעדכן webhook." });
+
+  return json(200, { ok: true, webhook_url: webhookUrl, webhook_secret: secret });
+}
+
+const WEBHOOK_DELIVERY_BATCH_LIMIT = 50;
+
+function webhookBackoffMs(attempts: number): number {
+  const minutes = attempts <= 1 ? 1 : attempts === 2 ? 5 : attempts === 3 ? 15 : 60;
+  return minutes * 60 * 1000;
+}
+
+type WebhookOutboxRow = {
+  id: string;
+  user_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  attempts: number;
+  last_attempt_at: string | null;
+  client:
+    | { webhook_url: string | null; webhook_secret: string | null; is_active: boolean }
+    | { webhook_url: string | null; webhook_secret: string | null; is_active: boolean }[]
+    | null;
+};
+
+async function handleDeliverWebhooks(
+  admin: SupabaseClient,
+  serviceKey: string,
+  req: Request,
+): Promise<Response> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return json(401, { error: "יש להתחבר מחדש." });
+  }
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (token !== serviceKey) {
+    return json(403, { error: "אין לך הרשאה לפעולה זו." });
+  }
+
+  const { data: rows, error } = await admin
+    .from("partner_webhook_events")
+    .select(
+      `id, user_id, event_type, payload, attempts, last_attempt_at,
+       client:oauth_clients!inner(webhook_url, webhook_secret, is_active)`,
+    )
+    .is("delivered_at", null)
+    .eq("client.is_active", true)
+    .not("client.webhook_url", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(WEBHOOK_DELIVERY_BATCH_LIMIT);
+
+  if (error) {
+    return json(500, { error: "טעינת אירועי webhook נכשלה.", detail: error.message });
+  }
+
+  const delivered: string[] = [];
+  const skipped: { id: string; reason: string }[] = [];
+
+  for (const raw of (rows ?? []) as WebhookOutboxRow[]) {
+    const due =
+      !raw.last_attempt_at ||
+      Date.now() - new Date(raw.last_attempt_at).getTime() >= webhookBackoffMs(raw.attempts);
+    if (!due) {
+      skipped.push({ id: raw.id, reason: "backoff" });
+      continue;
+    }
+
+    const client = Array.isArray(raw.client) ? raw.client[0] : raw.client;
+    if (!client?.webhook_url || !client.webhook_secret) {
+      skipped.push({ id: raw.id, reason: "unconfigured" });
+      continue;
+    }
+
+    const bodyText = JSON.stringify({
+      id: raw.id,
+      user_id: raw.user_id,
+      event_type: raw.event_type,
+      ...raw.payload,
+    });
+    const signature = await hmacSha256Hex(client.webhook_secret, bodyText);
+
+    let ok = false;
+    try {
+      const response = await fetch(client.webhook_url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Yahpaz-Signature": signature,
+        },
+        body: bodyText,
+      });
+      ok = response.ok;
+    } catch {
+      ok = false;
+    }
+
+    const nowIso = new Date().toISOString();
+    if (ok) {
+      await admin
+        .from("partner_webhook_events")
+        .update({ delivered_at: nowIso, last_attempt_at: nowIso })
+        .eq("id", raw.id);
+      delivered.push(raw.id);
+    } else {
+      await admin
+        .from("partner_webhook_events")
+        .update({ attempts: raw.attempts + 1, last_attempt_at: nowIso })
+        .eq("id", raw.id);
+      skipped.push({ id: raw.id, reason: "delivery_failed" });
+    }
+  }
+
+  return json(200, { delivered, skipped });
 }
