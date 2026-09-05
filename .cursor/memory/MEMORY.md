@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-04 (remember-me login live on prod)
+Last updated: 2026-09-05 (Saar Telegram live-track + assignment webhook merged)
 
 ## What this is
 
@@ -68,7 +68,9 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
 - **Latest Netlify prod (2026-09-04):** deploy `6a9b08ff15a0130008861087`, commit `b524c88` (`b524c88bd5740d887ca0ab4047cbb1229b71716a`) on `infra/bootstrap` — **ready** at https://yahpz.com (PR #32 remember-me login)
 - Core flows: auth, events, responder fill, admin users + closed lists
-- **Partner Telegram bot:** MCP-style connect via `/oauth/authorize?client_id&state`. **Profile חיבורים** (2026-09-04, PR #28): re-enabled + empty-state **קישור לטלגרם** starts the same OAuth consent flow (uses `list_apps` + `buildPartnerAuthorizeUrl` with current origin). Bot-initiated link still works. Spec: `2026-09-04-yahpaz-profile-telegram-link-design.md` (supersedes 2026-08-30 revoke-only). Fill API unchanged (`responder:fill`, 60-day token). Contract `/partner-api/` v1.1. Edge `partner-auth` responds live (Hebrew 401 without session); GitHub deploy workflow still skips when `SUPABASE_ACCESS_TOKEN` secret is missing.
+- **Partner Telegram bot:** MCP-style connect via `/oauth/authorize?client_id&state`. **Profile חיבורים** (2026-09-04, PR #28): re-enabled + empty-state **קישור לטלגרם** starts the same OAuth consent flow (uses `list_apps` + `buildPartnerAuthorizeUrl` with current origin). Bot-initiated link still works. Spec: `2026-09-04-yahpaz-profile-telegram-link-design.md` (supersedes 2026-08-30 revoke-only). Fill API unchanged (`responder:fill`, 60-day token). Contract `/partner-api/` **v1.3**. Edge `partner-auth` responds live (Hebrew 401 without session); GitHub deploy workflow still skips when `SUPABASE_ACCESS_TOKEN` secret is missing.
+- **Telegram live trip tracking (2026-09-05, PR #33):** `responder-api` `start_live_track` / `stop_live_track` mint/clear the same `track_token_hash` the SMS flow uses; bot pings existing `responder-track` `ping`. Completing a report also stops tracking (fail-open). Reuses `responder:fill` grant; no new consent. Spec: `2026-09-04-yahpaz-telegram-live-trip-tracking-design.md`. **Not live until Edge `responder-api` is redeployed.**
+- **Assignment webhook Part B (2026-09-05, PR #34):** on `event_responders` insert, enqueue `assignment_created` to `partner_webhook_events` for each active grant + configured `oauth_clients.webhook_url`. Minute `pg_cron` → `partner-auth` `deliver_webhooks` (HMAC-SHA256 `X-Yahpaz-Signature`, backoff). Admin sets URL + one-time `webhook_secret` on Partner Bot settings. Migration `20260905120000_partner_webhook_events.sql`. Spec/plan: `2026-09-04-yahpaz-profile-telegram-link-design.md` Part B, `2026-09-05-yahpaz-partner-assignment-webhook.md`. **Not live until migration applied + Edge `partner-auth` redeployed** (same `yahpaz_service_role_key` vault secret as overdue-fill cron).
 - Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs
 - Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
 - **Event create draft survival (2026-09-03):** `EventFormPage` boot effect depends on stable `userId` / lead name+callsign (not auth object refs). Typed אירוע חדש is kept across tab-focus `TOKEN_REFRESHED`. Local stash (`eventFormStash`) runs on all viewports (was mobile-only).
@@ -83,7 +85,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Profile lifetime stats (2026-08-16):** פרופיל card `סיכום פעילות` reads snapshot columns on `profiles` (events + km; same inclusion as החזר דלק). `refresh_profile_lifetime_stats()` + `pg_cron` 07:00/19:00 Asia/Jerusalem. Clients cannot write the columns. Spec: `2026-08-16-yahpaz-profile-lifetime-stats-design.md`.
 - **Default vehicle (2026-09-01):** `vehicles.is_default` (רכב ראשי). Profile star when 2+ active cars; `set_default_vehicle` RPC; new `event_responders` insert copies that plate; fill + personal-shift preselect it. Spec: `2026-09-01-yahpaz-default-vehicle-design.md`. **Not yet applied on prod** — UI fallback retries without `is_default` so the vehicle list still loads.
 - **24-hour time (2026-09-03):** Event time inputs are digit-masked `HH:mm` (not native `type="time"`, which followed device 12/24). Display formatters use `hour12: false` + `hourCycle: 'h23'`. Same pattern as Android `TimeField`.
-- **Latest `infra/bootstrap` tip (2026-09-04):** `b524c88` — merge of PR #32 (remember-me login, 30 days). Prior: `5cba6ab` memory after Saar Telegram PRs; `d4fe6bd` PR #28 profile Telegram link.
+- **Latest `infra/bootstrap` tip (2026-09-05):** `0d2b04a` — merge of PR #34 (assignment webhook). Prior same day: `dcd8f7e` PR #33 live trip tracking. Prior: `5a1bde1` remember-me prod note; `b524c88` PR #32 remember-me login.
 
 ## Email (Resend)
 
@@ -164,6 +166,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 2. Later: add/verify `yahpz.com` on Resend when plan allows
 3. Set `VITE_GOOGLE_MAPS_API_KEY` in Netlify + `.env.local` for Places autocomplete
 4. Smoke phone OTP on production (enable per user → SMS → login / משתמשים gates)
+5. Apply `20260905120000_partner_webhook_events.sql` + redeploy Edge `partner-auth` / `responder-api` (needs `SUPABASE_ACCESS_TOKEN`) so PRs #33/#34 go live
 
 ## Netlify CD
 
