@@ -130,6 +130,8 @@ function trim(value: unknown): string {
 
 function formatPlate(raw: string): string {
   const digits = raw.replace(/\D/g, "");
+  if (digits.length === 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  if (digits.length === 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
   if (digits.length === 7) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
   if (digits.length === 8) return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
   return raw.trim();

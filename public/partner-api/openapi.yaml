@@ -568,9 +568,9 @@ components:
                 code: cancelled
             plateDigits:
               value:
-                error: יש להזין 7 או 8 ספרות.
+                error: יש להזין 5 עד 8 ספרות.
                 fieldErrors:
-                  treated_plates: יש להזין 7 או 8 ספרות.
+                  treated_plates: יש להזין 5 עד 8 ספרות.
             plateDuplicate:
               value:
                 error: מספר זה כבר נוסף.

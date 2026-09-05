@@ -12,6 +12,7 @@ import { digitsOnly, plateDigits } from '../../lib/format'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 import {
   TREATED_PLATE_DETAILS_MISS_TIP,
+  TREATED_PLATE_MAX_DIGITS,
   treatedPlateCaption,
   type TreatedPlate,
 } from '../../lib/treatedPlates'
@@ -207,9 +208,13 @@ export function TreatedPlatesField({
           numeric
           isolate
           inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={TREATED_PLATE_MAX_DIGITS}
           value={pending}
           error={error}
-          onChange={(event) => onPendingChange(digitsOnly(event.target.value))}
+          onChange={(event) =>
+            onPendingChange(digitsOnly(event.target.value).slice(0, TREATED_PLATE_MAX_DIGITS))
+          }
           onKeyDown={onKeyDown}
         />
         <Button variant="secondary" className="treated-plates__add" onClick={onCommit}>

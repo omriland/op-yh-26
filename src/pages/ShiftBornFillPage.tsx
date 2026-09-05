@@ -11,7 +11,7 @@ import {
   type ShiftBornFillErrors,
 } from '../lib/shiftBornFill'
 import { lastSavedByLabel, SHIFT_BORN_CHIP } from '../lib/shiftBornEvents'
-import { formatDate, plateDigits } from '../lib/format'
+import { formatDate, plateDigits, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
 import { lookupPlate } from '../lib/plateLookup'
 import {
   applyTreatedPlateLookup,
@@ -389,10 +389,16 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             <TextField
               label="מספר אירוע"
               numeric
+              isolate
               inputMode="numeric"
+              autoComplete="off"
+              pattern="[0-9]*"
+              maxLength={POLICE_EVENT_ID_MAX_LENGTH}
               value={draft.police_event_id}
               disabled={readOnly}
-              onChange={(event) => patchDraft({ police_event_id: event.target.value })}
+              onChange={(event) =>
+                patchDraft({ police_event_id: policeEventIdForInput(event.target.value) })
+              }
             />
             <SelectField
               label="כביש"

@@ -33,7 +33,7 @@ import {
   type ShiftKind,
   type ShiftVehicleType,
 } from '../lib/shifts'
-import { digitsOnly, formatPlate, monoClass } from '../lib/format'
+import { digitsOnly, formatPlate, monoClass, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
 import { captureEvent } from '../lib/posthog'
 import { supabase } from '../lib/supabase'
 import { pickDefaultPersonalVehicleId, queryVehiclesWithDefaultFallback } from '../lib/defaultVehicle'
@@ -619,7 +619,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     events: bornRows.map((row) =>
       eventToLogSnapshot({
         status: row.status,
-        police_event_id: row.draft.police_event_id || null,
+        police_event_id: policeEventIdForInput(row.draft.police_event_id) || null,
         treatment_detail: row.draft.treatment_detail || null,
         treatment_notes: row.draft.treatment_notes || null,
         road_id: row.draft.road_id || null,
@@ -905,9 +905,16 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                       <TextField
                         label={`מספר אירוע · ${row.typeName}`}
                         numeric
+                        isolate
+                        inputMode="numeric"
+                        autoComplete="off"
+                        pattern="[0-9]*"
+                        maxLength={POLICE_EVENT_ID_MAX_LENGTH}
                         value={row.draft.police_event_id}
                         onChange={(event) =>
-                          patchBornDraft(row.id, { police_event_id: event.target.value })
+                          patchBornDraft(row.id, {
+                            police_event_id: policeEventIdForInput(event.target.value),
+                          })
                         }
                       />
                       <SelectField

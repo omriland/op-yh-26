@@ -22,7 +22,11 @@ import {
   hasEventMinimum,
   isOtherEventTypeId,
   EVENT_TYPE_DETAIL_MAX_LENGTH,
+  LEAD_KM_MAX_DIGITS,
+  PATROL_CALLSIGN_MAX_LENGTH,
   STATION_MAX_LENGTH,
+  leadKmForInput,
+  patrolCallsignForInput,
   isAbandonedEmptyEventDraft,
   policeEventIdForCockpitSave,
   sameDayPoliceEventIdCollides,
@@ -41,7 +45,7 @@ import {
 } from '../lib/eventForm'
 import { deleteEvent } from '../lib/events'
 import { viewerStamp } from '../lib/status'
-import { digitsOnly, monoClass } from '../lib/format'
+import { monoClass, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
@@ -1280,10 +1284,11 @@ export function EventFormPage({
                   inputMode="numeric"
                   autoComplete="off"
                   pattern="[0-9]*"
+                  maxLength={POLICE_EVENT_ID_MAX_LENGTH}
                   value={draft.police_event_id}
                   error={errors.police_event_id}
                   onChange={(event) => {
-                    updateDraft({ police_event_id: digitsOnly(event.target.value) })
+                    updateDraft({ police_event_id: policeEventIdForInput(event.target.value) })
                     setErrors((current) => ({ ...current, police_event_id: undefined }))
                   }}
                   onBlur={() => void persistLatest()}
@@ -1294,8 +1299,11 @@ export function EventFormPage({
                 <TextField
                   label="או״ק ניידת"
                   numeric
+                  maxLength={PATROL_CALLSIGN_MAX_LENGTH}
                   value={draft.patrol_callsign}
-                  onChange={(event) => updateDraft({ patrol_callsign: event.target.value })}
+                  onChange={(event) =>
+                    updateDraft({ patrol_callsign: patrolCallsignForInput(event.target.value) })
+                  }
                   onBlur={() => void persistLatest()}
                 />
                 </div>
@@ -1984,12 +1992,14 @@ function ResponderLeadFields({
       <TextField
         label="קילומטרים"
         numeric={responder.hasVehicle}
-        inputMode={responder.hasVehicle ? 'decimal' : undefined}
+        inputMode={responder.hasVehicle ? 'numeric' : undefined}
+        pattern={responder.hasVehicle ? '[0-9]*' : undefined}
+        maxLength={responder.hasVehicle ? LEAD_KM_MAX_DIGITS : undefined}
         hint={responder.hasVehicle ? over60kmHint(responder.total_km) : undefined}
         value={responder.hasVehicle ? responder.total_km : NO_VEHICLE_KM_PLACEHOLDER}
         disabled={!responder.hasVehicle}
         readOnly={!responder.hasVehicle}
-        onChange={(event) => onChangeKm(event.target.value)}
+        onChange={(event) => onChangeKm(leadKmForInput(event.target.value))}
         onBlur={onPersist}
       />
       <Toggle

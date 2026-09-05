@@ -17,10 +17,16 @@ export type TreatedPlate = {
   details_status: TreatedPlateDetailsStatus
 }
 
-export const TREATED_PLATE_LENGTH_ERROR = 'יש להזין 7 או 8 ספרות.'
+export const TREATED_PLATE_MIN_DIGITS = 5
+export const TREATED_PLATE_MAX_DIGITS = 8
+export const TREATED_PLATE_LENGTH_ERROR = 'יש להזין 5 עד 8 ספרות.'
 export const TREATED_PLATE_DUPLICATE_ERROR = 'מספר זה כבר נוסף.'
 export const TREATED_PLATE_LEFTOVER_ERROR = 'יש ללחוץ הוספה לשמירת המספר'
 export const TREATED_PLATE_DETAILS_MISS_TIP = 'לא הצלחנו לייבא את פרטי הרכב'
+
+export function isTreatedPlateDigitLength(digits: string): boolean {
+  return digits.length >= TREATED_PLATE_MIN_DIGITS && digits.length <= TREATED_PLATE_MAX_DIGITS
+}
 
 export function treatedPlateCaption(
   model: string | null,
@@ -66,7 +72,7 @@ export function commitTreatedPlate(
   plates: readonly TreatedPlate[],
 ): { ok: true; plate: TreatedPlate; plates: TreatedPlate[] } | { ok: false; error: string } {
   const digits = plateDigits(pending)
-  if (digits.length !== 7 && digits.length !== 8) {
+  if (!isTreatedPlateDigitLength(digits)) {
     return { ok: false, error: TREATED_PLATE_LENGTH_ERROR }
   }
   if (plates.some((row) => plateDigits(row.plate_number) === digits)) {
@@ -97,7 +103,7 @@ export type SettleTreatedPlatePendingResult =
     }
   | { ok: false; error: string }
 
-/** On complete, commit a finished 7/8-digit leftover instead of blocking. */
+/** On complete, commit a finished 5–8-digit leftover instead of blocking. */
 export function settleTreatedPlatePending(
   pending: string,
   plates: readonly TreatedPlate[],

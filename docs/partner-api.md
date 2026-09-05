@@ -438,7 +438,7 @@ Israeli registry (data.gov.il). A miss is not an error — you may still add the
 
 ### `add_treated_plate`
 
-7 or 8 digits. We format hyphens, look up model/color, and store the plate. Optional `left_where`.
+5 to 8 digits. We format hyphens, look up model/color, and store the plate. Optional `left_where`.
 
 **Request**
 
@@ -455,7 +455,7 @@ Israeli registry (data.gov.il). A miss is not an error — you may still add the
 
 | `error` | `fieldErrors.treated_plates` |
 |---|---|
-| יש להזין 7 או 8 ספרות. | same |
+| יש להזין 5 עד 8 ספרות. | same |
 | מספר זה כבר נוסף. | same |
 
 Same write locks as `save_draft` (including after the report is `done`).

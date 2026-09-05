@@ -44,6 +44,8 @@ function pickDefaultVehiclePlate(
 
 function formatPlate(raw: string): string {
   const digits = plateDigits(raw);
+  if (digits.length === 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  if (digits.length === 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
   if (digits.length === 7) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
   if (digits.length === 8) return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
   return raw.trim();
@@ -697,8 +699,8 @@ async function handleAddPlate(
   if (blocked) return blocked;
 
   const digits = plateDigits(trim(body.plate_number) || trim(body.plate));
-  if (digits.length !== 7 && digits.length !== 8) {
-    return json(400, { error: "יש להזין 7 או 8 ספרות.", fieldErrors: { treated_plates: "יש להזין 7 או 8 ספרות." } });
+  if (digits.length < 5 || digits.length > 8) {
+    return json(400, { error: "יש להזין 5 עד 8 ספרות.", fieldErrors: { treated_plates: "יש להזין 5 עד 8 ספרות." } });
   }
 
   const { data: existing } = await admin

@@ -1,5 +1,6 @@
 import { fetchEventLookups, type LookupOption } from './eventForm'
 import { fetchEventDetail, type EventDetail } from './events'
+import { policeEventIdForInput } from './format'
 import { refreshShiftLogStatus } from './shiftForm'
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import type { EventStatus } from './status'
@@ -170,7 +171,7 @@ export async function saveShiftBornEventFill(input: {
   const { data, error } = await supabase.rpc('save_shift_born_event_fill', {
     p_event_id: input.eventId,
     p_expected_updated_at: input.expectedUpdatedAt,
-    p_police_event_id: input.draft.police_event_id,
+    p_police_event_id: policeEventIdForInput(input.draft.police_event_id) || null,
     p_road_id: input.draft.road_id.trim() || null,
     p_location: input.draft.location,
     p_treatment_detail: input.draft.treatment_detail,
