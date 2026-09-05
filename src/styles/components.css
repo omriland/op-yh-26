@@ -2141,17 +2141,104 @@ textarea.field__input {
   background: var(--accent);
 }
 
+/* Animated outline ring for אירוע חדש CTAs (traveling accent highlight). */
+.create-event-btn {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.create-event-btn--block {
+  display: flex;
+  width: 100%;
+}
+
+.create-event-btn__border {
+  pointer-events: none;
+  position: absolute;
+  inset: -1px;
+  z-index: 1;
+  border: 2px solid transparent;
+  border-radius: inherit;
+  -webkit-mask-clip: padding-box, border-box;
+  mask-clip: padding-box, border-box;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-image: linear-gradient(transparent, transparent), linear-gradient(#000, #000);
+  mask-image: linear-gradient(transparent, transparent), linear-gradient(#000, #000);
+}
+
+.create-event-btn__border-dot {
+  position: absolute;
+  aspect-ratio: 1;
+  background: linear-gradient(to right, transparent, var(--accent), var(--accent));
+}
+
+.create-event-btn__border-static {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.create-event-btn > .btn,
+.create-event-btn > .nav-item {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+}
+
+/* Outline face — keep accent fill off these CTAs. */
+.create-event-btn > .btn--primary {
+  background: var(--surface-page);
+  border-color: var(--stroke-strong);
+  color: var(--text-primary);
+}
+
+@media (hover: hover) {
+  .create-event-btn > .btn--primary:hover:not(:disabled) {
+    background: var(--accent-subtle);
+    color: var(--text-primary);
+  }
+}
+
+/* Sidebar create: 75% width, flush to RTL start (right). */
+.sidebar__new-event-shell {
+  width: 75%;
+  margin-block-end: var(--space-1);
+  margin-inline-end: auto;
+}
+
 .nav-item.sidebar__new-event {
   box-sizing: border-box;
   width: 100%;
-  margin-block-end: var(--space-1);
   white-space: nowrap;
   border: 1px solid var(--stroke-strong);
+  background: var(--surface-page);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.nav-item.sidebar__new-event svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nav-item.sidebar__new-event::before {
+  content: none;
 }
 
 .nav-item.sidebar__new-event:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.create-event-btn > .nav-item[aria-current='page'] {
+  background: var(--accent-subtle);
+  color: var(--accent);
 }
 
 .nav-item__label {

@@ -45,12 +45,18 @@ describe('desktop shell cards', () => {
     expect(body).toMatch(/inset-inline-end:\s*auto/)
   })
 
-  it('outlines אירוע חדש like a nav row, not a filled primary', () => {
-    const body = ruleBody(css, '.nav-item.sidebar__new-event')
-    expect(body).toMatch(/border:\s*1px solid var\(--stroke-strong\)/)
-    expect(body).not.toMatch(/accent-fill/)
+  it('rings אירוע חדש with an animated outline border', () => {
+    expect(css).toMatch(/\.create-event-btn\s*\{/)
+    expect(css).toMatch(/\.create-event-btn__border-dot/)
+    expect(css).toMatch(
+      /background:\s*linear-gradient\(to right,\s*transparent,\s*var\(--accent\),\s*var\(--accent\)\)/,
+    )
+    const shell = ruleBody(css, '.sidebar__new-event-shell')
+    expect(shell).toMatch(/width:\s*75%/)
+    expect(shell).toMatch(/margin-inline-end:\s*auto/)
     expect(css).toMatch(/\.nav-item\s*\{[^}]*height:\s*36px/)
     expect(css).not.toMatch(/\.sidebar__create/)
+    expect(css).not.toMatch(/\.new-event-btn-shell/)
     expect(ruleBody(css, '.tabbar-more .nav-item')).toMatch(/height:\s*44px/)
   })
 })

@@ -58,6 +58,7 @@ import {
 import { isMineFillOverdue } from '../lib/overdueFill'
 import { jerusalemToday } from '../lib/shifts'
 import { Button } from '../components/ui/Button'
+import { NewEventButtonShell } from '../components/ui/NewEventButtonShell'
 import { Dialog } from '../components/ui/Dialog'
 import { PointerContextMenu } from '../components/ui/PointerContextMenu'
 import { DateGroup, DateGroups } from '../components/ui/DateGroups'
@@ -369,13 +370,15 @@ export function EventsPage({
           </div>
           {canCreate && onCreate ? (
             <div className="page-head__actions">
-              <Button
-                className="events-page__create"
-                onClick={onCreate}
-                icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
-              >
-                אירוע חדש
-              </Button>
+              <NewEventButtonShell>
+                <Button
+                  className="events-page__create"
+                  onClick={onCreate}
+                  icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
+                >
+                  אירוע חדש
+                </Button>
+              </NewEventButtonShell>
             </div>
           ) : null}
         </div>
@@ -651,9 +654,11 @@ function ListEmptyState({
       caption="אירוע חדש יופיע כאן ברגע שייווצר."
       action={
         canCreate && onCreate ? (
-          <Button onClick={onCreate} icon={<Plus size={20} strokeWidth={1.75} />}>
-            אירוע חדש
-          </Button>
+          <NewEventButtonShell>
+            <Button onClick={onCreate} icon={<Plus size={20} strokeWidth={1.75} />}>
+              אירוע חדש
+            </Button>
+          </NewEventButtonShell>
         ) : undefined
       }
     />

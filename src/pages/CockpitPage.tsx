@@ -38,6 +38,7 @@ import {
 import { monoClass } from '../lib/format'
 import { cancelledStamp, eventStamp } from '../lib/status'
 import { Button, IconButton } from '../components/ui/Button'
+import { NewEventButtonShell } from '../components/ui/NewEventButtonShell'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton } from '../components/ui/Skeleton'
@@ -348,15 +349,17 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
               <p className="t-caption text-muted">{cockpitWindowCountLabel(reel.length)}</p>
             ) : null}
           </div>
-          <Button
-            block
-            icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
-            loading={creating}
-            loadingLabel="יוצר…"
-            onClick={() => void createNew()}
-          >
-            אירוע חדש
-          </Button>
+          <NewEventButtonShell block>
+            <Button
+              block
+              icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
+              loading={creating}
+              loadingLabel="יוצר…"
+              onClick={() => void createNew()}
+            >
+              אירוע חדש
+            </Button>
+          </NewEventButtonShell>
         </div>
         {loadState === 'loading' ? (
           <div className="cockpit__reel-body">
@@ -506,15 +509,17 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             }
             title="אני רואה שהמשמרת שקטה ;)"
             action={
-              <Button
-                className="btn--compact-icon"
-                icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
-                loading={creating}
-                loadingLabel="יוצר…"
-                onClick={() => void createNew()}
-              >
-                אירוע חדש
-              </Button>
+              <NewEventButtonShell>
+                <Button
+                  className="btn--compact-icon"
+                  icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
+                  loading={creating}
+                  loadingLabel="יוצר…"
+                  onClick={() => void createNew()}
+                >
+                  אירוע חדש
+                </Button>
+              </NewEventButtonShell>
             }
           />
         ) : (
@@ -523,14 +528,16 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
             title="אין אירוע נבחר"
             caption="לחצו על אירוע חדש או בחרו שורה בגלגלת."
             action={
-              <Button
-                icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
-                loading={creating}
-                loadingLabel="יוצר…"
-                onClick={() => void createNew()}
-              >
-                אירוע חדש
-              </Button>
+              <NewEventButtonShell>
+                <Button
+                  icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}
+                  loading={creating}
+                  loadingLabel="יוצר…"
+                  onClick={() => void createNew()}
+                >
+                  אירוע חדש
+                </Button>
+              </NewEventButtonShell>
             }
           />
         )}

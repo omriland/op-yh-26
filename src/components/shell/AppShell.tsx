@@ -29,6 +29,7 @@ import {
   MessageSquarePlus,
   Settings,
   Shield,
+  Smartphone,
   UserCog,
   UserRound,
   Users,
@@ -48,6 +49,7 @@ import {
 } from '../../lib/rolePreviewStash'
 import { sidebarLeadNewEvent } from '../../lib/sidebarCreate'
 import { Avatar } from '../ui/Avatar'
+import { NewEventButtonShell } from '../ui/NewEventButtonShell'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
 import { ImpersonationBar } from './ImpersonationBar'
@@ -89,6 +91,7 @@ export type AppView =
   | 'feedback'
   | 'event_locations'
   | 'event_audit'
+  | 'ios_devices'
 
 export type NavEntry = {
   view?: AppView
@@ -208,6 +211,7 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   feedback: <MessageSquarePlus size={24} strokeWidth={1.75} aria-hidden="true" />,
   event_locations: <MapPin size={24} strokeWidth={1.75} aria-hidden="true" />,
   event_audit: <History size={24} strokeWidth={1.75} aria-hidden="true" />,
+  ios_devices: <Smartphone size={24} strokeWidth={1.75} aria-hidden="true" />,
 }
 
 export const SUPER_ADMIN_NAV_ICON = (
@@ -698,15 +702,17 @@ function SidebarNavItems({
           <div key={navEntryKey(entry)}>
             {showSection ? <p className="sidebar__section">{entry.section}</p> : null}
             {leadNewEvent ? (
-              <button
-                type="button"
-                className="nav-item sidebar__new-event"
-                aria-current={creatingEvent ? 'page' : undefined}
-                onClick={leadNewEvent.onCreate}
-              >
-                <Plus size={20} strokeWidth={1.75} aria-hidden="true" />
-                {leadNewEvent.label}
-              </button>
+              <NewEventButtonShell className="sidebar__new-event-shell">
+                <button
+                  type="button"
+                  className="nav-item sidebar__new-event"
+                  aria-current={creatingEvent ? 'page' : undefined}
+                  onClick={leadNewEvent.onCreate}
+                >
+                  <Plus size={16} strokeWidth={2} aria-hidden="true" />
+                  {leadNewEvent.label}
+                </button>
+              </NewEventButtonShell>
             ) : null}
             {entry.children && entry.children.length > 0 ? (
               <SidebarNavMenu
