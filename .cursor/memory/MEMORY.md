@@ -66,7 +66,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 ## Current app state
 
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
-- **Latest Netlify prod (2026-09-04):** deploy `6a9b08ff15a0130008861087`, commit `b524c88` (`b524c88bd5740d887ca0ab4047cbb1229b71716a`) on `infra/bootstrap` — **ready** at https://yahpz.com (PR #32 remember-me login)
+- **Latest Netlify prod (2026-09-05):** commit `7f778d5` (`7f778d5`) on `infra/bootstrap` — **ready** at https://yahpz.com (PR #37 field limits + 5–6 digit plates). Prior: deploy `6a9b08ff15a0130008861087`, commit `b524c88` (PR #32 remember-me login)
 - Core flows: auth, events, responder fill, admin users + closed lists
 - **Partner Telegram bot:** MCP-style connect via `/oauth/authorize?client_id&state`. **Profile חיבורים** (2026-09-04, PR #28): re-enabled + empty-state **קישור לטלגרם** starts the same OAuth consent flow (uses `list_apps` + `buildPartnerAuthorizeUrl` with current origin). Bot-initiated link still works. Spec: `2026-09-04-yahpaz-profile-telegram-link-design.md` (supersedes 2026-08-30 revoke-only). Fill API unchanged (`responder:fill`, 60-day token). Contract `/partner-api/` **v1.3**. Edge `partner-auth` responds live (Hebrew 401 without session); GitHub deploy workflow still skips when `SUPABASE_ACCESS_TOKEN` secret is missing.
 - **Telegram live trip tracking (2026-09-05, PR #33):** `responder-api` `start_live_track` / `stop_live_track` mint/clear the same `track_token_hash` the SMS flow uses; bot pings existing `responder-track` `ping`. Completing a report also stops tracking (fail-open). Reuses `responder:fill` grant; no new consent. Spec: `2026-09-04-yahpaz-telegram-live-trip-tracking-design.md`. **Blocked on Edge redeploy** — GitHub workflow now deploys `responder-api` + `responder-track` (`--no-verify-jwt`) but still needs repo secret `SUPABASE_ACCESS_TOKEN`.
@@ -86,7 +86,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Default vehicle (2026-09-01):** `vehicles.is_default` (רכב ראשי). Profile star when 2+ active cars; `set_default_vehicle` RPC; new `event_responders` insert copies that plate; fill + personal-shift preselect it. Spec: `2026-09-01-yahpaz-default-vehicle-design.md`. **Not yet applied on prod** — UI fallback retries without `is_default` so the vehicle list still loads.
 - **24-hour time (2026-09-03):** Event time inputs are digit-masked `HH:mm` (not native `type="time"`, which followed device 12/24). Display formatters use `hour12: false` + `hourCycle: 'h23'`. Same pattern as Android `TimeField`.
 - **Form field limits (2026-09-05):** Event `מספר אירוע` max 7 digits (`maxLength` + `policeEventIdForInput`). Lead `קילומטרים` max 3 digits. Create-event `או״ק ניידת` max 16 characters. Treated plates accept **5–8** digits (was 7–8); format 5=`XX-XXX`, 6=`XXX-XXX`. Error copy: `יש להזין 5 עד 8 ספרות.`
-- **Latest `infra/bootstrap` tip (2026-09-05):** `0d2b04a` — merge of PR #34 (assignment webhook). Prior same day: `dcd8f7e` PR #33 live trip tracking. Prior: `5a1bde1` remember-me prod note; `b524c88` PR #32 remember-me login.
+- **Latest `infra/bootstrap` tip (2026-09-05):** `7f778d5` — merge of PR #37 (form field limits + 5–6 digit plates). Prior same day: Android 0.3.26 force-update `25adc1e`; earlier: PR #34 webhook `0d2b04a`, PR #33 live trip `dcd8f7e`.
 
 ## Email (Resend)
 
