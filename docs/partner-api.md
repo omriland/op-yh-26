@@ -6,8 +6,8 @@
 
 **Product:** אבן דרך (Yahpaz)  
 **Audience:** The trusted server that runs the Telegram bot  
-**Version:** 1.1  
-**Date:** 2026-08-30
+**Version:** 1.2  
+**Date:** 2026-09-05
 
 ---
 

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Yahpaz Partner API
-  version: "1.1.0"
+  version: "1.2.0"
   license:
     name: Proprietary
     url: https://yahpz.com/partner-api/
