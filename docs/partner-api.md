@@ -404,59 +404,6 @@ Completing also stops live location tracking for this assignment (same effect as
 }
 ```
 
-### `start_live_track`
-
-Start live GPS tracking for one of your own open assignments — same underlying mechanism as the SMS link a shift lead can trigger, but self-served from the bot (typically from a `/trip` command). Same write locks as `save_draft`: works while `pending` or `in_progress`; blocked on a cancelled or already-`done` assignment.
-
-**Request**
-
-```json
-{ "action": "start_live_track", "event_id": "uuid" }
-```
-
-**200**
-
-```json
-{
-  "ok": true,
-  "track_token": "…",
-  "expires_at": "2026-09-11T12:00:00.000Z"
-}
-```
-
-Send location updates using `track_token` to **`responder-track`'s `ping` action** — a separate function, see "3. Live location ping" below. `expires_at` is a **7-day leak cap**, not a trip-length cap; call `stop_live_track` explicitly when the trip ends (or `complete` the report, which does this for you).
-
-| HTTP | `error` | `code` |
-|---|---|---|
-| 400 | חסר מזהה אירוע. | |
-| 404 | אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים. | |
-| 400 | אירוע זה אינו זמין דרך ה-API. | `shift_born` |
-| 400 | לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך. | `locked` |
-| 400 | האירוע בוטל. | `cancelled` |
-
----
-
-### `stop_live_track`
-
-Stop live GPS tracking for one of your own assignments — deletes the current live-location pin and invalidates the token. **Idempotent**: calling it when nothing is active is not an error, and it works even on a cancelled or completed assignment (stopping is always allowed).
-
-You do not need to call this after `complete` — completing a report already stops tracking for that assignment. Call it directly only if the volunteer stops sharing location (or you want to end tracking) before the report is complete.
-
-**Request**
-
-```json
-{ "action": "stop_live_track", "event_id": "uuid" }
-```
-
-**200** `{ "ok": true }`
-
-| HTTP | `error` |
-|---|---|
-| 400 | חסר מזהה אירוע. |
-| 404 | אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים. |
-
----
-
 #### Complete / draft validation (same as the website)
 
 | Field | Draft | Complete |
@@ -624,6 +571,59 @@ Only own photos.
 
 ---
 
+### `start_live_track`
+
+Start live GPS tracking for one of your own open assignments — same underlying mechanism as the SMS link a shift lead can trigger, but self-served from the bot (typically from a `/trip` command). Same write locks as `save_draft`: works while `pending` or `in_progress`; blocked on a cancelled or already-`done` assignment.
+
+**Request**
+
+```json
+{ "action": "start_live_track", "event_id": "uuid" }
+```
+
+**200**
+
+```json
+{
+  "ok": true,
+  "track_token": "…",
+  "expires_at": "2026-09-11T12:00:00.000Z"
+}
+```
+
+Send location updates using `track_token` to **`responder-track`'s `ping` action** — a separate function, see "3. Live location ping" below. `expires_at` is a **7-day leak cap**, not a trip-length cap; call `stop_live_track` explicitly when the trip ends (or `complete` the report, which does this for you).
+
+| HTTP | `error` | `code` |
+|---|---|---|
+| 400 | חסר מזהה אירוע. | |
+| 404 | אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים. | |
+| 400 | אירוע זה אינו זמין דרך ה-API. | `shift_born` |
+| 400 | לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך. | `locked` |
+| 400 | האירוע בוטל. | `cancelled` |
+
+---
+
+### `stop_live_track`
+
+Stop live GPS tracking for one of your own assignments — deletes the current live-location pin and invalidates the token. **Idempotent**: calling it when nothing is active is not an error, and it works even on a cancelled or completed assignment (stopping is always allowed).
+
+You do not need to call this after `complete` — completing a report already stops tracking for that assignment. Call it directly only if the volunteer stops sharing location (or you want to end tracking) before the report is complete.
+
+**Request**
+
+```json
+{ "action": "stop_live_track", "event_id": "uuid" }
+```
+
+**200** `{ "ok": true }`
+
+| HTTP | `error` |
+|---|---|
+| 400 | חסר מזהה אירוע. |
+| 404 | אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים. |
+
+---
+
 ## 3. Live location ping (`responder-track` — a separate function)
 
 Forward each Telegram live-location update here using the `track_token` from `start_live_track`. **This call is authenticated purely by that opaque token in the body** — send the same **publishable anon key** you already use everywhere, in both `apikey` and `Authorization: Bearer`. Do **not** send your `ypat_` volunteer access token here; `responder-track` does not check it.
@@ -673,6 +673,7 @@ Only `ping` is documented here. `responder-track`'s `start` / `stop` / `load` ac
 6. `save_draft` while they pause; `complete` when they finish.
 7. On `fieldErrors`, ask only for those keys again, then `complete` (or `save_draft`) with an updated `draft`.
 8. `/unlink` → `revoke` → delete the stored bearer.
+9. For live tracking during a trip: `start_live_track` → forward each Telegram live-location update to `responder-track` `ping` → `stop_live_track` when the trip ends (or let `complete` do it for you).
 
 ---
 
@@ -710,9 +711,15 @@ Only `ping` is documented here. `responder-track`'s `start` / `stop` / `load` ac
 | `list_media` | List photos |
 | `upload_media` | Add a JPEG |
 | `update_media` | Edit own photo metadata |
+| `delete_media` | Delete own photo |
 | `start_live_track` | Start self-served live GPS tracking for one assignment |
 | `stop_live_track` | Stop live GPS tracking for one assignment |
-| `delete_media` | Delete own photo |
+
+### `POST …/responder-track` (track_token only, not ypat_ access token)
+
+| `action` | Purpose |
+|---|---|
+| `ping` | Send one live-location update |
 
 ---
 
