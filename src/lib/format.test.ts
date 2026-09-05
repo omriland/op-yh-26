@@ -6,6 +6,8 @@ import {
   formatLastLogin,
   formatPlate,
   formatTimeInput,
+  policeEventIdForInput,
+  POLICE_EVENT_ID_MAX_LENGTH,
   hebrewWeekdayLetter,
   isCompleteTimeInput,
   isValidOptionalPhone,
@@ -50,7 +52,24 @@ describe('digitsOnly', () => {
   })
 })
 
+describe('policeEventIdForInput', () => {
+  it('keeps digits only and caps at 7', () => {
+    expect(POLICE_EVENT_ID_MAX_LENGTH).toBe(7)
+    expect(policeEventIdForInput('12-345-67')).toBe('1234567')
+    expect(policeEventIdForInput('12345678')).toBe('1234567')
+    expect(policeEventIdForInput('abc12')).toBe('12')
+  })
+})
+
 describe('formatPlate', () => {
+  it('formats 5 digits as XX-XXX', () => {
+    expect(formatPlate('76543')).toBe('76-543')
+  })
+
+  it('formats 6 digits as XXX-XXX', () => {
+    expect(formatPlate('123456')).toBe('123-456')
+  })
+
   it('formats 7 digits as XX-XXX-XX', () => {
     expect(formatPlate('1234567')).toBe('12-345-67')
   })
@@ -66,7 +85,7 @@ describe('formatPlate', () => {
   })
 
   it('leaves incomplete values as typed', () => {
-    expect(formatPlate('76543')).toBe('76543')
+    expect(formatPlate('1234')).toBe('1234')
     expect(formatPlate('12-34')).toBe('12-34')
   })
 })

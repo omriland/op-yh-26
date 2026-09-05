@@ -34,8 +34,19 @@ describe('commitTreatedPlate', () => {
     if (result.ok) expect(result.plate.plate_number).toBe('713-86-301')
   })
 
-  it('rejects 6 digits', () => {
-    expect(commitTreatedPlate('123456', [])).toEqual({
+  it('formats 5 and 6 digits with hyphens', () => {
+    expect(commitTreatedPlate('76543', [])).toEqual({
+      ok: true,
+      plate: { plate_number: '76-543', ...blank },
+      plates: [{ plate_number: '76-543', ...blank }],
+    })
+    const six = commitTreatedPlate('123456', [])
+    expect(six.ok).toBe(true)
+    if (six.ok) expect(six.plate.plate_number).toBe('123-456')
+  })
+
+  it('rejects 4 digits', () => {
+    expect(commitTreatedPlate('1234', [])).toEqual({
       ok: false,
       error: TREATED_PLATE_LENGTH_ERROR,
     })
@@ -77,6 +88,16 @@ describe('settleTreatedPlatePending', () => {
   it('commits a complete 8-digit leftover on complete', () => {
     const plate = { plate_number: '241-00-502', ...blank }
     expect(settleTreatedPlatePending('24100502', [], 'complete')).toEqual({
+      ok: true,
+      plates: [plate],
+      pending: '',
+      committed: plate,
+    })
+  })
+
+  it('commits a complete 5-digit leftover on complete', () => {
+    const plate = { plate_number: '76-543', ...blank }
+    expect(settleTreatedPlatePending('76543', [], 'complete')).toEqual({
       ok: true,
       plates: [plate],
       pending: '',

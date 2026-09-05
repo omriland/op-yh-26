@@ -133,12 +133,21 @@ export function formatEndTime(
   return time
 }
 
+/** Police event number — digits only, 7 max. */
+export const POLICE_EVENT_ID_MAX_LENGTH = 7
+
+export function policeEventIdForInput(raw: string): string {
+  return digitsOnly(raw).slice(0, POLICE_EVENT_ID_MAX_LENGTH)
+}
+
 /**
- * License plate: 7 digits → XX-XXX-XX; 8 digits → XXX-XX-XXX.
+ * License plate: 5 → XX-XXX; 6 → XXX-XXX; 7 → XX-XXX-XX; 8 → XXX-XX-XXX.
  * Existing dashes/spaces are ignored so typists cannot put them in the wrong place.
  */
 export function formatPlate(raw: string): string {
   const digits = raw.replace(/\D/g, '')
+  if (digits.length === 5) return `${digits.slice(0, 2)}-${digits.slice(2)}`
+  if (digits.length === 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`
   if (digits.length === 7) return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`
   if (digits.length === 8) return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`
   return raw

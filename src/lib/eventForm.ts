@@ -11,7 +11,7 @@ import {
   eventNeedsPersistedGeocode,
 } from './eventGeocode'
 import { geocodePlaceQuery } from './googlePlaces'
-import { digitsOnly, isCompleteTimeInput } from './format'
+import { digitsOnly, isCompleteTimeInput, policeEventIdForInput } from './format'
 import {
   LOCATION_REQUIRED_ERROR,
   districtNeedsStation,
@@ -36,6 +36,16 @@ export type LookupOption = { id: string; name: string; code?: string | null }
 export const OTHER_EVENT_TYPE_NAME = 'אחר'
 export const EVENT_TYPE_DETAIL_MAX_LENGTH = 80
 export const STATION_MAX_LENGTH = 80
+export const LEAD_KM_MAX_DIGITS = 3
+export const PATROL_CALLSIGN_MAX_LENGTH = 16
+
+export function leadKmForInput(raw: string): string {
+  return digitsOnly(raw).slice(0, LEAD_KM_MAX_DIGITS)
+}
+
+export function patrolCallsignForInput(raw: string): string {
+  return raw.slice(0, PATROL_CALLSIGN_MAX_LENGTH)
+}
 
 export function isOtherEventTypeName(name: string | null | undefined): boolean {
   return (name ?? '').trim() === OTHER_EVENT_TYPE_NAME
@@ -1085,9 +1095,9 @@ export async function saveEventForm(input: {
   const wasCreate = !draft.id
   const eventPayload = {
     event_date: draft.event_date,
-    police_event_id: digitsOnly(draft.police_event_id) || null,
+    police_event_id: policeEventIdForInput(draft.police_event_id) || null,
     district_id: foreignIds.district_id,
-    patrol_callsign: draft.patrol_callsign.trim() || null,
+    patrol_callsign: patrolCallsignForInput(draft.patrol_callsign).trim() || null,
     event_type_id: foreignIds.event_type_id,
     road_id: foreignIds.road_id,
     location: locationPayload.location,

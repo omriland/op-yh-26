@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  LEAD_KM_MAX_DIGITS,
   NO_VEHICLE_KM_PLACEHOLDER,
+  PATROL_CALLSIGN_MAX_LENGTH,
   hasActiveVehicle,
+  leadKmForInput,
   leadKmForSave,
+  patrolCallsignForInput,
 } from './eventForm'
 
 describe('hasActiveVehicle', () => {
@@ -42,5 +46,22 @@ describe('leadKmForSave', () => {
 describe('NO_VEHICLE_KM_PLACEHOLDER', () => {
   it('is the locked field copy', () => {
     expect(NO_VEHICLE_KM_PLACEHOLDER).toBe('מתנדב ללא רכב')
+  })
+})
+
+describe('leadKmForInput', () => {
+  it('keeps digits only and caps at 3', () => {
+    expect(LEAD_KM_MAX_DIGITS).toBe(3)
+    expect(leadKmForInput('12a3.5')).toBe('123')
+    expect(leadKmForInput('1405')).toBe('140')
+    expect(leadKmForInput('')).toBe('')
+  })
+})
+
+describe('patrolCallsignForInput', () => {
+  it('caps או״ק at 16 characters', () => {
+    expect(PATROL_CALLSIGN_MAX_LENGTH).toBe(16)
+    expect(patrolCallsignForInput('12345678901234567')).toBe('1234567890123456')
+    expect(patrolCallsignForInput('ניידת 12')).toBe('ניידת 12')
   })
 })
