@@ -11,9 +11,14 @@ import {
   deletePartnerClient,
   fetchPartnerClients,
   rotatePartnerClientSecret,
+  setPartnerClientWebhook,
   type PartnerClient,
 } from '../lib/partnerApi'
-import { isTelegramBotUsername, normalizeTelegramBotUsername } from '../lib/partnerOAuth'
+import {
+  isHttpsWebhookUrl,
+  isTelegramBotUsername,
+  normalizeTelegramBotUsername,
+} from '../lib/partnerOAuth'
 
 export function PartnerBotSettings() {
   const { show } = useToast()
@@ -32,6 +37,9 @@ export function PartnerBotSettings() {
     secret: string
     authorizeUrl?: string
   } | null>(null)
+  const [webhookDrafts, setWebhookDrafts] = useState<Record<string, string>>({})
+  const [webhookErrors, setWebhookErrors] = useState<Record<string, string>>({})
+  const [webhookSaving, setWebhookSaving] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -39,6 +47,9 @@ export function PartnerBotSettings() {
       if (!active) return
       if (result.ok) {
         setClients(result.clients)
+        setWebhookDrafts(
+          Object.fromEntries(result.clients.map((c) => [c.client_id, c.webhook_url ?? ''])),
+        )
         setListError(null)
       } else {
         setClients([])
@@ -120,6 +131,47 @@ export function PartnerBotSettings() {
     show('הבוט הוסר')
   }
 
+  async function onSaveWebhook(clientId: string) {
+    if (viewingAsOther) {
+      show('לא ניתן לרשום בוט בזמן התחזות.')
+      return
+    }
+    const url = (webhookDrafts[clientId] ?? '').trim()
+    if (url && !isHttpsWebhookUrl(url)) {
+      setWebhookErrors((current) => ({
+        ...current,
+        [clientId]: 'כתובת ה-webhook חייבת להתחיל ב-https://.',
+      }))
+      return
+    }
+    setWebhookErrors((current) => {
+      const next = { ...current }
+      delete next[clientId]
+      return next
+    })
+    setWebhookSaving(clientId)
+    const result = await setPartnerClientWebhook({ clientId, webhookUrl: url })
+    setWebhookSaving(null)
+    if (!result.ok) {
+      setWebhookErrors((current) => ({ ...current, [clientId]: result.error }))
+      return
+    }
+    setClients((current) =>
+      (current ?? []).map((client) =>
+        client.client_id === clientId ? { ...client, webhook_url: result.webhookUrl } : client,
+      ),
+    )
+    if (result.webhookSecret) {
+      setSecretOnce({
+        title: 'The new webhook secret is shown only once',
+        clientId,
+        secret: result.webhookSecret,
+      })
+    } else {
+      show('ה-webhook הוסר')
+    }
+  }
+
   return (
     <>
       {viewingAsOther ? (
@@ -157,6 +209,32 @@ export function PartnerBotSettings() {
                   onClick={() => setDeleteClient(client)}
                 >
                   הסרה
+                </Button>
+                <TextField
+                  label="Webhook URL"
+                  hint="https://... — ריק כדי לבטל"
+                  isolate
+                  value={webhookDrafts[client.client_id] ?? ''}
+                  onChange={(event) =>
+                    setWebhookDrafts((current) => ({
+                      ...current,
+                      [client.client_id]: event.target.value,
+                    }))
+                  }
+                />
+                {webhookErrors[client.client_id] ? (
+                  <p className="alert alert--error" role="alert">
+                    {webhookErrors[client.client_id]}
+                  </p>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  disabled={viewingAsOther}
+                  loading={webhookSaving === client.client_id}
+                  loadingLabel="שומר…"
+                  onClick={() => void onSaveWebhook(client.client_id)}
+                >
+                  שמירת Webhook
                 </Button>
               </div>
             ))}

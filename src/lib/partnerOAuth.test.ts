@@ -8,6 +8,7 @@ import {
   grantIsUsable,
   isOAuthAuthorizePath,
   isOpenStandaloneParticipation,
+  isHttpsWebhookUrl,
   isTelegramBotUsername,
   isTelegramStartParam,
   liveGrantForBot,
@@ -97,6 +98,13 @@ describe('Telegram bot username and redirect', () => {
     expect(isTelegramBotUsername('ab')).toBe(false)
     expect(isTelegramBotUsername('@YahpazFillBot')).toBe(false)
     expect(normalizeTelegramBotUsername('@YahpazFillBot')).toBe('YahpazFillBot')
+  })
+
+  it('only accepts https:// webhook URLs', () => {
+    expect(isHttpsWebhookUrl('https://bot.example.com/webhooks/yahpaz')).toBe(true)
+    expect(isHttpsWebhookUrl('http://bot.example.com/webhooks/yahpaz')).toBe(false)
+    expect(isHttpsWebhookUrl('not a url')).toBe(false)
+    expect(isHttpsWebhookUrl('')).toBe(false)
   })
 
   it('builds and matches https://t.me/<bot> only', () => {
