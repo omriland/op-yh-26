@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Yahpaz Partner API
-  version: "1.2.0"
+  version: "1.3.0"
   license:
     name: Proprietary
     url: https://yahpz.com/partner-api/
@@ -17,6 +17,13 @@ info:
     After `/start yp_…`, exchange the code (`partner-auth` `token`) and call
     `responder-api` with the `ypat_` bearer. Pick an **Example** on each operation
     for the JSON `action`. User-facing `error` strings are Hebrew; show them in chat.
+
+    If you configure a `webhook_url` (admin-issued, same as `client_secret`), Yahpaz
+    POSTs a signed `assignment_created` notification to it whenever a volunteer with
+    an active grant gets a new assignment — see `docs/partner-api.md` §4 for the
+    payload shape and signature verification. This is not a callable operation on
+    this server, so it has no path below; see the `AssignmentWebhookPayload` schema
+    for the JSON shape.
 
 servers:
   - url: https://rtvizpsfvtjowbimugns.supabase.co/functions/v1
@@ -596,6 +603,52 @@ components:
       properties:
         error:
           type: string
+    AssignmentWebhookPayload:
+      type: object
+      description: >-
+        Body Yahpaz POSTs to your webhook_url, signed with X-Yahpaz-Signature
+        (hex HMAC-SHA256 using your webhook_secret). Not a request/response of
+        this API — documented here for reference only.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Dedupe key. Retries reuse the same id.
+        user_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          enum: [assignment_created]
+        event_id:
+          type: string
+          format: uuid
+        event_summary:
+          type: object
+          properties:
+            event_type_name:
+              type: string
+              nullable: true
+            event_date:
+              type: string
+              format: date
+            police_event_id:
+              type: string
+              nullable: true
+            location:
+              type: string
+              nullable: true
+      required: [id, user_id, event_type, event_id, event_summary]
+      example:
+        id: "b1e2c3d4-0000-4000-8000-000000000000"
+        user_id: "a1b2c3d4-0000-4000-8000-000000000000"
+        event_type: "assignment_created"
+        event_id: "c1d2e3f4-0000-4000-8000-000000000000"
+        event_summary:
+          event_type_name: "תאונה"
+          event_date: "2026-09-05"
+          police_event_id: "12-34-567"
+          location: "כביש 6, צומת רעננה מזרח"
     ErrorWithCode:
       type: object
       required: [error]

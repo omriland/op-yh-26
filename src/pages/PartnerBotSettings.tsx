@@ -11,9 +11,14 @@ import {
   deletePartnerClient,
   fetchPartnerClients,
   rotatePartnerClientSecret,
+  setPartnerClientWebhook,
   type PartnerClient,
 } from '../lib/partnerApi'
-import { isTelegramBotUsername, normalizeTelegramBotUsername } from '../lib/partnerOAuth'
+import {
+  isHttpsWebhookUrl,
+  isTelegramBotUsername,
+  normalizeTelegramBotUsername,
+} from '../lib/partnerOAuth'
 
 export function PartnerBotSettings() {
   const { show } = useToast()
@@ -30,8 +35,12 @@ export function PartnerBotSettings() {
     title: string
     clientId: string
     secret: string
+    secretLabel: string
     authorizeUrl?: string
   } | null>(null)
+  const [webhookDrafts, setWebhookDrafts] = useState<Record<string, string>>({})
+  const [webhookErrors, setWebhookErrors] = useState<Record<string, string>>({})
+  const [webhookSaving, setWebhookSaving] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     let active = true
@@ -39,6 +48,9 @@ export function PartnerBotSettings() {
       if (!active) return
       if (result.ok) {
         setClients(result.clients)
+        setWebhookDrafts(
+          Object.fromEntries(result.clients.map((c) => [c.client_id, c.webhook_url ?? ''])),
+        )
         setListError(null)
       } else {
         setClients([])
@@ -79,10 +91,16 @@ export function PartnerBotSettings() {
       title: 'This token is shown only once',
       clientId: result.clientId,
       secret: result.clientSecret,
+      secretLabel: 'Token',
       authorizeUrl: result.authorizeUrl,
     })
     const listed = await fetchPartnerClients()
-    if (listed.ok) setClients(listed.clients)
+    if (listed.ok) {
+      setClients(listed.clients)
+      setWebhookDrafts(
+        Object.fromEntries(listed.clients.map((c) => [c.client_id, c.webhook_url ?? ''])),
+      )
+    }
   }
 
   async function onRotateSecret(clientId: string) {
@@ -99,6 +117,7 @@ export function PartnerBotSettings() {
       title: 'The new token is shown only once',
       clientId,
       secret: result.clientSecret,
+      secretLabel: 'Token',
     })
   }
 
@@ -118,6 +137,49 @@ export function PartnerBotSettings() {
     setClients((current) => (current ?? []).filter((row) => row.id !== deleteClient.id))
     setDeleteClient(null)
     show('הבוט הוסר')
+  }
+
+  async function onSaveWebhook(clientId: string) {
+    if (viewingAsOther) {
+      show('לא ניתן לרשום בוט בזמן התחזות.')
+      return
+    }
+    const url = (webhookDrafts[clientId] ?? '').trim()
+    if (url && !isHttpsWebhookUrl(url)) {
+      setWebhookErrors((current) => ({
+        ...current,
+        [clientId]: 'כתובת ה-webhook חייבת להתחיל ב-https://.',
+      }))
+      return
+    }
+    setWebhookErrors((current) => {
+      const next = { ...current }
+      delete next[clientId]
+      return next
+    })
+    setWebhookSaving((current) => ({ ...current, [clientId]: true }))
+    const result = await setPartnerClientWebhook({ clientId, webhookUrl: url })
+    setWebhookSaving((current) => ({ ...current, [clientId]: false }))
+    if (!result.ok) {
+      setWebhookErrors((current) => ({ ...current, [clientId]: result.error }))
+      return
+    }
+    setClients((current) =>
+      (current ?? []).map((client) =>
+        client.client_id === clientId ? { ...client, webhook_url: result.webhookUrl } : client,
+      ),
+    )
+    setWebhookDrafts((current) => ({ ...current, [clientId]: result.webhookUrl ?? '' }))
+    if (result.webhookSecret) {
+      setSecretOnce({
+        title: 'The new webhook secret is shown only once',
+        clientId,
+        secret: result.webhookSecret,
+        secretLabel: 'Secret',
+      })
+    } else {
+      show('ה-webhook הוסר')
+    }
   }
 
   return (
@@ -157,6 +219,32 @@ export function PartnerBotSettings() {
                   onClick={() => setDeleteClient(client)}
                 >
                   הסרה
+                </Button>
+                <TextField
+                  label="Webhook URL"
+                  hint="https://... — ריק כדי לבטל"
+                  isolate
+                  value={webhookDrafts[client.client_id] ?? ''}
+                  onChange={(event) =>
+                    setWebhookDrafts((current) => ({
+                      ...current,
+                      [client.client_id]: event.target.value,
+                    }))
+                  }
+                />
+                {webhookErrors[client.client_id] ? (
+                  <p className="alert alert--error" role="alert">
+                    {webhookErrors[client.client_id]}
+                  </p>
+                ) : null}
+                <Button
+                  variant="secondary"
+                  disabled={viewingAsOther}
+                  loading={webhookSaving[client.client_id] ?? false}
+                  loadingLabel="שומר…"
+                  onClick={() => void onSaveWebhook(client.client_id)}
+                >
+                  שמירת Webhook
                 </Button>
               </div>
             ))}
@@ -210,11 +298,11 @@ export function PartnerBotSettings() {
         {secretOnce ? (
           <div className="stack-3">
             <p className="t-body text-secondary">
-              Save the token with whoever is building the bot. Volunteers do not need it.
+              Save this with whoever is building the bot. Volunteers do not need it.
             </p>
             <Ledger>
               <LedgerRow label="Client ID" value={secretOnce.clientId} isolate />
-              <LedgerRow label="Token" value={secretOnce.secret} isolate />
+              <LedgerRow label={secretOnce.secretLabel} value={secretOnce.secret} isolate />
             </Ledger>
             {secretOnce.authorizeUrl ? (
               <p className="t-caption text-muted" style={{ overflowWrap: 'anywhere' }}>

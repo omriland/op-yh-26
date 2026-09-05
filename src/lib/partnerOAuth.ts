@@ -79,6 +79,14 @@ export function isTelegramBotUsername(raw: string): boolean {
   return TELEGRAM_USERNAME.test(raw.trim())
 }
 
+export function isHttpsWebhookUrl(raw: string): boolean {
+  try {
+    return new URL(raw.trim()).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export function redirectUriForBot(botUsername: string): string {
   return `https://t.me/${normalizeTelegramBotUsername(botUsername)}`
 }

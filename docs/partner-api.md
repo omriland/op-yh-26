@@ -6,7 +6,7 @@
 
 **Product:** אבן דרך (Yahpaz)  
 **Audience:** The trusted server that runs the Telegram bot  
-**Version:** 1.2  
+**Version:** 1.3  
 **Date:** 2026-09-05
 
 ---
@@ -20,6 +20,7 @@ On behalf of a volunteer who has **linked their אבן דרך account** to your 
 - Load one event (context + current draft + their vehicles + treated plates + photos)
 - Save a draft or **complete** the report (same rules as השלמת הפרטים שלי)
 - Start / stop live GPS location sharing for one of their own trips, and send location pings while it's active
+- Receive a signed webhook when a volunteer is newly assigned to an event (optional, if you configure `webhook_url`)
 - Add / remove / look up treated civilian plates
 - Upload / list / update / delete **their** event photos
 
@@ -46,6 +47,7 @@ Yahpaz registers your app once. You get:
 | `client_id` | Public id in the authorize URL and on `token` / `revoke` |
 | `client_secret` | **Server only.** Redeem codes and revoke tokens. Never put this in Telegram, a webpage, or a mobile app |
 | Publishable `apikey` | The same anon key the website uses. Required on every Edge request. Not authorization |
+| `webhook_secret` | Only if you configure a webhook (§4). HMAC-signs outbound assignment notifications so you can verify they're really from Yahpaz. |
 
 Base URL:
 
@@ -125,6 +127,8 @@ Content-Type: application/json
 `expires_in` is **60 days** (5184000 seconds). There is **no refresh token**. After expiry, revoke, or unlink on yahpz.com (**פרופיל → חיבורים**), send them through authorize again.
 
 Store `access_token` keyed by your Telegram user id. Treat it like a password.
+
+Also call `whoami` and store the returned `user_id` alongside it — you'll need a `user_id → chat_id` mapping later for the assignment webhook (§4).
 
 | HTTP | `error` | Notes |
 |---|---|---|
@@ -663,6 +667,47 @@ Only `ping` is documented here. `responder-track`'s `start` / `stop` / `load` ac
 
 ---
 
+## 4. Assignment webhook (we call you)
+
+If you configure a `webhook_url` (Yahpaz admin → הגדרות → רישום בוט, same place `client_secret` is issued), Yahpaz POSTs here whenever a volunteer with an active grant to your app gets a new event assignment. This is the only notification type in v1.
+
+```http
+POST {your webhook_url}
+Content-Type: application/json
+X-Yahpaz-Signature: {hex HMAC-SHA256 of the raw body, using your webhook_secret}
+```
+
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "event_type": "assignment_created",
+  "event_id": "uuid",
+  "event_summary": {
+    "event_type_name": "תאונה",
+    "event_date": "2026-09-05",
+    "police_event_id": "12-34-567",
+    "location": "…"
+  }
+}
+```
+
+`webhook_url` must be `https://` — non-HTTPS URLs are rejected when you configure it in the admin UI.
+
+Your side:
+
+1. **Verify the signature**: compute HMAC-SHA256 over the raw request body using your `webhook_secret`, compare against `X-Yahpaz-Signature` (constant-time compare). Reject anything that doesn't match.
+2. **Dedupe on `id`**: we may retry a delivery that timed out but actually succeeded on your end. Skip work if you've already processed this `id`.
+3. **Look up the chat** using your own `user_id → chat_id` mapping (the same one you already maintain for `token` and `/unlink`). If unmapped, just return 2xx and drop it.
+4. **Send the Telegram message** yourself, with whatever inline keyboard you want (e.g. an "accept" button).
+5. **Respond 2xx quickly** once sent or reliably queued. Anything else (non-2xx, timeout) is retried with backoff — there is no dead-letter queue or UI in v1, so a permanently broken `webhook_url` retries forever with increasing backoff; fix it or clear it (empty URL in the admin UI) to stop.
+
+An "accept" action on this message can call `start_live_track { event_id }` directly (see "2. Responder API" § start_live_track, and "3. Live location ping" above for sending pings) — you already have the `event_id`, no need for `list_open_events` on this path.
+
+`webhook_url` / `webhook_secret` are issued and rotated the same way `client_secret` is today, via Yahpaz admin.
+
+---
+
 ## Suggested bot flow
 
 1. `/start` without a `yp_` code → send the short authorize URL (`client_id` + fresh `state`).
@@ -674,6 +719,7 @@ Only `ping` is documented here. `responder-track`'s `start` / `stop` / `load` ac
 7. On `fieldErrors`, ask only for those keys again, then `complete` (or `save_draft`) with an updated `draft`.
 8. `/unlink` → `revoke` → delete the stored bearer.
 9. For live tracking during a trip: `start_live_track` → forward each Telegram live-location update to `responder-track` `ping` → `stop_live_track` when the trip ends (or let `complete` do it for you).
+10. If you configure a `webhook_url`: on an `assignment_created` webhook, message the volunteer with an "accept" option that calls `start_live_track { event_id }` directly (see "4. Assignment webhook" above).
 
 ---
 
@@ -684,6 +730,7 @@ Only `ping` is documented here. `responder-track`'s `start` / `stop` / `load` ac
 - One volunteer ↔ one Telegram account in **your** mapping. We do not store Telegram ids.
 - After `invalid_token`, delete the bearer and start linking again.
 - The publishable `apikey` is public (it is in the website). It does not grant fill access by itself.
+- Verify `X-Yahpaz-Signature` on every assignment webhook (§4) before trusting the payload; never log `webhook_secret`.
 
 ---
 
@@ -721,9 +768,13 @@ Only `ping` is documented here. `responder-track`'s `start` / `stop` / `load` ac
 |---|---|
 | `ping` | Send one live-location update |
 
+The assignment webhook (§4) is not a callable action — it's a notification Yahpaz sends to you.
+
 ---
 
 ## Support
 
 Questions about credentials or a new bot username: Yahpaz admin (הגדרות → רישום בוט).  
 Contract changes will bump the version at the top of this file.
+
+See "4. Assignment webhook" above for the `webhook_url` / `webhook_secret` notification contract (Yahpaz calls you; there is no `action` for it since it's not a request to `/responder-api`).
