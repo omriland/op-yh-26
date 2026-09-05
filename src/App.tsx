@@ -47,6 +47,7 @@ import { ContactsPage } from './pages/ContactsPage'
 import { FeedbackInboxPage } from './pages/FeedbackInboxPage'
 import { EventLocationsPage } from './pages/EventLocationsPage'
 import { EventAuditPage } from './pages/EventAuditPage'
+import { IosDevicesAdminPage } from './pages/IosDevicesAdminPage'
 import { canManageFeedbackInbox } from './lib/userFeedback'
 import { canAccessSuperAdminNav } from './lib/superAdminAccess'
 import { IMPERSONATION_CHANGE_EVENT, isImpersonating } from './lib/impersonationStash'
@@ -606,7 +607,7 @@ function Gate() {
         icon: SUPER_ADMIN_NAV_ICON,
         section: isDesktop ? 'ניהול' : undefined,
         attention: navAttention.openFeedback,
-        alsoCurrentFor: ['feedback', 'event_locations', 'event_audit'],
+        alsoCurrentFor: ['feedback', 'event_locations', 'event_audit', 'ios_devices'],
         children: [
           {
             view: 'feedback',
@@ -623,6 +624,11 @@ function Gate() {
             view: 'event_audit',
             label: 'יומן שינויים',
             icon: NAV_ICONS.event_audit,
+          },
+          {
+            view: 'ios_devices',
+            label: 'מכשירי iOS',
+            icon: NAV_ICONS.ios_devices,
           },
         ],
       })
@@ -1092,6 +1098,8 @@ function Gate() {
         />
       ) : activeView === 'event_audit' && isSuperAdmin ? (
         <EventAuditPage key={sectionReset} />
+      ) : activeView === 'ios_devices' && isSuperAdmin ? (
+        <IosDevicesAdminPage key={sectionReset} />
       ) : isAdminHub && isAdminSegment(activeView) ? (
           <div
             className={['stack-4', activeView === 'users' ? 'page--wide page--users' : '']

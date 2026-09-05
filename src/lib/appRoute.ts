@@ -21,6 +21,7 @@ export type AppRouteView =
   | 'feedback'
   | 'event_locations'
   | 'event_audit'
+  | 'ios_devices'
 
 export type EventSurface =
   | { kind: 'list' }
@@ -73,6 +74,7 @@ const VIEW_TO_SLUG: Record<AppRouteView, string> = {
   feedback: 'feedback',
   event_locations: 'event-locations',
   event_audit: 'event-audit',
+  ios_devices: 'ios-devices',
 }
 
 const SLUG_TO_VIEW = Object.fromEntries(
@@ -332,6 +334,7 @@ export function isAllowedAppView(view: AppRouteView, access: AppRouteAccess): bo
     case 'feedback':
     case 'event_locations':
     case 'event_audit':
+    case 'ios_devices':
       return access.isSuperAdmin
   }
 }

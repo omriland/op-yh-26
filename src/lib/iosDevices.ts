@@ -131,18 +131,16 @@ export async function listAllIosDevices(): Promise<IosDeviceAdminRow[]> {
   const { data, error } = await supabase
     .from('ios_devices')
     .select(
-      'id,user_id,udid,device_name,product_type,ios_version,status,requested_at,approved_at,registered_at,rejected_at,reject_reason,membership_year,profiles(full_name,callsign)',
+      'id,user_id,udid,device_name,product_type,ios_version,status,requested_at,approved_at,registered_at,rejected_at,reject_reason,membership_year,profile:profiles(full_name,callsign)',
     )
     .order('requested_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []).map((row) => {
     const r = row as IosDevice & {
-      profiles?: { full_name?: string | null; callsign?: string | null } | null
+      profile?: { full_name?: string | null; callsign?: string | null } | null
     }
-    const profile = r.profiles
-    const { profiles: _profiles, ...rest } = r as IosDevice & {
-      profiles?: unknown
-    }
+    const profile = r.profile
+    const { profile: _profile, ...rest } = r as IosDevice & { profile?: unknown }
     return {
       ...rest,
       profile_name: profile?.full_name ?? null,
