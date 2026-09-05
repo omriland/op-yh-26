@@ -716,17 +716,21 @@ async function handleDeliverWebhooks(
 
     const nowIso = new Date().toISOString();
     if (ok) {
-      await admin
+      const { error: updateError } = await admin
         .from("partner_webhook_events")
         .update({ delivered_at: nowIso, last_attempt_at: nowIso })
         .eq("id", raw.id);
+      if (updateError) {
+        skipped.push({ id: raw.id, reason: "mark_delivered_failed" });
+        continue;
+      }
       delivered.push(raw.id);
     } else {
-      await admin
+      const { error: updateError } = await admin
         .from("partner_webhook_events")
         .update({ attempts: raw.attempts + 1, last_attempt_at: nowIso })
         .eq("id", raw.id);
-      skipped.push({ id: raw.id, reason: "delivery_failed" });
+      skipped.push({ id: raw.id, reason: updateError ? "mark_failed_failed" : "delivery_failed" });
     }
   }
 
