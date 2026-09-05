@@ -35,6 +35,7 @@ export function PartnerBotSettings() {
     title: string
     clientId: string
     secret: string
+    secretLabel: string
     authorizeUrl?: string
   } | null>(null)
   const [webhookDrafts, setWebhookDrafts] = useState<Record<string, string>>({})
@@ -90,6 +91,7 @@ export function PartnerBotSettings() {
       title: 'This token is shown only once',
       clientId: result.clientId,
       secret: result.clientSecret,
+      secretLabel: 'Token',
       authorizeUrl: result.authorizeUrl,
     })
     const listed = await fetchPartnerClients()
@@ -115,6 +117,7 @@ export function PartnerBotSettings() {
       title: 'The new token is shown only once',
       clientId,
       secret: result.clientSecret,
+      secretLabel: 'Token',
     })
   }
 
@@ -172,6 +175,7 @@ export function PartnerBotSettings() {
         title: 'The new webhook secret is shown only once',
         clientId,
         secret: result.webhookSecret,
+        secretLabel: 'Secret',
       })
     } else {
       show('ה-webhook הוסר')
@@ -294,11 +298,11 @@ export function PartnerBotSettings() {
         {secretOnce ? (
           <div className="stack-3">
             <p className="t-body text-secondary">
-              Save the token with whoever is building the bot. Volunteers do not need it.
+              Save this with whoever is building the bot. Volunteers do not need it.
             </p>
             <Ledger>
               <LedgerRow label="Client ID" value={secretOnce.clientId} isolate />
-              <LedgerRow label="Token" value={secretOnce.secret} isolate />
+              <LedgerRow label={secretOnce.secretLabel} value={secretOnce.secret} isolate />
             </Ledger>
             {secretOnce.authorizeUrl ? (
               <p className="t-caption text-muted" style={{ overflowWrap: 'anywhere' }}>
