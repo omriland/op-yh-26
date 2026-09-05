@@ -117,7 +117,7 @@ function parseOptionalNumber(raw: string): number | null | "invalid" {
 
 type FieldErrors = Record<string, string>;
 
-const TREATED_PLATE_LEFTOVER_ERROR = "השלימו או מחקו את המספר בתחתית.";
+const TREATED_PLATE_LEFTOVER_ERROR = "יש ללחוץ הוספה לשמירת המספר";
 
 function leftoverTreatedPlateError(
   pending: string | undefined,

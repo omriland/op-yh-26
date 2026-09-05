@@ -372,8 +372,8 @@ export function ResponderFillPage({
       'complete',
     )
     if (!settled.ok) {
+      // Field-level leftover plate copy already sits under the LP input — no toast.
       setErrors({ treated_plates: settled.error })
-      show(settled.error, 'alert')
       setSubmitAttempt((n) => n + 1)
       return
     }
@@ -402,7 +402,10 @@ export function ResponderFillPage({
     setCompleting(false)
     if (!result.ok) {
       if (result.fieldErrors) setErrors(result.fieldErrors)
-      show(result.error, 'alert')
+      const plateOnly =
+        result.fieldErrors?.treated_plates != null &&
+        result.error === result.fieldErrors.treated_plates
+      if (!plateOnly) show(result.error, 'alert')
       setSubmitAttempt((n) => n + 1)
       return
     }

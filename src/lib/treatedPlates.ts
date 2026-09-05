@@ -19,7 +19,7 @@ export type TreatedPlate = {
 
 export const TREATED_PLATE_LENGTH_ERROR = 'יש להזין 7 או 8 ספרות.'
 export const TREATED_PLATE_DUPLICATE_ERROR = 'מספר זה כבר נוסף.'
-export const TREATED_PLATE_LEFTOVER_ERROR = 'השלימו או מחקו את המספר בשדה מספרי כלי רכב.'
+export const TREATED_PLATE_LEFTOVER_ERROR = 'יש ללחוץ הוספה לשמירת המספר'
 export const TREATED_PLATE_DETAILS_MISS_TIP = 'לא הצלחנו לייבא את פרטי הרכב'
 
 export function treatedPlateCaption(
