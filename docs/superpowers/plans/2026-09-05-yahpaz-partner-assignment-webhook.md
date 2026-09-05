@@ -490,9 +490,11 @@ async function handleDeliverWebhooks(
     .from("partner_webhook_events")
     .select(
       `id, user_id, event_type, payload, attempts, last_attempt_at,
-       client:oauth_clients(webhook_url, webhook_secret, is_active)`,
+       client:oauth_clients!inner(webhook_url, webhook_secret, is_active)`,
     )
     .is("delivered_at", null)
+    .eq("client.is_active", true)
+    .not("client.webhook_url", "is", null)
     .order("created_at", { ascending: true })
     .limit(WEBHOOK_DELIVERY_BATCH_LIMIT);
 
@@ -513,7 +515,7 @@ async function handleDeliverWebhooks(
     }
 
     const client = Array.isArray(raw.client) ? raw.client[0] : raw.client;
-    if (!client?.webhook_url || !client.webhook_secret || !client.is_active) {
+    if (!client?.webhook_url || !client.webhook_secret) {
       skipped.push({ id: raw.id, reason: "unconfigured" });
       continue;
     }
@@ -561,7 +563,10 @@ async function handleDeliverWebhooks(
 }
 ```
 
-Note for the implementer: `handleDeliverWebhooks` takes `cfg.service` (the raw service-role key string), not the `cfg` object — check the call site in Step 2 passes `cfg.service`, matching how `responder-fill`'s `handleNotifyOverdueFills(adminClient, serviceKey, req)` takes the key directly.
+Notes for the implementer (do not skip reading these):
+- `handleDeliverWebhooks` takes `cfg.service` (the raw service-role key string), not the `cfg` object — check the call site in Step 2 passes `cfg.service`, matching how `responder-fill`'s `handleNotifyOverdueFills(adminClient, serviceKey, req)` takes the key directly.
+- The query uses `client:oauth_clients!inner(...)` (an *inner* join, not the default left join) plus `.eq("client.is_active", true)` and `.not("client.webhook_url", "is", null)` **deliberately** — this filters out rows whose client is inactive or unconfigured *at the database level*, before they're ever fetched. Do not simplify this back to a plain left join with client-side filtering: without the DB-level filter, a row whose client had its `webhook_url` cleared (via `admin_set_webhook` with an empty URL, Task 4) would have `last_attempt_at` stay `null` forever, be re-selected on every single one-minute cron tick indefinitely, and — because rows are ordered oldest-first with a hard `LIMIT 50` — could eventually fill the entire batch and permanently starve delivery of newer, legitimately-deliverable webhooks behind it. The `client?.webhook_url || !client.webhook_secret` check inside the loop is now purely defensive (webhook_secret is always set together with webhook_url by `admin_set_webhook`, so it should be unreachable) — it is not the real fix, the `!inner` query filter is.
+- Known limitation, accepted as-is: rows still inside their backoff window are fetched into the batch (the query can't express "not due yet" — that depends on `attempts`, which varies per row) and skipped client-side, so a large backlog of backing-off rows could still delay newer due rows behind them in the same `LIMIT 50` window. This is lower-severity than the unconfigured case because backoff-skipped rows are self-resolving (their `attempts`/`last_attempt_at` keep advancing, and the cron runs every minute), not stuck forever. Not worth the complexity of a real claim/lease query for v1.
 
 - [ ] **Step 5: Commit**
 
@@ -1065,6 +1070,8 @@ X-Yahpaz-Signature: {hex HMAC-SHA256 of the raw body, using your webhook_secret}
   }
 }
 ```
+
+`webhook_url` must be `https://` — non-HTTPS URLs are rejected when you configure it in the admin UI.
 
 Your side:
 
