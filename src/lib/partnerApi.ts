@@ -14,6 +14,7 @@ export type PartnerClient = {
   client_id: string
   telegram_bot_username: string
   is_active: boolean
+  webhook_url: string | null
   created_at: string
 }
 
@@ -180,4 +181,26 @@ export async function deletePartnerClient(
   })
   if (!result.ok) return result
   return { ok: true }
+}
+
+export async function setPartnerClientWebhook(input: {
+  clientId: string
+  webhookUrl: string
+}): Promise<
+  | { ok: true; webhookUrl: string | null; webhookSecret: string | null }
+  | { ok: false; error: string }
+> {
+  const result = await invokePartnerAuth<{ webhook_url?: string | null; webhook_secret?: string }>(
+    {
+      action: 'admin_set_webhook',
+      client_id: input.clientId,
+      webhook_url: input.webhookUrl,
+    },
+  )
+  if (!result.ok) return result
+  return {
+    ok: true,
+    webhookUrl: result.data.webhook_url ?? null,
+    webhookSecret: result.data.webhook_secret?.trim() || null,
+  }
 }

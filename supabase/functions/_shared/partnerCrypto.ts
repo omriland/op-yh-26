@@ -51,3 +51,21 @@ export function constantTimeEqual(left: string, right: string): boolean {
   }
   return mismatch === 0;
 }
+
+/** Plaintext HMAC-signing secret for a partner's webhook_url. Same shape as randomClientSecret; kept separate for call-site clarity. */
+export function randomWebhookSecret(): string {
+  return bytesToBase64Url(randomBytes(32));
+}
+
+/** Hex HMAC-SHA256 of `body` using `secret` as the key — signs outbound partner webhook deliveries. */
+export async function hmacSha256Hex(secret: string, body: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body));
+  return [...new Uint8Array(signature)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}

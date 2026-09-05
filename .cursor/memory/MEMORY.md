@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-04
+Last updated: 2026-09-04 (remember-me login live on prod)
 
 ## What this is
 
@@ -25,6 +25,7 @@ Repo: `yhpz-2026`
 ## Auth / admin seed
 
 - Auth: email + password (Supabase)
+- **Remember me (web, 2026-09-04):** login checkbox `זכור אותי במכשיר זה ל־30 יום` (default on). Session stays in `localStorage` for 30 days from that login; email is prefilled next time. Unchecked → `sessionStorage` (browser close signs out) and email is forgotten. Password is never stored by the app (browser password manager / Credential Management API only). Helper: `src/lib/rememberLogin.ts`.
 - Seed admin: `omriland@gmail.com` — profile עמרי לנדמן / callsign Admin — roles `admin`, `shift_lead`, **`super_admin`**
 - `super_admin`: DB-only grant (trigger blocks JWT insert/delete); not in role checkboxes/invite. Capabilities: set user password (`set_password`); change user email (`set_email` — Auth + `profiles.email`); impersonate active non–super-admin users (`impersonate` / `stop_impersonation` + `impersonation_audit`). Specs: `2026-08-11-yahpaz-super-admin-set-password-design.md`, `2026-08-11-yahpaz-super-admin-impersonation-design.md`
 - `profiles.must_change_password` + RPC `clear_must_change_password()` for force-change gate after admin-set password
@@ -65,7 +66,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 ## Current app state
 
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
-- **Latest Netlify prod (2026-09-03):** deploy `6a9902fd09e24b0008c14c6e`, commit `8ecdaf0` (`8ecdaf0aa39f6fd725295800ac624da06dac60fb`) on `infra/bootstrap` — **ready** at https://yahpz.com
+- **Latest Netlify prod (2026-09-04):** deploy `6a9b08ff15a0130008861087`, commit `b524c88` (`b524c88bd5740d887ca0ab4047cbb1229b71716a`) on `infra/bootstrap` — **ready** at https://yahpz.com (PR #32 remember-me login)
 - Core flows: auth, events, responder fill, admin users + closed lists
 - **Partner Telegram bot:** MCP-style connect via `/oauth/authorize?client_id&state`. **Profile חיבורים** (2026-09-04, PR #28): re-enabled + empty-state **קישור לטלגרם** starts the same OAuth consent flow (uses `list_apps` + `buildPartnerAuthorizeUrl` with current origin). Bot-initiated link still works. Spec: `2026-09-04-yahpaz-profile-telegram-link-design.md` (supersedes 2026-08-30 revoke-only). Fill API unchanged (`responder:fill`, 60-day token). Contract `/partner-api/` v1.1. Edge `partner-auth` responds live (Hebrew 401 without session); GitHub deploy workflow still skips when `SUPABASE_ACCESS_TOKEN` secret is missing.
 - Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs
@@ -82,7 +83,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Profile lifetime stats (2026-08-16):** פרופיל card `סיכום פעילות` reads snapshot columns on `profiles` (events + km; same inclusion as החזר דלק). `refresh_profile_lifetime_stats()` + `pg_cron` 07:00/19:00 Asia/Jerusalem. Clients cannot write the columns. Spec: `2026-08-16-yahpaz-profile-lifetime-stats-design.md`.
 - **Default vehicle (2026-09-01):** `vehicles.is_default` (רכב ראשי). Profile star when 2+ active cars; `set_default_vehicle` RPC; new `event_responders` insert copies that plate; fill + personal-shift preselect it. Spec: `2026-09-01-yahpaz-default-vehicle-design.md`. **Not yet applied on prod** — UI fallback retries without `is_default` so the vehicle list still loads.
 - **24-hour time (2026-09-03):** Event time inputs are digit-masked `HH:mm` (not native `type="time"`, which followed device 12/24). Display formatters use `hour12: false` + `hourCycle: 'h23'`. Same pattern as Android `TimeField`.
-- **Latest `infra/bootstrap` tip (2026-09-04):** `d4fe6bd` — merge of PR #28 (Saar: profile Telegram link). PR #25 (re-enable only) closed as superseded; PR #20 (disable connect) closed as obsolete.
+- **Latest `infra/bootstrap` tip (2026-09-04):** `b524c88` — merge of PR #32 (remember-me login, 30 days). Prior: `5cba6ab` memory after Saar Telegram PRs; `d4fe6bd` PR #28 profile Telegram link.
 
 ## Email (Resend)
 

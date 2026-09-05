@@ -25,6 +25,7 @@ Front door for **אבן דרך**. Not a split shell — a Command portal with on
 │      │  FIELD CARD               │      │
 │      │  כניסה למערכת             │      │
 │      │  [דוא״ל] [סיסמה]          │      │
+│      │  [ ] זכור אותי… ל־30 יום  │      │
 │      │  (כניסה) · שכחתי סיסמה    │      │
 │      └───────────────────────────┘      │
 │                                         │
@@ -40,6 +41,8 @@ Front door for **אבן דרך**. Not a split shell — a Command portal with on
 ## Form composition
 
 Unchanged behavior: sign-in, reset, reset-sent, set-password, password-set. Form-section title, LTR email/password, primary + centered ghost links, alerts, invite welcome + stamp success.
+
+Sign-in includes checkbox **זכור אותי במכשיר זה ל־30 יום** (default on). Checked: keep the Auth session in `localStorage` for 30 days from that login and prefill email next time. Unchecked: `sessionStorage` only (browser close signs out) and forget the email. Never store the password in app storage — the browser password manager may save it via `autocomplete`.
 
 ## Notes
 
