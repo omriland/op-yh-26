@@ -39,7 +39,7 @@ export function PartnerBotSettings() {
   } | null>(null)
   const [webhookDrafts, setWebhookDrafts] = useState<Record<string, string>>({})
   const [webhookErrors, setWebhookErrors] = useState<Record<string, string>>({})
-  const [webhookSaving, setWebhookSaving] = useState<string | null>(null)
+  const [webhookSaving, setWebhookSaving] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     let active = true
@@ -93,7 +93,12 @@ export function PartnerBotSettings() {
       authorizeUrl: result.authorizeUrl,
     })
     const listed = await fetchPartnerClients()
-    if (listed.ok) setClients(listed.clients)
+    if (listed.ok) {
+      setClients(listed.clients)
+      setWebhookDrafts(
+        Object.fromEntries(listed.clients.map((c) => [c.client_id, c.webhook_url ?? ''])),
+      )
+    }
   }
 
   async function onRotateSecret(clientId: string) {
@@ -149,9 +154,9 @@ export function PartnerBotSettings() {
       delete next[clientId]
       return next
     })
-    setWebhookSaving(clientId)
+    setWebhookSaving((current) => ({ ...current, [clientId]: true }))
     const result = await setPartnerClientWebhook({ clientId, webhookUrl: url })
-    setWebhookSaving(null)
+    setWebhookSaving((current) => ({ ...current, [clientId]: false }))
     if (!result.ok) {
       setWebhookErrors((current) => ({ ...current, [clientId]: result.error }))
       return
@@ -161,6 +166,7 @@ export function PartnerBotSettings() {
         client.client_id === clientId ? { ...client, webhook_url: result.webhookUrl } : client,
       ),
     )
+    setWebhookDrafts((current) => ({ ...current, [clientId]: result.webhookUrl ?? '' }))
     if (result.webhookSecret) {
       setSecretOnce({
         title: 'The new webhook secret is shown only once',
@@ -230,7 +236,7 @@ export function PartnerBotSettings() {
                 <Button
                   variant="secondary"
                   disabled={viewingAsOther}
-                  loading={webhookSaving === client.client_id}
+                  loading={webhookSaving[client.client_id] ?? false}
                   loadingLabel="שומר…"
                   onClick={() => void onSaveWebhook(client.client_id)}
                 >
