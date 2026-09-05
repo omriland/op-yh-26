@@ -118,6 +118,11 @@ volunteer iPhone                  yahpz.com (op-yh-26)         Supabase         
 
 ## Unit 1 — Device enrollment service
 
+> **Superseded for implementation detail (2026-09-05):** Plan 2 enrollment, approval
+> statuses, `super_admin` gate, and semi-auto publish are specified in
+> `2026-09-05-yahpaz-ios-udid-enrollment-approval-design.md`. Keep this section for
+> architectural context; prefer the 2026-09-05 doc when building.
+
 **Purpose:** capture an iPhone's UDID from a non-technical volunteer with no Mac, and bind
 it to their Yahpaz identity.
 
@@ -178,21 +183,25 @@ RLS: a volunteer reads their own rows; `admin` reads and writes all; clients nev
 
 ## Unit 2 — Admin device console
 
+> **Superseded (2026-09-05):** Console is **`super_admin` only**; statuses include
+> `approved` (queued); registration is flipped by `publish-ios-batch.sh`, not a web
+> “mark registered” action. See
+> `2026-09-05-yahpaz-ios-udid-enrollment-approval-design.md`.
+
 **Purpose:** make the 100-slot budget and the pending queue visible, and make the annual
 reset survivable.
 
-Web screen under ניהול, admin-only, following the existing admin list patterns (desktop
-table, mobile cards with the ⋮ overflow menu per
+Web screen under ניהול, **super_admin-only** (not general admin), following the existing
+admin list patterns (desktop table, mobile cards with the ⋮ overflow menu per
 `2026-08-11-mobile-admin-users-card-design.md`).
 
-- Pending enrollments awaiting registration, with volunteer name and או״ק.
+- Pending enrollments awaiting approval, with volunteer name and או״ק.
+- Approved devices queued for the next Mac publish.
 - Registered devices, grouped by volunteer.
 - **Budget header: `X / 100` used, plus the membership reset date.** Warning treatment past
   80, blocking-tone treatment at 95.
-- **Export batch** — copy or download the pending UDIDs as newline-delimited text, ready to
-  paste into the Apple portal's bulk device upload.
-- **Mark batch registered** after the portal work and a published build, which flips
-  `status` and stamps `registered_at`.
+- Publish script registers devices / builds / emails; optional UDID checklist lives in the
+  script pause path, not as the primary admin action.
 - Retire a device, which frees nothing mid-year (Apple counts disabled devices) but keeps
   the roster honest for the next reset.
 
@@ -327,9 +336,11 @@ enrollment machinery is added around a proven install path.
    hand-registered pilot UDID.
 4. Verify a real install on a real iPhone from yahpz.com.
 
-**Plan 2 — enrollment and console:** Units 1 and 2. Removes the manual UDID step and makes
-the 100-slot budget visible. Then pilot 3–5 volunteers through the full two-visit flow
-before batch-enrolling the unit; expect the first wave to consume most of the annual budget.
+**Plan 2 — enrollment and console:** Specified in
+`2026-09-05-yahpaz-ios-udid-enrollment-approval-design.md` (supersedes Units 1–2 detail
+here). Removes the manual UDID step, adds `super_admin` Approve → Mac batch publish →
+batch email. Pilot 3–5 volunteers through the full two-visit flow before batch-enrolling
+the unit; expect the first wave to consume most of the annual budget.
 
 **Plan 3 — in-app guards:** Unit 5. Plan 1 ships `version.json` with `minBuild: 1` so that
 no gate is enforced before a client exists that can read it.

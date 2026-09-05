@@ -64,6 +64,11 @@ describe('ios download paths', () => {
     expect(isIosDownloadPath('/android')).toBe(false)
   })
 
+  it('matches /ios/enrolled', () => {
+    expect(isIosDownloadPath('/ios/enrolled')).toBe(true)
+    expect(isIosDownloadPath('/ios/enrolled/')).toBe(true)
+  })
+
   it('exposes footer copy', () => {
     expect(IOS_FOOTER_LINK.href).toBe(IOS_DOWNLOAD_PATH)
     expect(IOS_FOOTER_LINK.label).toBe('הורדת אפליקציית אייפון')

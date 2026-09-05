@@ -64,6 +64,7 @@ import { captureAppPageview } from './lib/posthog'
 import { appAnalyticsPath } from './lib/posthogAppPath'
 import { isAndroidDownloadPath } from './lib/androidDownload'
 import { isIosDownloadPath } from './lib/iosDownload'
+import { takePostLoginPath } from './lib/postLoginPath'
 import { isDeleteDataPath } from './lib/deleteDataPage'
 import { verifyPrivacyPageAccess } from './lib/privacyPageAccess'
 import { isPrivacyPath, parsePrivacyTokenFromSearch } from './lib/privacyPageToken'
@@ -395,6 +396,22 @@ function Gate() {
     setLegalPage('ios')
   }
 
+  function requestIosLogin() {
+    setLegalPage(null)
+  }
+
+  useEffect(() => {
+    if (!session || legalPage) return
+    const path = takePostLoginPath()
+    if (!path) return
+    if (isIosDownloadPath(path)) {
+      setLegalPage('ios')
+      if (window.location.pathname.replace(/\/+$/, '') !== path.replace(/\/+$/, '')) {
+        window.history.replaceState(null, '', path)
+      }
+    }
+  }, [session, legalPage])
+
   function closeLegalPage() {
     if (
       isAndroidDownloadPath(window.location.pathname) ||
@@ -712,10 +729,18 @@ function Gate() {
   }
 
   if (legalPage === 'ios') {
+    const justEnrolled =
+      typeof window !== 'undefined' &&
+      window.location.pathname.replace(/\/+$/, '') === '/ios/enrolled'
     return (
       <div className="shell" data-theme="field">
         <main className="shell__main">
-          <IosDownloadPage onBack={closeLegalPage} />
+          <IosDownloadPage
+            onBack={closeLegalPage}
+            signedIn={Boolean(session)}
+            onRequestLogin={requestIosLogin}
+            justEnrolled={justEnrolled}
+          />
         </main>
       </div>
     )

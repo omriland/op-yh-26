@@ -1,6 +1,7 @@
 /** iOS Ad Hoc OTA install helpers for yahpz.com */
 
 export const IOS_DOWNLOAD_PATH = '/ios'
+export const IOS_ENROLLED_PATH = '/ios/enrolled'
 export const IOS_VERSION_PATH = '/ios/version.json'
 
 export const IOS_FOOTER_LINK = {
@@ -38,7 +39,7 @@ export function isIosSafari(userAgent: string): boolean {
 
 export function isIosDownloadPath(pathname: string): boolean {
   const path = pathname.replace(/\/+$/, '') || '/'
-  return path === IOS_DOWNLOAD_PATH
+  return path === IOS_DOWNLOAD_PATH || path === IOS_ENROLLED_PATH
 }
 
 /** Build the OTA install URL, but only for an https yahpz.com .plist. */
