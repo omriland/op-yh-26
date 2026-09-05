@@ -612,14 +612,17 @@ components:
       properties:
         id:
           type: string
+          format: uuid
           description: Dedupe key. Retries reuse the same id.
         user_id:
           type: string
+          format: uuid
         event_type:
           type: string
           enum: [assignment_created]
         event_id:
           type: string
+          format: uuid
         event_summary:
           type: object
           properties:

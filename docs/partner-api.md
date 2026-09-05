@@ -47,6 +47,7 @@ Yahpaz registers your app once. You get:
 | `client_id` | Public id in the authorize URL and on `token` / `revoke` |
 | `client_secret` | **Server only.** Redeem codes and revoke tokens. Never put this in Telegram, a webpage, or a mobile app |
 | Publishable `apikey` | The same anon key the website uses. Required on every Edge request. Not authorization |
+| `webhook_secret` | Only if you configure a webhook (§4). HMAC-signs outbound assignment notifications so you can verify they're really from Yahpaz. |
 
 Base URL:
 
@@ -126,6 +127,8 @@ Content-Type: application/json
 `expires_in` is **60 days** (5184000 seconds). There is **no refresh token**. After expiry, revoke, or unlink on yahpz.com (**פרופיל → חיבורים**), send them through authorize again.
 
 Store `access_token` keyed by your Telegram user id. Treat it like a password.
+
+Also call `whoami` and store the returned `user_id` alongside it — you'll need a `user_id → chat_id` mapping later for the assignment webhook (§4).
 
 | HTTP | `error` | Notes |
 |---|---|---|
@@ -699,9 +702,11 @@ Your side:
 4. **Send the Telegram message** yourself, with whatever inline keyboard you want (e.g. an "accept" button).
 5. **Respond 2xx quickly** once sent or reliably queued. Anything else (non-2xx, timeout) is retried with backoff — there is no dead-letter queue or UI in v1, so a permanently broken `webhook_url` retries forever with increasing backoff; fix it or clear it (empty URL in the admin UI) to stop.
 
-An "accept" action on this message can call `start_live_track { event_id }` directly (see "3. Live location ping" above and `responder-api`'s `start_live_track`) — you already have the `event_id`, no need for `list_open_events` on this path.
+An "accept" action on this message can call `start_live_track { event_id }` directly (see "2. Responder API" § start_live_track, and "3. Live location ping" above for sending pings) — you already have the `event_id`, no need for `list_open_events` on this path.
 
 `webhook_url` / `webhook_secret` are issued and rotated the same way `client_secret` is today, via Yahpaz admin.
+
+---
 
 ## Suggested bot flow
 
@@ -725,6 +730,7 @@ An "accept" action on this message can call `start_live_track { event_id }` dire
 - One volunteer ↔ one Telegram account in **your** mapping. We do not store Telegram ids.
 - After `invalid_token`, delete the bearer and start linking again.
 - The publishable `apikey` is public (it is in the website). It does not grant fill access by itself.
+- Verify `X-Yahpaz-Signature` on every assignment webhook (§4) before trusting the payload; never log `webhook_secret`.
 
 ---
 
@@ -761,6 +767,8 @@ An "accept" action on this message can call `start_live_track { event_id }` dire
 | `action` | Purpose |
 |---|---|
 | `ping` | Send one live-location update |
+
+The assignment webhook (§4) is not a callable action — it's a notification Yahpaz sends to you.
 
 ---
 
