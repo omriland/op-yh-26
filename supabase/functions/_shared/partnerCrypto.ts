@@ -27,6 +27,11 @@ export function randomAccessToken(): string {
   return `ypat_${bytesToBase64Url(randomBytes(32))}`;
 }
 
+/** Opaque live-track token: unprefixed base64url of 32 random bytes (same shape as responder-track's local randomTrackToken). */
+export function randomTrackToken(): string {
+  return bytesToBase64Url(randomBytes(32));
+}
+
 export function randomClientId(): string {
   return `ypb_${bytesToBase64Url(randomBytes(12))}`;
 }

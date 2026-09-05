@@ -5,7 +5,7 @@ import {
   jsonResponse as json,
   runWithCors,
 } from "../_shared/cors.ts";
-import { sha256Hex } from "../_shared/partnerCrypto.ts";
+import { sha256Hex, randomTrackToken } from "../_shared/partnerCrypto.ts";
 
 const ALLOW_HEADERS =
   "authorization, x-client-info, apikey, content-type, x-yahpaz-partner-token";
@@ -14,6 +14,8 @@ const MEDIA_MAX_BYTES = Math.floor(1.5 * 1024 * 1024);
 const MEDIA_CAP = 20;
 const JPEG_ONLY = "לא ניתן להעלות קובץ זה. בחרו תמונה.";
 const JPEG_TOO_LARGE = "הקובץ גדול מדי. בחרו תמונה אחרת.";
+/** Same leak-cap TTL as the SMS flow (responder-track). Not a trip-length cap — stop_live_track ends tracking explicitly. */
+const TRACK_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type JsonBody = Record<string, unknown>;
 type FieldErrors = Record<string, string>;
@@ -348,6 +350,12 @@ Deno.serve(async (req: Request) => {
     if (action === "complete") {
       return handleSave(admin, session.userId, body, "complete");
     }
+    if (action === "start_live_track") {
+      return handleStartLiveTrack(admin, session.userId, trim(body.event_id));
+    }
+    if (action === "stop_live_track") {
+      return handleStopLiveTrack(admin, session.userId, trim(body.event_id));
+    }
     if (action === "add_treated_plate") {
       return handleAddPlate(admin, session.userId, body);
     }
@@ -605,11 +613,74 @@ async function handleSave(
     p_event_id: assignment.event_id,
   });
 
+  if (mode === "complete") {
+    await stopLiveTracking(admin, assignment.id);
+  }
+
   return json(200, {
     ok: true,
     eventStatus: eventStatus ?? null,
     participationStatus: nextStatus,
   });
+}
+
+/** Shared by stop_live_track and complete. Never throws — logs and continues, matching "cleanup failure must not fail complete". */
+async function stopLiveTracking(admin: SupabaseClient, assignmentId: string): Promise<void> {
+  const { error: deleteError } = await admin
+    .from("event_responder_live_locations")
+    .delete()
+    .eq("event_responder_id", assignmentId);
+  if (deleteError) {
+    console.error("responder-api: stopLiveTracking delete failed", deleteError);
+  }
+
+  const { error: updateError } = await admin
+    .from("event_responders")
+    .update({ track_token_hash: null, track_token_expires_at: null })
+    .eq("id", assignmentId);
+  if (updateError) {
+    console.error("responder-api: stopLiveTracking update failed", updateError);
+  }
+}
+
+async function handleStartLiveTrack(
+  admin: SupabaseClient,
+  userId: string,
+  eventId: string,
+): Promise<Response> {
+  if (!eventId) return json(400, { error: "חסר מזהה אירוע." });
+  const assignment = await loadAssignment(admin, userId, eventId);
+  if (!assignment) {
+    return json(404, { error: "אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים." });
+  }
+  const blocked = standaloneOrError(assignment, true);
+  if (blocked) return blocked;
+
+  const token = randomTrackToken();
+  const hash = await sha256Hex(token);
+  const expiresAt = new Date(Date.now() + TRACK_TOKEN_TTL_MS).toISOString();
+  const { error } = await admin
+    .from("event_responders")
+    .update({ track_token_hash: hash, track_token_expires_at: expiresAt })
+    .eq("id", assignment.id);
+  if (error) {
+    return json(500, { error: "התחלת שיתוף המיקום נכשלה." });
+  }
+  return json(200, { ok: true, track_token: token, expires_at: expiresAt });
+}
+
+async function handleStopLiveTrack(
+  admin: SupabaseClient,
+  userId: string,
+  eventId: string,
+): Promise<Response> {
+  if (!eventId) return json(400, { error: "חסר מזהה אירוע." });
+  const assignment = await loadAssignment(admin, userId, eventId);
+  if (!assignment) {
+    return json(404, { error: "אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים." });
+  }
+  await stopLiveTracking(admin, assignment.id);
+  return json(200, { ok: true });
 }
 
 async function handleAddPlate(
