@@ -9,7 +9,7 @@ comment on column public.oauth_clients.webhook_url is
 comment on column public.oauth_clients.webhook_secret is
   'Plaintext HMAC-SHA256 signing key for outbound webhooks. Not hashed: the bot server needs the same plaintext to verify X-Yahpaz-Signature.';
 
-create table public.partner_webhook_events (
+create table if not exists public.partner_webhook_events (
   id uuid primary key default gen_random_uuid(),
   client_id uuid not null references public.oauth_clients (id) on delete cascade,
   user_id uuid not null references public.profiles (id) on delete cascade,
@@ -21,7 +21,7 @@ create table public.partner_webhook_events (
   created_at timestamptz not null default now()
 );
 
-create index partner_webhook_events_undelivered_idx
+create index if not exists partner_webhook_events_undelivered_idx
   on public.partner_webhook_events (created_at)
   where delivered_at is null;
 
@@ -67,10 +67,15 @@ begin
   join public.oauth_clients oc on oc.id = oat.client_id
   where oat.user_id = new.responder_id
     and oat.revoked_at is null
+    and oat.expires_at > now()
     and oc.is_active = true
     and oc.webhook_url is not null;
 
   return new;
+exception
+  when others then
+    raise warning 'enqueue_partner_webhook_events failed: %', sqlerrm;
+    return new;
 end;
 $$;
 

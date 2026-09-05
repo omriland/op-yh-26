@@ -517,12 +517,22 @@ async function handleAdminList(
     return json(403, { error: "אין הרשאה." });
   }
 
-  const { data, error } = await admin
+  const withWebhook = await admin
     .from("oauth_clients")
     .select("id, name, client_id, telegram_bot_username, is_active, webhook_url, created_at")
     .order("created_at", { ascending: false });
+  if (!withWebhook.error) {
+    return json(200, { clients: withWebhook.data ?? [] });
+  }
+
+  const { data, error } = await admin
+    .from("oauth_clients")
+    .select("id, name, client_id, telegram_bot_username, is_active, created_at")
+    .order("created_at", { ascending: false });
   if (error) return json(400, { error: "לא ניתן לטעון יישומים." });
-  return json(200, { clients: data ?? [] });
+  return json(200, {
+    clients: (data ?? []).map((row) => ({ ...row, webhook_url: null })),
+  });
 }
 
 async function handleAdminRotate(
