@@ -604,6 +604,9 @@ Send location updates using `track_token` to **`responder-track`'s `ping` action
 | 400 | אירוע זה אינו זמין דרך ה-API. | `shift_born` |
 | 400 | לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך. | `locked` |
 | 400 | האירוע בוטל. | `cancelled` |
+| 400 | המעקב הסתיים. | `ended` |
+
+`ended` means the shift lead already set a shift end time on this assignment (the same `event_responders.ended_at` field `ping` checks) — tracking cannot start, since a minted token would be rejected by the very first `ping` anyway.
 
 ---
 

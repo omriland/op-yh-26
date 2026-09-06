@@ -183,6 +183,7 @@ type Assignment = {
   treatment_detail: string | null;
   treatment_notes: string | null;
   total_km: number | null;
+  ended_at: string | null;
   event: {
     id: string;
     origin: string;
@@ -207,7 +208,7 @@ async function loadAssignment(
     .select(
       `
       id, event_id, responder_id, status, vehicle_plate, odometer_start, odometer_end,
-      route, treatment_detail, treatment_notes, total_km,
+      route, treatment_detail, treatment_notes, total_km, ended_at,
       event:events!inner(
         id, origin, status, is_cancelled, event_date, police_event_id, location,
         event_type:event_types(name),
@@ -657,6 +658,9 @@ async function handleStartLiveTrack(
   }
   const blocked = standaloneOrError(assignment, true);
   if (blocked) return blocked;
+  if (assignment.ended_at?.trim()) {
+    return json(400, { error: "המעקב הסתיים.", code: "ended" });
+  }
 
   const token = randomTrackToken();
   const hash = await sha256Hex(token);
