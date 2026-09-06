@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { BarChart3, Search } from 'lucide-react'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
+import { ReportCatalogCard } from '../components/reports/ReportCatalogCard'
 import { ReportRunner } from '../components/reports/ReportRunner'
 import { useAuth } from '../lib/auth'
 import { visibleReportKinds } from '../lib/reports/access'
@@ -85,14 +86,12 @@ export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
             <ul className="report-catalog">
               {filtered.map((item) => (
                 <li key={item.id}>
-                  <button
-                    type="button"
-                    className="card report-catalog__card"
-                    onClick={() => setReportId(item.id)}
-                  >
-                    <span className="t-section">{item.title}</span>
-                    <span className="t-body text-secondary">{item.includes}</span>
-                  </button>
+                  <ReportCatalogCard
+                    id={item.id}
+                    title={item.title}
+                    includes={item.includes}
+                    onOpen={() => setReportId(item.id)}
+                  />
                 </li>
               ))}
             </ul>

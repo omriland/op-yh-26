@@ -4666,6 +4666,7 @@ html[data-keyboard-open] .event-form__footer {
   padding: 0;
 }
 
+/* Fuel hub chooser still uses the compact catalog card. */
 .report-catalog__card {
   width: 100%;
   height: 100%;
@@ -4687,10 +4688,132 @@ html[data-keyboard-open] .event-form__footer {
   }
 }
 
+.report-catalog-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 11.25rem;
+  height: 100%;
+  margin: 0;
+  padding: var(--space-5);
+  overflow: hidden;
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+.report-catalog-card__copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: calc(100% - 5.5rem);
+  height: 100%;
+}
+
+.report-catalog-card__title {
+  display: block;
+}
+
+.report-catalog-card__includes {
+  display: block;
+}
+
+.report-catalog-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-block-start: auto;
+  padding-block-start: var(--space-3);
+  color: var(--accent);
+}
+
+.report-catalog-card__cta svg {
+  flex-shrink: 0;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.report-catalog-card__glyph {
+  position: absolute;
+  inset-inline-end: -1.5rem;
+  inset-block-end: -1.75rem;
+  width: 10rem;
+  height: 10rem;
+  color: var(--text-secondary);
+  opacity: 0.12;
+  pointer-events: none;
+  transition:
+    opacity var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+
+.report-catalog-card:active {
+  background: var(--surface-sunken);
+}
+
+.report-catalog-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .report-catalog-card:hover {
+    background: var(--accent-subtle);
+    transform: translateY(-1px);
+  }
+
+  .report-catalog-card:hover .report-catalog-card__cta {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  .report-catalog-card:hover .report-catalog-card__cta svg {
+    transform: translateX(-0.2rem);
+  }
+
+  .report-catalog-card:hover .report-catalog-card__glyph {
+    opacity: 0.18;
+    transform: scale(1.06) rotate(-3deg) translateX(-0.35rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-catalog-card,
+  .report-catalog-card__cta svg,
+  .report-catalog-card__glyph {
+    transition: none;
+  }
+
+  .report-catalog-card:hover {
+    transform: none;
+  }
+
+  .report-catalog-card:hover .report-catalog-card__cta svg,
+  .report-catalog-card:hover .report-catalog-card__glyph {
+    transform: none;
+  }
+}
+
 @media (min-width: 1025px) {
   .report-catalog {
     grid-template-columns: 1fr 1fr;
     gap: var(--space-6);
+  }
+
+  .report-catalog-card {
+    min-height: 12.5rem;
+    padding: var(--space-6);
   }
 }
 

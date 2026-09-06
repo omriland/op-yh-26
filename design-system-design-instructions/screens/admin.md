@@ -17,7 +17,7 @@ Library + generic runner (spec `2026-08-14-yahpaz-reports-library-design.md`). A
 
 Kinds: אירועים שהוזנו ע״י אחמ״ש ולא נסגרו ע״י מתנדב (admin + אחמ״ש; PeriodPicker on `event_date`; one row per open volunteer; אחמ״ש-only sees own events) · חריגי ק״מ · אירועים כפולים (אירועים עם אותו הכונן, באותו מקום בחלון זמן של חצי שעה) · אירועים עם פערי דיווח ק״מ (admin only; PeriodPicker on `event_date`; hover/tap ק״מ מתנדב replaces lead `total_km`; spec `2026-08-16-yahpaz-km-discrepancy-report-design.md`). Runner: same inputs as live filters, search, CSV export. Empty library: `אין דוחות להצגה`. Spec: `2026-08-15-yahpaz-open-documentation-report-design.md`. סיכום ק״מ / פירוט ק״מ live in ניהול דלק → שימוש בדלק, not in this catalog.
 
-Catalog: no caption under the title; search `חיפוש לפי שם דוח או תיאור` over title + includes (normalize gershayim/punctuation; all words; one-typo fuzzy on 3+ letter words). Title hits rank above description. No-results: `לא נמצאו דוחות תואמים` + ghost `ניקוי חיפוש`. Cards (not a table): title + includes, whole card tappable, no chevron. Mobile one column (`--space-3` gap); desktop two columns (`--space-6` gap).
+Catalog: no caption under the title; search `חיפוש לפי שם דוח או תיאור` over title + includes (normalize gershayim/punctuation; all words; one-typo fuzzy on 3+ letter words). Title hits rank above description. No-results: `לא נמצאו דוחות תואמים` + ghost `ניקוי חיפוש`. Cards (not a table): title + includes + CTA `לפתיחת הדוח` with ChevronLeft, decorative Lucide glyph in the corner (muted, per kind), whole card tappable. Mobile one column (`--space-3` gap); desktop two columns (`--space-6` gap).
 
 ## ניהול דלק (Hub)
 
