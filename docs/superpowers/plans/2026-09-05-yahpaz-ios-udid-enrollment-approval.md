@@ -683,14 +683,19 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # 5. "$ROOT/scripts/build-adhoc.sh"
 # 6. Verify each batch UDID appears in embedded.mobileprovision ProvisionedDevices
 #    (reuse security cms -D + PlistBuddy / plutil); missing → exit 1 BEFORE publish
-# 7. "$ROOT/scripts/publish-ios.sh"
-# 8. For each distinct user_id: POST send-email
-#      subject: האפליקציה מוכנה להתקנה באייפון
-#      html: short Hebrew + CTA https://yahpz.com/ios
-#      idempotency_key: ios-ready-<device-id>-<latestBuild>
-#    Collect failures; do not abort mark-registered
-# 9. PATCH each device id: status=registered, registered_at=now()
-# 10. Print email failures for manual resend
+# 7. "$ROOT/scripts/publish-ios.sh" (copies into web `public/ios` only)
+# 8. Deploy/push so https://yahpz.com serves the new IPA — **pause** until live
+# 9. Download live IPA; verify every batch UDID is in ProvisionedDevices (else exit 1, no email)
+# 10. For each distinct user_id: POST send-email
+#       subject: האפליקציה מוכנה להתקנה באייפון
+#       html: short Hebrew + CTA https://yahpz.com/ios
+#       idempotency_key: ios-ready-<device-id>-<latestBuild>
+#     Collect failures; do not abort mark-registered for successes
+# 11. PATCH each device id: status=registered, registered_at=now()
+# 12. Print email failures for manual resend
+#
+# ORDER RULE (locked 2026-09-06): never email before production has the IPA.
+# A user who opens the mail and taps install against the old binary is a failed batch.
 ```
 
 Use `Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY` for REST and functions.

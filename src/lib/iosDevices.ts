@@ -131,7 +131,7 @@ export async function listAllIosDevices(): Promise<IosDeviceAdminRow[]> {
   const { data, error } = await supabase
     .from('ios_devices')
     .select(
-      'id,user_id,udid,device_name,product_type,ios_version,status,requested_at,approved_at,registered_at,rejected_at,reject_reason,membership_year,profile:profiles(full_name,callsign)',
+      'id,user_id,udid,device_name,product_type,ios_version,status,requested_at,approved_at,registered_at,rejected_at,reject_reason,membership_year,profile:profiles!ios_devices_user_id_fkey(full_name,callsign)',
     )
     .order('requested_at', { ascending: false })
   if (error) throw new Error(error.message)

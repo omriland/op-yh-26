@@ -98,7 +98,8 @@ begin
   if active >= 2 then
     raise exception 'ios_device_cap' using errcode = 'P0001';
   end if;
-  tok := encode(gen_random_bytes(24), 'hex');
+  -- pgcrypto lives in extensions; search_path is public-only
+  tok := encode(extensions.gen_random_bytes(24), 'hex');
   insert into public.ios_enroll_tokens (token, user_id, expires_at)
   values (tok, uid, now() + interval '30 minutes');
   return tok;

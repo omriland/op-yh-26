@@ -9,14 +9,37 @@ const PUBLIC_BASE =
   (Deno.env.get("IOS_ENROLL_PUBLIC_BASE") ?? "https://yahpz.com").replace(/\/+$/, "");
 
 function redirect(pathQuery: string): Response {
+  // 301 — Profile Service installers follow this more reliably than 302.
   return new Response(null, {
-    status: 302,
+    status: 301,
     headers: { Location: `${PUBLIC_BASE}${pathQuery}` },
   });
 }
 
-function mobileConfig(callbackUrl: string): string {
+function xmlEscape(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function aspenConfigResponse(body: string, filename: string): Response {
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/x-apple-aspen-config",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}
+
+/** Phase-1 Profile Service — requests device attributes, POSTs to callback. */
+function enrollProfileConfig(callbackUrl: string): string {
   const uuid = crypto.randomUUID();
+  const safeUrl = xmlEscape(callbackUrl);
+  // ASCII display strings: Hebrew in unsigned profiles has caused install flakiness.
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -24,19 +47,18 @@ function mobileConfig(callbackUrl: string): string {
 	<key>PayloadContent</key>
 	<dict>
 		<key>URL</key>
-		<string>${callbackUrl}</string>
+		<string>${safeUrl}</string>
 		<key>DeviceAttributes</key>
 		<array>
 			<string>UDID</string>
 			<string>PRODUCT</string>
 			<string>VERSION</string>
-			<string>DEVICE_NAME</string>
 		</array>
 	</dict>
 	<key>PayloadOrganization</key>
-	<string>אבן דרך - יחפ״צ</string>
+	<string>Yahpaz</string>
 	<key>PayloadDisplayName</key>
-	<string>רישום מכשיר אבן דרך</string>
+	<string>Yahpaz Device Enrollment</string>
 	<key>PayloadVersion</key>
 	<integer>1</integer>
 	<key>PayloadUUID</key>
@@ -44,9 +66,65 @@ function mobileConfig(callbackUrl: string): string {
 	<key>PayloadIdentifier</key>
 	<string>com.yahpz.responder.enroll</string>
 	<key>PayloadDescription</key>
-	<string>שולח את מזהה המכשיר לרישום באפליקציית אבן דרך. ניתן להסיר לאחר הרישום.</string>
+	<string>Sends this device UDID to Yahpaz for Ad Hoc registration. You can remove the profile afterward.</string>
 	<key>PayloadType</key>
 	<string>Profile Service</string>
+</dict>
+</plist>
+`;
+}
+
+/**
+ * After Profile Service POSTs attributes, iOS expects a Configuration profile back
+ * (not an HTML redirect). Empty payload = install succeeds; user can remove it.
+ */
+function enrollCompleteConfig(): string {
+  const uuid = crypto.randomUUID();
+  const clipUuid = crypto.randomUUID();
+  const iosUrl = xmlEscape(`${PUBLIC_BASE}/ios`);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadType</key>
+			<string>com.apple.webClip.webClip</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>PayloadIdentifier</key>
+			<string>com.yahpz.responder.enroll.done.webclip</string>
+			<key>PayloadUUID</key>
+			<string>${clipUuid}</string>
+			<key>PayloadDisplayName</key>
+			<string>Yahpaz iOS</string>
+			<key>URL</key>
+			<string>${iosUrl}</string>
+			<key>Label</key>
+			<string>Yahpaz iOS</string>
+			<key>IsRemovable</key>
+			<true/>
+			<key>FullScreen</key>
+			<false/>
+		</dict>
+	</array>
+	<key>PayloadDisplayName</key>
+	<string>Yahpaz Enrollment Complete</string>
+	<key>PayloadIdentifier</key>
+	<string>com.yahpz.responder.enroll.done</string>
+	<key>PayloadDescription</key>
+	<string>Enrollment received. Open Yahpaz iOS (or remove this profile) — your device is pending approval.</string>
+	<key>PayloadOrganization</key>
+	<string>Yahpaz</string>
+	<key>PayloadRemovalDisallowed</key>
+	<false/>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>${uuid}</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
 </dict>
 </plist>
 `;
@@ -76,13 +154,10 @@ Deno.serve(async (req: Request) => {
     }
     const callbackUrl =
       `${supabaseUrl}/functions/v1/ios-enroll?op=callback&token=${encodeURIComponent(token)}`;
-    return new Response(mobileConfig(callbackUrl), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/x-apple-aspen-config",
-        "Content-Disposition": 'attachment; filename="yahpaz-enroll.mobileconfig"',
-      },
-    });
+    return aspenConfigResponse(
+      enrollProfileConfig(callbackUrl),
+      "yahpaz-enroll.mobileconfig",
+    );
   }
 
   if (req.method === "POST" && op === "callback") {
@@ -102,7 +177,10 @@ Deno.serve(async (req: Request) => {
       return redirect("/ios?enroll=error");
     }
 
-    const bodyText = await req.text();
+    // PKCS#7 body is binary DER with an embedded XML plist — decode as Latin-1
+    // so high bytes stay intact and the <?xml…</plist> span still matches.
+    const raw = new Uint8Array(await req.arrayBuffer());
+    const bodyText = Array.from(raw, (b) => String.fromCharCode(b)).join("");
     const plistXml = extractPlistXmlFromPkcs7Body(bodyText);
     const attrs = plistXml ? parseEnrollAttributes(plistXml) : null;
     if (!attrs?.udid) return redirect("/ios?enroll=error");
@@ -165,7 +243,12 @@ Deno.serve(async (req: Request) => {
       .update({ consumed_at: new Date().toISOString() })
       .eq("token", token);
 
-    return redirect("/ios/enrolled");
+    // Must return a Configuration .mobileconfig — HTML redirects look like
+    // "Invalid Profile" in Settings even when the UDID was saved.
+    return aspenConfigResponse(
+      enrollCompleteConfig(),
+      "yahpaz-enroll-done.mobileconfig",
+    );
   }
 
   return new Response("not found", { status: 404 });
