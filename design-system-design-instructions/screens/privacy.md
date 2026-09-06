@@ -4,7 +4,7 @@ Legal reading surface. Logged-in only. Field content; Command chrome follows the
 
 ## Entry
 
-Footer next to the Snyk badge: ghost text `מדיניות פרטיות`. Hidden on immersive form/fill/detail, and hidden while this page is open.
+Footer: brand `אבן דרך` + Snyk/Cloudflare circular vendor marks; copyright + unit line; download links; ghost text `מדיניות פרטיות`. Hidden on immersive form/fill/detail, and hidden while this page is open.
 
 ## Layout
 

@@ -84,12 +84,13 @@ export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
             />
           ) : (
             <ul className="report-catalog">
-              {filtered.map((item) => (
+              {filtered.map((item, index) => (
                 <li key={item.id}>
                   <ReportCatalogCard
                     id={item.id}
                     title={item.title}
                     includes={item.includes}
+                    index={index}
                     onOpen={() => setReportId(item.id)}
                   />
                 </li>

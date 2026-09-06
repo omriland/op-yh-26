@@ -3,11 +3,15 @@ import { ANDROID_FOOTER_LINK } from '../../lib/androidDownload'
 import { IOS_FOOTER_LINK } from '../../lib/iosDownload'
 import { CLOUDFLARE_SECURITY_BADGE, SNYK_SECURITY_BADGE } from '../../lib/securityBadge'
 
+const BRAND_NAME = 'אבן דרך'
+const UNIT_LINE = 'היחידה הארצית לפינוי צירים (יחפ״צ)'
+const FAVICON_SRC = '/favicon.svg'
+
 /** Snyk dog mark (Simple Icons path) — fill via currentColor for both themes. */
 function SnykLogo() {
   return (
     <svg
-      className="security-badge__logo"
+      className="app-footer__vendor-logo"
       viewBox="0 0 24 24"
       width={20}
       height={20}
@@ -25,7 +29,7 @@ function SnykLogo() {
 function CloudflareLogo() {
   return (
     <img
-      className="security-badge__logo"
+      className="app-footer__vendor-logo"
       src={CLOUDFLARE_SECURITY_BADGE.logoSrc}
       width={20}
       height={20}
@@ -34,60 +38,116 @@ function CloudflareLogo() {
   )
 }
 
+function BrandMark({ onHome }: { onHome?: () => void }) {
+  const inner = (
+    <>
+      <img
+        className="app-footer__favicon"
+        src={FAVICON_SRC}
+        width={28}
+        height={28}
+        alt=""
+      />
+      <span className="app-footer__brand-name">{BRAND_NAME}</span>
+    </>
+  )
+
+  if (onHome) {
+    return (
+      <button
+        type="button"
+        className="app-footer__brand"
+        onClick={onHome}
+        aria-label={`${BRAND_NAME} — חזרה למסך הראשי`}
+      >
+        {inner}
+      </button>
+    )
+  }
+
+  return <div className="app-footer__brand">{inner}</div>
+}
+
+/**
+ * App document footer (brand + vendor marks + downloads + privacy).
+ * Layout adapted from the service Footer pattern into רשומה tokens — not shadcn/Tailwind.
+ */
 export function SnykBadge({
   onOpenPrivacy,
   onOpenAndroid,
   onOpenIos,
+  onHome,
 }: {
   onOpenPrivacy: () => void
   onOpenAndroid?: () => void
   onOpenIos?: () => void
+  onHome?: () => void
 }) {
+  const year = new Date().getFullYear()
+  const mainLinks = [
+    onOpenAndroid
+      ? { label: ANDROID_FOOTER_LINK.label, onClick: onOpenAndroid }
+      : null,
+    onOpenIos ? { label: IOS_FOOTER_LINK.label, onClick: onOpenIos } : null,
+  ].filter((link): link is { label: string; onClick: () => void } => link != null)
+
   return (
-    <footer className="security-badge">
-      <span className="security-badge__vendors" dir="ltr">
-        <span className="security-badge__logos">
-          <a
-            className="security-badge__vendor"
-            href={SNYK_SECURITY_BADGE.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Snyk"
-          >
-            <SnykLogo />
-          </a>
-          <a
-            className="security-badge__vendor"
-            href={CLOUDFLARE_SECURITY_BADGE.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Cloudflare"
-          >
-            <CloudflareLogo />
-          </a>
-        </span>
-        <span className="security-badge__label">{SNYK_SECURITY_BADGE.label}</span>
-      </span>
-      <span className="security-badge__sep" aria-hidden="true" />
-      <button type="button" className="security-badge__link" onClick={onOpenPrivacy}>
-        {PRIVACY_FOOTER_LINK.label}
-      </button>
-      {onOpenAndroid ? (
-        <>
-          <span className="security-badge__sep" aria-hidden="true" />
-          <button type="button" className="security-badge__link" onClick={onOpenAndroid}>
-            {ANDROID_FOOTER_LINK.label}
+    <footer className="app-footer">
+      <div className="app-footer__top">
+        <BrandMark onHome={onHome} />
+
+        <div className="app-footer__security" dir="ltr">
+          <ul className="app-footer__vendors">
+            <li>
+              <a
+                className="app-footer__vendor-btn"
+                href={SNYK_SECURITY_BADGE.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Snyk"
+              >
+                <SnykLogo />
+              </a>
+            </li>
+            <li>
+              <a
+                className="app-footer__vendor-btn"
+                href={CLOUDFLARE_SECURITY_BADGE.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Cloudflare"
+              >
+                <CloudflareLogo />
+              </a>
+            </li>
+          </ul>
+          <p className="app-footer__security-label">{SNYK_SECURITY_BADGE.label}</p>
+        </div>
+      </div>
+
+      <div className="app-footer__bottom">
+        <div className="app-footer__copy">
+          <div>{`© ${year} ${BRAND_NAME}`}</div>
+          <div>{UNIT_LINE}</div>
+          <button type="button" className="app-footer__link app-footer__link--legal" onClick={onOpenPrivacy}>
+            {PRIVACY_FOOTER_LINK.label}
           </button>
-        </>
-      ) : null}
-      {onOpenIos ? (
-        <>
-          <span className="security-badge__sep" aria-hidden="true" />
-          <button type="button" className="security-badge__link" onClick={onOpenIos}>
-            {IOS_FOOTER_LINK.label}
-          </button>
-        </>
-      ) : null}
+        </div>
+
+        {mainLinks.length > 0 ? (
+          <nav className="app-footer__actions" aria-label="קישורים">
+            <ul className="app-footer__links">
+              {mainLinks.map((link) => (
+                <li key={link.label}>
+                  <button type="button" className="app-footer__link" onClick={link.onClick}>
+                    {link.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ) : null}
+      </div>
     </footer>
   )
 }

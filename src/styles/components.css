@@ -2336,90 +2336,210 @@ textarea.field__input {
   max-width: var(--form-max);
 }
 
-.security-badge {
+.app-footer {
   display: flex;
   flex: none;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
   margin-block-start: auto;
   padding-block-start: var(--space-8);
+  padding-block-end: var(--space-4);
 }
 
-.security-badge__sep {
-  flex: none;
-  width: 1px;
-  height: 16px;
-  background: var(--stroke-hairline);
+.app-footer__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
 }
 
-.security-badge__link {
+.app-footer__brand {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   min-height: 44px;
-  padding-inline: var(--space-3);
+  margin: 0;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-muted);
-  font: 400 12px/16px var(--font-ui);
-  text-decoration: none;
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-standard);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
 }
 
-.security-badge__vendors {
+button.app-footer__brand {
+  cursor: pointer;
+}
+
+div.app-footer__brand {
+  cursor: default;
+}
+
+.app-footer__favicon {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+}
+
+.app-footer__brand-name {
+  font: 700 20px/28px var(--font-ui);
+}
+
+/* LTR cluster — English security line sits next to the vendor marks. */
+.app-footer__security {
   display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  max-width: 100%;
+}
+
+.app-footer__vendors {
+  display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-2);
-  min-height: 44px;
-  padding-inline: var(--space-3);
-  color: var(--text-muted);
-  font: 400 12px/16px var(--font-ui);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.security-badge__logos {
+.app-footer__vendor-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-standard);
 }
 
-.security-badge__logo {
+.app-footer__vendor-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.app-footer__vendor-logo {
   flex: none;
   width: 20px;
   height: 20px;
 }
 
-.security-badge__vendor {
+.app-footer__security-label {
+  margin: 0;
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.app-footer__bottom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.app-footer__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font: 400 14px/22px var(--font-ui);
+  text-align: start;
+}
+
+.app-footer__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: var(--space-1);
+  text-align: start;
+}
+
+.app-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-footer__link {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  flex: none;
-  color: inherit;
-  text-decoration: none;
-}
-
-.security-badge__vendor:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
   border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: 400 14px/20px var(--font-ui);
+  text-decoration: none;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
-.security-badge__link:focus-visible {
+.app-footer__link--legal {
+  color: var(--text-muted);
+  margin-block-start: var(--space-1);
+}
+
+.app-footer__link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 @media (hover: hover) {
-  .security-badge__link:hover {
+  .app-footer__vendor-btn:hover {
+    background: var(--accent-subtle);
+    color: var(--text-primary);
+  }
+
+  .app-footer__link:hover {
+    text-decoration: underline;
+  }
+
+  .app-footer__link--legal:hover {
     color: var(--text-secondary);
   }
 }
 
-.security-badge__link:active {
+.app-footer__link:active {
   color: var(--text-primary);
+}
+
+@media (min-width: 1025px) {
+  .app-footer {
+    padding-block-start: var(--space-10);
+    padding-block-end: var(--space-6);
+  }
+
+  .app-footer__bottom {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--space-4) var(--space-8);
+    padding-block-start: var(--space-6);
+  }
+
+  .app-footer__actions {
+    margin-inline-start: auto;
+  }
+
+  .app-footer__link {
+    min-height: 40px;
+  }
 }
 
 .android-download,
@@ -4699,16 +4819,38 @@ html[data-keyboard-open] .event-form__footer {
   margin: 0;
   padding: var(--space-5);
   overflow: hidden;
-  border: 1px solid var(--stroke-hairline);
-  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  color: inherit;
+  color: var(--text-primary);
   font: inherit;
   text-align: start;
   cursor: pointer;
   transition:
-    background-color var(--duration-fast) var(--ease-standard),
+    filter var(--duration-fast) var(--ease-standard),
     transform var(--duration-base) var(--ease-standard);
+}
+
+/* Service-card palette — cycles red → white → gray → blue. */
+.report-catalog-card--red {
+  background: color-mix(in srgb, #ef4444 90%, transparent);
+  color: #fff;
+}
+
+.report-catalog-card--default {
+  background: var(--surface-raised);
+  border-color: var(--stroke-hairline);
+  color: var(--text-primary);
+}
+
+.report-catalog-card--gray {
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+}
+
+.report-catalog-card--blue {
+  background: color-mix(in srgb, #3b82f6 90%, transparent);
+  color: #fff;
 }
 
 .report-catalog-card__copy {
@@ -4728,6 +4870,7 @@ html[data-keyboard-open] .event-form__footer {
 
 .report-catalog-card__includes {
   display: block;
+  opacity: 0.85;
 }
 
 .report-catalog-card__cta {
@@ -4736,6 +4879,11 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-1);
   margin-block-start: auto;
   padding-block-start: var(--space-3);
+  color: inherit;
+}
+
+.report-catalog-card--default .report-catalog-card__cta,
+.report-catalog-card--gray .report-catalog-card__cta {
   color: var(--accent);
 }
 
@@ -4750,16 +4898,22 @@ html[data-keyboard-open] .event-form__footer {
   inset-block-end: -1.75rem;
   width: 10rem;
   height: 10rem;
-  color: var(--text-secondary);
-  opacity: 0.12;
+  color: currentColor;
+  opacity: 0.18;
   pointer-events: none;
   transition:
     opacity var(--duration-base) var(--ease-standard),
     transform var(--duration-base) var(--ease-standard);
 }
 
+.report-catalog-card--default .report-catalog-card__glyph,
+.report-catalog-card--gray .report-catalog-card__glyph {
+  color: var(--text-secondary);
+  opacity: 0.14;
+}
+
 .report-catalog-card:active {
-  background: var(--surface-sunken);
+  filter: brightness(0.97);
 }
 
 .report-catalog-card:focus-visible {
@@ -4769,8 +4923,17 @@ html[data-keyboard-open] .event-form__footer {
 
 @media (hover: hover) {
   .report-catalog-card:hover {
-    background: var(--accent-subtle);
     transform: translateY(-1px);
+  }
+
+  .report-catalog-card--red:hover,
+  .report-catalog-card--blue:hover {
+    filter: brightness(1.04);
+  }
+
+  .report-catalog-card--default:hover,
+  .report-catalog-card--gray:hover {
+    filter: brightness(0.985);
   }
 
   .report-catalog-card:hover .report-catalog-card__cta {
@@ -4783,8 +4946,13 @@ html[data-keyboard-open] .event-form__footer {
   }
 
   .report-catalog-card:hover .report-catalog-card__glyph {
-    opacity: 0.18;
+    opacity: 0.26;
     transform: scale(1.06) rotate(-3deg) translateX(-0.35rem);
+  }
+
+  .report-catalog-card--default:hover .report-catalog-card__glyph,
+  .report-catalog-card--gray:hover .report-catalog-card__glyph {
+    opacity: 0.2;
   }
 }
 

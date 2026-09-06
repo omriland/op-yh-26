@@ -1,13 +1,15 @@
-import type { ReactNode } from 'react'
+import { useState, type FocusEvent, type ReactNode } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 
 /** Matches `--radius-sm` so the traveling highlight follows the button corner. */
 const BORDER_RADIUS_PX = 4
 const HIGHLIGHT_SIZE_PX = 20
 
-/** Traveling accent highlight along the button edge (outline-border demo). */
-export function CreateEventBorder() {
+/** Traveling accent highlight along the button edge — only while the shell is active. */
+export function CreateEventBorder({ active }: { active: boolean }) {
   const reduceMotion = useReducedMotion()
+
+  if (!active) return null
 
   return (
     <div className="create-event-btn__border" aria-hidden="true">
@@ -35,6 +37,7 @@ export function CreateEventBorder() {
 /**
  * Animated outline ring for אירוע חדש CTAs.
  * Wraps the existing Button / sidebar nav control — keeps each child's width.
+ * The traveling highlight runs only on hover / keyboard focus.
  */
 export function NewEventButtonShell({
   children,
@@ -46,6 +49,16 @@ export function NewEventButtonShell({
   block?: boolean
   className?: string
 }) {
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const highlight = hovered || focused
+
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    const next = event.relatedTarget
+    if (next instanceof Node && event.currentTarget.contains(next)) return
+    setFocused(false)
+  }
+
   return (
     <div
       className={[
@@ -55,8 +68,12 @@ export function NewEventButtonShell({
       ]
         .filter(Boolean)
         .join(' ')}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={handleBlur}
     >
-      <CreateEventBorder />
+      <CreateEventBorder active={highlight} />
       {children}
     </div>
   )

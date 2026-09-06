@@ -185,6 +185,7 @@ export function AppShell({
               onOpenPrivacy={onOpenPrivacy}
               onOpenAndroid={onOpenAndroid}
               onOpenIos={onOpenIos}
+              onHome={onHome}
             />
           ) : null}
         </main>
