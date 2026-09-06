@@ -7103,6 +7103,20 @@ html[data-keyboard-open] .event-form__footer {
   background: var(--status-draft);
 }
 
+.user-map-legend__swatch--live {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--status-done);
+  border-color: var(--status-done);
+  color: var(--text-on-accent);
+}
+
+.user-map-legend__swatch--live svg {
+  width: 70%;
+  height: 70%;
+}
+
 .user-map__layers-btn {
   background: var(--surface-raised);
   border: 1px solid var(--stroke-strong);
