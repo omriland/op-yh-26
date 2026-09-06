@@ -84,12 +84,13 @@ export function SnykBadge({
   onHome?: () => void
 }) {
   const year = new Date().getFullYear()
-  const mainLinks = [
-    onOpenAndroid
-      ? { label: ANDROID_FOOTER_LINK.label, onClick: onOpenAndroid }
-      : null,
-    onOpenIos ? { label: IOS_FOOTER_LINK.label, onClick: onOpenIos } : null,
-  ].filter((link): link is { label: string; onClick: () => void } => link != null)
+  const mainLinks: Array<{ label: string; onClick: () => void }> = []
+  if (onOpenAndroid) {
+    mainLinks.push({ label: ANDROID_FOOTER_LINK.label, onClick: onOpenAndroid })
+  }
+  if (onOpenIos) {
+    mainLinks.push({ label: IOS_FOOTER_LINK.label, onClick: onOpenIos })
+  }
 
   return (
     <footer className="app-footer">
