@@ -405,7 +405,7 @@ async function handleListOpen(admin: SupabaseClient, userId: string): Promise<Re
     .from("event_responders")
     .select(
       `
-      id, status,
+      id, status, ended_at,
       event:events!inner(
         id, origin, is_cancelled, event_date, police_event_id, location, status,
         event_type:event_types(name),
@@ -469,6 +469,7 @@ async function handleListOpen(admin: SupabaseClient, userId: string): Promise<Re
         road_name: event.road?.name ?? null,
         location: event.location,
         shift_lead_name: lead ? `${lead.full_name} · ${lead.callsign}` : null,
+        live_trackable: !String(row.ended_at ?? "").trim(),
       },
     ];
   });

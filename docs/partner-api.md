@@ -231,7 +231,8 @@ Inbox: assigned to this volunteer, participation `pending` or `in_progress`, eve
       "event_type_name": "תאונה",
       "road_name": "כביש 6",
       "location": "…",
-      "shift_lead_name": "שם מלא · או״ק"
+      "shift_lead_name": "שם מלא · או״ק",
+      "live_trackable": true
     }
   ]
 }
@@ -241,6 +242,8 @@ Inbox: assigned to this volunteer, participation `pending` or `in_progress`, eve
 
 `participation_status`: `pending` | `in_progress`  
 (`done` is not listed.)
+
+`live_trackable`: `false` means a shift lead already recorded an end time for this assignment — `start_live_track` will reject it. **Filter these out before offering the `/trip` picker**; they still belong in a report-filing inbox (`get_event`/`save_draft`/`complete` work on them normally), just not for starting live location sharing.
 
 ---
 
