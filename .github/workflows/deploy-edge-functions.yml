@@ -49,7 +49,7 @@ jobs:
             echo "Deploying $fn"
             supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns
           done
-          for fn in partner-auth responder-api responder-track; do
+          for fn in partner-auth responder-api responder-track ios-enroll; do
             echo "Deploying $fn (--no-verify-jwt)"
             supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns --no-verify-jwt
           done
