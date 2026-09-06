@@ -4,7 +4,7 @@ The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וס
 
 ## Navigation
 
-- Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`. Pinned at sidebar block-end: `פרופיל`, then `הגדרות`.
+- Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`. Pinned at sidebar block-end: `פרופיל` (non–Super Admin), then `הגדרות`. Super Admin opens profile from the avatar/user menu only.
 - Mobile tab bar: 3–4 items. Daily work stays in the bar; the last tab is `עוד` when anything overflows (bottom sheet). Profile via app-bar menu.
   - כונן: `האירועים שלי` · `המשמרות שלי` · `אנשי קשר` · `מפה`
   - אחמ״ש: `האירועים שלי` · `אירועים` · `המשמרות שלי` · `עוד` (`משמרות` · `אנשי קשר` · `מפה` · `דוחות`)

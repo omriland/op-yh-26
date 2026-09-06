@@ -658,7 +658,8 @@ function Gate() {
     }
 
     // Profile + Settings: desktop sidebar footer — mobile uses the app-bar / admin hub.
-    if (isDesktop) {
+    // Super Admin opens profile from the avatar menu only (no sidebar pin).
+    if (isDesktop && !isSuperAdmin) {
       list.push({
         view: 'profile',
         label: 'פרופיל',
@@ -668,7 +669,7 @@ function Gate() {
     }
 
     return list
-  }, [manages, hasMineList, isAdmin, showSuperAdminNav, isDesktop, navAttention, roles])
+  }, [manages, hasMineList, isAdmin, isSuperAdmin, showSuperAdminNav, isDesktop, navAttention, roles])
 
   function isAllowedView(next: AppView): boolean {
     return isAllowedAppView(next, { manages, hasMineList, isAdmin, isSuperAdmin })

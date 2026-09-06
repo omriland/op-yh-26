@@ -4,7 +4,7 @@ Own-account registry card. Not a management surface. Field on mobile; desktop fo
 
 ## Entry
 
-Desktop sidebar footer → `פרופיל` (above admin `הגדרות`). Mobile: app-bar avatar menu. Not a bottom-tab item.
+Desktop sidebar footer → `פרופיל` (above admin `הגדרות`) for non–Super Admin users. Super Admin: avatar/user menu only (no sidebar pin). Mobile: app-bar avatar menu. Not a bottom-tab item.
 
 ## Layout
 
