@@ -566,6 +566,11 @@ components:
               value:
                 error: האירוע בוטל.
                 code: cancelled
+            trackingEnded:
+              summary: start_live_track on an assignment with a shift end time already set
+              value:
+                error: המעקב הסתיים.
+                code: ended
             plateDigits:
               value:
                 error: יש להזין 5 עד 8 ספרות.
