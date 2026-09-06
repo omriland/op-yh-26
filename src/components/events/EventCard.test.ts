@@ -210,17 +210,17 @@ describe('EventCard default (unit list)', () => {
     expect(html).toContain('פרטים חסרים:')
   })
 
-  it('keeps הושלם for the responder and adds the lead-KM caption', () => {
+  it('shows סיימת לתעד for the responder and adds the lead-KM caption', () => {
     const html = renderToStaticMarkup(
       createElement(EventCard, {
         event: event({ status: 'done' }),
-        stamp: { label: 'הושלם', tone: 'done' },
+        stamp: { label: 'סיימת לתעד', tone: 'done' },
         leadKmNote: 'אחמ״ש טרם הזין ק״מ',
         onOpen: () => undefined,
       }),
     )
 
-    expect(html).toContain('הושלם')
+    expect(html).toContain('סיימת לתעד')
     expect(html).toContain('stamp--done')
     expect(html).toContain('אחמ״ש טרם הזין ק״מ')
     expect(html).toContain('stamp-stack__note')

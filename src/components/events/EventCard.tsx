@@ -16,7 +16,7 @@ import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
 type EventCardProps = {
   event: EventListItem
   stamp: StampDescriptor
-  /** Responder archive: lead has not entered KM yet. Stamp stays הושלם. */
+  /** Responder archive: lead has not entered KM yet. Stamp is סיימת לתעד. */
   leadKmNote?: string | null
   onOpen: (eventId: string) => void
   /** Mine list: open participation → footer CTA */

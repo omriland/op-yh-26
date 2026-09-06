@@ -127,7 +127,10 @@ export function participationStamp(status: ParticipationStatus, isViewer: boolea
   return { label: isViewer ? 'ממתין לתיעוד' : 'ממתין למתנדב', tone: 'pending' }
 }
 
-/** Responder-facing: they finished; the lead has not entered KM yet. Stamp stays הושלם. */
+/** Responder finished fill; lead KM still missing. Replaces הושלם on their own stamp. */
+export const FILL_DONE_AWAITING_KM_LABEL = 'סיימת לתעד'
+
+/** Responder-facing: they finished; the lead has not entered KM yet. */
 export const LEAD_KM_PENDING_NOTE = 'אחמ״ש טרם הזין ק״מ'
 
 export function leadKmPendingNote(
@@ -136,6 +139,18 @@ export function leadKmPendingNote(
 ): string | null {
   if (participation !== 'done' || totalKm != null) return null
   return LEAD_KM_PENDING_NOTE
+}
+
+/** Own-row stamp for mine inbox / fill / detail: סיימת לתעד when lead KM is still null. */
+export function mineParticipationStamp(
+  status: ParticipationStatus | null | undefined,
+  totalKm: number | null | undefined,
+): StampDescriptor {
+  const resolved = status ?? 'pending'
+  if (resolved === 'done' && totalKm == null) {
+    return { label: FILL_DONE_AWAITING_KM_LABEL, tone: 'done' }
+  }
+  return participationStamp(resolved, true)
 }
 
 /** Mine inbox: fill still open, or fill done but lead KM is missing. */
@@ -161,12 +176,16 @@ export function mineFillCtaLabel(status: ParticipationStatus): string | null {
 export function viewerStamp(
   status: EventStatus,
   ownParticipation: ParticipationStatus | null,
+  ownTotalKm?: number | null,
 ): StampDescriptor {
   if (ownParticipation === 'in_progress') {
     return { label: 'טיוטה נשמרה', tone: 'draft' }
   }
   if (ownParticipation && ownParticipation !== 'done') {
     return { label: 'ממתין לתיעוד', tone: 'pending' }
+  }
+  if (ownParticipation === 'done' && ownTotalKm == null) {
+    return { label: FILL_DONE_AWAITING_KM_LABEL, tone: 'done' }
   }
   return eventStamp(status)
 }

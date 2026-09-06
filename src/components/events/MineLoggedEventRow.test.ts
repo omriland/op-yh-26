@@ -50,17 +50,17 @@ describe('MineLoggedEventRow', () => {
     expect(html).toContain('list-rows__item')
   })
 
-  it('keeps הושלם and notes that the lead has not logged KM', () => {
+  it('shows סיימת לתעד and notes that the lead has not logged KM', () => {
     const html = renderToStaticMarkup(
       createElement(MineLoggedEventRow, {
         event: event(),
-        stamp: { label: 'הושלם', tone: 'done' },
+        stamp: { label: 'סיימת לתעד', tone: 'done' },
         leadKmNote: 'אחמ״ש טרם הזין ק״מ',
         onOpen: () => undefined,
       }),
     )
 
-    expect(html).toContain('הושלם')
+    expect(html).toContain('סיימת לתעד')
     expect(html).toContain('stamp--done')
     expect(html).toContain('אחמ״ש טרם הזין ק״מ')
   })

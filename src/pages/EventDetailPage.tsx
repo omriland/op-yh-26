@@ -16,7 +16,7 @@ import { geocodePlaceQuery } from '../lib/googlePlaces'
 import { saveEventGeocodePin } from '../lib/cockpit'
 import { SYSTEM_DISTRICT_NAMES, isUrbanRoadName } from '../lib/systemDistricts'
 import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
-import { mineFillCtaLabel, cancelledStamp, leadKmPendingNote, participationStamp, viewerStamp } from '../lib/status'
+import { mineFillCtaLabel, cancelledStamp, leadKmPendingNote, mineParticipationStamp, participationStamp, viewerStamp } from '../lib/status'
 import { StampChip } from '../components/ui/StampChip'
 import { StampWithNote } from '../components/ui/StampWithNote'
 import {
@@ -275,7 +275,7 @@ export function EventDetailPage({
         </div>
         <span className="event-stamps">
           {event.is_cancelled ? <StampChip {...cancelledStamp()} header /> : null}
-          <StampWithNote {...viewerStamp(event.status, mine)} header note={mineLeadKmNote} />
+          <StampWithNote {...viewerStamp(event.status, mine, mineKm)} header note={mineLeadKmNote} />
         </span>
       </div>
 
@@ -510,7 +510,9 @@ function ResponderCard({
             </span>
           </span>
           <StampWithNote
-            {...participationStamp(responder.status, isViewer)}
+            {...(isViewer
+              ? mineParticipationStamp(responder.status, responder.total_km)
+              : participationStamp(responder.status, false))}
             note={isViewer ? leadKmPendingNote(responder.status, responder.total_km) : null}
           />
           <ChevronDown

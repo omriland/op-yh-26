@@ -6,6 +6,7 @@ import {
   eventStatusTrailSteps,
   leadKmPendingNote,
   mineInboxIsOpen,
+  mineParticipationStamp,
   overlayMissingKmOnDoneStamp,
   reportingDocumentationStamp,
   shiftStamp,
@@ -141,7 +142,7 @@ describe('reportingDocumentationStamp', () => {
 })
 
 describe('leadKmPendingNote', () => {
-  it('keeps הושלם and only notes that the lead has not logged KM', () => {
+  it('notes that the lead has not logged KM when fill is done', () => {
     expect(leadKmPendingNote('done', null)).toBe('אחמ״ש טרם הזין ק״מ')
     expect(leadKmPendingNote('done', 0)).toBeNull()
     expect(leadKmPendingNote('done', 12)).toBeNull()
@@ -154,5 +155,19 @@ describe('leadKmPendingNote', () => {
     expect(mineInboxIsOpen('done', null)).toBe(true)
     expect(mineInboxIsOpen('done', 0)).toBe(false)
     expect(mineInboxIsOpen('done', 12)).toBe(false)
+  })
+})
+
+describe('mineParticipationStamp', () => {
+  it('shows סיימת לתעד when the responder finished and lead KM is missing', () => {
+    expect(mineParticipationStamp('done', null)).toEqual({
+      label: 'סיימת לתעד',
+      tone: 'done',
+    })
+  })
+
+  it('keeps הושלם once lead KM is entered', () => {
+    expect(mineParticipationStamp('done', 0)).toEqual({ label: 'הושלם', tone: 'done' })
+    expect(mineParticipationStamp('done', 12)).toEqual({ label: 'הושלם', tone: 'done' })
   })
 })

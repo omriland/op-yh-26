@@ -30,7 +30,7 @@ import {
   leadKmPendingNote,
   mineFillCtaLabel,
   mineInboxIsOpen,
-  participationStamp,
+  mineParticipationStamp,
   viewerStamp,
   overlayMissingKmOnDoneStamp,
   type EventStatus,
@@ -249,6 +249,27 @@ export function EventsPage({
 
   const stampFor = useMemo(
     () => (event: EventListItem) => {
+      const mine = ownParticipation(event, user?.id)
+      const ownKm = ownResponderKm(event, user?.id)
+      if (scope === 'mine') {
+        // Finished fill always uses the responder stamp (סיימת לתעד / הושלם),
+        // including shift-born events that previously short-circuited to הושלם.
+        if (mine === 'done') {
+          return mineParticipationStamp(mine, ownKm)
+        }
+        if (event.origin === 'shift') {
+          return shiftBornFillStamp({
+            status: event.status,
+            police_event_id: event.police_event_id,
+            treatment_detail: event.treatment_detail,
+            treatment_notes: event.treatment_notes,
+            location: event.location,
+            road_id: event.road?.name,
+            treated_count: event.shared_treated?.length ?? 0,
+          })
+        }
+        return mineParticipationStamp(mine ?? 'pending', ownKm)
+      }
       if (event.origin === 'shift') {
         const stamp = shiftBornFillStamp({
           status: event.status,
@@ -259,13 +280,10 @@ export function EventsPage({
           road_id: event.road?.name,
           treated_count: event.shared_treated?.length ?? 0,
         })
-        if (scope !== 'unit') return stamp
         return overlayMissingKmOnDoneStamp(stamp, eventHasMissingResponderKm(event))
       }
-      const mine = ownParticipation(event, user?.id)
-      if (scope === 'mine') return participationStamp(mine ?? 'pending', true)
       return overlayMissingKmOnDoneStamp(
-        viewerStamp(event.status, mine),
+        viewerStamp(event.status, mine, ownKm),
         eventHasMissingResponderKm(event),
       )
     },

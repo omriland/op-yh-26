@@ -11,7 +11,7 @@ import {
   type ResponderFillErrors,
 } from '../lib/responderFill'
 import { loadFillByToken, saveFillByToken } from '../lib/responderFillToken'
-import { leadKmPendingNote, participationStamp } from '../lib/status'
+import { leadKmPendingNote, mineParticipationStamp } from '../lib/status'
 import { StampWithNote } from '../components/ui/StampWithNote'
 import {
   digitsOnly,
@@ -459,7 +459,7 @@ export function ResponderFillPage({
     return <EventListSkeleton count={2} />
   }
 
-  const stamp = participationStamp(ctx.participationStatus, true)
+  const stamp = mineParticipationStamp(ctx.participationStatus, ctx.totalKm)
   const kmNote = leadKmPendingNote(ctx.participationStatus, ctx.totalKm)
 
   return (
@@ -491,11 +491,7 @@ export function ResponderFillPage({
                 </p>
               )}
             </div>
-            {justCompleted ? (
-              <StampWithNote label="הושלם" tone="done" press note={kmNote} />
-            ) : (
-              <StampWithNote {...stamp} note={kmNote} />
-            )}
+            <StampWithNote {...stamp} press={justCompleted} note={kmNote} />
           </div>
         </div>
 
