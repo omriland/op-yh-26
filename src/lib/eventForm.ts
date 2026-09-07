@@ -144,6 +144,23 @@ export type ResponderDraft = {
   hasVehicle: boolean
 }
 
+/** Any lead-owned field the אחמ״ש typed or toggled, or responder-owned fill data. */
+export function eventResponderHasFilledFields(row: Pick<
+  ResponderDraft,
+  'start_time' | 'end_time' | 'total_km' | 'emergency_means' | 'treated' | 'hasOwnedData' | 'hasVehicle'
+>): boolean {
+  if (row.hasOwnedData) return true
+  if (row.start_time.trim() || row.end_time.trim()) return true
+  if (row.hasVehicle && row.total_km.trim()) return true
+  if (row.emergency_means) return true
+  return row.treated.some((item) => item.quantity > 0)
+}
+
+export function eventResponderRemoveConfirm(name: string): string {
+  const trimmed = name.trim() || 'מתנדב'
+  return `האם אתה בטוח שברצונך להסיר את ${trimmed}?`
+}
+
 /** `timestamp` / `time` / ISO → `HH:MM` for time inputs. */
 export function toTimeInput(value: string | null | undefined): string {
   if (!value) return ''
@@ -293,6 +310,27 @@ export function todayJerusalem(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
+}
+
+export const FUTURE_EVENT_DATE_TITLE = 'אירוע זה נוצר בתאריך עתידי'
+export const FUTURE_EVENT_DATE_CONTINUE = 'להמשיך'
+export const FUTURE_EVENT_DATE_BACK = 'חזרה לעריכה'
+
+export function isFutureEventDate(
+  eventDate: string,
+  today: string = todayJerusalem(),
+): boolean {
+  return Boolean(eventDate) && eventDate > today
+}
+
+/** Prompt before persisting a date that is after today and not the last saved date. */
+export function shouldConfirmFutureEventDate(input: {
+  eventDate: string
+  lastSavedDate: string
+  today?: string
+}): boolean {
+  if (!isFutureEventDate(input.eventDate, input.today)) return false
+  return input.eventDate !== input.lastSavedDate
 }
 
 export function emptyEventDraft(lead: {

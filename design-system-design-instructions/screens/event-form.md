@@ -27,7 +27,11 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 | מיקום | text / Places combobox | Plain text for normal שלוחות. For system שלוחה `תחנה / אחר / משוכפל`: Google Places autocomplete (HE), free-text row always first, **required**. Spec: `2026-08-11-yahpaz-system-districts-places-location-design.md`. Coordinates (`location_lat`/`location_lng`) stay stored for the map pin and are **not** shown as a form field. Map drag does not edit כביש/מיקום. Spec: `2026-08-24-yahpaz-event-location-pin-design.md`. |
 | הערות | textarea | optional |
 
-`אחמ״ש` / `אחמ״ש ראשי` is a picker (active `shift_lead` users) at the top of the section when the viewer may change main: creating אחמ״ש, or the current main while no secondaries exist, or admin / Super Admin. After secondaries exist, only admin / Super Admin may change main. Creating אחמ״ש may pick another lead as main; the creator becomes a removable `אחמ״ש משני`. Additional secondaries: searchable add list; manual rows can be removed by lead/admin/Super Admin. Locked secondaries (auto-added when a non-main אחמ״ש persists a real field or crew change) show hint `נוסף אוטומטית בעריכה — לא ניתן להסיר` and nobody removes them. When the viewer cannot change main, it is a read-only ledger row.
+`אחמ״ש ראשי` and `אחמ״ש משני` share the first row of the section: main at **66%** of the row (inline-start / right in RTL), the secondary picker at **33%** (inline-end / left). Flex + logical properties (never `left`/`right`); on phone widths, where 33% cannot hold a readable name, the pair stacks to two full-width fields.
+
+`אחמ״ש ראשי` is a searchable picker (active `shift_lead` users) when the viewer may change main: creating אחמ״ש, or the current main while no secondaries exist, or admin / Super Admin. After secondaries exist, only admin / Super Admin may change main. Creating אחמ״ש may pick another lead as main; the creator becomes a removable `אחמ״ש משני`. When the viewer cannot change main, it is a read-only ledger row (label stays `אחמ״ש` until a secondary exists for viewers who cannot manage secondaries).
+
+`אחמ״ש משני` is a searchable **multi-select** picker (lead / admin / Super Admin only). Selected secondaries live **inside** the picker — they are pinned to the top of the open menu with a check, and never render as chips or rows on the form. Closed trigger stays one line: `שם` for one secondary, `שם +N` for more; placeholder `הוספה`. Toggling a pinned row removes that secondary; options below it add more; search filters both groups. Locked secondaries (auto-added when a non-main אחמ״ש persists a real field or crew change) are non-interactive in the menu — greyed row, greyed check, hint `נוסף אוטומטית בעריכה — לא ניתן להסיר` — and nobody removes them. A viewer who cannot manage secondaries sees them as read-only ledger rows.
 
 ### חלק ב׳ — כוננים
 
@@ -59,6 +63,7 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 - Autosave success: quiet caption `נשמר` (no toast spam).
 - Autosave / save failure: caption or toast `שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.` — form data preserved.
 - Assigning a responder: allowed anytime; new participation starts `pending`; status leaves draft.
-- Removing a responder who already entered data: confirm dialog `להסיר את הכונן? הנתונים שמילא יימחקו.`
+- Removing a responder who already has any filled field: confirm dialog `האם אתה בטוח שברצונך להסיר את {שם}?` (`{שם}` = full name). Empty assignment removes immediately.
+- Saving with a date of tomorrow or later (and that date not already saved): confirm `אירוע זה נוצר בתאריך עתידי`. Primary `להמשיך` persists; secondary / X / backdrop `חזרה לעריכה` restores the last saved date (today on a new form).
 - Leave after failed save: confirm `השמירה האחרונה נכשלה. לצאת בכל זאת?`
 - Opening an event created by another אחמ״ש (web form, cockpit stage after `לחצו לעריכה`, Android form): blocking confirm first. Title `האם אתה בטוח שברצונך לערוך אירוע שהוזן על ידי {שם}?` (`{שם}` = main אחמ״ש). Body `כל שינוי שתבצע יתועד ויישמר במערכת`. Primary `עריכה` unlocks the form for this visit; secondary / X / backdrop `ביטול` leaves without writing. The **main** אחמ״ש skips the prompt. A secondary אחמ״ש, and any other אחמ״ש, still see it.

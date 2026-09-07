@@ -33,8 +33,14 @@ import {
   isOvernightEnd,
   isSelfAssignDisabledInPicker,
   mergeAssignmentIds,
+  shouldConfirmFutureEventDate,
+  FUTURE_EVENT_DATE_BACK,
+  FUTURE_EVENT_DATE_CONTINUE,
+  FUTURE_EVENT_DATE_TITLE,
   NO_VEHICLE_KM_PLACEHOLDER,
   registerAbandonedEmptyEventHandler,
+  eventResponderHasFilledFields,
+  eventResponderRemoveConfirm,
   saveEventForm,
   totalTreatedQuantity,
   type AssignableUser,
@@ -50,6 +56,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
 import { CounterStepper } from '../components/ui/CounterStepper'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
@@ -138,6 +145,7 @@ type PersistOptions = {
   createNew?: boolean
   revealErrors?: boolean
   overnightOk?: boolean
+  futureDateOk?: boolean
 }
 
 export function EventFormPage({
@@ -187,6 +195,9 @@ export function EventFormPage({
   const [overnightPrompt, setOvernightPrompt] = useState<{
     options?: PersistOptions
   } | null>(null)
+  const [futureDatePrompt, setFutureDatePrompt] = useState<{
+    options?: PersistOptions
+  } | null>(null)
   const [sheetResponderKey, setSheetResponderKey] = useState<string | null>(null)
   const [foreignEditAcked, setForeignEditAcked] = useState(false)
   const [assignedVolunteerBlocked, setAssignedVolunteerBlocked] = useState(false)
@@ -228,6 +239,7 @@ export function EventFormPage({
     assignedVolunteerBlockedRef.current = false
     setAssignedVolunteerBlocked(false)
     setAssignedEditDialog(false)
+    setFutureDatePrompt(null)
   }, [eventId])
 
   const userId = user?.id
@@ -517,6 +529,18 @@ export function EventFormPage({
         return false
       }
 
+      if (
+        !options?.futureDateOk &&
+        shouldConfirmFutureEventDate({
+          eventDate: current.event_date,
+          lastSavedDate: lastSavedEventDate(baselineRef.current, initialDateRef.current),
+        })
+      ) {
+        setFutureDatePrompt({ options })
+        setSavePulse('idle')
+        return false
+      }
+
       let draftToSave = current
       let policeIdBlocked = false
       if (allowPartial && current.police_event_id.trim()) {
@@ -714,6 +738,22 @@ export function EventFormPage({
     return queued
   }
 
+  function lastSavedEventDate(baselineJson: string, fallback: string): string {
+    if (!baselineJson) return fallback
+    try {
+      const parsed = JSON.parse(baselineJson) as { event_date?: string }
+      return parsed.event_date || fallback
+    } catch {
+      return fallback
+    }
+  }
+
+  function revertFutureEventDate() {
+    const previous = lastSavedEventDate(baselineRef.current, initialDateRef.current)
+    updateDraft({ event_date: previous })
+    setFutureDatePrompt(null)
+  }
+
   function updateDraft(patch: Partial<EventFormDraft>) {
     setDraft((current) => {
       if (!current) return current
@@ -837,11 +877,7 @@ export function EventFormPage({
   }
 
   function requestRemove(responder: ResponderDraft) {
-    if (
-      responder.hasOwnedData ||
-      responder.total_km ||
-      responder.treated.some((row) => row.quantity > 0)
-    ) {
+    if (eventResponderHasFilledFields(responder)) {
       setRemoveTarget(responder)
       return
     }
@@ -892,6 +928,7 @@ export function EventFormPage({
     leaveConfirm ||
     removeTarget !== null ||
     overnightPrompt !== null ||
+    futureDatePrompt !== null ||
     pickerOpen ||
     sheetResponderKey !== null ||
     foreignEditPending ||
@@ -1795,8 +1832,9 @@ export function EventFormPage({
         onClose={() => setAssignedEditDialog(false)}
       />
 
-      <Dialog
+      <AlertDialog
         open={foreignEditPending}
+        status="warning"
         title={foreignEventEditTitle(foreignEventEditLeadName(draft.shift_lead))}
         onClose={() => (onDismissForeignEdit ?? onCancel)()}
         footer={
@@ -1819,10 +1857,11 @@ export function EventFormPage({
         }
       >
         <p className="t-body">{FOREIGN_EVENT_EDIT_BODY}</p>
-      </Dialog>
+      </AlertDialog>
 
-      <Dialog
+      <AlertDialog
         open={leaveConfirm}
+        status="danger"
         title="יציאה מהטופס"
         onClose={() => setLeaveConfirm(false)}
         footer={
@@ -1852,11 +1891,12 @@ export function EventFormPage({
         }
       >
         <p className="t-body">השמירה האחרונה נכשלה. לצאת בכל זאת?</p>
-      </Dialog>
+      </AlertDialog>
 
-      <Dialog
+      <AlertDialog
         open={Boolean(removeTarget)}
-        title="הסרת מתנדב"
+        status="danger"
+        title={removeTarget ? eventResponderRemoveConfirm(removeTarget.full_name) : 'הסרת מתנדב'}
         onClose={() => setRemoveTarget(null)}
         footer={
           <>
@@ -1873,12 +1913,11 @@ export function EventFormPage({
             </Button>
           </>
         }
-      >
-        <p className="t-body">להסיר את המתנדב? הנתונים שמילא יימחקו.</p>
-      </Dialog>
+      />
 
-      <Dialog
+      <AlertDialog
         open={Boolean(overnightPrompt)}
+        status="warning"
         title="סיום ביום למחרת"
         onClose={() => setOvernightPrompt(null)}
         footer={
@@ -1909,7 +1948,30 @@ export function EventFormPage({
         <p className="t-body">
           זמן הסיום מוקדם מזמן ההתחלה. האם האירוע מסתיים ביום למחרת?
         </p>
-      </Dialog>
+      </AlertDialog>
+
+      <AlertDialog
+        open={Boolean(futureDatePrompt)}
+        status="warning"
+        title={FUTURE_EVENT_DATE_TITLE}
+        onClose={revertFutureEventDate}
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                const options = futureDatePrompt?.options
+                setFutureDatePrompt(null)
+                void persistLatest({ ...options, futureDateOk: true, revealErrors: true })
+              }}
+            >
+              {FUTURE_EVENT_DATE_CONTINUE}
+            </Button>
+            <Button variant="secondary" onClick={revertFutureEventDate}>
+              {FUTURE_EVENT_DATE_BACK}
+            </Button>
+          </>
+        }
+      />
 
       <Dialog
         open={Boolean(sheetResponder)}
