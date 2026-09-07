@@ -15,14 +15,14 @@ describe('isAssignedVolunteerEventEditBlocked', () => {
     ).toBe(true)
   })
 
-  it('blocks when the viewer is a secondary אחמ״ש, even without a responder row', () => {
+  it('does not block a secondary אחמ״ש who is not a responder', () => {
     expect(
       isAssignedVolunteerEventEditBlocked({
         viewerId: 'me',
         responderIds: ['a'],
         secondaryLeadIds: ['me'],
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it('blocks combo assignment (responder and secondary)', () => {

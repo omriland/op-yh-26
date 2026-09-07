@@ -14,17 +14,14 @@ function sameUser(
 }
 
 /**
- * True when the viewer has an `event_responders` row or is a secondary אחמ״ש.
- * Role (including admin / super_admin combo) does not bypass — they fill as a
- * volunteer instead of opening the event editor. Main-only lead is not blocked.
+ * True when the viewer has an `event_responders` row.
+ * אחמ״ש משני is a co-lead, not a volunteer — that assignment must not block edit.
+ * Role (including admin / super_admin combo) does not bypass a real responder row.
  */
 export function isAssignedVolunteerEventEditBlocked(input: {
   viewerId?: string | null
   responderIds?: readonly (string | null | undefined)[]
   secondaryLeadIds?: readonly (string | null | undefined)[]
 }): boolean {
-  const viewerId = input.viewerId
-  if ((input.responderIds ?? []).some((id) => sameUser(viewerId, id))) return true
-  if ((input.secondaryLeadIds ?? []).some((id) => sameUser(viewerId, id))) return true
-  return false
+  return (input.responderIds ?? []).some((id) => sameUser(input.viewerId, id))
 }
