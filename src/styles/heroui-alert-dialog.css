@@ -1,0 +1,52 @@
+/* HeroUI Alert Dialog island. Placement/size come from the wrapper (auto / md).
+   Tokens live on .light + data-theme="light" so HeroUI chrome wins inside the overlay.
+   Logical properties only — close trigger already uses inset-inline-end. */
+
+.yahpaz-alert-dialog-backdrop.alert-dialog__backdrop {
+  z-index: 80;
+}
+
+.yahpaz-alert-dialog.alert-dialog__dialog {
+  font-family: var(--font-ui);
+  text-align: start;
+}
+
+/* HeroUI's overlay is LTR; without this, inset-inline-end pins the X to the right. */
+.yahpaz-alert-dialog--rtl.alert-dialog__dialog {
+  direction: rtl;
+}
+
+.yahpaz-alert-dialog--ltr.alert-dialog__dialog {
+  direction: ltr;
+}
+
+.yahpaz-alert-dialog .alert-dialog__header,
+.yahpaz-alert-dialog .alert-dialog__heading,
+.yahpaz-alert-dialog .alert-dialog__body {
+  text-align: start;
+}
+
+.yahpaz-alert-dialog .alert-dialog__header {
+  padding-inline-end: var(--space-8);
+}
+
+.yahpaz-alert-dialog .alert-dialog__footer {
+  justify-content: flex-end;
+}
+
+.yahpaz-alert-dialog .alert-dialog__close-trigger {
+  inset-inline-start: auto;
+  inset-inline-end: var(--space-4);
+  inset-block-start: var(--space-4);
+}
+
+@media (max-width: 1024px) {
+  .yahpaz-alert-dialog .alert-dialog__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .yahpaz-alert-dialog .alert-dialog__footer .btn {
+    width: 100%;
+  }
+}
