@@ -653,6 +653,24 @@ type WebhookOutboxRow = {
     | null;
 };
 
+/** The delivery cron proves itself with the `partner_webhook_cron_auth` secret, which both
+ * sides read from the database. Matching this runtime's service_role key still works, but
+ * it cannot be relied on: rotating that key leaves the two copies unequal. */
+async function callerIsDeliveryCron(
+  admin: SupabaseClient,
+  token: string,
+  serviceKey: string,
+): Promise<boolean> {
+  if (!token) return false;
+  if (constantTimeEqual(token, serviceKey)) return true;
+  const { data } = await admin
+    .from("partner_webhook_cron_auth")
+    .select("secret")
+    .maybeSingle();
+  const secret = typeof data?.secret === "string" ? data.secret : "";
+  return secret !== "" && constantTimeEqual(token, secret);
+}
+
 async function handleDeliverWebhooks(
   admin: SupabaseClient,
   serviceKey: string,
@@ -663,7 +681,7 @@ async function handleDeliverWebhooks(
     return json(401, { error: "יש להתחבר מחדש." });
   }
   const token = authHeader.slice("Bearer ".length).trim();
-  if (token !== serviceKey) {
+  if (!(await callerIsDeliveryCron(admin, token, serviceKey))) {
     return json(403, { error: "אין לך הרשאה לפעולה זו." });
   }
 

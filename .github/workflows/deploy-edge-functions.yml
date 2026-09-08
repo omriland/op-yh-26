@@ -10,6 +10,7 @@ on:
     paths:
       - "supabase/functions/**"
       - "supabase/migrations/20260905120000_partner_webhook_events.sql"
+      - "supabase/migrations/20260908040000_partner_webhook_cron_auth.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -40,6 +41,8 @@ jobs:
         run: |
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260905120000_partner_webhook_events.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20260908040000_partner_webhook_cron_auth.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
