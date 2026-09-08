@@ -144,15 +144,26 @@ export type ResponderDraft = {
   hasVehicle: boolean
 }
 
+/** אמצעים starts on for a newly assigned responder. */
+export const NEW_RESPONDER_EMERGENCY_MEANS = true
+
 /** Any lead-owned field the אחמ״ש typed or toggled, or responder-owned fill data. */
 export function eventResponderHasFilledFields(row: Pick<
   ResponderDraft,
-  'start_time' | 'end_time' | 'total_km' | 'emergency_means' | 'treated' | 'hasOwnedData' | 'hasVehicle'
+  | 'assignmentId'
+  | 'start_time'
+  | 'end_time'
+  | 'total_km'
+  | 'emergency_means'
+  | 'treated'
+  | 'hasOwnedData'
+  | 'hasVehicle'
 >): boolean {
   if (row.hasOwnedData) return true
   if (row.start_time.trim() || row.end_time.trim()) return true
   if (row.hasVehicle && row.total_km.trim()) return true
-  if (row.emergency_means) return true
+  // On a not-yet-saved assignment אמצעים is only the default, not entered data.
+  if (row.emergency_means && row.assignmentId) return true
   return row.treated.some((item) => item.quantity > 0)
 }
 

@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   eventResponderHasFilledFields,
   eventResponderRemoveConfirm,
+  NEW_RESPONDER_EMERGENCY_MEANS,
   type ResponderDraft,
 } from './eventForm'
 
 function row(overrides: Partial<ResponderDraft> = {}): ResponderDraft {
   return {
     key: 'r1',
+    assignmentId: 'a1',
     responder_id: 'r1',
     full_name: 'דנה',
     callsign: '12',
@@ -42,6 +44,17 @@ describe('eventResponderHasFilledFields', () => {
 
   it('ignores km when the responder has no vehicle', () => {
     expect(eventResponderHasFilledFields(row({ total_km: '12', hasVehicle: false }))).toBe(false)
+  })
+
+  it('ignores the default אמצעים on a freshly added assignment', () => {
+    expect(
+      eventResponderHasFilledFields(
+        row({ assignmentId: undefined, emergency_means: NEW_RESPONDER_EMERGENCY_MEANS }),
+      ),
+    ).toBe(false)
+    expect(
+      eventResponderHasFilledFields(row({ assignmentId: undefined, start_time: '08:00' })),
+    ).toBe(true)
   })
 })
 
