@@ -42,10 +42,20 @@ def sql_nullable_text(value: str) -> str:
     return sql_quote(value) if value else 'null'
 
 
-def validate_split(rows: list[dict[str, str]]) -> None:
+def validate_split(rows: list[dict[str, str]]) -> int:
     """Print a warning for any row whose split looks suspicious, before trusting
-    it over all 663 rows sight-unseen — the source data is hand-curated, not
-    guaranteed-consistent (docs/locations-and-mapping.md §4 provenance note)."""
+    it over all rows sight-unseen — the source data is hand-curated, not
+    guaranteed-consistent (docs/locations-and-mapping.md §4 provenance note).
+
+    Returns the number of rows whose canonical name_he collides with another
+    row's — these silently lose all but the first occurrence to the
+    generated `on conflict (name_he) do nothing`, since name_he is unique.
+    When this script was last run, all such collisions were confirmed (by
+    haversine distance, by hand) to be near-duplicate points of the same
+    physical interchange, not distinct junctions — re-verify that assumption
+    before trusting a nonzero count here on a future run."""
+    seen: dict[str, dict[str, str]] = {}
+    collisions = 0
     for row in rows:
         name_he, aliases_he = split_name(row['name_he'])
         if not name_he:
@@ -54,6 +64,17 @@ def validate_split(rows: list[dict[str, str]]) -> None:
             print(f"WARNING: suspiciously long alias in: {row['name_he']!r}", file=sys.stderr)
         if aliases_he and len(aliases_he) > 5:
             print(f"WARNING: unusually many aliases ({len(aliases_he)}) in: {row['name_he']!r}", file=sys.stderr)
+        if name_he in seen:
+            collisions += 1
+            print(
+                f"NOTE: canonical name_he collision, only the first occurrence survives "
+                f"'on conflict do nothing': {name_he!r} at ({row['lat']}, {row['lon']}) "
+                f"vs. earlier ({seen[name_he]['lat']}, {seen[name_he]['lon']})",
+                file=sys.stderr,
+            )
+        else:
+            seen[name_he] = row
+    return collisions
 
 
 def build_insert_values(rows: list[dict[str, str]]) -> list[str]:
@@ -85,7 +106,7 @@ def main() -> None:
     with src.open(encoding='utf-8') as f:
         rows = list(csv.DictReader(f))
 
-    validate_split(rows)
+    collisions = validate_split(rows)
     values = build_insert_values(rows)
     sql = (
         "-- One-time seed from saariko/RoadsKMs junctions.csv "
@@ -96,7 +117,8 @@ def main() -> None:
         + "\non conflict (name_he) do nothing;\n"
     )
     out.write_text(sql, encoding='utf-8')
-    print(f"wrote {len(rows)} junctions to {out}")
+    landed = len(rows) - collisions
+    print(f"wrote {len(rows)} rows to {out} — {landed} distinct junctions will land ({collisions} name_he collisions dropped by on conflict)")
 
 
 if __name__ == '__main__':
