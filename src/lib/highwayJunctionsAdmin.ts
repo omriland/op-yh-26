@@ -42,9 +42,11 @@ export async function updateHighwayJunctionAliases(
   aliases_he: string[],
   aliases_en: string[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // updated_at is owned by the highway_junctions_set_updated_at trigger
+  // (20260908150150_highway_junctions_updated_at_trigger.sql) — no need to set it here.
   const { error } = await supabase
     .from('highway_junctions')
-    .update({ aliases_he, aliases_en, updated_at: new Date().toISOString() })
+    .update({ aliases_he, aliases_en })
     .eq('id', id)
   if (error) return { ok: false, error: 'שמירת הכינויים נכשלה. בדקו את החיבור ונסו שוב.' }
   return { ok: true }
