@@ -140,8 +140,9 @@ export function LocationPlacesField({
     const handle = window.setTimeout(() => {
       void searchHighwayJunctions(trimmed).then((results) => {
         if (!cancelled) setJunctions(results)
-      }).catch(() => {
+      }).catch((error) => {
         if (!cancelled) setJunctions([])
+        console.error('searchHighwayJunctions failed', error)
       })
     }, 250)
     return () => {
