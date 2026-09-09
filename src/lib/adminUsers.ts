@@ -4,7 +4,10 @@ import { findDuplicatePlate, phoneDigits, plateNumberForSave } from './format'
 import { supabase } from './supabase'
 import { syncUserRolesDiff } from './syncUserRolesDiff'
 import { fetchAdminLastActive, mergeLastActive } from './userPresence'
-import { parseAdminUsersInvokeResult } from './adminUsersInvoke'
+import {
+  parseAdminUsersInvokeResult,
+  type AdminUsersInvokeResult,
+} from './adminUsersInvoke'
 import type { PersistableAddress, UserAddressRow } from './userAddresses'
 import { parseVolunteerStatus, type VolunteerStatus } from './volunteerStatus'
 import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
@@ -191,7 +194,9 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
   return mergeLastActive(rows, presenceRows).sort(compareAdminUsers)
 }
 
-export async function inviteAdminUser(input: InviteUserInput) {
+export async function inviteAdminUser(
+  input: InviteUserInput,
+): Promise<AdminUsersInvokeResult> {
   const taken = await assertCallsignAvailable(input.callsign)
   if (taken.error) return { ok: false, error: taken.error }
 
