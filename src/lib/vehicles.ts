@@ -28,39 +28,6 @@ export function vehicleRemoveMode(attached: boolean): VehicleRemoveMode {
   return attached ? 'archive' : 'delete'
 }
 
-export function isProfileVehicleEditing(
-  vehicle: { key: string; id?: string },
-  editingKey: string | null,
-): boolean {
-  return !vehicle.id || vehicle.key === editingKey
-}
-
-/**
- * Unsaved add-row drafts that should survive a reload.
- * Drop the row that just persisted (and any leftover whose plate is now saved)
- * so the add form closes instead of staying open with previous values.
- */
-export function leftoverUnsavedVehicleDrafts<
-  T extends { key: string; id?: string; plate_number: string },
->(
-  drafts: T[],
-  options?: {
-    persistedKeys?: Iterable<string>
-    savedPlates?: Iterable<string>
-  },
-): T[] {
-  const persisted = new Set(options?.persistedKeys ?? [])
-  const saved = new Set(
-    [...(options?.savedPlates ?? [])].map((plate) => plateDigits(plate)).filter(Boolean),
-  )
-  return drafts.filter((row) => {
-    if (row.id || persisted.has(row.key)) return false
-    const plate = plateDigits(row.plate_number)
-    if (plate && saved.has(plate)) return false
-    return true
-  })
-}
-
 export function vehicleFieldsForSave(
   plateNumber: string,
   model: string,
@@ -104,45 +71,6 @@ export async function setDefaultVehicle(vehicleId: string): Promise<{ error: str
     }
     return { error: message || 'עדכון הרכב הראשי נכשל.' }
   }
-  return { error: null }
-}
-
-export async function createOwnVehicle(
-  userId: string,
-  plateNumber: string,
-  model: string,
-): Promise<{ error: string | null }> {
-  const fields = vehicleFieldsForSave(plateNumber, model)
-  if ('error' in fields) return { error: fields.error }
-
-  const { error } = await supabase.from('vehicles').insert({
-    user_id: userId,
-    plate_number: fields.plate_number,
-    model: fields.model,
-    archived: false,
-  })
-
-  if (error) return { error: ownVehicleWriteError(error) }
-  return { error: null }
-}
-
-export async function updateOwnVehicle(
-  vehicleId: string,
-  plateNumber: string,
-  model: string,
-): Promise<{ error: string | null }> {
-  const fields = vehicleFieldsForSave(plateNumber, model)
-  if ('error' in fields) return { error: fields.error }
-
-  const { error } = await supabase
-    .from('vehicles')
-    .update({
-      plate_number: fields.plate_number,
-      model: fields.model,
-    })
-    .eq('id', vehicleId)
-
-  if (error) return { error: ownVehicleWriteError(error) }
   return { error: null }
 }
 

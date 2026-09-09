@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-07 (Android 0.3.32 force-update live)
+Last updated: 2026-09-09 (vehicles admin-only; profile view + star)
 
 ## What this is
 
@@ -74,7 +74,8 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs
 - Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
 - **Event create draft survival (2026-09-03):** `EventFormPage` boot effect depends on stable `userId` / lead name+callsign (not auth object refs). Typed אירוע חדש is kept across tab-focus `TOKEN_REFRESHED`. Local stash (`eventFormStash`) runs on all viewports (was mobile-only).
-- **Form draft survival (2026-09-03, expanded):** Same pattern on shift form, responder fill, shift-born fill (stash added), profile vehicles, unit broadcast compose, admin create-user stash keys. Shared helper: `formDraftSurvival.shouldKeepLiveFormBoot`.
+- **Form draft survival (2026-09-03, expanded):** Same pattern on shift form, responder fill, shift-born fill (stash added), unit broadcast compose, admin create-user stash keys. Shared helper: `formDraftSurvival.shouldKeepLiveFormBoot`.
+- **Vehicles admin-only (2026-09-09):** Responders view their cars on פרופיל (plus רכב ראשי star when 2+ active). Add / edit / remove / archive is admin-only on משתמשים. RLS `vehicles_write_admin`; `set_default_vehicle` is SECURITY DEFINER so starring still works. Empty profile copy: `לא רשומים רכבים. פנו למנהל המערכת להוספת רכב.`
 - Toasts: mobile top-center via flex (RTL-safe; no `translateX` centering); desktop bottom-inline-start. Spec: `docs/superpowers/specs/2026-08-11-mobile-toast-design.md`
 - Admin users mobile cards: ⋮ overflow menu (same actions as desktop) + internal `--space-3` rhythm; spec `2026-08-11-mobile-admin-users-card-design.md`
 - Sticky form footers: upward `--shadow-scroll-cue` while scrollport overflows (`FormStickyFooter` on responder fill / event / shift). Spec: `docs/superpowers/specs/2026-08-11-sticky-footer-scroll-cue-design.md`
@@ -86,7 +87,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Default vehicle (2026-09-01):** `vehicles.is_default` (רכב ראשי). Profile star when 2+ active cars; `set_default_vehicle` RPC; new `event_responders` insert copies that plate; fill + personal-shift preselect it. Spec: `2026-09-01-yahpaz-default-vehicle-design.md`. **Not yet applied on prod** — UI fallback retries without `is_default` so the vehicle list still loads.
 - **24-hour time (2026-09-03):** Event time inputs are digit-masked `HH:mm` (not native `type="time"`, which followed device 12/24). Display formatters use `hour12: false` + `hourCycle: 'h23'`. Same pattern as Android `TimeField`.
 - **Form field limits (2026-09-05):** Event `מספר אירוע` max 7 digits (`maxLength` + `policeEventIdForInput`). Lead `קילומטרים` max 3 digits. Create-event `או״ק ניידת` max 16 characters. Treated plates accept **5–8** digits (was 7–8); format 5=`XX-XXX`, 6=`XXX-XXX`. Error copy: `יש להזין 5 עד 8 ספרות.`
-- **Latest `infra/bootstrap` tip (2026-09-07):** `48cca83` — AlertDialog wrapper + `@heroui/react` so the already-pushed 0.3.32 EventFormPage confirm can build. Prior: `54c8522` 0.3.32 force-update (Netlify failed until this follow-up); `48e8c36` 0.3.31.
+- **Latest `infra/bootstrap` tip (2026-09-09):** `f24d7b5` — Fix inviteAdminUser types so the production TypeScript build can pass. Prior same day/window: `b5d9b65` owning shift-leads can delete events + unique callsigns; `2e814e7` Android 0.3.35 force-update; `9276933` highway junctions + event-form location search (#42).
 
 ## Email (Resend)
 

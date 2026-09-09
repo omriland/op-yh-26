@@ -6464,17 +6464,6 @@ html[data-keyboard-open] .event-form__footer {
   margin-block-start: var(--space-4);
 }
 
-.profile-vehicles__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.profile-vehicles__head .t-section {
-  margin: 0;
-}
-
 .profile-vehicle {
   display: flex;
   align-items: center;
