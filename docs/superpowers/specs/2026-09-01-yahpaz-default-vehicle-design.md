@@ -42,7 +42,7 @@ Partial unique index: one `is_default` row per `user_id`.
 
 ### RPC
 
-`public.set_default_vehicle(p_vehicle_id uuid)` — `security invoker`. Owner or admin (existing vehicles RLS). Rejects archived / missing rows with Hebrew errors.
+`public.set_default_vehicle(p_vehicle_id uuid)` — `security definer`. Owner or admin (admin cannot target a Super Admin row). Rejects archived / missing / unauthorized rows with Hebrew errors. Vehicle insert/update/delete RLS is admin-only; this RPC is the responder write path for `is_default`.
 
 ### Assignment default
 
