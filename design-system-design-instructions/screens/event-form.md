@@ -23,8 +23,8 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 | שלוחה | select (districts) | |
 | סוג אירוע | select (event_types) | |
 | פירוט | short text | optional; visible only when סוג אירוע is `אחר`. Stored in `event_type_detail`. Empty OK. |
-| כביש | select (roads) | When שלוחה is `תחנה / אחר / משוכפל`, default to the road whose name contains `101` (still editable). |
-| מיקום | text / Places combobox | Plain text for normal שלוחות. For system שלוחה `תחנה / אחר / משוכפל`: Google Places autocomplete (HE), free-text row always first, **required**. Spec: `2026-08-11-yahpaz-system-districts-places-location-design.md`. Coordinates (`location_lat`/`location_lng`) stay stored for the map pin and are **not** shown as a form field. Map drag does not edit כביש/מיקום. Spec: `2026-08-24-yahpaz-event-location-pin-design.md`. |
+| מיקום | combined combobox | Junction/interchange matches from the closed list first, then Google Places, then free text. For system שלוחה `תחנה / אחר / משוכפל`, **required**. A junction pick stores its canonical coordinates and auto-fills an empty כביש from the junction’s first numeric road when exactly one closed-list road matches; an existing road selection is never overwritten. Coordinates (`location_lat`/`location_lng`) stay stored for the map pin and are **not** shown as a form field. Map drag does not edit כביש/מיקום. |
+| כביש | select (roads) | Appears after מיקום and remains required/editable. When שלוחה is `תחנה / אחר / משוכפל`, default to the road whose name contains `101` (still editable). |
 | הערות | textarea | optional |
 
 `אחמ״ש ראשי` and `אחמ״ש משני` share the first row of the section: main at **66%** of the row (inline-start / right in RTL), the secondary picker at **33%** (inline-end / left). Flex + logical properties (never `left`/`right`); on phone widths, where 33% cannot hold a readable name, the pair stacks to two full-width fields.

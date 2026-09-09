@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { searchLocationSuggestionsLocalFirst } from './locationSuggestions'
+import {
+  rankLocationSuggestions,
+  searchLocationSuggestionsCombined,
+} from './locationSuggestions'
 
 const junction = {
   id: 'junction-1',
@@ -10,12 +13,15 @@ const junction = {
   lng: 34.793,
 }
 
-describe('searchLocationSuggestionsLocalFirst', () => {
-  it('does not query Google when the closed list has a match', async () => {
+describe('searchLocationSuggestionsCombined', () => {
+  it('queries the closed list and Google once in the same search', async () => {
     const searchJunctions = vi.fn().mockResolvedValue([junction])
-    const searchPlaces = vi.fn()
+    const predictions = [
+      { placeId: 'google-1', primaryText: 'השלום', secondaryText: 'תל אביב' },
+    ]
+    const searchPlaces = vi.fn().mockResolvedValue({ ok: true, predictions })
 
-    const result = await searchLocationSuggestionsLocalFirst({
+    const result = await searchLocationSuggestionsCombined({
       localQuery: 'השלום',
       googleQuery: 'כביש 20 השלום',
       sessionToken: 'session-1',
@@ -24,37 +30,20 @@ describe('searchLocationSuggestionsLocalFirst', () => {
     })
 
     expect(searchJunctions).toHaveBeenCalledWith('השלום')
-    expect(searchPlaces).not.toHaveBeenCalled()
-    expect(result).toEqual({ junctions: [junction], places: null, localError: null })
+    expect(searchPlaces).toHaveBeenCalledWith('כביש 20 השלום', 'session-1')
+    expect(result).toEqual({
+      junctions: [junction],
+      places: { ok: true, predictions },
+      localError: null,
+    })
   })
 
-  it('queries Google only after the closed list returns no match', async () => {
-    const searchJunctions = vi.fn().mockResolvedValue([])
-    const searchPlaces = vi.fn().mockResolvedValue({
-      ok: true,
-      predictions: [{ placeId: 'google-1', primaryText: 'מקום', secondaryText: 'ישראל' }],
-    })
-
-    const result = await searchLocationSuggestionsLocalFirst({
-      localQuery: 'מקום אחר',
-      googleQuery: 'כביש 20 מקום אחר',
-      sessionToken: 'session-1',
-      searchJunctions,
-      searchPlaces,
-    })
-
-    expect(searchJunctions).toHaveBeenCalledWith('מקום אחר')
-    expect(searchPlaces).toHaveBeenCalledWith('כביש 20 מקום אחר', 'session-1')
-    expect(result.junctions).toEqual([])
-    expect(result.places?.ok).toBe(true)
-  })
-
-  it('falls back to Google when the local lookup fails', async () => {
+  it('keeps Google results when the closed-list lookup fails', async () => {
     const error = new Error('local unavailable')
     const searchJunctions = vi.fn().mockRejectedValue(error)
     const searchPlaces = vi.fn().mockResolvedValue({ ok: true, predictions: [] })
 
-    const result = await searchLocationSuggestionsLocalFirst({
+    const result = await searchLocationSuggestionsCombined({
       localQuery: 'השלום',
       googleQuery: 'השלום',
       sessionToken: 'session-1',
@@ -64,5 +53,33 @@ describe('searchLocationSuggestionsLocalFirst', () => {
 
     expect(searchPlaces).toHaveBeenCalledOnce()
     expect(result.localError).toBe(error)
+  })
+})
+
+describe('rankLocationSuggestions', () => {
+  const google = {
+    placeId: 'google-1',
+    primaryText: 'מחלף השלום',
+    secondaryText: 'תל אביב',
+  }
+
+  it('ranks junctions above Google and free text last', () => {
+    expect(rankLocationSuggestions([junction], [google], 'השלום', true)).toEqual([
+      { kind: 'junction', junction },
+      { kind: 'google', prediction: google },
+      { kind: 'free_text', text: 'השלום' },
+    ])
+  })
+
+  it('keeps free text as the fallback when neither source matches', () => {
+    expect(rankLocationSuggestions([], [], ' מקום שלא נמצא ', true)).toEqual([
+      { kind: 'free_text', text: 'מקום שלא נמצא' },
+    ])
+  })
+
+  it('omits free text for places-only fields', () => {
+    expect(rankLocationSuggestions([], [google], 'השלום', false)).toEqual([
+      { kind: 'google', prediction: google },
+    ])
   })
 })

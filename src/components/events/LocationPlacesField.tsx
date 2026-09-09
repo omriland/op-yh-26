@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { eventGeocodeQuery } from '../../lib/eventGeocode'
 import { emptyLocationPlaceFields, type LocationPlaceFields } from '../../lib/systemDistricts'
 import {
@@ -9,13 +9,18 @@ import {
   type PlacePrediction,
 } from '../../lib/googlePlaces'
 import { searchHighwayJunctions, junctionPlaceId, type HighwayJunction } from '../../lib/highwayJunctions'
-import { searchLocationSuggestionsLocalFirst } from '../../lib/locationSuggestions'
+import {
+  rankLocationSuggestions,
+  searchLocationSuggestionsCombined,
+} from '../../lib/locationSuggestions'
 
 type LocationPlacesFieldProps = {
   value: LocationPlaceFields
   onChange: (next: LocationPlaceFields) => void
   /** Fired only after a Google place is chosen (not on each keystroke). */
   onPlaceCommit?: (next: LocationPlaceFields) => void
+  /** Fired after a closed-list junction is chosen. */
+  onJunctionCommit?: (junction: HighwayJunction) => void
   onBlurCommit?: () => void
   error?: string
   required?: boolean
@@ -36,6 +41,7 @@ export function LocationPlacesField({
   value,
   onChange,
   onPlaceCommit,
+  onJunctionCommit,
   onBlurCommit,
   error,
   required,
@@ -60,6 +66,7 @@ export function LocationPlacesField({
   const [predictions, setPredictions] = useState<PlacePrediction[]>([])
   const [junctions, setJunctions] = useState<HighwayJunction[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [localSearchFailed, setLocalSearchFailed] = useState(false)
   const [query, setQuery] = useState(value.location)
 
   useEffect(() => {
@@ -133,6 +140,7 @@ export function LocationPlacesField({
     if (!allowJunctions) {
       setJunctions([])
       setIsSearching(false)
+      setLocalSearchFailed(false)
       return
     }
     const trimmed = query.trim()
@@ -140,6 +148,7 @@ export function LocationPlacesField({
       setJunctions([])
       setPredictions([])
       setIsSearching(false)
+      setLocalSearchFailed(false)
       return
     }
     const googleQuery = eventGeocodeQuery(roadName, trimmed)
@@ -149,8 +158,9 @@ export function LocationPlacesField({
     setJunctions([])
     setPredictions([])
     setIsSearching(true)
+    setLocalSearchFailed(false)
     const handle = window.setTimeout(() => {
-      void searchLocationSuggestionsLocalFirst({
+      void searchLocationSuggestionsCombined({
         localQuery: trimmed,
         googleQuery,
         sessionToken: sessionRef.current,
@@ -162,10 +172,9 @@ export function LocationPlacesField({
           if (result.localError) {
             console.error('searchHighwayJunctions failed', result.localError)
           }
+          setLocalSearchFailed(Boolean(result.localError))
           setJunctions(result.junctions)
-          if (!result.places) {
-            setPredictions([])
-          } else if (!result.places.ok) {
+          if (!result.places.ok) {
             notifyUnavailable()
             setPredictions([])
           } else {
@@ -188,7 +197,15 @@ export function LocationPlacesField({
     ? `שימוש ב־"${query.trim()}" כפי שהוזן`
     : 'שימוש בטקסט שהוזן'
 
-  const optionCount = (allowFreeText ? 1 : 0) + predictions.length + junctions.length
+  const rankedOptions = allowJunctions
+    ? rankLocationSuggestions(junctions, predictions, query, allowFreeText)
+    : [
+        ...(allowFreeText && query.trim()
+          ? [{ kind: 'free_text' as const, text: query.trim() }]
+          : []),
+        ...predictions.map((prediction) => ({ kind: 'google' as const, prediction })),
+      ]
+  const optionCount = rankedOptions.length
 
   function commitFreeText(text: string) {
     const trimmed = text.trim()
@@ -248,24 +265,17 @@ export function LocationPlacesField({
     }
     onChange(next)
     onPlaceCommit?.(next)
+    onJunctionCommit?.(junction)
     setQuery(junction.name_he)
     setOpen(false)
   }
 
   function selectIndex(index: number) {
-    const freeTextSlot = allowFreeText ? 1 : 0
-    if (allowFreeText && index === 0) {
-      commitFreeText(query)
-      return
-    }
-    const placeIndex = index - freeTextSlot
-    if (placeIndex < predictions.length) {
-      const prediction = predictions[placeIndex]
-      if (prediction) void commitGoogle(prediction)
-      return
-    }
-    const junction = junctions[placeIndex - predictions.length]
-    if (junction) commitJunction(junction)
+    const option = rankedOptions[index]
+    if (!option) return
+    if (option.kind === 'junction') commitJunction(option.junction)
+    else if (option.kind === 'google') void commitGoogle(option.prediction)
+    else commitFreeText(option.text)
   }
 
   return (
@@ -287,7 +297,9 @@ export function LocationPlacesField({
           aria-expanded={open}
           aria-controls={open ? listboxId : undefined}
           aria-autocomplete="list"
-          aria-activedescendant={open ? `${listboxId}-opt-${highlight}` : undefined}
+          aria-activedescendant={
+            open && optionCount > 0 ? `${listboxId}-opt-${highlight}` : undefined
+          }
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${fieldId}-error` : undefined}
           required={required}
@@ -332,7 +344,9 @@ export function LocationPlacesField({
             if (event.key === 'ArrowDown') {
               event.preventDefault()
               setOpen(true)
-              setHighlight((current) => Math.min(current + 1, optionCount - 1))
+              if (optionCount > 0) {
+                setHighlight((current) => Math.min(current + 1, optionCount - 1))
+              }
             } else if (event.key === 'ArrowUp') {
               event.preventDefault()
               setHighlight((current) => Math.max(current - 1, 0))
@@ -346,82 +360,81 @@ export function LocationPlacesField({
         />
         {open && query.trim() ? (
           <ul id={listboxId} className="location-places__list" role="listbox" aria-label="הצעות מיקום">
-            {allowFreeText ? (
-            <li
-              id={`${listboxId}-opt-0`}
-              role="option"
-              aria-selected={highlight === 0}
-              className={[
-                'location-places__option',
-                'location-places__option--free',
-                highlight === 0 ? 'location-places__option--active' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              onMouseDown={(event) => {
-                event.preventDefault()
-                selectIndex(0)
-              }}
-            >
-              {freeTextLabel}
-            </li>
-            ) : null}
             {isSearching ? (
               <li className="location-places__status" role="presentation">
-                <span role="status">מחפשים ברשימת הצמתים והמחלפים…</span>
+                <span role="status">מחפשים צמתים ומקומות…</span>
               </li>
             ) : null}
-            {predictions.map((prediction, index) => {
-              const optionIndex = allowFreeText ? index + 1 : index
+            {localSearchFailed ? (
+              <li className="location-places__status" role="presentation">
+                <span role="status">חיפוש הצמתים אינו זמין כרגע.</span>
+              </li>
+            ) : null}
+            {rankedOptions.map((option, index) => {
+              const previousKind = rankedOptions[index - 1]?.kind
+              const showGroupLabel =
+                option.kind !== 'free_text' && option.kind !== previousKind
+              const groupLabel =
+                option.kind === 'junction' ? 'צמתים ומחלפים' : 'תוצאות ממפות Google'
               return (
-                <li
-                  key={prediction.placeId}
-                  id={`${listboxId}-opt-${optionIndex}`}
-                  role="option"
-                  aria-selected={highlight === optionIndex}
-                  className={[
-                    'location-places__option',
-                    highlight === optionIndex ? 'location-places__option--active' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    selectIndex(optionIndex)
-                  }}
+                <Fragment
+                  key={
+                    option.kind === 'junction'
+                      ? `junction-${option.junction.id}`
+                      : option.kind === 'google'
+                        ? `google-${option.prediction.placeId}`
+                        : 'free-text'
+                  }
                 >
-                  <span className="location-places__primary">{prediction.primaryText}</span>
-                  {prediction.secondaryText ? (
-                    <span className="location-places__secondary">{prediction.secondaryText}</span>
+                  {showGroupLabel ? (
+                    <li className="location-places__group-label" role="presentation">
+                      {groupLabel}
+                    </li>
                   ) : null}
-                </li>
-              )
-            })}
-            {junctions.map((junction, index) => {
-              const optionIndex = (allowFreeText ? 1 : 0) + predictions.length + index
-              return (
-                <li
-                  key={junction.id}
-                  id={`${listboxId}-opt-${optionIndex}`}
-                  role="option"
-                  aria-selected={highlight === optionIndex}
-                  className={[
-                    'location-places__option',
-                    'location-places__option--junction',
-                    highlight === optionIndex ? 'location-places__option--active' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onMouseDown={(event) => {
-                    event.preventDefault()
-                    selectIndex(optionIndex)
-                  }}
-                >
-                  <span className="location-places__primary">{junction.name_he}</span>
-                  {junction.roads ? (
-                    <span className="location-places__secondary">כביש {junction.roads}</span>
-                  ) : null}
-                </li>
+                  <li
+                    id={`${listboxId}-opt-${index}`}
+                    role="option"
+                    aria-selected={highlight === index}
+                    className={[
+                      'location-places__option',
+                      option.kind === 'junction' ? 'location-places__option--junction' : '',
+                      option.kind === 'free_text' ? 'location-places__option--free' : '',
+                      highlight === index ? 'location-places__option--active' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      selectIndex(index)
+                    }}
+                  >
+                    {option.kind === 'junction' ? (
+                      <>
+                        <span className="location-places__primary">
+                          {option.junction.name_he}
+                        </span>
+                        {option.junction.roads ? (
+                          <span className="location-places__secondary">
+                            כביש {option.junction.roads}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : option.kind === 'google' ? (
+                      <>
+                        <span className="location-places__primary">
+                          {option.prediction.primaryText}
+                        </span>
+                        {option.prediction.secondaryText ? (
+                          <span className="location-places__secondary">
+                            {option.prediction.secondaryText}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      freeTextLabel
+                    )}
+                  </li>
+                </Fragment>
               )
             })}
           </ul>

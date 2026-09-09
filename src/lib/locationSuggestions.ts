@@ -1,7 +1,7 @@
 import type { PlacePrediction } from './googlePlaces'
 import type { HighwayJunction } from './highwayJunctions'
 
-type LocalFirstSearchInput = {
+type CombinedSearchInput = {
   localQuery: string
   googleQuery: string
   sessionToken: string
@@ -12,36 +12,52 @@ type LocalFirstSearchInput = {
   ) => Promise<{ ok: true; predictions: PlacePrediction[] } | { ok: false; error: string }>
 }
 
-export type LocalFirstSearchResult = {
+export type CombinedSearchResult = {
   junctions: HighwayJunction[]
-  places: { ok: true; predictions: PlacePrediction[] } | { ok: false; error: string } | null
+  places: { ok: true; predictions: PlacePrediction[] } | { ok: false; error: string }
   localError: unknown
 }
 
-/**
- * Search the closed junction list first. Google is a fallback only when the
- * local search fails or returns no matching junctions.
- */
-export async function searchLocationSuggestionsLocalFirst({
+export type RankedLocationSuggestion =
+  | { kind: 'junction'; junction: HighwayJunction }
+  | { kind: 'google'; prediction: PlacePrediction }
+  | { kind: 'free_text'; text: string }
+
+/** Query both sources once; display priority is handled separately. */
+export async function searchLocationSuggestionsCombined({
   localQuery,
   googleQuery,
   sessionToken,
   searchJunctions,
   searchPlaces,
-}: LocalFirstSearchInput): Promise<LocalFirstSearchResult> {
-  let localError: unknown = null
-  try {
-    const junctions = await searchJunctions(localQuery)
-    if (junctions.length > 0) {
-      return { junctions, places: null, localError: null }
-    }
-  } catch (error) {
-    localError = error
-  }
+}: CombinedSearchInput): Promise<CombinedSearchResult> {
+  const [junctionResult, placesResult] = await Promise.allSettled([
+    searchJunctions(localQuery),
+    searchPlaces(googleQuery, sessionToken),
+  ])
 
   return {
-    junctions: [],
-    places: await searchPlaces(googleQuery, sessionToken),
-    localError,
+    junctions: junctionResult.status === 'fulfilled' ? junctionResult.value : [],
+    places:
+      placesResult.status === 'fulfilled'
+        ? placesResult.value
+        : { ok: false, error: 'network' },
+    localError: junctionResult.status === 'rejected' ? junctionResult.reason : null,
   }
+}
+
+/** Junctions first, Google second, and free text last when allowed. */
+export function rankLocationSuggestions(
+  junctions: HighwayJunction[],
+  predictions: PlacePrediction[],
+  freeText: string,
+  allowFreeText: boolean,
+): RankedLocationSuggestion[] {
+  return [
+    ...junctions.map((junction) => ({ kind: 'junction' as const, junction })),
+    ...predictions.map((prediction) => ({ kind: 'google' as const, prediction })),
+    ...(allowFreeText && freeText.trim()
+      ? [{ kind: 'free_text' as const, text: freeText.trim() }]
+      : []),
+  ]
 }

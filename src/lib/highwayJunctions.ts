@@ -11,8 +11,51 @@ export type HighwayJunction = {
   lng: number
 }
 
+type RoadLookup = {
+  id: string
+  name: string
+}
+
 export function junctionPlaceId(id: string): string {
   return `${JUNCTION_PLACE_ID_PREFIX}${id}`
+}
+
+/** Numeric leading road token only: "4/721 (דרומי)" -> "4". */
+export function firstJunctionRoadNumber(roads: string | null | undefined): string | null {
+  const firstToken = roads?.split('/', 1)[0]?.replace(/\([^)]*\)/g, '').trim() ?? ''
+  return /^\d+$/.test(firstToken) ? firstToken : null
+}
+
+/** Accept closed-list labels such as "6" or "כביש 6", but no partial number matches. */
+export function roadNumberFromLookupName(name: string): string | null {
+  const match = name.trim().match(/^(?:כביש\s*)?(\d+)(?:\s*\([^)]*\))?$/)
+  return match?.[1] ?? null
+}
+
+/**
+ * Resolve only a single exact road-number match. No match or duplicate lookup
+ * rows leave the event's existing road untouched.
+ */
+export function matchingRoadIdForJunction(
+  roads: string | null | undefined,
+  lookups: RoadLookup[],
+): string | null {
+  const junctionRoadNumber = firstJunctionRoadNumber(roads)
+  if (!junctionRoadNumber) return null
+  const matches = lookups.filter(
+    (lookup) => roadNumberFromLookupName(lookup.name) === junctionRoadNumber,
+  )
+  return matches.length === 1 ? matches[0]!.id : null
+}
+
+/** Auto-fill an empty road only; a lead's existing selection always wins. */
+export function roadIdAfterJunctionSelection(
+  currentRoadId: string,
+  junctionRoads: string | null | undefined,
+  lookups: RoadLookup[],
+): string {
+  if (currentRoadId) return currentRoadId
+  return matchingRoadIdForJunction(junctionRoads, lookups) ?? ''
 }
 
 /**

@@ -7,6 +7,10 @@ const css = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), '../styles/components.css'),
   'utf8',
 )
+const eventFormSource = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../pages/EventFormPage.tsx'),
+  'utf8',
+)
 
 function ruleBody(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -31,5 +35,20 @@ describe('event form standalone layout', () => {
 
   it('keeps the shared event-form panel on the form-max token', () => {
     expect(css).toMatch(/\.event-form__panel \{\s*width:\s*min\(100%, var\(--form-max\)\)/)
+  })
+
+  it('places location before road in DOM and responsive grid order', () => {
+    const locationField = eventFormSource.indexOf(
+      "<div className={placesLocation ? 'event-form__f-places' : 'event-form__f-location'}>",
+    )
+    const roadField = eventFormSource.indexOf('<div className="event-form__f-road">')
+    expect(locationField).toBeGreaterThan(-1)
+    expect(roadField).toBeGreaterThan(locationField)
+
+    const identityGrid = ruleBody('.event-form__identity')
+    expect(identityGrid.indexOf("'loc loc'")).toBeLessThan(identityGrid.indexOf("'road road'"))
+    expect(identityGrid.indexOf("'places places'")).toBeLessThan(
+      identityGrid.indexOf("'road road'"),
+    )
   })
 })

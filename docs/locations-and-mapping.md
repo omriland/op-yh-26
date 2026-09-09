@@ -185,7 +185,7 @@ Per project history, the `ended_at` check on `event_responders` (used by `tokenC
 - `location_pin_source = 'junction'` — a new locked pin source, alongside `places | geocode | shift_lead | responder` (`src/lib/locationPin.ts`).
 - `LocationPlacesField` (`allowJunctions` prop) — merges junction search into the existing Places combobox; wired on live on `EventFormPage`'s event-location field only.
 - `HighwayJunctionsPage` (`src/pages/HighwayJunctionsPage.tsx`) — super-admin-only alias/missing-junction management, routed as `highway_junctions` (`/highway-junctions`).
-- `road_id`/`כביש` is genuinely untouched — confirmed by the team's WhatsApp poll below, honored in the shipped code (zero diff to `EventFormPage.tsx`'s road field, `validateEventMinimum`, or `systemDistricts.ts`).
+- `road_id`/`כביש` remains independently editable and required. Revised 2026-09-09: picking a junction may auto-fill an **empty** road from the junction's first numeric `roads` token when exactly one closed-list road matches; it never overwrites an existing selection.
 
 Originally, confirmed with the repo owner (2026-09-08): the intended meaning of "junctions" is the geographic one — **a comprehensive reference list of Israeli highways and named junctions/interchanges (צמתים)**, maintained in a separate project, meant to be usable as a *location* here (i.e., a third canonical location source alongside a volunteer's home address and a Google-Places pick). For completeness, the two things the bare word "junction" turns up elsewhere in this codebase are:
 
@@ -259,16 +259,15 @@ So, as built, the junctions picker slots into the **existing shift-lead/admin-on
 
 Shipped as (a) the `highway_junctions` table + one-time import, (b) `LocationPlacesField` searching it (`allowJunctions` prop), (c) the `'junction'` pin-source value + `LOCKED_SOURCES` entry, and (d) the `HighwayJunctionsPage` management surface above — the map side needed no changes at all, exactly as predicted.
 
-### The road picklist stays required after picking a junction — resolved as intended behavior
+### The road picklist stays required after picking a junction
 
 `validateEventMinimum` (`eventForm.ts:889`) requires `road_id` **unconditionally** — only the free-text `location` field's requirement is conditional (on `needsPlacesLocation`, §"System שלוחה" above). So picking a junction (which already fully determines the geographic pin) still leaves the `כביש` dropdown red/required, exactly as observed (2026-09-08 screenshot: `location` filled with "צומת מסובים", `road_id` still unselected and flagged "יש לבחור כביש.").
 
-**Team decision (2026-09-08, via WhatsApp poll)**: keep this behavior exactly as-is — **no `roads`-table change, no auto-fill, no new `"צומת"` picklist entry**. A junction sitting on 2+ roads means the shift lead **manually picks whichever one of the intersecting roads is relevant to the event**, same manual `כביש` selection as today, entirely independent of the junction pick. Two alternatives were raised and put to the team, both rejected in favor of doing nothing on the road side:
+**Revised product decision (2026-09-09):** מיקום appears before כביש. Picking a junction auto-fills כביש only when it is empty: parse the first slash-delimited `roads` token, require it to be numeric, then require exactly one exact road-number match in the active `roads` closed list (`4` matches `4` or `כביש 4`, never `40`/`44`). Non-numeric, absent, or ambiguous matches leave כביש empty without an error. An existing road selection is never overwritten, and the auto-filled select stays editable so the lead can choose the operationally relevant intersecting road.
 
-- *Rejected* — number-matching the junction's `roads` field against the picklist (`roadNumberForGeocode`, `eventGeocode.ts:14`, run in reverse) to auto-fill when unambiguous. Fragile (ambiguous multi-road junctions) and partial (only covers junctions whose road number happens to already be in this unit's picklist).
-- *Rejected* — a dedicated `"צומת"` road-picklist entry mirroring `עירוני` (`isUrbanRoadName`/`systemDistricts.ts:63`), auto-filled unconditionally on every junction pick. Simple and unambiguous, but loses per-route attribution in road-based reports/filtering — the team preferred keeping that precision over the convenience.
+The earlier 2026-09-08 decision was to leave road completely manual because multi-road junctions are ambiguous. The 2026-09-09 revision keeps the safety part of that decision—no overwrite and full manual control—while adding the narrow empty-field convenience above. A dedicated `"צומת"` road-picklist entry remains rejected because it would lose route attribution in reports.
 
-So the only net-new work for junctions (§ above — table, one-time seed, search RPC, `LocationPlacesField` integration, `'junction'` pin-source, map rendering, `HighwayJunctionsPage` management) stands as designed; **`road_id`/`validateEventMinimum`/`systemDistricts.ts` need no changes at all.**
+`validateEventMinimum` and `systemDistricts.ts` remain unchanged; the auto-fill is client-side form behavior and persists through the existing `road_id` field.
 
 ---
 
@@ -309,5 +308,5 @@ The map itself has no dedicated RLS; each *layer's* data source carries its own 
 
 - `location_pin_source = 'responder'` is defined in the CHECK constraint and in `LOCKED_SOURCES`, with the schema comment "reserved for native arrival (no client/RLS in this slice)" — no current code path actually sets it. It appears to be forward-provisioned for a future native-app "responder arrived, pin from their device" flow, not yet wired up.
 - `event_responder_live_locations` keeps only the latest point per assignment; there's no server-side breadcrumb trail even though the client renders short cosmetic motion tweens between the last two points. If a route/trail view is ever wanted, that's a schema change (append-only log instead of upsert-by-PK), not just a UI change.
-- "Junctions" (§4) — shipped 2026-09-08 (`feature/highway-junctions`): `public.highway_junctions`, `search_highway_junctions` RPC, `LocationPlacesField` integration, `'junction'` pin source, `HighwayJunctionsPage` admin UI. No delete/deactivate UI was built for a bad junction row (not requested — remove manually in the DB if ever needed), and `road_id`/`כביש` deliberately still requires a manual pick after a junction is chosen, per a team vote recorded in §4.
+- "Junctions" (§4) — shipped 2026-09-08 (`feature/highway-junctions`): `public.highway_junctions`, `search_highway_junctions` RPC, `LocationPlacesField` integration, `'junction'` pin source, `HighwayJunctionsPage` admin UI. Revised 2026-09-09: a junction may auto-fill an empty `road_id` from its first exact numeric road match; כביש remains required and editable. No delete/deactivate UI was built for a bad junction row (not requested — remove manually in the DB if ever needed).
 - The auto-geocode heuristic (§2) takes the **first** Places Autocomplete prediction for a `road + free text` query with no human confirmation step; it's explicitly treated as a soft/overridable guess (`location_pin_source: 'geocode'`, unlocked, replaceable by any human pin), so this is by design, not an oversight — worth knowing if the guess is ever visibly wrong on a specific event.

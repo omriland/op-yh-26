@@ -5161,15 +5161,26 @@ html[data-keyboard-open] .event-form__footer {
 
 .location-places__option--free {
   font-weight: 600;
-  border-block-end: 1px solid var(--stroke-hairline);
-  margin-block-end: var(--space-1);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-block-start: 1px solid var(--stroke-hairline);
+  margin-block-start: var(--space-1);
 }
 
 .location-places__status {
   padding: var(--space-2) var(--space-3);
   color: var(--ink-muted);
   font-size: var(--text-caption);
+}
+
+.location-places__group-label {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--text-muted);
+  font: var(--type-label);
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.location-places__status + .location-places__group-label,
+.location-places__list > .location-places__group-label:first-child {
+  border-block-start: 0;
 }
 
 .location-places__primary {
@@ -5931,9 +5942,9 @@ html[data-keyboard-open] .event-form__footer {
     'date date'
     'police patrol'
     'district type'
-    'road road'
     'loc loc'
-    'places places';
+    'places places'
+    'road road';
 }
 
 .event-form__f-date,
@@ -5993,9 +6004,9 @@ html[data-keyboard-open] .event-form__footer {
     'date date'
     'police patrol'
     'type district'
-    'road road'
     'loc loc'
-    'places places';
+    'places places'
+    'road road';
 }
 
 .event-form--phone.event-form--places .event-form__identity {
@@ -6003,8 +6014,8 @@ html[data-keyboard-open] .event-form__footer {
     'date date'
     'police patrol'
     'type district'
-    'road road'
-    'places places';
+    'places places'
+    'road road';
 }
 
 .event-form--phone .responder-assign__toolbar {
