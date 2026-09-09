@@ -1,4 +1,5 @@
 -- One-off production backfill (NOT a schema migration).
+-- Run in the Supabase SQL editor as postgres. Preview first, then apply.
 --
 -- Goal: events created through 2026-09-01 Asia/Jerusalem should stop showing
 -- as חסר ק״מ. The UI treats any null `event_responders.total_km` as missing;
@@ -15,9 +16,12 @@
 -- update so we do NOT stamp fill_completable_at. That clock would turn
 -- responder inbox cards red and fire 48h/7d overdue fill mail. Client
 -- notifyFillReady is not invoked by SQL. Audit + freeze triggers stay on
--- (0 km does not freeze).
+-- (0 km does not freeze). Do not use session_replication_role = replica.
 --
--- How to run: Supabase SQL editor as postgres, preview first, then apply.
+-- If this session dies after DISABLE and before ENABLE without a rollback,
+-- real KM entry would stop starting the overdue clock. The apply block
+-- asserts the trigger is back on before COMMIT.
+--
 -- Idempotent: only rows with total_km IS NULL are updated.
 
 -- =============================================================================
@@ -90,19 +94,40 @@ select
     where ev.created_at < cutoff.at
       and er.total_km is null
       and coalesce(btrim(er.vehicle_plate), '') = ''
-  ) as null_km_no_plate
+  ) as null_km_no_plate,
+  (
+    select count(*)
+    from public.event_responders er
+    join public.events ev on ev.id = er.event_id
+    cross join cutoff
+    where ev.created_at < cutoff.at
+      and er.total_km is null
+      and er.fill_completable_at is not null
+  ) as null_km_already_have_fill_clock,
+  (
+    select count(*)
+    from public.event_responders er
+    join public.events ev on ev.id = er.event_id
+    where ev.created_at >= timestamptz '2026-09-02 00:00:00+03'
+      and er.total_km is null
+  ) as post_cutoff_null_km
 from public.events e
 cross join cutoff
 where e.created_at < cutoff.at;
 
 -- =============================================================================
--- 2) APPLY — run only after the preview looks right
+-- 2) APPLY — one transaction; assertions ROLLBACK on failure
 -- =============================================================================
 
 begin;
 
 create temporary table backfill_pre_sept_2026_km_ids on commit drop as
-select er.id
+select
+  er.id,
+  er.fill_completable_at,
+  er.fill_ready_emailed_at,
+  er.overdue_48h_emailed_at,
+  er.overdue_7d_emailed_at
 from public.event_responders as er
 join public.events as e on e.id = er.event_id
 where e.created_at < timestamptz '2026-09-02 00:00:00+03'
@@ -115,15 +140,68 @@ update public.event_responders as er
 set
   total_km = 0,
   updated_at = now()
-where er.id in (select id from backfill_pre_sept_2026_km_ids);
+from backfill_pre_sept_2026_km_ids as t
+where er.id = t.id
+  and er.total_km is null;
 
 alter table public.event_responders
   enable trigger event_responders_guard_fill_overdue;
 
--- Immediate lifetime snapshot so פרופיל / החזר דלק do not wait for 07:00/19:00.
+do $$
+declare
+  leftover_null integer;
+  not_zero integer;
+  clock_changed integer;
+  trigger_state text;
+begin
+  select count(*)
+    into leftover_null
+  from public.event_responders as er
+  join public.events as e on e.id = er.event_id
+  where e.created_at < timestamptz '2026-09-02 00:00:00+03'
+    and er.total_km is null;
+
+  if leftover_null <> 0 then
+    raise exception 'remaining_null_km_before_cutoff = %; rolling back', leftover_null;
+  end if;
+
+  select count(*)
+    into not_zero
+  from public.event_responders as er
+  join backfill_pre_sept_2026_km_ids as t on t.id = er.id
+  where er.total_km is distinct from 0;
+
+  if not_zero <> 0 then
+    raise exception 'updated_rows_not_zero = %; rolling back', not_zero;
+  end if;
+
+  select count(*)
+    into clock_changed
+  from public.event_responders as er
+  join backfill_pre_sept_2026_km_ids as t on t.id = er.id
+  where er.fill_completable_at is distinct from t.fill_completable_at
+     or er.fill_ready_emailed_at is distinct from t.fill_ready_emailed_at
+     or er.overdue_48h_emailed_at is distinct from t.overdue_48h_emailed_at
+     or er.overdue_7d_emailed_at is distinct from t.overdue_7d_emailed_at;
+
+  if clock_changed <> 0 then
+    raise exception 'overdue/fill-ready columns changed on % rows; rolling back', clock_changed;
+  end if;
+
+  select tgenabled
+    into trigger_state
+  from pg_trigger
+  where tgrelid = 'public.event_responders'::regclass
+    and tgname = 'event_responders_guard_fill_overdue';
+
+  if trigger_state is distinct from 'O' then
+    raise exception 'overdue trigger not re-enabled (tgenabled=%); rolling back', trigger_state;
+  end if;
+end
+$$;
+
 select public.refresh_profile_lifetime_stats();
 
--- Verify inside the same transaction (0 remaining null KM before cutoff).
 select
   (select count(*) from backfill_pre_sept_2026_km_ids) as rows_updated,
   (
@@ -136,22 +214,22 @@ select
   (
     select count(*)
     from public.event_responders as er
-    where er.id in (select id from backfill_pre_sept_2026_km_ids)
-      and er.fill_completable_at is not null
-  ) as updated_rows_that_already_had_fill_clock,
+    join public.events as e on e.id = er.event_id
+    where e.created_at >= timestamptz '2026-09-02 00:00:00+03'
+      and er.total_km is null
+  ) as post_cutoff_null_km,
   (
     select count(*)
     from public.event_responders as er
-    where er.id in (select id from backfill_pre_sept_2026_km_ids)
-      and er.total_km is distinct from 0
-  ) as updated_rows_not_zero;
+    join backfill_pre_sept_2026_km_ids as t on t.id = er.id
+    where er.fill_completable_at is not null
+      and t.fill_completable_at is null
+  ) as newly_stamped_fill_clock,
+  (
+    select tgenabled
+    from pg_trigger
+    where tgrelid = 'public.event_responders'::regclass
+      and tgname = 'event_responders_guard_fill_overdue'
+  ) as overdue_trigger_enabled;
 
--- commit;   -- uncomment after the verify select looks right
--- rollback; -- use this instead if remaining_null_km_before_cutoff <> 0
---             -- or updated_rows_not_zero <> 0
-
--- Rollback later (same session only, before commit drop):
---   alter table public.event_responders disable trigger event_responders_guard_fill_overdue;
---   update public.event_responders set total_km = null, updated_at = now()
---   where id in (select id from backfill_pre_sept_2026_km_ids);
---   alter table public.event_responders enable trigger event_responders_guard_fill_overdue;
+commit;
