@@ -8,7 +8,12 @@ import {
   newPlacesSessionToken,
   type PlacePrediction,
 } from '../../lib/googlePlaces'
-import { searchHighwayJunctions, junctionPlaceId, type HighwayJunction } from '../../lib/highwayJunctions'
+import {
+  junctionLocationLabel,
+  junctionPlaceId,
+  searchHighwayJunctions,
+  type HighwayJunction,
+} from '../../lib/highwayJunctions'
 import {
   rankLocationSuggestions,
   searchLocationSuggestionsCombined,
@@ -257,8 +262,9 @@ export function LocationPlacesField({
   }
 
   function commitJunction(junction: HighwayJunction) {
+    const location = junctionLocationLabel(junction.name_he, query)
     const next = {
-      location: junction.name_he,
+      location,
       location_place_id: junctionPlaceId(junction.id),
       location_lat: junction.lat,
       location_lng: junction.lng,
@@ -266,7 +272,7 @@ export function LocationPlacesField({
     onChange(next)
     onPlaceCommit?.(next)
     onJunctionCommit?.(junction)
-    setQuery(junction.name_he)
+    setQuery(location)
     setOpen(false)
   }
 
