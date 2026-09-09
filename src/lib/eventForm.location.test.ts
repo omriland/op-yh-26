@@ -101,6 +101,30 @@ describe('buildLocationPayload', () => {
     })
   })
 
+  it('stores a junction pin, dropping the transient junction: marker like other locked sources', () => {
+    expect(
+      buildLocationPayload(
+        draft({
+          location: 'צומת מסובים',
+          location_place_id: 'junction:11111111-1111-1111-1111-111111111111',
+          location_lat: 31.6,
+          location_lng: 34.7,
+          location_pin_source: 'junction',
+          location_pinned_at: null,
+          location_pinned_by: null,
+        }),
+      ),
+    ).toEqual({
+      location: 'צומת מסובים',
+      location_place_id: null,
+      location_lat: 31.6,
+      location_lng: 34.7,
+      location_pin_source: 'junction',
+      location_pinned_at: null,
+      location_pinned_by: null,
+    })
+  })
+
   it('keeps an automatic geocode pin without a place id', () => {
     expect(
       buildLocationPayload(

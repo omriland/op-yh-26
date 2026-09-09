@@ -1,4 +1,10 @@
-export const LOCATION_PIN_SOURCES = ['places', 'geocode', 'shift_lead', 'responder'] as const
+export const LOCATION_PIN_SOURCES = [
+  'places',
+  'geocode',
+  'shift_lead',
+  'responder',
+  'junction',
+] as const
 
 export type LocationPinSource = (typeof LOCATION_PIN_SOURCES)[number]
 
@@ -12,7 +18,7 @@ export type LocationPinFields = {
   location_pinned_by: string | null
 }
 
-const LOCKED_SOURCES: ReadonlySet<string> = new Set(['shift_lead', 'responder'])
+const LOCKED_SOURCES: ReadonlySet<string> = new Set(['shift_lead', 'responder', 'junction'])
 
 export function locationPinIsLocked(source: string | null | undefined): boolean {
   return source != null && LOCKED_SOURCES.has(source)
@@ -67,6 +73,35 @@ export function applyLocationFieldChange(
     location_lng: number | null
   },
 ): LocationPinFields {
+  // `location_place_id` carries a transient "junction:<uuid>" marker only in
+  // client state (minted by highwayJunctions.ts's junctionPlaceId/
+  // JUNCTION_PLACE_ID_PREFIX) so this function can tell a junction pick apart
+  // from a Google Places pick; it never survives to the saved row
+  // (buildLocationPayload nulls it for any locked source).
+  //
+  // The 'junction:' literal below is intentionally duplicated rather than
+  // importing JUNCTION_PLACE_ID_PREFIX from highwayJunctions.ts: that module
+  // constructs a live Supabase client at import time, and this module is
+  // otherwise a small, dependency-free pure state machine used from every
+  // event-save path — pulling in a network client here (and breaking every
+  // test that imports this file in environments without Supabase env vars
+  // configured, which is how this was actually caught) is worse than the
+  // duplication. Keep both literals in sync if the prefix ever changes.
+  const pickedJunction =
+    Boolean(next.location_place_id?.startsWith('junction:')) &&
+    next.location_lat != null &&
+    next.location_lng != null
+  if (pickedJunction) {
+    return {
+      location: next.location,
+      location_place_id: next.location_place_id,
+      location_lat: next.location_lat,
+      location_lng: next.location_lng,
+      location_pin_source: 'junction',
+      location_pinned_at: null,
+      location_pinned_by: null,
+    }
+  }
   const pickedPlace =
     Boolean(next.location_place_id) && next.location_lat != null && next.location_lng != null
   if (pickedPlace) {

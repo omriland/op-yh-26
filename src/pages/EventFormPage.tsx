@@ -1462,6 +1462,7 @@ export function EventFormPage({
                 <div className="event-form__f-places">
                 <LocationPlacesField
                   required
+                  allowJunctions
                   error={errors.location}
                   roadName={selectedRoadName}
                   value={{
