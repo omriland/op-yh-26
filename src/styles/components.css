@@ -5166,6 +5166,12 @@ html[data-keyboard-open] .event-form__footer {
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 
+.location-places__status {
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink-muted);
+  font-size: var(--text-caption);
+}
+
 .location-places__primary {
   color: var(--ink-primary);
 }

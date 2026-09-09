@@ -9,6 +9,7 @@ import {
   type PlacePrediction,
 } from '../../lib/googlePlaces'
 import { searchHighwayJunctions, junctionPlaceId, type HighwayJunction } from '../../lib/highwayJunctions'
+import { searchLocationSuggestionsLocalFirst } from '../../lib/locationSuggestions'
 
 type LocationPlacesFieldProps = {
   value: LocationPlaceFields
@@ -58,6 +59,7 @@ export function LocationPlacesField({
   const [highlight, setHighlight] = useState(0)
   const [predictions, setPredictions] = useState<PlacePrediction[]>([])
   const [junctions, setJunctions] = useState<HighwayJunction[]>([])
+  const [isSearching, setIsSearching] = useState(false)
   const [query, setQuery] = useState(value.location)
 
   useEffect(() => {
@@ -91,6 +93,7 @@ export function LocationPlacesField({
   }, [open])
 
   useEffect(() => {
+    if (allowJunctions) return
     const trimmed = query.trim()
     const googleQuery = eventGeocodeQuery(roadName, trimmed)
     const fetchWhileClosed = roadName != null
@@ -124,32 +127,62 @@ export function LocationPlacesField({
     }
     // notifyUnavailable reads refs; intentionally omit callback from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open/query/roadName only
-  }, [query, open, roadName])
+  }, [allowJunctions, query, open, roadName])
 
   useEffect(() => {
     if (!allowJunctions) {
       setJunctions([])
+      setIsSearching(false)
       return
     }
     const trimmed = query.trim()
     if (!open || !trimmed) {
       setJunctions([])
+      setPredictions([])
+      setIsSearching(false)
       return
     }
+    const googleQuery = eventGeocodeQuery(roadName, trimmed)
+    if (!googleQuery) return
+
     let cancelled = false
+    setJunctions([])
+    setPredictions([])
+    setIsSearching(true)
     const handle = window.setTimeout(() => {
-      void searchHighwayJunctions(trimmed).then((results) => {
-        if (!cancelled) setJunctions(results)
-      }).catch((error) => {
-        if (!cancelled) setJunctions([])
-        console.error('searchHighwayJunctions failed', error)
+      void searchLocationSuggestionsLocalFirst({
+        localQuery: trimmed,
+        googleQuery,
+        sessionToken: sessionRef.current,
+        searchJunctions: searchHighwayJunctions,
+        searchPlaces: fetchPlacePredictions,
       })
+        .then((result) => {
+          if (cancelled) return
+          if (result.localError) {
+            console.error('searchHighwayJunctions failed', result.localError)
+          }
+          setJunctions(result.junctions)
+          if (!result.places) {
+            setPredictions([])
+          } else if (!result.places.ok) {
+            notifyUnavailable()
+            setPredictions([])
+          } else {
+            setPredictions(result.places.predictions)
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setIsSearching(false)
+        })
     }, 250)
     return () => {
       cancelled = true
       window.clearTimeout(handle)
     }
-  }, [allowJunctions, query, open])
+    // notifyUnavailable reads refs; intentionally omit callback from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- search inputs only
+  }, [allowJunctions, query, open, roadName])
 
   const freeTextLabel = query.trim()
     ? `שימוש ב־"${query.trim()}" כפי שהוזן`
@@ -332,6 +365,11 @@ export function LocationPlacesField({
             >
               {freeTextLabel}
             </li>
+            ) : null}
+            {isSearching ? (
+              <li className="location-places__status" role="presentation">
+                <span role="status">מחפשים ברשימת הצמתים והמחלפים…</span>
+              </li>
             ) : null}
             {predictions.map((prediction, index) => {
               const optionIndex = allowFreeText ? index + 1 : index

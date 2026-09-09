@@ -1458,12 +1458,12 @@ export function EventFormPage({
                 />
                 </div>
 
-              {placesLocation ? (
-                <div className="event-form__f-places">
+              <div className={placesLocation ? 'event-form__f-places' : 'event-form__f-location'}>
                 <LocationPlacesField
-                  required
+                  required={placesLocation}
                   allowJunctions
                   error={errors.location}
+                  placeholder={placesLocation ? undefined : 'למשל: מחלף שורק'}
                   roadName={selectedRoadName}
                   value={{
                     location: draft.location,
@@ -1493,38 +1493,7 @@ export function EventFormPage({
                     show('השלמת מיקום מגוגל אינה זמינה כרגע. אפשר להזין מיקום ידנית.', 'alert')
                   }
                 />
-                </div>
-              ) : (
-                <div className="event-form__f-location">
-                <TextField
-                  label="מיקום"
-                  placeholder="למשל: מחלף שורק"
-                  value={draft.location}
-                  onChange={(event) =>
-                    updateDraft(
-                      applyLocationFieldChange(
-                        {
-                          location: draft.location,
-                          location_place_id: draft.location_place_id,
-                          location_lat: draft.location_lat,
-                          location_lng: draft.location_lng,
-                          location_pin_source: draft.location_pin_source,
-                          location_pinned_at: draft.location_pinned_at,
-                          location_pinned_by: draft.location_pinned_by,
-                        },
-                        {
-                          location: event.target.value,
-                          location_place_id: null,
-                          location_lat: null,
-                          location_lng: null,
-                        },
-                      ),
-                    )
-                  }
-                  onBlur={() => void persistLatest()}
-                />
-                </div>
-              )}
+              </div>
               </div>
 
               {phoneLayout ? null : (
