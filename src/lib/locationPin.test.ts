@@ -11,6 +11,7 @@ describe('locationPinIsLocked', () => {
   it('locks human-corrected pins so Google must not move them', () => {
     expect(locationPinIsLocked('shift_lead')).toBe(true)
     expect(locationPinIsLocked('responder')).toBe(true)
+    expect(locationPinIsLocked('junction')).toBe(true)
     expect(locationPinIsLocked('places')).toBe(false)
     expect(locationPinIsLocked('geocode')).toBe(false)
     expect(locationPinIsLocked(null)).toBe(false)
@@ -99,6 +100,36 @@ describe('applyLocationFieldChange', () => {
       location_lat: 32.14,
       location_lng: 34.81,
       location_pin_source: 'places',
+      location_pinned_at: null,
+      location_pinned_by: null,
+    })
+  })
+
+  it('locks and tags a junction pick distinctly from a Google place', () => {
+    expect(
+      applyLocationFieldChange(
+        {
+          location: '',
+          location_place_id: null,
+          location_lat: null,
+          location_lng: null,
+          location_pin_source: null,
+          location_pinned_at: null,
+          location_pinned_by: null,
+        },
+        {
+          location: 'צומת מסובים',
+          location_place_id: 'junction:11111111-1111-1111-1111-111111111111',
+          location_lat: 31.6,
+          location_lng: 34.7,
+        },
+      ),
+    ).toEqual({
+      location: 'צומת מסובים',
+      location_place_id: 'junction:11111111-1111-1111-1111-111111111111',
+      location_lat: 31.6,
+      location_lng: 34.7,
+      location_pin_source: 'junction',
       location_pinned_at: null,
       location_pinned_by: null,
     })

@@ -100,6 +100,7 @@ import {
   emptyLocationPinMeta,
   locationPinIsLocked,
 } from '../lib/locationPin'
+import { roadIdAfterJunctionSelection } from '../lib/highwayJunctions'
 import {
   FOREIGN_EVENT_EDIT_BODY,
   FOREIGN_EVENT_EDIT_CANCEL,
@@ -1430,6 +1431,54 @@ export function EventFormPage({
                 ) : null}
                 </div>
 
+              <div className={placesLocation ? 'event-form__f-places' : 'event-form__f-location'}>
+                <LocationPlacesField
+                  required={placesLocation}
+                  allowJunctions
+                  error={errors.location}
+                  placeholder={placesLocation ? undefined : 'למשל: מחלף שורק'}
+                  roadName={selectedRoadName}
+                  value={{
+                    location: draft.location,
+                    location_place_id: draft.location_place_id,
+                    location_lat: draft.location_lat,
+                    location_lng: draft.location_lng,
+                  }}
+                  onChange={(next) => {
+                    updateDraft(
+                      applyLocationFieldChange(
+                        {
+                          location: draft.location,
+                          location_place_id: draft.location_place_id,
+                          location_lat: draft.location_lat,
+                          location_lng: draft.location_lng,
+                          location_pin_source: draft.location_pin_source,
+                          location_pinned_at: draft.location_pinned_at,
+                          location_pinned_by: draft.location_pinned_by,
+                        },
+                        next,
+                      ),
+                    )
+                    setErrors((current) => ({ ...current, location: undefined }))
+                  }}
+                  onJunctionCommit={(junction) => {
+                    const nextRoadId = roadIdAfterJunctionSelection(
+                      draft.road_id,
+                      junction.roads,
+                      lookups.roads,
+                    )
+                    if (!nextRoadId || nextRoadId === draft.road_id) return
+                    updateDraft({ road_id: nextRoadId })
+                    setErrors((current) => ({ ...current, road_id: undefined }))
+                    queueMicrotask(() => void persistLatest())
+                  }}
+                  onBlurCommit={() => void persistLatest()}
+                  onAutocompleteUnavailable={() =>
+                    show('השלמת מיקום מגוגל אינה זמינה כרגע. אפשר להזין מיקום ידנית.', 'alert')
+                  }
+                />
+              </div>
+
                 <div className="event-form__f-road">
                 <SelectField
                   label="כביש"
@@ -1457,73 +1506,6 @@ export function EventFormPage({
                   }}
                 />
                 </div>
-
-              {placesLocation ? (
-                <div className="event-form__f-places">
-                <LocationPlacesField
-                  required
-                  error={errors.location}
-                  roadName={selectedRoadName}
-                  value={{
-                    location: draft.location,
-                    location_place_id: draft.location_place_id,
-                    location_lat: draft.location_lat,
-                    location_lng: draft.location_lng,
-                  }}
-                  onChange={(next) => {
-                    updateDraft(
-                      applyLocationFieldChange(
-                        {
-                          location: draft.location,
-                          location_place_id: draft.location_place_id,
-                          location_lat: draft.location_lat,
-                          location_lng: draft.location_lng,
-                          location_pin_source: draft.location_pin_source,
-                          location_pinned_at: draft.location_pinned_at,
-                          location_pinned_by: draft.location_pinned_by,
-                        },
-                        next,
-                      ),
-                    )
-                    setErrors((current) => ({ ...current, location: undefined }))
-                  }}
-                  onBlurCommit={() => void persistLatest()}
-                  onAutocompleteUnavailable={() =>
-                    show('השלמת מיקום מגוגל אינה זמינה כרגע. אפשר להזין מיקום ידנית.', 'alert')
-                  }
-                />
-                </div>
-              ) : (
-                <div className="event-form__f-location">
-                <TextField
-                  label="מיקום"
-                  placeholder="למשל: מחלף שורק"
-                  value={draft.location}
-                  onChange={(event) =>
-                    updateDraft(
-                      applyLocationFieldChange(
-                        {
-                          location: draft.location,
-                          location_place_id: draft.location_place_id,
-                          location_lat: draft.location_lat,
-                          location_lng: draft.location_lng,
-                          location_pin_source: draft.location_pin_source,
-                          location_pinned_at: draft.location_pinned_at,
-                          location_pinned_by: draft.location_pinned_by,
-                        },
-                        {
-                          location: event.target.value,
-                          location_place_id: null,
-                          location_lat: null,
-                          location_lng: null,
-                        },
-                      ),
-                    )
-                  }
-                  onBlur={() => void persistLatest()}
-                />
-                </div>
-              )}
               </div>
 
               {phoneLayout ? null : (

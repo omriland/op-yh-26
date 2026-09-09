@@ -48,6 +48,7 @@ import { FeedbackInboxPage } from './pages/FeedbackInboxPage'
 import { EventLocationsPage } from './pages/EventLocationsPage'
 import { EventAuditPage } from './pages/EventAuditPage'
 import { IosDevicesAdminPage } from './pages/IosDevicesAdminPage'
+import { HighwayJunctionsPage } from './pages/HighwayJunctionsPage'
 import { canManageFeedbackInbox } from './lib/userFeedback'
 import { canAccessSuperAdminNav } from './lib/superAdminAccess'
 import { IMPERSONATION_CHANGE_EVENT, isImpersonating } from './lib/impersonationStash'
@@ -607,7 +608,13 @@ function Gate() {
         icon: SUPER_ADMIN_NAV_ICON,
         section: isDesktop ? 'ניהול' : undefined,
         attention: navAttention.openFeedback,
-        alsoCurrentFor: ['feedback', 'event_locations', 'event_audit', 'ios_devices'],
+        alsoCurrentFor: [
+          'feedback',
+          'event_locations',
+          'event_audit',
+          'ios_devices',
+          'highway_junctions',
+        ],
         children: [
           {
             view: 'feedback',
@@ -619,6 +626,11 @@ function Gate() {
             view: 'event_locations',
             label: 'מיקומים',
             icon: NAV_ICONS.event_locations,
+          },
+          {
+            view: 'highway_junctions',
+            label: 'צמתים',
+            icon: NAV_ICONS.highway_junctions,
           },
           {
             view: 'event_audit',
@@ -1101,6 +1113,8 @@ function Gate() {
         <EventAuditPage key={sectionReset} />
       ) : activeView === 'ios_devices' && isSuperAdmin ? (
         <IosDevicesAdminPage key={sectionReset} />
+      ) : activeView === 'highway_junctions' && isSuperAdmin ? (
+        <HighwayJunctionsPage key={sectionReset} />
       ) : isAdminHub && isAdminSegment(activeView) ? (
           <div
             className={['stack-4', activeView === 'users' ? 'page--wide page--users' : '']

@@ -29,6 +29,7 @@ import {
   MessageSquarePlus,
   Settings,
   Shield,
+  Signpost,
   Smartphone,
   UserCog,
   UserRound,
@@ -92,6 +93,7 @@ export type AppView =
   | 'event_locations'
   | 'event_audit'
   | 'ios_devices'
+  | 'highway_junctions'
 
 export type NavEntry = {
   view?: AppView
@@ -213,6 +215,7 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   event_locations: <MapPin size={24} strokeWidth={1.75} aria-hidden="true" />,
   event_audit: <History size={24} strokeWidth={1.75} aria-hidden="true" />,
   ios_devices: <Smartphone size={24} strokeWidth={1.75} aria-hidden="true" />,
+  highway_junctions: <Signpost size={24} strokeWidth={1.75} aria-hidden="true" />,
 }
 
 export const SUPER_ADMIN_NAV_ICON = (
