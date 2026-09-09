@@ -1073,6 +1073,21 @@ async function handleInvite(
     return json(400, { error: "יש למלא שם מלא, דוא״ל ואו״ק." });
   }
 
+  const { data: existingProfiles, error: callsignLookupError } = await adminClient
+    .from("profiles")
+    .select("id, callsign");
+  if (callsignLookupError) {
+    return json(500, { error: "יצירת המשתמש נכשלה. בדקו את החיבור ונסו שוב." });
+  }
+  const takenCallsign = (existingProfiles ?? []).some(
+    (row) =>
+      typeof row.callsign === "string" &&
+      row.callsign.trim().toLowerCase() === callsign.toLowerCase(),
+  );
+  if (takenCallsign) {
+    return json(409, { error: "או״ק זה כבר בשימוש." });
+  }
+
   if (roles.length === 0) {
     return json(400, { error: "יש לבחור לפחות תפקיד אחד." });
   }

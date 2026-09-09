@@ -1,11 +1,17 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import {
   applyStashedCreateUserDraft,
   canEditUserEmail,
   canSubmitCreateUser,
   clearCreateUserStash,
+  CALLSIGN_IN_USE,
   createUserEmailError,
   emailsDiffer,
+  isCallsignTaken,
+  userCallsignError,
   readCreateUserStash,
   shouldStashCreateUserDraft,
   stashCreateUserDraft,
@@ -61,6 +67,40 @@ describe('canSubmitCreateUser', () => {
     expect(canSubmitCreateUser({ ...complete, email: 'not-an-email' })).toBe(false)
     expect(canSubmitCreateUser({ ...complete, email: 'dana@' })).toBe(false)
     expect(canSubmitCreateUser({ ...complete, email: 'dana@gmail' })).toBe(false)
+  })
+})
+
+describe('isCallsignTaken', () => {
+  const users = [
+    { id: 'a', callsign: '942' },
+    { id: 'b', callsign: 'Admin' },
+  ]
+
+  it('treats trim and case as the same או״ק', () => {
+    expect(isCallsignTaken('942', users)).toBe(true)
+    expect(isCallsignTaken(' 942 ', users)).toBe(true)
+    expect(isCallsignTaken('admin', users)).toBe(true)
+    expect(isCallsignTaken('D1', users)).toBe(false)
+    expect(isCallsignTaken('', users)).toBe(false)
+  })
+
+  it('ignores the user being edited', () => {
+    expect(isCallsignTaken('942', users, 'a')).toBe(false)
+    expect(isCallsignTaken('942', users, 'b')).toBe(true)
+  })
+})
+
+describe('userCallsignError', () => {
+  const users = [{ id: 'a', callsign: '942' }]
+
+  it('is silent while the field is empty', () => {
+    expect(userCallsignError('', users)).toBeNull()
+    expect(userCallsignError('   ', users)).toBeNull()
+  })
+
+  it('names a taken או״ק', () => {
+    expect(userCallsignError('942', users)).toBe(CALLSIGN_IN_USE)
+    expect(userCallsignError('942', users, 'a')).toBeNull()
   })
 })
 
@@ -176,5 +216,19 @@ describe('create-user local stash', () => {
     stashCreateUserDraft('admin', complete, NOW)
     clearCreateUserStash('admin')
     expect(readCreateUserStash('admin', NOW)).toBeNull()
+  })
+})
+
+describe('profiles callsign unique index', () => {
+  it('enforces unique או״ק after trim and case fold', () => {
+    const sql = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../supabase/migrations/20260909120900_profiles_callsign_unique.sql',
+      ),
+      'utf8',
+    )
+    expect(sql).toContain('create unique index if not exists profiles_callsign_unique')
+    expect(sql).toContain('lower(btrim(callsign))')
   })
 })

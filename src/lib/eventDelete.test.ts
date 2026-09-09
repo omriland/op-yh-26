@@ -51,6 +51,21 @@ describe('canViewerDeleteEvent', () => {
     ).toBe(false)
   })
 
+  it('loads shift_lead_id on event detail so the page can check ownership', () => {
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), './events.ts'), 'utf8')
+    expect(src).toMatch(/const EVENT_DETAIL_SELECT = `\s*id,\s*shift_lead_id,/)
+    expect(src).toMatch(/const EVENT_DETAIL_SELECT_NO_PLATES = `\s*id,\s*shift_lead_id,/)
+  })
+
+  it('wires event detail delete through canViewerDeleteEvent', () => {
+    const src = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), '../pages/EventDetailPage.tsx'),
+      'utf8',
+    )
+    expect(src).toContain('canViewerDeleteEvent')
+    expect(src).not.toContain('viewerMayDeleteOthersEvents')
+  })
+
   it('blocks responders and missing identity', () => {
     expect(
       canViewerDeleteEvent({

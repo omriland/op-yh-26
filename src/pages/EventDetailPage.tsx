@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
+  canViewerDeleteEvent,
   deleteEvent,
   eventDeleteConfirmBody,
   eventDeleteConfirmTitle,
-  viewerMayDeleteOthersEvents,
   fetchEventDetail,
   type EventDetail,
   type EventResponderDetail,
@@ -64,7 +64,6 @@ export function EventDetailPage({
   const { user, roles } = useAuth()
   const { show } = useToast()
   const canEdit = Boolean(onEdit) && (roles.includes('admin') || roles.includes('shift_lead'))
-  const canDelete = viewerMayDeleteOthersEvents(roles)
   const canSeeLeadKm = roles.includes('admin') || roles.includes('shift_lead')
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
@@ -202,6 +201,11 @@ export function EventDetailPage({
     )
   }
 
+  const canDelete = canViewerDeleteEvent({
+    roles,
+    userId: user?.id,
+    shiftLeadId: event.shift_lead_id,
+  })
   const mine = event.responders.find((row) => row.responder_id === user?.id)?.status ?? null
   const mineKm = event.responders.find((row) => row.responder_id === user?.id)?.total_km ?? null
   const mineLeadKmNote = leadKmPendingNote(mine, mineKm)

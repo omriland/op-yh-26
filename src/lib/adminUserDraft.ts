@@ -22,6 +22,38 @@ export function emailsDiffer(a: string, b: string): boolean {
   return a.trim().toLowerCase() !== b.trim().toLowerCase()
 }
 
+export const CALLSIGN_IN_USE = 'או״ק זה כבר בשימוש.'
+
+export function normalizeCallsign(raw: string): string {
+  return raw.trim().toLowerCase()
+}
+
+export function callsignsMatch(a: string, b: string): boolean {
+  const left = normalizeCallsign(a)
+  return left !== '' && left === normalizeCallsign(b)
+}
+
+/** True when another profile already uses this או״ק (trim + case-insensitive). */
+export function isCallsignTaken(
+  callsign: string,
+  users: readonly { id?: string; callsign: string }[],
+  exceptId?: string,
+): boolean {
+  const needle = normalizeCallsign(callsign)
+  if (!needle) return false
+  return users.some((user) => user.id !== exceptId && normalizeCallsign(user.callsign) === needle)
+}
+
+/** Inline או״ק message. Empty stays silent so a blank form is not already in error. */
+export function userCallsignError(
+  raw: string,
+  users: readonly { id?: string; callsign: string }[],
+  exceptId?: string,
+): string | null {
+  if (raw.trim() === '') return null
+  return isCallsignTaken(raw, users, exceptId) ? CALLSIGN_IN_USE : null
+}
+
 /** Create is always editable; existing users only for Super Admin. */
 export function canEditUserEmail(isCreate: boolean, actorIsSuperAdmin: boolean): boolean {
   return isCreate || actorIsSuperAdmin

@@ -8,6 +8,7 @@ import { parseAdminUsersInvokeResult } from './adminUsersInvoke'
 import type { PersistableAddress, UserAddressRow } from './userAddresses'
 import { parseVolunteerStatus, type VolunteerStatus } from './volunteerStatus'
 import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
+import { CALLSIGN_IN_USE, isCallsignTaken } from './adminUserDraft'
 
 export type AdminVehicle = {
   id: string
@@ -191,6 +192,9 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
 }
 
 export async function inviteAdminUser(input: InviteUserInput) {
+  const taken = await assertCallsignAvailable(input.callsign)
+  if (taken.error) return { ok: false, error: taken.error }
+
   const result = await callAdminUsers({
     action: 'invite',
     ...input,
@@ -247,7 +251,24 @@ export {
   unarchiveVehicle as unarchiveAdminVehicle,
 } from './vehicles'
 
+async function assertCallsignAvailable(
+  callsign: string,
+  exceptId?: string,
+): Promise<{ error: string | null }> {
+  const { data, error } = await supabase.from('profiles').select('id, callsign')
+  if (error) {
+    return { error: 'שמירת המשתמש נכשלה. בדקו את החיבור ונסו שוב.' }
+  }
+  if (isCallsignTaken(callsign, data ?? [], exceptId)) {
+    return { error: CALLSIGN_IN_USE }
+  }
+  return { error: null }
+}
+
 export async function saveAdminUser(input: SaveUserInput): Promise<{ error: string | null }> {
+  const taken = await assertCallsignAvailable(input.callsign, input.id)
+  if (taken.error) return taken
+
   const { error: profileError } = await supabase
     .from('profiles')
     .update({

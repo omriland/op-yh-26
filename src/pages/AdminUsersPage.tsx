@@ -21,9 +21,11 @@ import {
   canEditUserEmail,
   canSubmitCreateUser,
   clearCreateUserStash,
+  CALLSIGN_IN_USE,
   createUserEmailError,
   emailsDiffer,
   isValidEmail,
+  userCallsignError,
   readCreateUserStash,
   stashCreateUserDraft,
   shouldStashCreateUserDraft,
@@ -346,8 +348,11 @@ export function AdminUsersPage() {
   draftRef.current = draft
 
   const emailEditable = Boolean(draft && canEditUserEmail(!draft.id, isSuperAdmin))
+  const callsignError =
+    draft && users ? userCallsignError(draft.callsign, users, draft.id) : null
   const canSaveDraft =
     draft !== null &&
+    !callsignError &&
     (draft.id
       ? !isSuperAdmin || isValidEmail(draft.email)
       : canSubmitCreateUser(draft))
@@ -554,6 +559,10 @@ export function AdminUsersPage() {
 
     if (!draft.full_name.trim() || !draft.callsign.trim()) {
       setFormError('יש למלא שם מלא ואו״ק.')
+      return
+    }
+    if (users && userCallsignError(draft.callsign, users, draft.id)) {
+      setFormError(CALLSIGN_IN_USE)
       return
     }
     if ((!draft.id || isSuperAdmin) && !isValidEmail(draft.email)) {
@@ -1426,6 +1435,7 @@ export function AdminUsersPage() {
                 required
                 value={draft.callsign}
                 onChange={(event) => setDraft({ ...draft, callsign: event.target.value })}
+                error={callsignError ?? undefined}
               />
               <TextField
                 label="טלפון"

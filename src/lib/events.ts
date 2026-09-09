@@ -300,6 +300,7 @@ export type EventResponderDetail = {
 }
 
 export type EventDetail = Omit<EventListItem, 'responders'> & {
+  shift_lead_id: string
   notes: string | null
   event_type_detail: string | null
   station: string | null
@@ -317,6 +318,7 @@ export type EventDetail = Omit<EventListItem, 'responders'> & {
 
 const EVENT_DETAIL_SELECT = `
   id,
+  shift_lead_id,
   event_date,
   police_event_id,
   patrol_callsign,
@@ -365,6 +367,7 @@ const EVENT_DETAIL_SELECT = `
 
 const EVENT_DETAIL_SELECT_NO_PLATES = `
   id,
+  shift_lead_id,
   event_date,
   police_event_id,
   patrol_callsign,

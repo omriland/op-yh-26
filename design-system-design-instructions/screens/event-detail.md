@@ -15,7 +15,7 @@ The record itself. This screen is where the document metaphor is strongest: an e
 - Back navigation: ghost icon-button (chevron, mirrored) + `אירועים`.
 - Title row: `אירוע 12345` (`--type-title`; the number in Frank Ruhl Libre is acceptable here — it's part of the letterhead) with the **header stamp** (large, rotated −8°, per `06-components.md`) at inline-end showing the viewer-relative status.
 - Sub-line (`--type-caption`, `--text-muted`): `09.08.2026 · כביש 6 · מחלף שורק`.
-- Actions (per role): shift-lead/admin get secondary `עריכת אירוע`; admin additionally destructive-ghost `מחיקה` inside an overflow menu (kebab, `aria-label="פעולות נוספות"`).
+- Actions (per role): shift-lead/admin get secondary `עריכת אירוע`. Destructive-ghost `מחיקה` inside an overflow menu (kebab, `aria-label="פעולות נוספות"`) for admin / Super Admin (any event) and for an אחמ״ש on an event they created (`shift_lead_id`).
 - **Map hero (coords only):** when `location_lat`/`location_lng` exist, a full-bleed Static Map hero under the app bar (edge-to-edge of `main`), natural map colors at reduced opacity + darkening scrim (no hue filters); letterhead overlays the band; display-only. Spec: `docs/superpowers/specs/2026-08-11-yahpaz-event-detail-map-hero-design.md`.
 
 ### Event block (פרטי האירוע)
@@ -53,4 +53,4 @@ When the last open responder completes (or the viewer completes their own sectio
 
 - **Loading:** ledger-row skeletons in the event block + 2 card skeletons.
 - **Not found / no permission:** empty state `אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.` + secondary `חזרה לאירועים`. (RLS denials are explicit — never render an empty record.)
-- **Delete confirm (admin):** dialog `למחוק את האירוע 12345?`. With assigned volunteers, body `יש מתנדבים משובצים באירוע. הפעולה תמחק גם את הנתונים שלהם. האם למחוק? לא ניתן לשחזר.`; without assignments, `לא ניתן לשחזר את האירוע לאחר המחיקה.` — destructive `מחיקה` / secondary `ביטול`. Success toast `האירוע נמחק`.
+- **Delete confirm (admin / owning אחמ״ש):** dialog `למחוק את האירוע 12345?`. With assigned volunteers, body `יש מתנדבים משובצים באירוע. הפעולה תמחק גם את הנתונים שלהם. האם למחוק? לא ניתן לשחזר.`; without assignments, `לא ניתן לשחזר את האירוע לאחר המחיקה.` — destructive `מחיקה` / secondary `ביטול`. Success toast `האירוע נמחק`. An אחמ״ש may delete only an event they created.
