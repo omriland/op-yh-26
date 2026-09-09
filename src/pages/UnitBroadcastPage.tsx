@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Megaphone } from 'lucide-react'
 import { Button } from '../components/ui/Button'
-import { Dialog } from '../components/ui/Dialog'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FilterChips } from '../components/ui/FilterChips'
 import { EventListSkeleton } from '../components/ui/Skeleton'
@@ -280,9 +280,11 @@ export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) 
         ) : null}
       </section>
 
-      <Dialog
+      <AlertDialog
         open={confirmOpen}
+        status="accent"
         title="אישור שליחה"
+        busy={sending}
         onClose={() => !sending && setConfirmOpen(false)}
         footer={
           <>
@@ -300,7 +302,7 @@ export function UnitBroadcastPage({ embedded = false }: { embedded?: boolean }) 
         }
       >
         <p className="t-body">{confirmCopy}</p>
-      </Dialog>
+      </AlertDialog>
     </div>
   )
 }

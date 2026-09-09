@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Calendar, ChevronRight, Download, Search, BarChart3 } from 'lucide-react'
 import { PeriodPicker } from '../admin/PeriodPicker'
 import { Button } from '../ui/Button'
-import { Dialog } from '../ui/Dialog'
+import { AlertDialog } from '../ui/AlertDialog'
 import { EmptyState } from '../ui/EmptyState'
 import { HoverTip } from '../ui/HoverTip'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
@@ -270,9 +270,11 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
       )}
 
       {kind.action ? (
-        <Dialog
+        <AlertDialog
           open={pendingRow != null}
+          status="warning"
           title={kind.action.confirmTitle}
+          busy={applying}
           onClose={() => {
             if (!applying) setPendingRow(null)
           }}
@@ -288,13 +290,15 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
           }
         >
           <p className="t-body">{pendingRow ? kind.action.confirmBody(pendingRow) : null}</p>
-        </Dialog>
+        </AlertDialog>
       ) : null}
 
       {kind.commands ? (
-        <Dialog
+        <AlertDialog
           open={pendingCommand != null}
+          status={pendingCommand?.command.variant === 'destructive' ? 'danger' : 'warning'}
           title={pendingCommand?.command.confirmTitle ?? ''}
+          busy={applying}
           onClose={() => {
             if (!applying) setPendingCommand(null)
           }}
@@ -317,7 +321,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
           <p className="t-body">
             {pendingCommand ? pendingCommand.command.confirmBody(pendingCommand.row) : null}
           </p>
-        </Dialog>
+        </AlertDialog>
       ) : null}
     </div>
   )

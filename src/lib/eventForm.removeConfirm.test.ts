@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   eventResponderHasFilledFields,
@@ -5,6 +8,8 @@ import {
   NEW_RESPONDER_EMERGENCY_MEANS,
   type ResponderDraft,
 } from './eventForm'
+
+const srcDir = dirname(fileURLToPath(import.meta.url))
 
 function row(overrides: Partial<ResponderDraft> = {}): ResponderDraft {
   return {
@@ -62,5 +67,27 @@ describe('eventResponderRemoveConfirm', () => {
   it('names the responder', () => {
     expect(eventResponderRemoveConfirm('דנה')).toBe('האם אתה בטוח שברצונך להסיר את דנה?')
     expect(eventResponderRemoveConfirm('  ')).toBe('האם אתה בטוח שברצונך להסיר את מתנדב?')
+  })
+})
+
+describe('assigned responder removal availability', () => {
+  it('keeps removal wired in the shared standalone and cockpit event form', () => {
+    const page = readFileSync(resolve(srcDir, '../pages/EventFormPage.tsx'), 'utf8')
+    expect(page).toContain("variant?: 'page' | 'cockpit'")
+    expect(page.match(/onClick=\{\(\) => requestRemove\(responder\)\}/g)).toHaveLength(2)
+  })
+
+  it('deletes removed assignments under the shift-lead write policy', () => {
+    const form = readFileSync(resolve(srcDir, './eventForm.ts'), 'utf8')
+    const schema = readFileSync(
+      resolve(srcDir, '../../supabase/migrations/20260809120000_init.sql'),
+      'utf8',
+    )
+    expect(form).toContain(
+      "supabase.from('event_responders').delete().in('id', removedIds)",
+    )
+    expect(schema).toMatch(
+      /create policy event_responders_lead_admin_write[\s\S]*has_role\(auth\.uid\(\), 'shift_lead'\)/,
+    )
   })
 })

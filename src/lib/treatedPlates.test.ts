@@ -9,6 +9,7 @@ import {
   failTreatedPlateLookup,
   leftoverTreatedPlateError,
   mapTreatedPlateRows,
+  mergeTreatedPlates,
   removeTreatedPlate,
   setTreatedPlateLeftWhere,
   settleTreatedPlatePending,
@@ -261,5 +262,24 @@ describe('mapTreatedPlateRows', () => {
         details_status: 'ready',
       },
     ])
+  })
+})
+
+describe('mergeTreatedPlates', () => {
+  it('keeps event-keyed plates first and appends responder-keyed ones', () => {
+    const shared = { plate_number: '11-111-11', ...blank }
+    const mine = { plate_number: '63-307-78', ...blank }
+    expect(mergeTreatedPlates([shared], [mine])).toEqual([shared, mine])
+  })
+
+  it('surfaces responder-keyed plates when the event has none', () => {
+    const mine = { plate_number: '146-66-801', ...blank }
+    expect(mergeTreatedPlates([], [mine], [])).toEqual([mine])
+  })
+
+  it('drops a plate two responders logged for the same event', () => {
+    const first = { plate_number: '31-272-54', ...blank, color: 'אדום מטל' }
+    const second = { plate_number: '31-272-54', ...blank }
+    expect(mergeTreatedPlates([], [first], [second])).toEqual([first])
   })
 })

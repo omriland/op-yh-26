@@ -27,6 +27,7 @@ import {
 import { formatDateTime, formatPlate } from '../../lib/format'
 import { treatedPlateCaption } from '../../lib/treatedPlates'
 import { Button } from '../ui/Button'
+import { AlertDialog } from '../ui/AlertDialog'
 import { Dialog } from '../ui/Dialog'
 import { LicensePlate } from '../ui/LicensePlate'
 import { SelectField } from '../ui/SelectField'
@@ -429,33 +430,17 @@ export function EventMediaGallery({
       ) : null}
 
       <Dialog
-        open={Boolean(viewer)}
-        title={
-          confirmDelete
-            ? 'למחוק את התמונה?'
-            : viewer
-              ? EVENT_MEDIA_TAKEN_WHEN_LABEL[viewer.taken_when]
-              : 'תמונה'
-        }
+        open={Boolean(viewer) && !confirmDelete}
+        title={viewer ? EVENT_MEDIA_TAKEN_WHEN_LABEL[viewer.taken_when] : 'תמונה'}
         form={false}
-        wide={!confirmDelete}
+        wide
         onClose={() => {
-          if (deleting || savingEdit) return
+          if (savingEdit) return
           setViewer(null)
           setEditing(false)
-          setConfirmDelete(false)
         }}
         footer={
-          viewer && confirmDelete ? (
-            <>
-              <Button variant="destructive" loading={deleting} loadingLabel="מוחק…" onClick={() => void onDelete()}>
-                מחיקה
-              </Button>
-              <Button variant="secondary" disabled={deleting} onClick={() => setConfirmDelete(false)}>
-                ביטול
-              </Button>
-            </>
-          ) : viewer && editing ? (
+          viewer && editing ? (
             <>
               <Button loading={savingEdit} loadingLabel="שומר…" onClick={() => void onSaveEdit()}>
                 שמירה
@@ -476,9 +461,7 @@ export function EventMediaGallery({
           ) : undefined
         }
       >
-        {viewer && confirmDelete ? (
-          <p className="t-body">לא ניתן לשחזר.</p>
-        ) : viewer ? (
+        {viewer ? (
           <div className="event-media__lightbox">
             {viewer.signed_url ? (
               <img src={viewer.signed_url} alt={viewer.caption ?? ''} className="event-media__full" />
@@ -547,6 +530,28 @@ export function EventMediaGallery({
           </div>
         ) : null}
       </Dialog>
+
+      <AlertDialog
+        open={confirmDelete}
+        status="danger"
+        title="למחוק את התמונה?"
+        busy={deleting}
+        onClose={() => {
+          if (!deleting) setConfirmDelete(false)
+        }}
+        footer={
+          <>
+            <Button variant="destructive" loading={deleting} loadingLabel="מוחק…" onClick={() => void onDelete()}>
+              מחיקה
+            </Button>
+            <Button variant="secondary" disabled={deleting} onClick={() => setConfirmDelete(false)}>
+              ביטול
+            </Button>
+          </>
+        }
+      >
+        <p className="t-body">לא ניתן לשחזר.</p>
+      </AlertDialog>
     </div>
   )
 }

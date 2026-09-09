@@ -1,25 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Search } from 'lucide-react'
-import { Button } from '../ui/Button'
+import { useMemo } from 'react'
 import { Ledger, LedgerRow } from '../ui/Ledger'
 import { SelectField } from '../ui/SelectField'
-import { Avatar } from '../ui/Avatar'
 import { monoClass } from '../../lib/format'
 import type { AssignableUser } from '../../lib/eventForm'
 import {
+  MAIN_LEAD_LABEL,
   MAIN_LEAD_LOCKED_HINT,
-  SECONDARY_LEAD_ADD,
+  SECONDARY_LEAD_ADD_SHORT,
   SECONDARY_LEAD_LABEL,
   SECONDARY_LEAD_LOCKED_HINT,
-  SECONDARY_LEAD_PICKER_EMPTY,
-  SECONDARY_LEAD_PICKER_NONE,
-  SECONDARY_LEAD_REMOVE,
+  applySecondaryLeadSelection,
+  buildSecondaryLeadOptions,
   canChangeEventMainLead,
   canManageSecondaryLeads,
-  canRemoveSecondaryLead,
   eventLeadFieldLabel,
-  filterShiftLeadPicker,
   formatLeadPerson,
+  formatSecondaryLeadTrigger,
   mapSecondaryLeadRows,
   reassignMainLeads,
   type SecondaryLead,
@@ -75,9 +71,6 @@ export function EventShiftLeadsFields({
   shiftLeadUsers,
   onChange,
 }: EventShiftLeadsFieldsProps) {
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const pickerRef = useRef<HTMLDivElement>(null)
   const canManage = canManageSecondaryLeads(roles)
   const canChangeMain = canChangeEventMainLead({
     roles,
@@ -85,26 +78,45 @@ export function EventShiftLeadsFields({
     viewerIsCurrentMain: Boolean(viewerId && shiftLeadId && viewerId === shiftLeadId),
     hasSecondaries: secondaryLeads.length > 0,
   })
-  const exclude = [shiftLeadId, ...secondaryLeads.map((row) => row.user_id)].filter(
-    Boolean,
-  ) as string[]
-  const pickerOptions = useMemo(
+  const candidates = useMemo(
     () =>
-      filterShiftLeadPicker(
-        shiftLeadUsers.map((row) => ({
-          id: row.id,
-          full_name: row.full_name,
-          callsign: row.callsign,
-        })),
-        exclude,
-        query,
-      ),
-    [shiftLeadUsers, exclude, query],
+      shiftLeadUsers.map((row) => ({
+        id: row.id,
+        full_name: row.full_name,
+        callsign: row.callsign,
+      })),
+    [shiftLeadUsers],
+  )
+  const secondaryOptions = useMemo(
+    () =>
+      buildSecondaryLeadOptions({
+        candidates,
+        selected: secondaryLeads,
+        mainLeadId: shiftLeadId,
+        roles,
+      }).map((option) => ({
+        value: option.id,
+        label: `${option.full_name} · ${option.callsign}`,
+        disabled: option.selected && !option.removable,
+        content: (
+          <span className="lead-option">
+            <span className="t-body">{option.full_name}</span>
+            <span className="t-caption text-muted">
+              או״ק <span className={monoClass(option.callsign)}>{option.callsign}</span>
+            </span>
+            {option.selected && !option.removable ? (
+              <span className="t-caption text-muted">{SECONDARY_LEAD_LOCKED_HINT}</span>
+            ) : null}
+          </span>
+        ),
+      })),
+    [candidates, roles, secondaryLeads, shiftLeadId],
   )
   const mainOptions = shiftLeadUsers.map((row) => ({
     value: row.id,
     label: `${row.full_name} · ${row.callsign}`,
   }))
+  const mainLabel = canManage ? MAIN_LEAD_LABEL : eventLeadFieldLabel(secondaryLeads.length > 0)
 
   function applyMain(nextId: string) {
     const picked = shiftLeadUsers.find((row) => row.id === nextId)
@@ -122,170 +134,69 @@ export function EventShiftLeadsFields({
     })
   }
 
-  function addSecondary(person: AssignableUser) {
-    if (person.id === shiftLeadId) return
-    if (secondaryLeads.some((row) => row.user_id === person.id)) return
-    onChange({
-      shift_lead_id: shiftLeadId ?? person.id,
-      shift_lead: shiftLead,
-      secondary_leads: [
-        ...secondaryLeads,
-        {
-          user_id: person.id,
-          locked: false,
-          full_name: person.full_name,
-          callsign: person.callsign,
-        },
-      ],
-    })
-    setQuery('')
-    setPickerOpen(false)
-  }
-
-  function removeSecondary(userId: string) {
+  function applySecondaries(values: string[]) {
     onChange({
       shift_lead_id: shiftLeadId ?? '',
       shift_lead: shiftLead,
-      secondary_leads: secondaryLeads.filter((row) => row.user_id !== userId),
+      secondary_leads: applySecondaryLeadSelection({
+        values,
+        current: secondaryLeads,
+        candidates,
+        mainLeadId: shiftLeadId,
+        roles,
+      }),
     })
   }
 
-  useEffect(() => {
-    if (!pickerOpen) return
-
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node
-      if (pickerRef.current?.contains(target)) return
-      setPickerOpen(false)
-    }
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      setPickerOpen(false)
-    }
-
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
-    }
-  }, [pickerOpen])
-
   return (
     <div className="event-shift-leads stack-3">
-      {canChangeMain ? (
-        <SelectField
-          label={eventLeadFieldLabel(secondaryLeads.length > 0)}
-          searchable
-          searchPlaceholder="חיפוש לפי שם או או״ק"
-          value={shiftLeadId ?? ''}
-          options={mainOptions}
-          onChange={(event) => applyMain(event.target.value)}
-        />
-      ) : (
-        <Ledger>
-          <LedgerRow
-            label={eventLeadFieldLabel(secondaryLeads.length > 0)}
-            value={formatLeadPerson(shiftLead) || undefined}
-          />
-        </Ledger>
-      )}
+      <div className="event-leads-row">
+        <div className="event-leads-row__main">
+          {canChangeMain ? (
+            <SelectField
+              label={mainLabel}
+              searchable
+              searchPlaceholder="חיפוש לפי שם או או״ק"
+              value={shiftLeadId ?? ''}
+              options={mainOptions}
+              onChange={(event) => applyMain(event.target.value)}
+            />
+          ) : (
+            <Ledger>
+              <LedgerRow label={mainLabel} value={formatLeadPerson(shiftLead) || undefined} />
+            </Ledger>
+          )}
+        </div>
+        {canManage ? (
+          <div className="event-leads-row__secondary">
+            <SelectField
+              label={SECONDARY_LEAD_LABEL}
+              multiple
+              searchable
+              searchPlaceholder="חיפוש לפי שם או או״ק"
+              placeholder={SECONDARY_LEAD_ADD_SHORT}
+              summaryLabel={formatSecondaryLeadTrigger(secondaryLeads)}
+              values={secondaryLeads.map((row) => row.user_id)}
+              options={secondaryOptions}
+              onValuesChange={applySecondaries}
+            />
+          </div>
+        ) : null}
+      </div>
       {!canChangeMain && canManage && eventExists ? (
         <p className="t-caption text-muted">{MAIN_LEAD_LOCKED_HINT}</p>
       ) : null}
 
-      {secondaryLeads.length > 0 ? (
-        <ul className="assignment-list">
-          {secondaryLeads.map((row) => {
-            const canRemove = canRemoveSecondaryLead({ roles, locked: row.locked })
-            return (
-              <li key={row.user_id} className="assignment-list__row">
-                <span className="assignment-list__open" aria-hidden="true">
-                  <span className="t-caption text-muted">{SECONDARY_LEAD_LABEL}</span>
-                  <span className="t-body">{row.full_name}</span>
-                  <span className="t-caption text-muted">
-                    או״ק <span className={monoClass(row.callsign)}>{row.callsign}</span>
-                  </span>
-                  {row.locked ? (
-                    <span className="t-caption text-muted">{SECONDARY_LEAD_LOCKED_HINT}</span>
-                  ) : null}
-                </span>
-                {canRemove ? (
-                  <button
-                    type="button"
-                    className="assignment-list__remove"
-                    onClick={() => removeSecondary(row.user_id)}
-                  >
-                    {SECONDARY_LEAD_REMOVE}
-                  </button>
-                ) : null}
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
-
-      {canManage ? (
-        <div className="responder-picker" ref={pickerRef}>
-          <Button
-            variant="secondary"
-            icon={<Plus size={20} strokeWidth={1.75} />}
-            onClick={() => setPickerOpen((open) => !open)}
-            aria-expanded={pickerOpen}
-          >
-            {SECONDARY_LEAD_ADD}
-          </Button>
-          {pickerOpen ? (
-            <div className="responder-picker__panel" role="listbox" aria-label={SECONDARY_LEAD_ADD}>
-              <label className="search-field">
-                <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-                <span className="visually-hidden">חיפוש אחמ״שים</span>
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="חיפוש לפי שם או או״ק"
-                />
-              </label>
-              <ul className="responder-picker__list">
-                {pickerOptions.length === 0 ? (
-                  <li className="responder-picker__empty t-caption text-muted">
-                    {shiftLeadUsers.length === 0
-                      ? SECONDARY_LEAD_PICKER_EMPTY
-                      : SECONDARY_LEAD_PICKER_NONE}
-                  </li>
-                ) : (
-                  pickerOptions.map((person) => (
-                    <li key={person.id}>
-                      <button
-                        type="button"
-                        className="responder-picker__option"
-                        onClick={() =>
-                          addSecondary({
-                            id: person.id,
-                            full_name: person.full_name,
-                            callsign: person.callsign,
-                            hasVehicle: true,
-                          })
-                        }
-                      >
-                        <Avatar name={person.full_name} />
-                        <span className="responder-picker__meta">
-                          <span className="t-body-strong">{person.full_name}</span>
-                          <span className="t-caption text-muted">
-                            או״ק{' '}
-                            <span className={monoClass(person.callsign)}>{person.callsign}</span>
-                          </span>
-                        </span>
-                        <span className="responder-picker__add t-caption">הוספה</span>
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-          ) : null}
-        </div>
+      {!canManage && secondaryLeads.length > 0 ? (
+        <Ledger>
+          {secondaryLeads.map((row) => (
+            <LedgerRow
+              key={row.user_id}
+              label={SECONDARY_LEAD_LABEL}
+              value={formatLeadPerson(row) || undefined}
+            />
+          ))}
+        </Ledger>
       ) : null}
     </div>
   )

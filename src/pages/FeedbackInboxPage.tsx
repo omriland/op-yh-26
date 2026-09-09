@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MessageSquarePlus } from 'lucide-react'
 import { Button } from '../components/ui/Button'
-import { Dialog } from '../components/ui/Dialog'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
@@ -234,9 +234,11 @@ export function FeedbackInboxPage() {
         </ul>
       ) : null}
 
-      <Dialog
+      <AlertDialog
         open={Boolean(confirmDelete)}
+        status="danger"
         title="למחוק את המשוב?"
+        busy={Boolean(confirmDelete && busyId === confirmDelete.id)}
         onClose={() => setConfirmDelete(null)}
         footer={
           <>
@@ -256,7 +258,7 @@ export function FeedbackInboxPage() {
         }
       >
         <p className="t-body">הפעולה אינה ניתנת לביטול.</p>
-      </Dialog>
+      </AlertDialog>
     </div>
   )
 }

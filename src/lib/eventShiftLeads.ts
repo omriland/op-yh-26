@@ -2,6 +2,8 @@ export const MAIN_LEAD_LABEL = 'אחמ״ש ראשי'
 export const MAIN_LEAD_LABEL_SHORT = 'אחמ״ש'
 export const SECONDARY_LEAD_LABEL = 'אחמ״ש משני'
 export const SECONDARY_LEAD_ADD = 'הוספת אחמ״ש משני'
+/** Compact placeholder for the 33%-wide picker trigger. */
+export const SECONDARY_LEAD_ADD_SHORT = 'הוספה'
 export const SECONDARY_LEAD_REMOVE = 'הסרת אחמ״ש משני'
 export const SECONDARY_LEAD_LOCKED_HINT = 'נוסף אוטומטית בעריכה — לא ניתן להסיר'
 export const SECONDARY_LEAD_PICKER_EMPTY = 'אין אחמ״שים פעילים להוספה.'
@@ -111,6 +113,103 @@ export function filterShiftLeadPicker(
       person.callsign.toLowerCase().includes(needle)
     )
   })
+}
+
+export type SecondaryLeadOption = ShiftLeadCandidate & {
+  selected: boolean
+  /** Locked rows (auto-added on persist) can never be removed — greyed, non-interactive. */
+  removable: boolean
+}
+
+/** Selected secondaries pinned first, then the remaining shift_lead candidates. */
+export function buildSecondaryLeadOptions(input: {
+  candidates: readonly ShiftLeadCandidate[]
+  selected: readonly SecondaryLead[]
+  mainLeadId?: string | null
+  roles: readonly string[]
+}): SecondaryLeadOption[] {
+  const main = input.mainLeadId?.trim() ?? ''
+  const byId = new Map(input.candidates.map((person) => [person.id, person]))
+  const pinned = input.selected.flatMap((row) => {
+    const person = byId.get(row.user_id)
+    return [
+      {
+        id: row.user_id,
+        full_name: person?.full_name || row.full_name,
+        callsign: person?.callsign || row.callsign,
+        selected: true,
+        removable: canRemoveSecondaryLead({ roles: input.roles, locked: row.locked }),
+      },
+    ]
+  })
+  const pinnedIds = new Set(pinned.map((row) => row.id))
+  const rest = input.candidates
+    .filter((person) => person.id !== main && !pinnedIds.has(person.id))
+    .map((person) => ({
+      id: person.id,
+      full_name: person.full_name,
+      callsign: person.callsign,
+      selected: false,
+      removable: true,
+    }))
+  return [...pinned, ...rest]
+}
+
+/** Maps picker values back to secondary rows, keeping locked rows and lock/profile data. */
+export function applySecondaryLeadSelection(input: {
+  values: readonly string[]
+  current: readonly SecondaryLead[]
+  candidates: readonly ShiftLeadCandidate[]
+  mainLeadId?: string | null
+  roles: readonly string[]
+}): SecondaryLead[] {
+  const main = input.mainLeadId?.trim() ?? ''
+  const currentById = new Map(input.current.map((row) => [row.user_id, row]))
+  const candidateById = new Map(input.candidates.map((person) => [person.id, person]))
+  const kept: SecondaryLead[] = []
+  const seen = new Set<string>()
+
+  const keep = (row: SecondaryLead) => {
+    if (seen.has(row.user_id)) return
+    seen.add(row.user_id)
+    kept.push(row)
+  }
+
+  for (const value of input.values) {
+    const id = value.trim()
+    if (!id || id === main) continue
+    const existing = currentById.get(id)
+    if (existing) {
+      keep(existing)
+      continue
+    }
+    const person = candidateById.get(id)
+    if (!person) continue
+    keep({
+      user_id: id,
+      locked: false,
+      full_name: person.full_name,
+      callsign: person.callsign,
+    })
+  }
+
+  // A locked secondary is never removable — restore it even if the picker dropped it.
+  for (const row of input.current) {
+    if (row.user_id === main) continue
+    if (canRemoveSecondaryLead({ roles: input.roles, locked: row.locked })) continue
+    keep(row)
+  }
+
+  return kept
+}
+
+/** Compact closed-trigger text: first name, plus `+N` for the rest. Never a chip list. */
+export function formatSecondaryLeadTrigger(secondaries: readonly LeadPerson[]): string {
+  if (secondaries.length === 0) return ''
+  const first = secondaries[0]
+  const name = first.full_name.trim() || first.callsign.trim()
+  const rest = secondaries.length - 1
+  return rest > 0 ? `${name} +${rest}` : name
 }
 
 export function eventLeadFieldLabel(hasSecondaries: boolean): string {

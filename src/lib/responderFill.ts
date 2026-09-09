@@ -8,6 +8,7 @@ import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 import { pickDefaultVehiclePlate, queryVehiclesWithDefaultFallback } from './defaultVehicle'
 import { leftoverEventMediaError } from './eventMedia'
+import { ODOMETER_ORDER_ERROR } from './odometer'
 import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
 
 export { plateDigits }
@@ -149,14 +150,14 @@ export function validateResponderFillDraft(
     if (leftoverMedia) errors.event_media = leftoverMedia
   }
 
-  // Live + submit: start must be strictly lower than end once both are numbers.
+  // Live + submit: an equal pair is allowed (0/0 included); only reversed is wrong.
   if (
     !errors.odometer_end &&
     typeof start === 'number' &&
     typeof end === 'number' &&
-    end <= start
+    end < start
   ) {
-    errors.odometer_end = 'מד אוץ סיום חייב להיות גדול ממד אוץ התחלה'
+    errors.odometer_end = ODOMETER_ORDER_ERROR
   }
 
   return errors
@@ -170,7 +171,7 @@ export function odometerRangeError(
   const start = parseOptionalNumber(odometerStart)
   const end = parseOptionalNumber(odometerEnd)
   if (typeof start !== 'number' || typeof end !== 'number') return undefined
-  if (end <= start) return 'מד אוץ סיום חייב להיות גדול ממד אוץ התחלה'
+  if (end < start) return ODOMETER_ORDER_ERROR
   return undefined
 }
 

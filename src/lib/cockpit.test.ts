@@ -195,7 +195,7 @@ describe('cockpit reel details', () => {
     expect(cockpitReelPlace({ road: null, location: null })).toBeNull()
   })
 
-  it('blocks delete only while responders are allocated', () => {
+  it('allows deleting an owned event even while responders are allocated', () => {
     expect(
       canDeleteCockpitDraft({
         responders: [],
@@ -205,16 +205,12 @@ describe('cockpit reel details', () => {
       cockpitDeleteBlock({
         responders: [{ id: 'r1' }],
       }),
-    ).toBe('responders')
+    ).toBeNull()
     expect(
       cockpitDeleteBlock({
         responders: [],
       }),
     ).toBeNull()
-    expect(cockpitDeleteHint('responders')).toBe(
-      'יש מתנדבים משובצים. הסירו אותם תחילה.',
-    )
-    expect(cockpitDeleteHint('confirm')).toBe('לחצו שוב למחיקה.')
   })
 
   it('blocks an אחמ״ש from deleting another lead\'s event', () => {

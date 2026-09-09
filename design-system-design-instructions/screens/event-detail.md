@@ -53,4 +53,4 @@ When the last open responder completes (or the viewer completes their own sectio
 
 - **Loading:** ledger-row skeletons in the event block + 2 card skeletons.
 - **Not found / no permission:** empty state `אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.` + secondary `חזרה לאירועים`. (RLS denials are explicit — never render an empty record.)
-- **Delete confirm (admin):** dialog `למחוק את האירוע 12345?` body `הפעולה תמחק גם את נתוני הכוננים המשויכים. לא ניתן לשחזר.` — destructive `מחיקה` / secondary `ביטול`. Success toast `האירוע נמחק`.
+- **Delete confirm (admin):** dialog `למחוק את האירוע 12345?`. With assigned volunteers, body `יש מתנדבים משובצים באירוע. הפעולה תמחק גם את הנתונים שלהם. האם למחוק? לא ניתן לשחזר.`; without assignments, `לא ניתן לשחזר את האירוע לאחר המחיקה.` — destructive `מחיקה` / secondary `ביטול`. Success toast `האירוע נמחק`.

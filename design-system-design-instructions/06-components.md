@@ -147,7 +147,9 @@ Header row: `--surface-sunken`, `--type-label` `--text-secondary`, height 40 px.
 
 ## Dialog / Bottom sheet
 
-Desktop: dialog, max-width 480 px (forms 640 px; **media viewer** `--content-max`), radius `--radius-md`, elevation 2, backdrop `rgba(10, 18, 30, 0.55)`. Mobile: bottom sheet, full-width, top radius `--radius-md`, drag handle (32×4, `--stroke-strong`, radius-full) centered at top. Title `--type-section`. Footer: actions at inline-end (desktop) / stacked full-width primary-on-top (mobile). Destructive confirmations state the object: `למחוק את האירוע 12345?` with `מחיקה` (destructive) / `ביטול` (secondary).
+Desktop: dialog, max-width 480 px (forms 640 px; **media viewer** `--content-max`), radius `--radius-md`, elevation 2, backdrop `rgba(10, 18, 30, 0.55)`. Mobile: bottom sheet, full-width, top radius `--radius-md`, drag handle (32×4, `--stroke-strong`, radius-full) centered at top. Title `--type-section`. Footer: actions at inline-end (desktop) / stacked full-width primary-on-top (mobile).
+
+**Confirmations** use HeroUI Alert Dialog (`src/components/ui/AlertDialog.tsx`): placement always `auto`, size always `md`, `status` per case (`danger` delete/revoke/disable, `warning` leave/archive/caution, `accent` enable/send). Forced RTL (`dir=rtl` `lang=he`) except the partner-bot secret reveal (LTR isolate). Copy still states the object: `למחוק את האירוע 12345?` with `מחיקה` (destructive) / `ביטול` (secondary). Form sheets, pickers, media lightbox, cockpit intro, availability editor, and the mobile `עוד` menu stay on this Dialog.
 
 ## Media annex (מדיה)
 

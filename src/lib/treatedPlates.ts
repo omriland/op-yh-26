@@ -178,6 +178,30 @@ export function failTreatedPlateLookup(
   )
 }
 
+/**
+ * One plate list for a shift-born event.
+ *
+ * Plates are keyed either to the event (shift-born fill) or to a participation
+ * (responder fill) — never both. A shift-born event can hold both kinds because
+ * responders log plates from their own fill screen, so the event ledger must read
+ * the union or the responder's entry looks like it was never saved.
+ */
+export function mergeTreatedPlates(
+  ...groups: ReadonlyArray<readonly TreatedPlate[]>
+): TreatedPlate[] {
+  const seen = new Set<string>()
+  const merged: TreatedPlate[] = []
+  for (const group of groups) {
+    for (const plate of group) {
+      const key = plateDigits(plate.plate_number)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(plate)
+    }
+  }
+  return merged
+}
+
 /** Map DB rows (optional sort_order) into TreatedPlate[], ordered. */
 export function mapTreatedPlateRows(
   rows: ReadonlyArray<{

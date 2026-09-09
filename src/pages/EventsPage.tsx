@@ -9,6 +9,7 @@ import {
   UNIT_EVENTS_WINDOW_DAYS,
   canUseEventListDeleteContext,
   deleteEvent,
+  eventDeleteConfirmBody,
   eventDeleteConfirmTitle,
   fetchEvents,
   fetchEventsByIds,
@@ -59,7 +60,7 @@ import { isMineFillOverdue } from '../lib/overdueFill'
 import { jerusalemToday } from '../lib/shifts'
 import { Button } from '../components/ui/Button'
 import { NewEventButtonShell } from '../components/ui/NewEventButtonShell'
-import { Dialog } from '../components/ui/Dialog'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { PointerContextMenu } from '../components/ui/PointerContextMenu'
 import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -577,9 +578,11 @@ export function EventsPage({
                 : []
             }
           />
-          <Dialog
+          <AlertDialog
             open={Boolean(confirmDelete)}
+            status="danger"
             title={eventDeleteConfirmTitle(confirmDelete?.police_event_id)}
+            busy={deleting}
             onClose={() => !deleting && setConfirmDelete(null)}
             footer={
               <>
@@ -601,8 +604,10 @@ export function EventsPage({
               </>
             }
           >
-            <p className="t-body">הפעולה תמחק גם את נתוני המתנדבים המשויכים. לא ניתן לשחזר.</p>
-          </Dialog>
+            <p className="t-body">
+              {eventDeleteConfirmBody(confirmDelete?.responders.length ?? 0)}
+            </p>
+          </AlertDialog>
         </>
       ) : null}
     </div>

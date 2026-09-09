@@ -1,3 +1,4 @@
+import { Alert, CloseButton } from '@heroui/react'
 import {
   createContext,
   useCallback,
@@ -7,9 +8,12 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
-
-type ToastTone = 'done' | 'alert' | 'info'
+import {
+  alertStatusForToastTone,
+  formatToastMessage,
+  isStickyToastTone,
+  type ToastTone,
+} from '../../lib/toastAlert'
 
 type ToastItem = {
   id: number
@@ -35,7 +39,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((message: string, tone: ToastTone = 'done') => {
     const id = Date.now() + Math.floor(Math.random() * 1000)
-    setItems((prev) => [...prev, { id, message, tone }])
+    setItems((prev) => [...prev, { id, message: formatToastMessage(message), tone }])
   }, [])
 
   const value = useMemo(() => ({ show }), [show])
@@ -43,7 +47,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="toast-stack" data-theme="command" aria-live="polite">
+      <div
+        className="toast-stack light"
+        dir="rtl"
+        lang="he"
+        data-theme="light"
+        data-vibrant-palette="true"
+        aria-live="polite"
+      >
         {items.map((item) => (
           <ToastCard key={item.id} item={item} onDismiss={dismiss} />
         ))}
@@ -60,7 +71,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
   }, [])
 
   useEffect(() => {
-    const ms = item.tone === 'alert' ? 6000 : 4000
+    const ms = isStickyToastTone(item.tone) ? 6000 : 4000
     const timer = window.setTimeout(beginDismiss, ms)
     return () => window.clearTimeout(timer)
   }, [item, beginDismiss])
@@ -71,25 +82,20 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
     return () => window.clearTimeout(timer)
   }, [leaving, item.id, onDismiss])
 
-  const Icon = item.tone === 'alert' ? AlertCircle : item.tone === 'info' ? Info : CheckCircle2
+  const sticky = isStickyToastTone(item.tone)
 
   return (
     <div
-      className={['toast', `toast--${item.tone}`, leaving ? 'toast--leaving' : ''].filter(Boolean).join(' ')}
-      role={item.tone === 'alert' ? 'alert' : 'status'}
+      className={['toast', leaving ? 'toast--leaving' : ''].filter(Boolean).join(' ')}
+      dir="rtl"
     >
-      <Icon className="toast__icon" size={20} strokeWidth={1.75} aria-hidden="true" />
-      <p className="toast__message">{item.message}</p>
-      {item.tone === 'alert' ? (
-        <button
-          type="button"
-          className="toast__close"
-          aria-label="סגירה"
-          onClick={beginDismiss}
-        >
-          <X size={16} strokeWidth={1.75} aria-hidden="true" />
-        </button>
-      ) : null}
+      <Alert dir="rtl" status={alertStatusForToastTone(item.tone)} role={sticky ? 'alert' : 'status'}>
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>{item.message}</Alert.Title>
+        </Alert.Content>
+        {sticky ? <CloseButton aria-label="סגירה" onPress={beginDismiss} /> : null}
+      </Alert>
     </div>
   )
 }

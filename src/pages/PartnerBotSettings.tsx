@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '../components/ui/Button'
-import { Dialog } from '../components/ui/Dialog'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 import { TextField } from '../components/ui/TextField'
@@ -282,8 +282,9 @@ export function PartnerBotSettings() {
         </div>
       </section>
 
-      <Dialog
+      <AlertDialog
         open={Boolean(secretOnce)}
+        status="accent"
         title={secretOnce?.title ?? 'App token'}
         lang="en"
         dir="ltr"
@@ -311,10 +312,12 @@ export function PartnerBotSettings() {
             ) : null}
           </div>
         ) : null}
-      </Dialog>
-      <Dialog
+      </AlertDialog>
+      <AlertDialog
         open={Boolean(deleteClient)}
+        status="danger"
         title="להסיר את הבוט?"
+        busy={deleting}
         onClose={() => !deleting && setDeleteClient(null)}
         footer={
           <>
@@ -339,7 +342,7 @@ export function PartnerBotSettings() {
         <p className="t-body">
           החיבורים הקיימים יבוטלו. אפשר לרשום את אותו בוט מחדש אחר כך.
         </p>
-      </Dialog>
+      </AlertDialog>
     </>
   )
 }

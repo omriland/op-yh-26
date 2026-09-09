@@ -4,7 +4,7 @@ Live-ops inbox for אחמ״ש. Not a second event model — the existing event f
 
 ## Theme context
 
-- Desktop: **Command** app bar (no app sidebar). Content is **Field** — יומן sits on `--surface-page` paper. The form keeps its **Field paper panel** (`data-theme="field"` on `.event-form__panel`). App bar wordmark is `אבן דרך - הקוקפיט` in `--font-brand`. Nav label is `הקוקפיט`. Every row shows a bin as part of the row (active `--accent-subtle` covers the event, bin, and delete hint). Delete is blocked only while responders are allocated (`יש כוננים משובצים. הסירו אותם תחילה.`). After they are removed, two-click delete works (`לחצו שוב למחיקה.`).
+- Desktop: **Command** app bar (no app sidebar). Content is **Field** — יומן sits on `--surface-page` paper. The form keeps its **Field paper panel** (`data-theme="field"` on `.event-form__panel`). App bar wordmark is `אבן דרך - הקוקפיט` in `--font-brand`. Nav label is `הקוקפיט`. Every row shows a bin as part of the row. The owning אחמ״ש may delete a recent event even when volunteers are assigned; the bin opens the standard danger Alert Dialog. When assignments exist, body: `יש מתנדבים משובצים באירוע. הפעולה תמחק גם את הנתונים שלהם. האם למחוק? לא ניתן לשחזר.` Otherwise: `לא ניתן לשחזר את האירוע לאחר המחיקה.` Admin / Super Admin retain their existing broader delete permission.
 - Mobile: same components stacked (יומן above stage). Nav item is desktop-sidebar only.
 
 ## Layout
@@ -18,7 +18,7 @@ Full-bleed in `.shell__main` (no page padding). Desktop: row — יומן `calc(
 - Current row: `--accent-subtle` + `--accent` ink, 2px accent bar at inline-start (same recipe as sidebar), `aria-current="true"`. Desktop: 2px accent at inline-end that meets the stage hairline (open-folder cue).
 - Empty: `אין אירועים מחמש השעות האחרונות.`
 - Load error: `לא ניתן לטעון את הגלגלת` / `בדקו את החיבור ונסו שוב.` / `נסיון נוסף`.
-- Keyboard (ignored while typing in a field / combobox, and with ⌘/Ctrl/Alt): `N` (physical KeyN) creates; `↑`/`↓` move in the log; `Backspace`/`Delete` arms or confirms delete on the current row. `Escape` closes the map drawer when it is open (and the user is not typing). A second `אירוע חדש` while **your** current row is still empty reuses that row instead of inserting another. Someone else’s empty `אירוע חדש` is left alone — a new row is inserted for you. Leaving the cockpit or switching rows discards an untouched empty insert that belongs to you.
+- Keyboard (ignored while typing in a field / combobox, and with ⌘/Ctrl/Alt): `N` (physical KeyN) creates; `↑`/`↓` move in the log; `Backspace`/`Delete` opens the delete confirmation on the current row. `Escape` closes the map drawer when it is open (and the user is not typing). A second `אירוע חדש` while **your** current row is still empty reuses that row instead of inserting another. Someone else’s empty `אירוע חדש` is left alone — a new row is inserted for you. Leaving the cockpit or switching rows discards an untouched empty insert that belongs to you.
 
 ### מפה (drawer)
 

@@ -41,6 +41,11 @@ describe('leadKmForSave', () => {
   it('keeps NaN so the save path can reject invalid km', () => {
     expect(Number.isNaN(leadKmForSave(true, 'אבג'))).toBe(true)
   })
+
+  it('stores a typed 0 as 0, not as an empty field', () => {
+    expect(leadKmForSave(true, '0')).toBe(0)
+    expect(leadKmForSave(true, ' 0 ')).toBe(0)
+  })
 })
 
 describe('NO_VEHICLE_KM_PLACEHOLDER', () => {
@@ -55,6 +60,10 @@ describe('leadKmForInput', () => {
     expect(leadKmForInput('12a3.5')).toBe('123')
     expect(leadKmForInput('1405')).toBe('140')
     expect(leadKmForInput('')).toBe('')
+  })
+
+  it('lets a lone 0 through', () => {
+    expect(leadKmForInput('0')).toBe('0')
   })
 })
 

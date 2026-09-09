@@ -3,7 +3,6 @@ import { MapPinned, Plus, Radar, Trash2, X } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   cockpitDeleteBlock,
-  cockpitDeleteHint,
   cockpitEventMapPins,
   geocodeCockpitEventPins,
   mergeCockpitEventPins,
@@ -24,12 +23,15 @@ import {
   cockpitSelectionAfterForeignEditCancel,
   saveEventLocationPin,
   shouldReuseCockpitCreate,
-  type CockpitDeleteHintKind,
   type CockpitEventPin,
   type CockpitReelItem,
 } from '../lib/cockpit'
 import { hasSeenCockpitIntro, markCockpitIntroSeen } from '../lib/cockpitIntro'
-import { deleteEvent } from '../lib/events'
+import {
+  deleteEvent,
+  eventDeleteConfirmBody,
+  eventDeleteConfirmTitle,
+} from '../lib/events'
 import {
   discardAbandonedEmptyEventIfAny,
   mountedEventIsAbandonedEmpty,
@@ -39,6 +41,7 @@ import { monoClass } from '../lib/format'
 import { cancelledStamp, eventStamp } from '../lib/status'
 import { Button, IconButton } from '../components/ui/Button'
 import { NewEventButtonShell } from '../components/ui/NewEventButtonShell'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton } from '../components/ui/Skeleton'
@@ -62,11 +65,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   const [reel, setReel] = useState<CockpitReelItem[]>([])
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [creating, setCreating] = useState(false)
-  const [armedDeleteId, setArmedDeleteId] = useState<string | null>(null)
-  const [deleteHint, setDeleteHint] = useState<{
-    id: string
-    kind: CockpitDeleteHintKind
-  } | null>(null)
+  const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<CockpitReelItem | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const [mapOpen, setMapOpen] = useState(false)
@@ -112,8 +111,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   }, [mapOpen, reel])
 
   function clearDeletePrompt() {
-    setArmedDeleteId(null)
-    setDeleteHint(null)
+    setConfirmDeleteTarget(null)
   }
 
   function requestMapEventFocus(eventId: string) {
@@ -181,14 +179,6 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     setPinOverrides({})
     return rows
   }
-
-  useEffect(() => {
-    if (!deleteHint || deleteHint.kind === 'confirm') return
-    const row = reel.find((event) => event.id === deleteHint.id)
-    if (!row || cockpitDeleteBlock(row) !== deleteHint.kind) {
-      setDeleteHint(null)
-    }
-  }, [reel, deleteHint])
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 15_000)
@@ -263,18 +253,18 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
     void reloadReel().catch(() => {})
   }
 
-  async function confirmDelete(event: CockpitReelItem) {
+  function requestDelete(event: CockpitReelItem) {
     const block = cockpitDeleteBlock(event, deleteViewer)
     if (block) {
-      setArmedDeleteId(null)
-      setDeleteHint({ id: event.id, kind: block })
+      show('אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.', 'alert')
       return
     }
-    if (armedDeleteId !== event.id) {
-      setArmedDeleteId(event.id)
-      setDeleteHint({ id: event.id, kind: 'confirm' })
-      return
-    }
+    setConfirmDeleteTarget(event)
+  }
+
+  async function confirmDelete() {
+    const event = confirmDeleteTarget
+    if (!event) return
     setDeletingId(event.id)
     const result = await deleteEvent(event.id)
     setDeletingId(null)
@@ -292,10 +282,10 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   }
 
   const createNewRef = useRef(createNew)
-  const confirmDeleteRef = useRef(confirmDelete)
+  const requestDeleteRef = useRef(requestDelete)
   const dismissIntroRef = useRef(dismissIntro)
   createNewRef.current = createNew
-  confirmDeleteRef.current = confirmDelete
+  requestDeleteRef.current = requestDelete
   dismissIntroRef.current = dismissIntro
 
   useEffect(() => {
@@ -307,6 +297,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
         }
         return
       }
+      if (confirmDeleteTarget) return
       if (mapOpen && event.key === 'Escape' && !isCockpitTypingTarget(event.target)) {
         event.preventDefault()
         closeMap()
@@ -331,11 +322,11 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
         return
       }
       const current = reel.find((row) => row.id === selectedEventId)
-      if (current && deletingId !== current.id) void confirmDeleteRef.current(current)
+      if (current && deletingId !== current.id) requestDeleteRef.current(current)
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [deletingId, introOpen, mapOpen, onSelectEvent, reel, selectedEventId])
+  }, [confirmDeleteTarget, deletingId, introOpen, mapOpen, onSelectEvent, reel, selectedEventId])
 
   return (
     <div className="cockpit">
@@ -400,9 +391,6 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
               const policeId = event.police_event_id?.trim()
               const detail = cockpitReelDetail(event)
               const lead = cockpitReelLead(event)
-              const armed = armedDeleteId === event.id
-              const hint =
-                deleteHint?.id === event.id ? cockpitDeleteHint(deleteHint.kind) : null
               return (
                 <li
                   key={event.id}
@@ -448,17 +436,14 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                         {formatCockpitAge(event.created_at, now)}
                       </span>
                     </span>
-                    {hint ? (
-                      <span className="t-caption cockpit__delete-hint">{hint}</span>
-                    ) : null}
                   </button>
                   {cockpitDeleteBlock(event, deleteViewer) === 'other_lead' ? null : (
                   <IconButton
                     className="cockpit__delete"
-                    variant={armed ? 'destructive' : 'ghost'}
-                    label={armed ? 'אישור מחיקה' : 'מחיקת אירוע'}
+                    variant="ghost"
+                    label="מחיקת אירוע"
                     disabled={deletingId === event.id}
-                    onClick={() => void confirmDelete(event)}
+                    onClick={() => requestDelete(event)}
                   >
                     <Trash2 size={20} strokeWidth={1.75} aria-hidden="true" />
                   </IconButton>
@@ -583,6 +568,36 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
           />
         </div>
       ) : null}
+      <AlertDialog
+        open={Boolean(confirmDeleteTarget)}
+        status="danger"
+        title={eventDeleteConfirmTitle(confirmDeleteTarget?.police_event_id)}
+        busy={Boolean(deletingId)}
+        onClose={() => !deletingId && setConfirmDeleteTarget(null)}
+        footer={
+          <>
+            <Button
+              variant="destructive"
+              loading={Boolean(deletingId)}
+              loadingLabel="מוחק…"
+              onClick={() => void confirmDelete()}
+            >
+              מחיקה
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={Boolean(deletingId)}
+              onClick={() => setConfirmDeleteTarget(null)}
+            >
+              ביטול
+            </Button>
+          </>
+        }
+      >
+        <p className="t-body">
+          {eventDeleteConfirmBody(confirmDeleteTarget?.responders.length ?? 0)}
+        </p>
+      </AlertDialog>
       <Dialog
         open={introOpen}
         title="מאחמ״שים? במשמרת האזנה?"

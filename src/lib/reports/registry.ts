@@ -1,5 +1,5 @@
 import { fetchDuplicateClusters } from '../duplicateEventsReport'
-import { approveEventFreeze, deleteEvent } from '../events'
+import { approveEventFreeze, deleteEvent, eventDeleteConfirmBody } from '../events'
 import { eventFreezeFlagsFromRow } from '../eventFreeze'
 import { loadEventsByResponderReport } from '../eventsByResponderReport'
 import {
@@ -320,12 +320,7 @@ const duplicateEvents: ReportKind = {
       label: 'מחיקה',
       variant: 'destructive',
       confirmTitle: 'למחוק את האירוע?',
-      confirmBody: (row) => {
-        const police = row.values[5]
-        return police && police !== '—'
-          ? `למחוק את האירוע ${police}? הפעולה אינה ניתנת לביטול.`
-          : 'למחוק את האירוע? הפעולה אינה ניתנת לביטול.'
-      },
+      confirmBody: () => eventDeleteConfirmBody(1),
       confirmLabel: 'מחיקה',
       loadingLabel: 'מוחק…',
       successToast: 'האירוע נמחק',

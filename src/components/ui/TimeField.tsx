@@ -1,11 +1,18 @@
-import { useId } from 'react'
-import { applyTimeKeystroke, isCompleteTimeInput } from '../../lib/format'
+import { useId, useRef, type RefObject } from 'react'
+import {
+  applyTimeKeystroke,
+  isCompleteTimeInput,
+  shouldAdvanceAfterTimeEntry,
+} from '../../lib/format'
 
 type TimeFieldProps = {
   label: string
   value: string
   onChange: (value: string) => void
   onBlur?: () => void
+  inputRef?: RefObject<HTMLInputElement | null>
+  /** Fired once the 4th digit lands — used to hop to the next time field. */
+  onComplete?: () => void
 }
 
 /** Current time in Asia/Jerusalem as `HH:MM` (24-hour). */
@@ -26,8 +33,20 @@ export function nowTimeJerusalem(): string {
  * 24-hour time field — digit-masked `HH:mm` (same pattern as Android), not the
  * native `type="time"` picker which follows the device 12/24 preference.
  */
-export function TimeField({ label, value, onChange, onBlur }: TimeFieldProps) {
+export function TimeField({
+  label,
+  value,
+  onChange,
+  onBlur,
+  inputRef,
+  onComplete,
+}: TimeFieldProps) {
   const fieldId = useId()
+  // Auto-advance moves focus inside `onChange`, so the blur that follows still
+  // closes over the pre-change `value`. Track the freshest one for the guard
+  // below, or it would clear a time the typist just finished.
+  const latestValue = useRef(value)
+  latestValue.current = value
 
   return (
     <div className="field">
@@ -39,7 +58,9 @@ export function TimeField({ label, value, onChange, onBlur }: TimeFieldProps) {
           type="button"
           className="time-field__now"
           onClick={() => {
-            onChange(nowTimeJerusalem())
+            const now = nowTimeJerusalem()
+            latestValue.current = now
+            onChange(now)
             onBlur?.()
           }}
         >
@@ -49,18 +70,24 @@ export function TimeField({ label, value, onChange, onBlur }: TimeFieldProps) {
       <div className="field__control">
         <input
           id={fieldId}
+          ref={inputRef}
           type="text"
           inputMode="numeric"
           autoComplete="off"
-          placeholder="14:30"
           maxLength={5}
           className="field__input field__input--numeric ltr"
           dir="ltr"
           aria-label={`${label} (24 שעות)`}
           value={value}
-          onChange={(event) => onChange(applyTimeKeystroke(value, event.target.value))}
+          onChange={(event) => {
+            const next = applyTimeKeystroke(value, event.target.value)
+            latestValue.current = next
+            onChange(next)
+            if (shouldAdvanceAfterTimeEntry(value, next)) onComplete?.()
+          }}
           onBlur={() => {
-            if (value && !isCompleteTimeInput(value)) onChange('')
+            const current = latestValue.current
+            if (current && !isCompleteTimeInput(current)) onChange('')
             onBlur?.()
           }}
         />

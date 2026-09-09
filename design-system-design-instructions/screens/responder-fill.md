@@ -29,7 +29,7 @@ Entry: from the card fill button or from the responder's own card on event detai
 |---|---|---|
 | לוחית רישוי | select | Options = vehicles linked to this user only (plate · model). Not free-text. Prefill when exactly one vehicle. Empty roster → helper to contact admin. |
 | מד אוץ התחלה | numeric, mono | |
-| מד אוץ סיום | numeric, mono | must be ≥ מד אוץ התחלה — error: `מד אוץ סיום חייב להיות גדול ממד אוץ התחלה` |
+| מד אוץ סיום | numeric, mono | must be ≥ מד אוץ התחלה — equal is valid (0 in both included); only a reversed pair errors: `מד אוץ סיום אינו יכול להיות קטן ממד אוץ התחלה` |
 | נתיב נסיעה | textarea | placeholder `דרך צומת X וכביש Y וכו'` |
 | פירוט הטיפול | textarea | the main narrative field — min-height 120 |
 | מספרי כלי רכב | repeating | Optional. After פירוט הטיפול, before הערות. Compose placeholder `xx-xxx-xx` (7/8 digits) + `הוספה` (same 44px height as input, stays aligned with the input when the field shows an error under it); committed rows = Israeli plate mark + details slot (pending: skeleton; ready: logo + model · color; failed: small alert icon + hover tip `לא הצלחנו לייבא את פרטי הרכב`) + optional short `איפה הרכב הושאר` (`left_where`) before remove; leftover pending digits on `סיום דיווח` → `השלימו או מחקו את המספר בתחתית.` Read-only done: ledger value = `TreatedPlateStack` (empty → `—`). |

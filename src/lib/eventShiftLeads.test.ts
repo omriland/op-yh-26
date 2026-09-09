@@ -9,6 +9,8 @@ import {
   MAIN_LEAD_LABEL_SHORT,
   SECONDARY_LEAD_LABEL,
   SECONDARY_LEAD_LOCKED_HINT,
+  applySecondaryLeadSelection,
+  buildSecondaryLeadOptions,
   canChangeEventMainLead,
   canManageSecondaryLeads,
   canRemoveSecondaryLead,
@@ -19,6 +21,7 @@ import {
   formatLeadsCaption,
   formatListLeadCaption,
   formatListLeadTooltip,
+  formatSecondaryLeadTrigger,
   mapSecondaryLeadRows,
   reassignMainLeads,
   shouldAutoLockSecondary,
@@ -233,6 +236,110 @@ describe('reassignMainLeads', () => {
         secondaries,
       }),
     ).toEqual({ mainId: 'omri', secondaries })
+  })
+})
+
+describe('buildSecondaryLeadOptions', () => {
+  const candidates = [
+    { id: 'omri', full_name: 'עמרי לנדמן', callsign: 'Admin' },
+    { id: 'dana', full_name: 'דנה כהן', callsign: 'D1' },
+    { id: 'gil', full_name: 'גיל אבן', callsign: 'G1' },
+  ]
+
+  it('pins selected secondaries above the remaining candidates and drops the main', () => {
+    const options = buildSecondaryLeadOptions({
+      candidates,
+      selected: [lead('gil', { full_name: 'גיל אבן', callsign: 'G1' })],
+      mainLeadId: 'omri',
+      roles: ['shift_lead'],
+    })
+    expect(options.map((row) => row.id)).toEqual(['gil', 'dana'])
+    expect(options[0]).toMatchObject({ selected: true, removable: true })
+    expect(options[1]).toMatchObject({ selected: false, removable: true })
+  })
+
+  it('marks a locked secondary as non-removable', () => {
+    const options = buildSecondaryLeadOptions({
+      candidates,
+      selected: [lead('dana', { locked: true, full_name: 'דנה כהן', callsign: 'D1' })],
+      mainLeadId: 'omri',
+      roles: ['super_admin'],
+    })
+    expect(options[0]).toMatchObject({ id: 'dana', selected: true, removable: false })
+  })
+
+  it('falls back to the stored name when the picker list misses the person', () => {
+    const options = buildSecondaryLeadOptions({
+      candidates: [],
+      selected: [lead('dana', { full_name: 'דנה כהן', callsign: 'D1' })],
+      mainLeadId: 'omri',
+      roles: ['shift_lead'],
+    })
+    expect(options).toEqual([
+      { id: 'dana', full_name: 'דנה כהן', callsign: 'D1', selected: true, removable: true },
+    ])
+  })
+})
+
+describe('applySecondaryLeadSelection', () => {
+  const candidates = [
+    { id: 'dana', full_name: 'דנה כהן', callsign: 'D1' },
+    { id: 'gil', full_name: 'גיל אבן', callsign: 'G1' },
+  ]
+
+  it('adds a picked person and keeps existing rows with their lock + profile data', () => {
+    expect(
+      applySecondaryLeadSelection({
+        values: ['dana', 'gil'],
+        current: [lead('dana', { locked: true, full_name: 'דנה כהן', callsign: 'D1' })],
+        candidates,
+        mainLeadId: 'omri',
+        roles: ['shift_lead'],
+      }),
+    ).toEqual([
+      lead('dana', { locked: true, full_name: 'דנה כהן', callsign: 'D1' }),
+      lead('gil', { full_name: 'גיל אבן', callsign: 'G1' }),
+    ])
+  })
+
+  it('removes an unlocked person that was toggled off', () => {
+    expect(
+      applySecondaryLeadSelection({
+        values: ['gil'],
+        current: [
+          lead('dana', { full_name: 'דנה כהן', callsign: 'D1' }),
+          lead('gil', { full_name: 'גיל אבן', callsign: 'G1' }),
+        ],
+        candidates,
+        mainLeadId: 'omri',
+        roles: ['shift_lead'],
+      }).map((row) => row.user_id),
+    ).toEqual(['gil'])
+  })
+
+  it('never drops a locked secondary, and never keeps the main as secondary', () => {
+    expect(
+      applySecondaryLeadSelection({
+        values: ['omri'],
+        current: [lead('dana', { locked: true, full_name: 'דנה כהן', callsign: 'D1' })],
+        candidates,
+        mainLeadId: 'omri',
+        roles: ['admin'],
+      }),
+    ).toEqual([lead('dana', { locked: true, full_name: 'דנה כהן', callsign: 'D1' })])
+  })
+})
+
+describe('formatSecondaryLeadTrigger', () => {
+  it('stays compact: one name, then +N — no chip list on the form', () => {
+    expect(formatSecondaryLeadTrigger([])).toBe('')
+    expect(formatSecondaryLeadTrigger([{ full_name: 'דנה כהן', callsign: 'D1' }])).toBe('דנה כהן')
+    expect(
+      formatSecondaryLeadTrigger([
+        { full_name: 'דנה כהן', callsign: 'D1' },
+        { full_name: 'גיל אבן', callsign: 'G1' },
+      ]),
+    ).toBe('דנה כהן +1')
   })
 })
 

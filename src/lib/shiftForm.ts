@@ -1,4 +1,5 @@
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
+import { ODOMETER_ORDER_ERROR } from './odometer'
 import { supabase } from './supabase'
 import { deriveShiftLogStatus, eventToLogSnapshot } from './shiftLogStatus'
 import type { EventStatus, ShiftStatus } from './status'
@@ -81,13 +82,8 @@ export function suggestRollupsFromLinkedEvents(input: {
 
 export const SHIFT_CREW_ERROR = 'יש לשבץ בין מתנדב אחד לשלושה'
 
-/**
- * Deliberately permits an equal pair, unlike the event-fill rule, which demands
- * strictly greater. A shift whose vehicle never left base is a real zero-km shift;
- * only a reversed pair is wrong. The copy matches the rule it enforces.
- */
-export const SHIFT_ODOMETER_ORDER_ERROR =
-  'מד אוץ סיום אינו יכול להיות קטן ממד אוץ התחלה'
+/** A shift whose vehicle never left base is a real zero-km shift. */
+export const SHIFT_ODOMETER_ORDER_ERROR = ODOMETER_ORDER_ERROR
 
 export function shiftStatusFromDraft(
   draft: Pick<ShiftFormDraft, 'odometer_start' | 'odometer_end'>,

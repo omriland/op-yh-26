@@ -1,5 +1,5 @@
+import { AlertDialog } from '../ui/AlertDialog'
 import { Button } from '../ui/Button'
-import { Dialog } from '../ui/Dialog'
 import {
   ASSIGNED_VOLUNTEER_EVENT_EDIT_CLOSE,
   ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR,
@@ -15,8 +15,9 @@ export function AssignedVolunteerEditBlockedDialog({
   onClose,
 }: AssignedVolunteerEditBlockedDialogProps) {
   return (
-    <Dialog
+    <AlertDialog
       open={open}
+      status="warning"
       title={ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR}
       onClose={onClose}
       footer={
@@ -24,8 +25,6 @@ export function AssignedVolunteerEditBlockedDialog({
           {ASSIGNED_VOLUNTEER_EVENT_EDIT_CLOSE}
         </Button>
       }
-    >
-      {null}
-    </Dialog>
+    />
   )
 }

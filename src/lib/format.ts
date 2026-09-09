@@ -104,6 +104,11 @@ export function applyTimeKeystroke(previous: string, incoming: string): string {
   return formatTimeInput(nextDigits)
 }
 
+/** True when typing just completed a 4-digit clock (not when editing an already-full field). */
+export function shouldAdvanceAfterTimeEntry(previous: string, next: string): boolean {
+  return digitsOnly(previous).length < 4 && digitsOnly(next).length === 4
+}
+
 /** Complete valid 24-hour `HH:mm` (00–23:00–59). */
 export function isCompleteTimeInput(value: string): boolean {
   if (!/^\d{2}:\d{2}$/.test(value)) return false

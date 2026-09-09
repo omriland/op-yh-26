@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
   deleteEvent,
+  eventDeleteConfirmBody,
   eventDeleteConfirmTitle,
   viewerMayDeleteOthersEvents,
   fetchEventDetail,
@@ -28,12 +29,13 @@ import {
   monoClass,
 } from '../lib/format'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
+import { mergeTreatedPlates } from '../lib/treatedPlates'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
 import { EventLeadLedgerRows } from '../components/events/EventShiftLeadsFields'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
 import { AssignedVolunteerEditBlockedDialog } from '../components/events/AssignedVolunteerEditBlockedDialog'
 import { Button } from '../components/ui/Button'
-import { Dialog } from '../components/ui/Dialog'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { isAssignedVolunteerEventEditBlocked } from '../lib/assignedVolunteerEventEdit'
 import { mapSecondaryLeadRows } from '../lib/eventShiftLeads'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -209,6 +211,12 @@ export function EventDetailPage({
     secondaryLeadIds: mapSecondaryLeadRows(event.secondary_leads).map((row) => row.user_id),
   })
   const doneCount = event.responders.filter((row) => row.status === 'done').length
+  // Shift-born events carry event-keyed plates, but a responder filling their own
+  // participation writes participation-keyed ones. Both belong in the event ledger.
+  const shiftEventPlates = mergeTreatedPlates(
+    event.treated_plates,
+    ...event.responders.map((row) => row.treated_plates),
+  )
   const eventLabel = event.police_event_id ? `אירוע ${event.police_event_id}` : 'אירוע ללא מספר'
   const subLine = [
     formatDate(event.event_date),
@@ -350,8 +358,8 @@ export function EventDetailPage({
               <LedgerRow
                 label="מספרי כלי רכב"
                 value={
-                  event.treated_plates.length > 0 ? (
-                    <TreatedPlateStack plates={event.treated_plates} />
+                  shiftEventPlates.length > 0 ? (
+                    <TreatedPlateStack plates={shiftEventPlates} />
                   ) : undefined
                 }
               />
@@ -432,9 +440,11 @@ export function EventDetailPage({
         onClose={() => setAssignedEditBlockedOpen(false)}
       />
 
-      <Dialog
+      <AlertDialog
         open={confirmDelete}
+        status="danger"
         title={eventDeleteConfirmTitle(event.police_event_id)}
+        busy={deleting}
         onClose={() => !deleting && setConfirmDelete(false)}
         footer={
           <>
@@ -452,8 +462,8 @@ export function EventDetailPage({
           </>
         }
       >
-        <p className="t-body">הפעולה תמחק גם את נתוני המתנדבים המשויכים. לא ניתן לשחזר.</p>
-      </Dialog>
+        <p className="t-body">{eventDeleteConfirmBody(event.responders.length)}</p>
+      </AlertDialog>
     </div>
   )
 }

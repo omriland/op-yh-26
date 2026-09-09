@@ -1,0 +1,52 @@
+/* HeroUI Alert (toasts only). Official v3 compound Alert + CloseButton.
+   Skip Tailwind preflight so רשומה BEM (e.g. .text-muted) is not overwritten.
+   tokens.css after this file reclaims --accent on :root. The toast stack uses
+   .light + data-theme="light" so HeroUI's token block wins inside the island.
+
+   רשומה inline alerts are `p.alert` only — they do not match HeroUI `div.alert`.
+   CloseButton still needs an unlayered island: base.css
+   `button { color: inherit; background: transparent }` beats @layer components. */
+
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+/* HeroUI Alert Dialog @apply's fade-in-0 / animate-in from this pack (not Tailwind core). */
+@import 'tw-animate-css';
+@import '@heroui/styles/themes/default';
+@import '@heroui/styles/utilities';
+@import '@heroui/styles/variants';
+@import '@heroui/styles/components/alert.css' layer(components);
+@import '@heroui/styles/components/alert-dialog.css' layer(components);
+@import '@heroui/styles/components/close-button.css' layer(components);
+
+/* X only — no HeroUI default chip / fill. */
+.toast-stack button.close-button {
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--muted);
+  background: none;
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.toast-stack button.close-button:hover,
+.toast-stack button.close-button[data-hovered='true'],
+.toast-stack button.close-button[data-pressed='true'] {
+  background: none;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* 44×44 mobile hit target without enlarging the visible 24×24 chrome. */
+.toast-stack button.close-button::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+
+@media (min-width: 1025px) {
+  .toast-stack button.close-button::after {
+    inset: -4px;
+  }
+}

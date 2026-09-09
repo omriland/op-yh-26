@@ -42,7 +42,7 @@ import { Button, IconButton } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
-import { Dialog } from '../components/ui/Dialog'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import {
   clearFillDraft,
   fillDraftSavedLabel,
@@ -1012,8 +1012,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
           </div>
         </FormStickyFooter>
 
-        <Dialog
+        <AlertDialog
           open={leaveConfirm}
+          status="warning"
           title="לצאת מהטופס?"
           onClose={() => setLeaveConfirm(false)}
           footer={
@@ -1036,7 +1037,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
           <p className="t-body">
             יש פרטים שטרם נשמרו. הם נשמרו במכשיר ויחזרו כשתפתחו את הטופס שוב.
           </p>
-        </Dialog>
+        </AlertDialog>
       </div>
     </div>
   )

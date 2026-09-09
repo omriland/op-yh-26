@@ -14,7 +14,7 @@ import { isSelectSearchNavKey, nextActiveIndex } from '../../lib/selectFieldNav'
 import { filterSelectOptions } from '../../lib/searchQuery'
 import { placeSelectMenu, readSelectMenuViewport } from '../../lib/selectMenuPlacement'
 
-type Option = { value: string; label: string; content?: ReactNode }
+type Option = { value: string; label: string; content?: ReactNode; disabled?: boolean }
 
 type SelectFieldProps = {
   label: string
@@ -36,6 +36,8 @@ type SelectFieldProps = {
   searchPlaceholder?: string
   /** Hide the visible label (keep it for assistive tech). Toolbar / compact rows. */
   hideLabel?: boolean
+  /** Multi-select: one-line trigger summary instead of a stacked list of the selected labels. */
+  summaryLabel?: string
 }
 
 export function SelectField({
@@ -56,6 +58,7 @@ export function SelectField({
   searchable = false,
   searchPlaceholder = 'חיפוש',
   hideLabel = false,
+  summaryLabel,
 }: SelectFieldProps) {
   const generatedId = useId()
   const fieldId = id ?? generatedId
@@ -179,6 +182,7 @@ export function SelectField({
   }
 
   function commit(next: string) {
+    if (options.find((option) => option.value === next)?.disabled) return
     if (multiple) {
       const nextValues = selectedValues.includes(next)
         ? selectedValues.filter((row) => row !== next)
@@ -274,11 +278,15 @@ export function SelectField({
           onKeyDown={onTriggerKeyDown}
         >
           {multiple && hasSelection ? (
-            <span className="select-field__value select-field__value--stack">
-              {selectedOptions.map((option) => (
-                <span key={option.value}>{option.content ?? option.label}</span>
-              ))}
-            </span>
+            summaryLabel ? (
+              <span className="select-field__value">{summaryLabel}</span>
+            ) : (
+              <span className="select-field__value select-field__value--stack">
+                {selectedOptions.map((option) => (
+                  <span key={option.value}>{option.content ?? option.label}</span>
+                ))}
+              </span>
+            )
           ) : (
             <span className="select-field__value">
               {selected?.content ?? selected?.label ?? placeholder}
@@ -365,11 +373,13 @@ export function SelectField({
                           className={[
                             'select-field__option',
                             isSelected ? 'is-selected' : '',
-                            isActive ? 'is-active' : '',
+                            isActive && !option.disabled ? 'is-active' : '',
                           ]
                             .filter(Boolean)
                             .join(' ')}
                           aria-selected={isSelected}
+                          disabled={option.disabled}
+                          aria-disabled={option.disabled || undefined}
                           onMouseEnter={() => setActiveIndex(index)}
                           onClick={() => commit(option.value)}
                         >

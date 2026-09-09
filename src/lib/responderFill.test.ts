@@ -4,9 +4,11 @@ import {
   deriveEventStatusAfterParticipation,
   emptyResponderFillDraft,
   gateResponderFillWrite,
+  odometerRangeError,
   validateResponderFillDraft,
   type ResponderFillDraft,
 } from './responderFill'
+import { ODOMETER_ORDER_ERROR } from './odometer'
 
 function draft(patch: Partial<ResponderFillDraft> = {}): ResponderFillDraft {
   return { ...emptyResponderFillDraft(), ...patch }
@@ -23,6 +25,24 @@ describe('deriveEventStatusAfterParticipation', () => {
 
   it('marks done when every participation is done', () => {
     expect(deriveEventStatusAfterParticipation(['done', 'done'])).toBe('done')
+  })
+})
+
+describe('odometerRangeError', () => {
+  it('stays silent on an equal pair and on 0 in both fields', () => {
+    expect(odometerRangeError('100', '100')).toBeUndefined()
+    expect(odometerRangeError('0', '0')).toBeUndefined()
+    expect(odometerRangeError('100', '120')).toBeUndefined()
+  })
+
+  it('names the rule it enforces on a reversed pair', () => {
+    expect(odometerRangeError('100', '99')).toBe(ODOMETER_ORDER_ERROR)
+    expect(odometerRangeError('1', '0')).toBe(ODOMETER_ORDER_ERROR)
+  })
+
+  it('waits for both numbers', () => {
+    expect(odometerRangeError('100', '')).toBeUndefined()
+    expect(odometerRangeError('', '0')).toBeUndefined()
   })
 })
 
@@ -103,8 +123,8 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
     expect(errors).toEqual({})
   })
 
-  it('rejects end <= start', () => {
-    const errors = validateResponderFillDraft(
+  it('accepts an equal pair, including 0 in both readings', () => {
+    const equal = validateResponderFillDraft(
       draft({
         vehicle_plate: '1234567',
         odometer_start: '100',
@@ -116,7 +136,37 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
       plates,
       12,
     )
-    expect(errors.odometer_end).toBe('מד אוץ סיום חייב להיות גדול ממד אוץ התחלה')
+    expect(equal).toEqual({})
+
+    const zeros = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '0',
+        odometer_end: '0',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(zeros).toEqual({})
+  })
+
+  it('rejects a reversed pair', () => {
+    const errors = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '99',
+        route: 'כביש 1',
+        treatment_detail: 'טיפול',
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(errors.odometer_end).toBe('מד אוץ סיום אינו יכול להיות קטן ממד אוץ התחלה')
   })
 
   it('complete mode errors when the open plate field has leftover digits', () => {

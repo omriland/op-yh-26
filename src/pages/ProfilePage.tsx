@@ -35,7 +35,7 @@ import {
 import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
-import { Dialog } from '../components/ui/Dialog'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 import { TextField } from '../components/ui/TextField'
@@ -735,9 +735,11 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
         </Button>
       </div>
 
-      <Dialog
+      <AlertDialog
         open={Boolean(revokeId)}
+        status="danger"
         title="לבטל את הגישה?"
+        busy={revoking}
         onClose={() => !revoking && setRevokeId(null)}
         footer={
           <>
@@ -756,11 +758,13 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
         }
       >
         <p className="t-body">הבוט לא יוכל להשלים דיווחים בשמך עד שתאשרו מחדש מטלגרם.</p>
-      </Dialog>
+      </AlertDialog>
 
-      <Dialog
+      <AlertDialog
         open={vehicleConfirm !== null}
+        status={vehicleConfirm?.mode === 'archive' ? 'warning' : 'danger'}
         title={vehicleConfirm?.mode === 'archive' ? 'העברה לארכיון' : 'מחיקת רכב'}
+        busy={vehicleSaving}
         onClose={() => !vehicleSaving && setVehicleConfirm(null)}
         footer={
           <>
@@ -784,7 +788,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
         <p className="t-body">
           {vehicleConfirm?.mode === 'archive' ? VEHICLE_ARCHIVE_CONFIRM : VEHICLE_DELETE_CONFIRM}
         </p>
-      </Dialog>
+      </AlertDialog>
     </div>
   )
 }

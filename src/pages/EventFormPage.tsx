@@ -1705,8 +1705,8 @@ export function EventFormPage({
                                       : 'ללא זמנים'}
                                     {' · '}
                                     {responder.hasVehicle
-                                      ? responder.total_km
-                                        ? `${responder.total_km} ק״מ`
+                                      ? responder.total_km.trim()
+                                        ? `${responder.total_km.trim()} ק״מ`
                                         : 'ללא ק״מ'
                                       : NO_VEHICLE_KM_PLACEHOLDER}
                                     {' · '}
@@ -2117,6 +2117,8 @@ function ResponderTimes({
   onChangeEnd: (value: string) => void
   onPersist: () => void
 }) {
+  const endInputRef = useRef<HTMLInputElement | null>(null)
+
   return (
     <div className="event-form__grid">
       <TimeField
@@ -2124,8 +2126,20 @@ function ResponderTimes({
         value={startTime}
         onChange={onChangeStart}
         onBlur={onPersist}
+        onComplete={() => {
+          const input = endInputRef.current
+          if (!input) return
+          input.focus()
+          input.select()
+        }}
       />
-      <TimeField label={endLabel} value={endTime} onChange={onChangeEnd} onBlur={onPersist} />
+      <TimeField
+        label={endLabel}
+        value={endTime}
+        onChange={onChangeEnd}
+        onBlur={onPersist}
+        inputRef={endInputRef}
+      />
     </div>
   )
 }

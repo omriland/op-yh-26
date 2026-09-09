@@ -19,7 +19,7 @@ import { shiftRecordLogStatus } from '../lib/shiftLogStatus'
 import { formatDate, formatNumber, formatPlate, monoClass } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
-import { Dialog } from '../components/ui/Dialog'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -340,9 +340,11 @@ export function ShiftDetailPage({
         </section>
       </div>
 
-      <Dialog
+      <AlertDialog
         open={confirmDelete}
+        status="danger"
         title="למחוק את המשמרת?"
+        busy={deleting}
         onClose={() => !deleting && setConfirmDelete(false)}
         footer={
           <>
@@ -361,7 +363,7 @@ export function ShiftDetailPage({
         }
       >
         <p className="t-body">הפעולה תמחק את המשמרת ואת הנתונים המשויכים אליה. לא ניתן לשחזר.</p>
-      </Dialog>
+      </AlertDialog>
     </div>
   )
 }

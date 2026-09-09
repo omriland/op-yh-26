@@ -119,7 +119,7 @@ export function cockpitReelLeadCaption(event: {
   return formatLeadsCaption(event.shift_lead, mapSecondaryLeadRows(event.secondary_leads))
 }
 
-export type CockpitDeleteBlock = 'responders' | 'other_lead'
+export type CockpitDeleteBlock = 'other_lead'
 export type CockpitDeleteHintKind = CockpitDeleteBlock | 'confirm'
 
 export type CockpitDeleteViewer = {
@@ -127,7 +127,7 @@ export type CockpitDeleteViewer = {
   isAdmin: boolean
 }
 
-/** Blocked while responders remain, or when an אחמ״ש views another lead's event. */
+/** An אחמ״ש may delete their own recent event; admins may delete any event. */
 export function cockpitDeleteBlock(
   event: {
     responders: { id: string }[]
@@ -144,7 +144,6 @@ export function cockpitDeleteBlock(
   ) {
     return 'other_lead'
   }
-  if ((event.responders ?? []).length > 0) return 'responders'
   return null
 }
 
@@ -156,7 +155,6 @@ export function canDeleteCockpitDraft(
 }
 
 export function cockpitDeleteHint(kind: CockpitDeleteHintKind): string {
-  if (kind === 'responders') return 'יש מתנדבים משובצים. הסירו אותם תחילה.'
   if (kind === 'other_lead') return 'אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.'
   return 'לחצו שוב למחיקה.'
 }

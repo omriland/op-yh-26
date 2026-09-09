@@ -589,6 +589,12 @@ export function eventDeleteConfirmTitle(policeEventId: string | null | undefined
   return id ? `למחוק את האירוע ${id}?` : 'למחוק את האירוע?'
 }
 
+export function eventDeleteConfirmBody(responderCount: number): string {
+  return responderCount > 0
+    ? 'יש מתנדבים משובצים באירוע. הפעולה תמחק גם את הנתונים שלהם. האם למחוק? לא ניתן לשחזר.'
+    : 'לא ניתן לשחזר את האירוע לאחר המחיקה.'
+}
+
 /** Admin/super_admin: any event. Shift-lead: only events they created (`shift_lead_id`). */
 export function canViewerDeleteEvent(input: {
   roles: readonly string[]
@@ -601,7 +607,7 @@ export function canViewerDeleteEvent(input: {
   return Boolean(input.shiftLeadId) && input.shiftLeadId === input.userId
 }
 
-/** Hard-delete. RLS: admin, or owning shift-lead on a recent event with no responders. Cascades children. */
+/** Hard-delete. RLS: admin, or owning shift-lead on a recent event. Cascades children. */
 export async function deleteEvent(
   eventId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {

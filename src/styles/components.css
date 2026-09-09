@@ -326,6 +326,21 @@ textarea.field__input {
   color: var(--accent);
 }
 
+/* Non-removable selections (locked אחמ״ש משני): greyed check, no interaction. */
+.select-field__option:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.select-field__option:disabled.is-selected {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+
+.select-field__option:disabled .select-field__check {
+  color: var(--text-muted);
+}
+
 .select-field__option.is-selected {
   background: var(--accent-subtle);
   color: var(--accent);
@@ -337,9 +352,29 @@ textarea.field__input {
 }
 
 @media (hover: hover) {
-  .select-field__option:hover {
+  .select-field__option:hover:not(:disabled) {
     background: var(--accent-subtle);
   }
+}
+
+/* Person option: name over או״ק (plus the locked hint) — two/three lines, not ellipsised. */
+.lead-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  text-align: start;
+}
+
+.select-field__option:has(.lead-option) {
+  min-height: 52px;
+  padding-block: var(--space-2);
+}
+
+.select-field__option-label:has(.lead-option) {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -382,7 +417,9 @@ textarea.field__input {
    Inline alert
    ============================================================ */
 
-.alert {
+/* Inline form alerts are always <p class="alert">. Keep this off `div.alert`
+   so HeroUI Alert (toasts) is not restyled by רשומה. */
+p.alert {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
@@ -391,19 +428,19 @@ textarea.field__input {
   font: 400 16px/24px var(--font-ui);
 }
 
-.alert svg {
+p.alert svg {
   flex: none;
   width: 20px;
   height: 20px;
   margin-block-start: 2px;
 }
 
-.alert--error {
+p.alert--error {
   background: var(--status-alert-tint);
   color: var(--status-alert-on-tint);
 }
 
-.alert--info {
+p.alert--info {
   background: var(--accent-subtle);
   color: var(--accent);
 }
@@ -4149,37 +4186,20 @@ html[data-keyboard-open] .event-form__footer {
 
 .toast {
   pointer-events: auto;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
   width: 100%;
   max-width: 360px;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--stroke-hairline);
-  border-inline-start-width: 3px;
-  border-radius: var(--radius-md);
-  background: var(--surface-overlay);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-overlay);
   animation: toast-in var(--duration-base) var(--ease-standard);
+}
+
+.toast .alert {
+  width: 100%;
 }
 
 .toast--leaving {
   animation: toast-out var(--duration-base) var(--ease-exit) forwards;
 }
 
-.toast--done {
-  border-inline-start-color: var(--status-done);
-}
-
-.toast--alert {
-  border-inline-start-color: var(--status-alert);
-}
-
-.toast--info {
-  border-inline-start-color: var(--accent);
-}
-
+/* Update notice + Alert dismiss: keep the 44×44 mobile hit target. */
 .toast__icon {
   flex: none;
   margin-block-start: 2px;
@@ -4211,7 +4231,12 @@ html[data-keyboard-open] .event-form__footer {
   align-items: center;
   justify-content: center;
   width: 44px;
+  min-width: 44px;
   height: 44px;
+  min-height: 44px;
+}
+
+.toast__close {
   margin-block: -10px;
   margin-inline-end: -12px;
   padding: 0;
@@ -4229,14 +4254,19 @@ html[data-keyboard-open] .event-form__footer {
 
 @media (hover: hover) and (pointer: fine) {
   .toast__close:hover {
-    background: rgba(242, 246, 250, 0.1);
+    background: none;
   }
 }
 
 @media (min-width: 1025px) {
   .toast__close {
     width: 32px;
+    min-width: 32px;
     height: 32px;
+    min-height: 32px;
+  }
+
+  .toast__close {
     margin-block: -4px;
     margin-inline-end: -8px;
   }
@@ -4285,6 +4315,17 @@ html[data-keyboard-open] .event-form__footer {
 
 .update-notice-stack .toast {
   pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--stroke-hairline);
+  border-inline-start-width: 3px;
+  border-inline-start-color: var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-overlay);
 }
 
 /* ============================================================
@@ -5853,6 +5894,29 @@ html[data-keyboard-open] .event-form__footer {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-4);
+}
+
+/* אחמ״ש ראשי (66%) + אחמ״ש משני (33%) on one row; wraps to stacked when too narrow. */
+.event-leads-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.event-leads-row__main {
+  flex: 2 1 calc(66% - var(--space-4));
+  min-inline-size: min(100%, 10rem);
+}
+
+/* 9rem keeps a real name (not "אב…") readable in the trigger; narrower rows stack instead. */
+.event-leads-row__secondary {
+  flex: 1 1 calc(33% - var(--space-4));
+  min-inline-size: min(100%, 9rem);
+}
+
+.event-form--phone .event-leads-row {
+  gap: var(--space-3);
 }
 
 .event-form__identity {

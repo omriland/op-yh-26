@@ -88,6 +88,7 @@ import { useIsDesktop } from '../lib/useMediaQuery'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
+import { AlertDialog } from '../components/ui/AlertDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { OverflowMenu, type OverflowMenuItem } from '../components/ui/OverflowMenu'
@@ -1751,8 +1752,9 @@ export function AdminUsersPage() {
         ) : null}
       </Dialog>
 
-      <Dialog
+      <AlertDialog
         open={confirmOtpEnable !== null}
+        status="accent"
         title={
           confirmOtpEnable?.kind === 'login'
             ? 'להפעיל אימות SMS בכניסה למשתמש זה?'
@@ -1760,6 +1762,7 @@ export function AdminUsersPage() {
               ? 'להפעיל אימות SMS לניהול משתמשים למשתמש זה?'
               : 'הפעלת OTP'
         }
+        busy={saving}
         onClose={() => !saving && setConfirmOtpEnable(null)}
         footer={
           <>
@@ -1787,15 +1790,17 @@ export function AdminUsersPage() {
             כאשר יידרש אימות.
           </p>
         ) : null}
-      </Dialog>
+      </AlertDialog>
 
-      <Dialog
+      <AlertDialog
         open={confirmDeactivate !== null}
+        status="danger"
         title={
           confirmDeactivate
             ? `להשבית את המשתמש ${confirmDeactivate.full_name}?`
             : 'השבתת משתמש'
         }
+        busy={saving}
         onClose={() => !saving && setConfirmDeactivate(null)}
         footer={
           <>
@@ -1811,13 +1816,15 @@ export function AdminUsersPage() {
         <p className="t-body">
           הוא לא יוכל להתחבר, והנתונים ההיסטוריים יישמרו.
         </p>
-      </Dialog>
+      </AlertDialog>
 
-      <Dialog
+      <AlertDialog
         open={confirmDelete !== null}
+        status="danger"
         title={
           confirmDelete ? `למחוק את המשתמש ${confirmDelete.full_name}?` : 'מחיקת משתמש'
         }
+        busy={saving}
         onClose={() => !saving && setConfirmDelete(null)}
         footer={
           <>
@@ -1834,11 +1841,13 @@ export function AdminUsersPage() {
           המשתמש יימחק לצמיתות מאימות וממערכת המשתמשים. לא ניתן לשחזר — רק להזמין מחדש.
           אם הוא אחמ״ש על אירועים או משמרות, המחיקה תיחסם.
         </p>
-      </Dialog>
+      </AlertDialog>
 
-      <Dialog
+      <AlertDialog
         open={vehicleConfirm !== null}
+        status={vehicleConfirm?.mode === 'archive' ? 'warning' : 'danger'}
         title={vehicleConfirm?.mode === 'archive' ? 'העברה לארכיון' : 'מחיקת רכב'}
+        busy={saving}
         onClose={() => !saving && setVehicleConfirm(null)}
         footer={
           <>
@@ -1860,7 +1869,7 @@ export function AdminUsersPage() {
             ? VEHICLE_ARCHIVE_CONFIRM
             : VEHICLE_DELETE_CONFIRM}
         </p>
-      </Dialog>
+      </AlertDialog>
     </div>
   )
 }

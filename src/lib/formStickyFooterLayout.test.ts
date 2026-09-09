@@ -8,25 +8,25 @@ const css = readFileSync(
   'utf8',
 )
 
-function ruleBody(selector: string): string {
+function ruleBodies(selector: string): string[] {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const match = css.match(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`))
-  if (!match) {
+  const matches = [...css.matchAll(new RegExp(`${escaped}\\s*\\{([^}]+)\\}`, 'g'))]
+  if (matches.length === 0) {
     throw new Error(`Missing CSS rule for ${selector}`)
   }
-  return match[1]
+  return matches.map((match) => match[1])
 }
 
 describe('form sticky footer layout', () => {
   it('cancels shell main block-end padding so the footer meets the scrollport', () => {
-    expect(ruleBody('.shell__main:has(.event-form__footer)')).toMatch(
+    expect(ruleBodies('.shell__main:has(.event-form__footer)').join('\n')).toMatch(
       /padding-block-end:\s*0/,
     )
   })
 
   it('keeps the action bar sticky against the scrollport bottom', () => {
-    const body = ruleBody('.event-form__footer')
-    expect(body).toMatch(/position:\s*sticky/)
-    expect(body).toMatch(/inset-block-end:\s*0/)
+    const bodies = ruleBodies('.event-form__footer')
+    expect(bodies.some((body) => /position:\s*sticky/.test(body))).toBe(true)
+    expect(bodies.some((body) => /inset-block-end:\s*0/.test(body))).toBe(true)
   })
 })

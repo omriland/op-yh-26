@@ -39,6 +39,13 @@ describe('desktop shell cards', () => {
     expect(ruleBody(css, '.shell--cards')).toMatch(/background:\s*var\(--surface-sunken\)/)
   })
 
+  it('keeps the desktop sidebar always expanded — no collapse rail or toggle', () => {
+    expect(tokens).not.toMatch(/--sidebar-width-collapsed/)
+    expect(css).not.toMatch(/\.sidebar--collapsed/)
+    expect(css).not.toMatch(/\.sidebar__collapse/)
+    expect(css).not.toMatch(/\.sidebar__toggle/)
+  })
+
   it('opens the sidebar user menu toward the content card', () => {
     const body = ruleBody(css, '.menu--rise')
     expect(body).toMatch(/inset-inline-start:\s*0/)
@@ -51,9 +58,8 @@ describe('desktop shell cards', () => {
     expect(css).toMatch(
       /background:\s*linear-gradient\(to right,\s*transparent,\s*var\(--accent\),\s*var\(--accent\)\)/,
     )
-    const shell = ruleBody(css, '.sidebar__new-event-shell')
-    expect(shell).toMatch(/width:\s*75%/)
-    expect(shell).toMatch(/margin-inline-end:\s*auto/)
+    expect(css).toMatch(/\.sidebar__new-event-shell\s*\{[^}]*width:\s*75%/)
+    expect(css).toMatch(/\.sidebar__new-event-shell\s*\{[^}]*margin-inline-end:\s*auto/)
     expect(css).toMatch(/\.nav-item\s*\{[^}]*height:\s*36px/)
     expect(css).not.toMatch(/\.sidebar__create/)
     expect(css).not.toMatch(/\.new-event-btn-shell/)

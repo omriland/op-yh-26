@@ -1,6 +1,6 @@
 /* HeroUI Alert Dialog island. Placement/size come from the wrapper (auto / md).
    Tokens live on .light + data-theme="light" so HeroUI chrome wins inside the overlay.
-   Logical properties only — close trigger already uses inset-inline-end. */
+   Logical properties everywhere except the close trigger — see its rule below. */
 
 .yahpaz-alert-dialog-backdrop.alert-dialog__backdrop {
   z-index: 80;
@@ -34,10 +34,26 @@
   justify-content: flex-end;
 }
 
+/* Close X pins to the visual top-left in Hebrew (RTL) and top-right in LTR.
+   Physical left/right on purpose: HeroUI's `end-4` follows whatever direction
+   the overlay resolves, which is not always the dialog's own direction. */
 .yahpaz-alert-dialog .alert-dialog__close-trigger {
+  /* close-button.css lands after alert-dialog.css in layer(components), so its
+     `position: relative` wins and the X drifts to its static flow position. */
+  position: absolute;
   inset-inline-start: auto;
-  inset-inline-end: var(--space-4);
+  inset-inline-end: auto;
   inset-block-start: var(--space-4);
+}
+
+.yahpaz-alert-dialog--rtl .alert-dialog__close-trigger {
+  right: auto;
+  left: var(--space-4);
+}
+
+.yahpaz-alert-dialog--ltr .alert-dialog__close-trigger {
+  left: auto;
+  right: var(--space-4);
 }
 
 @media (max-width: 1024px) {

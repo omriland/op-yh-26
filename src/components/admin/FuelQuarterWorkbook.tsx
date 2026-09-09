@@ -21,7 +21,7 @@ import { useIsDesktop } from '../../lib/useMediaQuery'
 import { useToast } from '../ui/Toast'
 import { Button } from '../ui/Button'
 import { CardNumbersField } from './CardNumbersField'
-import { Dialog } from '../ui/Dialog'
+import { AlertDialog } from '../ui/AlertDialog'
 import { EmptyState } from '../ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
 import { TextField } from '../ui/TextField'
@@ -527,9 +527,11 @@ export function FuelQuarterWorkbook() {
         </div>
       ) : null}
 
-      <Dialog
+      <AlertDialog
         open={confirmLock}
+        status="warning"
         title="נעילת רבעון"
+        busy={saving}
         onClose={() => setConfirmLock(false)}
         footer={
           <>
@@ -548,7 +550,7 @@ export function FuelQuarterWorkbook() {
             שינויים שלא נשמרו יישמרו לפני הנעילה.
           </p>
         ) : null}
-      </Dialog>
+      </AlertDialog>
     </div>
   )
 }

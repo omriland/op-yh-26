@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -7,6 +7,7 @@ import {
   EVENT_DELETE_OTHER_LEAD,
   canUseEventListDeleteContext,
   canViewerDeleteEvent,
+  eventDeleteConfirmBody,
   eventDeleteConfirmTitle,
   viewerMayDeleteOthersEvents,
 } from './events'
@@ -86,17 +87,37 @@ describe('event list right-click delete', () => {
     expect(eventDeleteConfirmTitle(null)).toBe('למחוק את האירוע?')
     expect(eventDeleteConfirmTitle('  ')).toBe('למחוק את האירוע?')
   })
+
+  it('warns specifically when assigned responders will also be deleted', () => {
+    expect(eventDeleteConfirmBody(2)).toBe(
+      'יש מתנדבים משובצים באירוע. הפעולה תמחק גם את הנתונים שלהם. האם למחוק? לא ניתן לשחזר.',
+    )
+    expect(eventDeleteConfirmBody(0)).toBe('לא ניתן לשחזר את האירוע לאחר המחיקה.')
+  })
 })
 
 describe('events delete RLS owns the creator', () => {
-  const sql = readFileSync(
-    resolve(migrationsDir, '20260902120000_events_delete_shift_lead_own_only.sql'),
-    'utf8',
-  )
+  const sql = readFileSync(resolve(migrationsDir, '20260902120000_events_delete_shift_lead_own_only.sql'), 'utf8')
+  const allSql = readdirSync(migrationsDir)
+    .filter((name) => name.endsWith('.sql'))
+    .sort()
+    .map((name) => readFileSync(resolve(migrationsDir, name), 'utf8'))
+    .join('\n')
+
+  function latestLeadDeletePolicy(): string {
+    const marker = 'create policy events_delete_cockpit_draft_lead'
+    const start = allSql.toLowerCase().lastIndexOf(marker)
+    return allSql.slice(start, allSql.indexOf(';', start))
+  }
 
   it('requires shift_lead_id = auth.uid() on the lead delete policy', () => {
-    expect(sql).toContain('create policy events_delete_cockpit_draft_lead')
-    expect(sql).toMatch(/shift_lead_id\s*=\s*auth\.uid\(\)/)
+    const policy = latestLeadDeletePolicy()
+    expect(policy).toContain('create policy events_delete_cockpit_draft_lead')
+    expect(policy).toMatch(/shift_lead_id\s*=\s*auth\.uid\(\)/)
+  })
+
+  it('lets the owning shift lead delete an event with assigned responders', () => {
+    expect(latestLeadDeletePolicy()).not.toMatch(/not\s+exists[\s\S]*event_responders/)
   })
 
   it('blocks a shift_lead from dropping another lead\'s shift-born stubs', () => {

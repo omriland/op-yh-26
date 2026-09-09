@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import path from 'node:path'
 import { defineConfig, type Connect, type Plugin, type ViteDevServer } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
 function resolveAppVersionId(): string {
@@ -72,7 +73,7 @@ const appVersionId = resolveAppVersionId()
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), partnerApiDocsPlugin(), appVersionPlugin(appVersionId)],
+  plugins: [tailwindcss(), react(), partnerApiDocsPlugin(), appVersionPlugin(appVersionId)],
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersionId),
   },

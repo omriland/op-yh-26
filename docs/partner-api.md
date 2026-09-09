@@ -6,8 +6,8 @@
 
 **Product:** אבן דרך (Yahpaz)  
 **Audience:** The trusted server that runs the Telegram bot  
-**Version:** 1.3  
-**Date:** 2026-09-05
+**Version:** 1.3.1
+**Date:** 2026-09-09
 
 ---
 
@@ -364,7 +364,7 @@ Omitted `draft` keys keep the **stored** values. All draft values are **strings*
 {
   "error": "בדקו את השדות המסומנים.",
   "fieldErrors": {
-    "odometer_end": "מד אוץ סיום חייב להיות גדול ממד אוץ התחלה"
+    "odometer_end": "מד אוץ סיום אינו יכול להיות קטן ממד אוץ התחלה"
   }
 }
 ```
@@ -416,7 +416,7 @@ Completing also stops live location tracking for this assignment (same effect as
 | Field | Draft | Complete |
 |---|---|---|
 | `vehicle_plate` | optional | Required. Must be in `allowed_plates`. If the user has no linked vehicle: `לא מקושר רכב למשתמש. פנו למנהל המערכת.` |
-| `odometer_start` / `odometer_end` | empty OK; if present must be a number | Both required numbers. **End must be strictly greater than start:** `מד אוץ סיום חייב להיות גדול ממד אוץ התחלה` |
+| `odometer_start` / `odometer_end` | empty OK; if present must be a number | Both required numbers. **End must not be smaller than start** — an equal pair is valid, including `0` in both: `מד אוץ סיום אינו יכול להיות קטן ממד אוץ התחלה` |
 | `route` | optional | Required: `יש למלא נתיב נסיעה.` |
 | `treatment_detail` | optional | Required: `יש למלא פירוט הטיפול.` |
 | `treatment_notes` | always optional | always optional |

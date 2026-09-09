@@ -12,6 +12,7 @@ import {
   isCompleteTimeInput,
   isValidOptionalPhone,
   plateNumberForSave,
+  shouldAdvanceAfterTimeEntry,
 } from './format'
 
 const NOW = new Date('2026-08-10T12:00:00')
@@ -172,6 +173,16 @@ describe('isCompleteTimeInput', () => {
     expect(isCompleteTimeInput('14:3')).toBe(false)
     expect(isCompleteTimeInput('24:00')).toBe(false)
     expect(isCompleteTimeInput('12:60')).toBe(false)
+  })
+})
+
+describe('shouldAdvanceAfterTimeEntry', () => {
+  it('fires only when the 4th digit just landed', () => {
+    expect(shouldAdvanceAfterTimeEntry('08:3', '08:30')).toBe(true)
+    expect(shouldAdvanceAfterTimeEntry('', '08:30')).toBe(true)
+    expect(shouldAdvanceAfterTimeEntry('08:30', '08:31')).toBe(false)
+    expect(shouldAdvanceAfterTimeEntry('08:30', '08:3')).toBe(false)
+    expect(shouldAdvanceAfterTimeEntry('08', '08:3')).toBe(false)
   })
 })
 

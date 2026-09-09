@@ -190,13 +190,14 @@ function validateDraft(
     if (leftover) errors.treated_plates = leftover;
   }
 
+  // An equal pair is allowed (0/0 included); only a reversed pair is a typo.
   if (
     !errors.odometer_end &&
     typeof start === "number" &&
     typeof end === "number" &&
-    end <= start
+    end < start
   ) {
-    errors.odometer_end = "מד אוץ סיום חייב להיות גדול ממד אוץ התחלה";
+    errors.odometer_end = "מד אוץ סיום אינו יכול להיות קטן ממד אוץ התחלה";
   }
 
   return errors;

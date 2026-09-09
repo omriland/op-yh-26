@@ -60,6 +60,14 @@ const FILL_STASH_DEBOUNCE_MS = 600
 /** --duration-base is 180ms; hold long enough for the press to read, then leave. */
 const STAMP_PRESS_HOLD_MS = 700
 
+/** A typed 0 is a reading, not an empty field. */
+function odometerLedgerValue(raw: string): string | undefined {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const value = Number(trimmed)
+  return Number.isFinite(value) ? formatNumber(value) : undefined
+}
+
 type ResponderFillPageProps = {
   eventId: string
   /** Opaque fill link token — when set, load/save via Edge (no Auth session required). */
@@ -537,20 +545,12 @@ export function ResponderFillPage({
                   />
                   <LedgerRow
                     label='מד אוץ התחלה'
-                    value={
-                      draft.odometer_start
-                        ? formatNumber(Number(draft.odometer_start))
-                        : undefined
-                    }
+                    value={odometerLedgerValue(draft.odometer_start)}
                     numeric
                   />
                   <LedgerRow
                     label='מד אוץ סיום'
-                    value={
-                      draft.odometer_end
-                        ? formatNumber(Number(draft.odometer_end))
-                        : undefined
-                    }
+                    value={odometerLedgerValue(draft.odometer_end)}
                     numeric
                   />
                   <LedgerRow label="נתיב נסיעה" value={draft.route || undefined} />

@@ -115,6 +115,15 @@ describe('REPORT_KINDS', () => {
 
     const dup = REPORT_KINDS.find((item) => item.id === 'duplicate_events')
     expect(dup?.commands?.map((command) => command.id)).toEqual(['approve_duplicate', 'delete_duplicate'])
+    expect(
+      dup?.commands?.find((command) => command.id === 'delete_duplicate')?.confirmBody({
+        id: 'duplicate-row',
+        eventId: 'event-1',
+        values: [],
+      }),
+    ).toBe(
+      'יש מתנדבים משובצים באירוע. הפעולה תמחק גם את הנתונים שלהם. האם למחוק? לא ניתן לשחזר.',
+    )
     const dupRow = {
       id: 'r1',
       values: [],
