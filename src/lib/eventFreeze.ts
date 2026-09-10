@@ -42,10 +42,10 @@ export function eventCountsTowardFuelRefund(
  * approval (`event_matches_over_60km`). Mirrored here so the lead can be told at the
  * moment of typing rather than discovering it in a quarterly refund report.
  */
-export const FREEZE_OVER_KM_THRESHOLD = 60
+export const FREEZE_OVER_KM_THRESHOLD = 80
 
 export const FREEZE_OVER_KM_HINT =
-  'מעל 60 ק״מ — האירוע ימתין לאישור מנהל לפני שייכלל בהחזר הדלק.'
+  `מעל ${FREEZE_OVER_KM_THRESHOLD} ק״מ — האירוע ימתין לאישור מנהל לפני שייכלל בהחזר הדלק.`
 
 /** The hint for a km value as typed, or undefined when it is below the threshold. */
 export function over60kmHint(totalKm: string): string | undefined {
@@ -69,10 +69,10 @@ export function freezeTooltipHe(
   const over60 = Boolean(flags?.frozen_over_60km)
   const duplicate = Boolean(flags?.frozen_suspicious_duplicate)
   if (over60 && duplicate) {
-    return 'האירוע מוקפא בגלל חריגת קילומטרים (מעל 60 ק״מ) ובגלל חשד לאירוע כפול, וממתין לאישור מנהל.'
+    return `האירוע מוקפא בגלל חריגת קילומטרים (מעל ${FREEZE_OVER_KM_THRESHOLD} ק״מ) ובגלל חשד לאירוע כפול, וממתין לאישור מנהל.`
   }
   if (over60) {
-    return 'האירוע מוקפא בגלל חריגת קילומטרים (מעל 60 ק״מ) וממתין לאישור מנהל.'
+    return `האירוע מוקפא בגלל חריגת קילומטרים (מעל ${FREEZE_OVER_KM_THRESHOLD} ק״מ) וממתין לאישור מנהל.`
   }
   if (duplicate) {
     return 'האירוע מוקפא בגלל חשד לאירוע כפול וממתין לאישור מנהל.'

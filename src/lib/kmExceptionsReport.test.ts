@@ -22,20 +22,20 @@ function event(partial: Partial<KmExceptionEventSource> & Pick<KmExceptionEventS
 }
 
 describe('KM_EXCEPTION_THRESHOLD', () => {
-  it('is 60', () => {
-    expect(KM_EXCEPTION_THRESHOLD).toBe(60)
+  it('is 80', () => {
+    expect(KM_EXCEPTION_THRESHOLD).toBe(80)
   })
 })
 
 describe('buildKmExceptionRows', () => {
-  it('includes done responder at exactly 60 km', () => {
+  it('includes done responder at exactly 80 km', () => {
     const rows = buildKmExceptionRows([
       event({
         id: 'e1',
         responders: [
           {
             status: 'done',
-            total_km: 60,
+            total_km: 80,
             profile: { full_name: 'בני', callsign: 'B1' },
           },
         ],
@@ -44,18 +44,19 @@ describe('buildKmExceptionRows', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
       event_id: 'e1',
-      total_km: 60,
+      total_km: 80,
       responder_name: 'בני',
       responder_callsign: 'B1',
     })
   })
 
-  it('excludes 59 km and null lead km', () => {
+  it('excludes 79 km and null lead km', () => {
     const rows = buildKmExceptionRows([
       event({
         id: 'e1',
         responders: [
-          { status: 'done', total_km: 59, profile: { full_name: 'א', callsign: 'A' } },
+          { status: 'done', total_km: 79, profile: { full_name: 'א', callsign: 'A' } },
+          { status: 'done', total_km: 60, profile: { full_name: 'ג', callsign: 'C' } },
           { status: 'done', total_km: null, profile: { full_name: 'ב', callsign: 'B' } },
         ],
       }),
@@ -63,7 +64,7 @@ describe('buildKmExceptionRows', () => {
     expect(rows).toEqual([])
   })
 
-  it('includes lead-entered km >= 60 even when participation is not done', () => {
+  it('includes lead-entered km >= 80 even when participation is not done', () => {
     const rows = buildKmExceptionRows([
       event({
         id: 'e1',
@@ -107,8 +108,8 @@ describe('buildKmExceptionRows', () => {
       event({
         id: 'e1',
         responders: [
-          { status: 'done', total_km: 70, profile: { full_name: 'א', callsign: 'A' } },
-          { status: 'done', total_km: 65, profile: { full_name: 'ב', callsign: 'B' } },
+          { status: 'done', total_km: 90, profile: { full_name: 'א', callsign: 'A' } },
+          { status: 'done', total_km: 85, profile: { full_name: 'ב', callsign: 'B' } },
           { status: 'done', total_km: 10, profile: { full_name: 'ג', callsign: 'C' } },
         ],
       }),
@@ -129,14 +130,14 @@ describe('buildKmExceptionRows', () => {
         id: 'new',
         event_date: '2026-08-10',
         responders: [
-          { status: 'done', total_km: 60, profile: { full_name: 'נמוך', callsign: 'L' } },
+          { status: 'done', total_km: 80, profile: { full_name: 'נמוך', callsign: 'L' } },
           { status: 'done', total_km: 100, profile: { full_name: 'גבוה', callsign: 'H' } },
         ],
       }),
     ])
     expect(rows.map((r) => [r.event_id, r.total_km])).toEqual([
       ['new', 100],
-      ['new', 60],
+      ['new', 80],
       ['old', 90],
     ])
   })
@@ -151,7 +152,7 @@ describe('buildKmExceptionRows', () => {
         road: { name: 'כביש 2' },
         shift_lead: { full_name: 'ליאור', callsign: 'SL' },
         responders: [
-          { status: 'done', total_km: 61, profile: { full_name: 'נועם', callsign: 'N1' } },
+          { status: 'done', total_km: 81, profile: { full_name: 'נועם', callsign: 'N1' } },
         ],
       }),
     ])
@@ -195,7 +196,7 @@ describe('buildKmExceptionRows', () => {
     expect(rows.map((row) => row.event_id)).toEqual(['end', 'start'])
   })
 
-  it('omits an event after over-60km approval unfreezes it', () => {
+  it('omits an event after over-threshold approval unfreezes it', () => {
     const rows = buildKmExceptionRows([
       event({
         id: 'approved',
@@ -208,7 +209,7 @@ describe('buildKmExceptionRows', () => {
     expect(rows).toEqual([])
   })
 
-  it('keeps a still-frozen over-60km event on the list', () => {
+  it('keeps a still-frozen over-threshold event on the list', () => {
     const rows = buildKmExceptionRows([
       event({
         id: 'pending',
@@ -222,13 +223,13 @@ describe('buildKmExceptionRows', () => {
     expect(rows[0]?.event_id).toBe('pending')
   })
 
-  it('shows the event again when a later responder re-freezes it over 60km', () => {
+  it('shows the event again when a later responder re-freezes it over the threshold', () => {
     const rows = buildKmExceptionRows([
       event({
         id: 'reopened',
         frozen_over_60km: true,
         responders: [
-          { status: 'done', total_km: 70, profile: { full_name: 'א', callsign: 'A' } },
+          { status: 'done', total_km: 80, profile: { full_name: 'א', callsign: 'A' } },
           { status: 'done', total_km: 90, profile: { full_name: 'ב', callsign: 'B' } },
         ],
       }),

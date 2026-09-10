@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import type { ParticipationStatus } from './status'
 
-export const KM_EXCEPTION_THRESHOLD = 60
+export const KM_EXCEPTION_THRESHOLD = 80
 
 export type KmExceptionResponderSource = {
   status: ParticipationStatus
@@ -49,9 +49,9 @@ export function buildKmExceptionRows(
 
   for (const event of events) {
     if (range && (event.event_date < range.from || event.event_date > range.to)) continue
-    // Approved over-60km events leave the list (frozen_over_60km = false).
-    // Missing flag keeps legacy fixtures on the list. A later responder >60km
-    // re-freezes the event and it reappears.
+    // Approved over-threshold events leave the list (frozen_over_60km = false).
+    // Missing flag keeps legacy fixtures on the list. A later responder at/above
+    // the threshold re-freezes the event and it reappears.
     if (event.frozen_over_60km === false) continue
     for (const responder of event.responders) {
       // Lead-entered km only (`event_responders.total_km`). Participation

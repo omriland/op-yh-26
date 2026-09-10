@@ -67,7 +67,7 @@ export function buildFuelRefundRows(
   credits: FuelRefundKmCredit[] = [],
 ): FuelRefundRow[] {
   // Only rows where the shift-lead entered kilometers — event/participation status ignored.
-  // Frozen events (60km / duplicate, pending admin) do not count until approved.
+  // Frozen events (high-km / duplicate, pending admin) do not count until approved.
   const withKm = participations.filter((row) => row.total_km != null && !row.frozen)
 
   const byUser = new Map<string, FuelRefundParticipation[]>()

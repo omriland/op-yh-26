@@ -12,7 +12,7 @@ import {
   loadKmDiscrepancyReport,
   policeEventLabel,
 } from '../kmDiscrepancyReport'
-import { fetchKmExceptionRows } from '../kmExceptionsReport'
+import { fetchKmExceptionRows, KM_EXCEPTION_THRESHOLD } from '../kmExceptionsReport'
 import {
   documentationFillLabel,
   loadOpenDocumentationReport,
@@ -201,7 +201,7 @@ const kmDiscrepancy: ReportKind = {
 const kmExceptions: ReportKind = {
   id: 'km_exceptions',
   title: 'חריגי ק״מ',
-  includes: 'אירועים עם 60 ק״מ ומעלה',
+  includes: `אירועים עם ${KM_EXCEPTION_THRESHOLD} ק״מ ומעלה`,
   audience: 'admin_and_shift_lead',
   hasDateRange: true,
   hasPeriodPicker: true,

@@ -13,14 +13,14 @@ describe('EventFrozenMark', () => {
     expect(html).toBe('')
   })
 
-  it('shows a snowflake with the 60km pending-review tooltip', () => {
+  it('shows a snowflake with the high-km pending-review tooltip', () => {
     const html = renderToStaticMarkup(
       createElement(EventFrozenMark, {
         flags: { frozen_over_60km: true, frozen_suspicious_duplicate: false },
       }),
     )
     expect(html).toContain('event-frozen-mark')
-    expect(html).toContain('האירוע מוקפא בגלל חריגת קילומטרים (מעל 60 ק״מ) וממתין לאישור מנהל.')
+    expect(html).toContain('האירוע מוקפא בגלל חריגת קילומטרים (מעל 80 ק״מ) וממתין לאישור מנהל.')
   })
 
   it('explains both freeze reasons in the tooltip', () => {

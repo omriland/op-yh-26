@@ -7,7 +7,7 @@ import {
   isEventFrozen, freezeNoticeHe, FREEZE_OVER_KM_HINT, FREEZE_OVER_KM_THRESHOLD, over60kmHint } from './eventFreeze'
 
 describe('computeFreezeFlags', () => {
-  it('freezes an event that matches the 60km report and is not approved', () => {
+  it('freezes an event that matches the high-km report and is not approved', () => {
     expect(
       computeFreezeFlags({
         matchesOver60km: true,
@@ -107,9 +107,9 @@ describe('computeFreezeFlags', () => {
 })
 
 describe('freezeTooltipHe', () => {
-  it('explains 60km freeze pending admin review', () => {
+  it('explains high-km freeze pending admin review', () => {
     expect(freezeTooltipHe({ frozen_over_60km: true, frozen_suspicious_duplicate: false })).toBe(
-      'האירוע מוקפא בגלל חריגת קילומטרים (מעל 60 ק״מ) וממתין לאישור מנהל.',
+      'האירוע מוקפא בגלל חריגת קילומטרים (מעל 80 ק״מ) וממתין לאישור מנהל.',
     )
   })
 
@@ -121,7 +121,7 @@ describe('freezeTooltipHe', () => {
 
   it('explains both reasons together', () => {
     expect(freezeTooltipHe({ frozen_over_60km: true, frozen_suspicious_duplicate: true })).toBe(
-      'האירוע מוקפא בגלל חריגת קילומטרים (מעל 60 ק״מ) ובגלל חשד לאירוע כפול, וממתין לאישור מנהל.',
+      'האירוע מוקפא בגלל חריגת קילומטרים (מעל 80 ק״מ) ובגלל חשד לאירוע כפול, וממתין לאישור מנהל.',
     )
   })
 
@@ -131,17 +131,17 @@ describe('freezeTooltipHe', () => {
 })
 
 describe('hasPendingOver60km', () => {
-  it('is false when every current over-60km responder was already approved', () => {
+  it('is false when every current over-threshold responder was already approved', () => {
     expect(hasPendingOver60km(['r-a'], ['r-a'])).toBe(false)
     expect(hasPendingOver60km(['r-a'], ['r-a', 'r-old'])).toBe(false)
   })
 
-  it('is true when another responder now exceeds 60km', () => {
+  it('is true when another responder now exceeds the km threshold', () => {
     expect(hasPendingOver60km(['r-a', 'r-b'], ['r-a'])).toBe(true)
     expect(hasPendingOver60km(['r-b'], ['r-a'])).toBe(true)
   })
 
-  it('is true before any over-60km approval', () => {
+  it('is true before any over-threshold km approval', () => {
     expect(hasPendingOver60km(['r-a'], [])).toBe(true)
   })
 })
@@ -194,14 +194,15 @@ describe('freezeNoticeHe', () => {
 
 describe('over60kmHint', () => {
   it('warns at and above the freeze threshold', () => {
-    expect(over60kmHint('60')).toBe(FREEZE_OVER_KM_HINT)
-    expect(over60kmHint('62')).toBe(FREEZE_OVER_KM_HINT)
+    expect(over60kmHint('80')).toBe(FREEZE_OVER_KM_HINT)
+    expect(over60kmHint('82')).toBe(FREEZE_OVER_KM_HINT)
     expect(over60kmHint('140.5')).toBe(FREEZE_OVER_KM_HINT)
   })
 
   it('stays silent below it', () => {
-    expect(over60kmHint('59')).toBeUndefined()
-    expect(over60kmHint('59.9')).toBeUndefined()
+    expect(over60kmHint('79')).toBeUndefined()
+    expect(over60kmHint('79.9')).toBeUndefined()
+    expect(over60kmHint('60')).toBeUndefined()
     expect(over60kmHint('0')).toBeUndefined()
   })
 
@@ -211,7 +212,7 @@ describe('over60kmHint', () => {
   })
 
   it('mirrors the database threshold and does not shout', () => {
-    expect(FREEZE_OVER_KM_THRESHOLD).toBe(60)
+    expect(FREEZE_OVER_KM_THRESHOLD).toBe(80)
     expect(FREEZE_OVER_KM_HINT).not.toContain('!')
   })
 })

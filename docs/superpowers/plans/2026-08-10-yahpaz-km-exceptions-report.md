@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Lead-tools page **דוח חריגי קמ** listing each `done` responder participation with `total_km >= 60`, tap opens event detail.
+**Goal:** Lead-tools page **דוח חריגי קמ** listing each `done` responder participation with `total_km >= 80`, tap opens event detail.
 
 **Architecture:** Pure flatten/filter/sort in `kmExceptionsReport.ts` + Supabase fetch; `KmExceptionsPage` (cards mobile / table desktop); wire `km_exceptions` under כלים לאחמ״ש. No schema changes.
 
@@ -12,7 +12,7 @@
 
 - Hebrew-only UI, full RTL (`lang=he`, `dir=rtl`)
 - Visible to `shift_lead` + `admin` (`manages`)
-- Threshold hardcoded `KM_EXCEPTION_THRESHOLD = 60`
+- Threshold hardcoded `KM_EXCEPTION_THRESHOLD = 80`
 - Cancelled events included; one row per exceptional responder
 - Spec: `docs/superpowers/specs/2026-08-10-yahpaz-km-exceptions-report-design.md`
 
@@ -37,11 +37,11 @@
 - Test: `src/lib/kmExceptionsReport.test.ts`
 
 **Produces:**
-- `KM_EXCEPTION_THRESHOLD = 60`
+- `KM_EXCEPTION_THRESHOLD = 80`
 - `buildKmExceptionRows(events: KmExceptionEventSource[]): KmExceptionRow[]`
 - `KmExceptionRow`: `{ event_id, event_date, is_cancelled, police_event_id, location, event_type_name, road_name, shift_lead_name, shift_lead_callsign, responder_name, responder_callsign, total_km }`
 
-- [x] **Step 1: Write failing tests** covering: 59 excluded / 60 included; null km excluded; lead km ≥60 included regardless of participation status; cancelled included; two responders ≥60 → two rows; sort date desc then km desc
+- [x] **Step 1: Write failing tests** covering: 79 excluded / 80 included; null km excluded; lead km ≥80 included regardless of participation status; cancelled included; two responders ≥80 → two rows; sort date desc then km desc
 
 - [x] **Step 2: Run** `npm test -- src/lib/kmExceptionsReport.test.ts` — expect FAIL (module missing)
 

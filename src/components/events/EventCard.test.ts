@@ -237,6 +237,6 @@ describe('EventCard default (unit list)', () => {
     )
 
     expect(html).toContain('event-frozen-mark')
-    expect(html).toContain('האירוע מוקפא בגלל חריגת קילומטרים (מעל 60 ק״מ) וממתין לאישור מנהל.')
+    expect(html).toContain('האירוע מוקפא בגלל חריגת קילומטרים (מעל 80 ק״מ) וממתין לאישור מנהל.')
   })
 })

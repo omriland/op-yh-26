@@ -109,7 +109,7 @@ Calc rules **do not change**; only the shell does. Pointers: `2026-08-10-yahpaz-
 
 | id | Title | Includes | Audience | Inputs | Drill-in |
 |---|---|---|---|---|---|
-| `km_exceptions` | חריגי ק״מ | אירועים עם 60 ק״מ ומעלה | admin + אחמ״ש | PeriodPicker on `event_date` | event detail |
+| `km_exceptions` | חריגי ק״מ | אירועים עם 80 ק״מ ומעלה | admin + אחמ״ש | PeriodPicker on `event_date` | event detail |
 | `duplicate_events` | אירועים כפולים | אירועים עם אותו הכונן, באותו מקום בחלון זמן של חצי שעה | admin + אחמ״ש | none | event detail |
 
 Retired from the catalog (2026-08-15): `km_summary` / `km_detail` — km usage lives under ניהול דלק.

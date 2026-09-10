@@ -11,6 +11,7 @@ function freezeSql(): string {
     '20260820133000_event_freeze_report_lists.sql',
     '20260820140000_event_freeze_delete_skip_self.sql',
     '20260820151000_event_freeze_delete_skip_cascade_refresh.sql',
+    '20260910120000_event_freeze_km_threshold_80.sql',
   ]
     .map((name) => readFileSync(resolve(migrationsDir, name), 'utf8'))
     .join('\n')
@@ -81,5 +82,17 @@ describe('event freeze delete triggers', () => {
   it('sees in-transaction sibling rows when matching duplicates after delete', () => {
     const match = lastFunctionDef(freezeSql(), 'event_matches_suspicious_duplicate')
     expect(match.toLowerCase()).toContain('volatile')
+  })
+
+  it('freezes and snapshots lead km at 80, not 60', () => {
+    const pending = lastFunctionDef(freezeSql(), 'event_has_pending_over_60km')
+    const matches = lastFunctionDef(freezeSql(), 'event_matches_over_60km')
+    const approve = lastFunctionDef(freezeSql(), 'approve_event_freeze')
+    expect(pending).toContain('total_km >= 80')
+    expect(pending).not.toContain('total_km >= 60')
+    expect(matches).toContain('total_km >= 80')
+    expect(matches).not.toContain('total_km >= 60')
+    expect(approve).toContain('total_km >= 80')
+    expect(approve).not.toContain('total_km >= 60')
   })
 })
