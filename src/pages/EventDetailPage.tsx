@@ -457,7 +457,6 @@ export function EventDetailPage({
                 <ResponderCard
                   key={responder.id}
                   responder={responder}
-                  eventDate={event.event_date}
                   isViewer={isViewer}
                   defaultOpen={responderCardStartsOpen({
                     isViewer,
@@ -525,7 +524,6 @@ export function EventDetailPage({
 
 function ResponderCard({
   responder,
-  eventDate,
   isViewer,
   defaultOpen,
   onFillOwn,
@@ -537,7 +535,6 @@ function ResponderCard({
   origin,
 }: {
   responder: EventResponderDetail
-  eventDate: string
   isViewer: boolean
   defaultOpen: boolean
   onFillOwn?: () => void

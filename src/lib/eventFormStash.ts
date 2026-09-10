@@ -19,7 +19,7 @@ export function eventFormStashId(userId: string, eventId?: string | null): strin
  */
 export function shouldKeepLiveCreateDraft(input: {
   eventId?: string | null
-  loadState: 'loading' | 'ready' | 'denied' | 'assigned_blocked'
+  loadState: 'loading' | 'ready' | 'denied' | 'assigned_blocked' | 'age_locked'
   draft: EventFormDraft | null
   initialEventDate: string
   originalShiftLeadId?: string

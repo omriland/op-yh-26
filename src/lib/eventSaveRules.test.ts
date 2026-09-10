@@ -37,8 +37,8 @@ describe('evaluateEventFormSaveRules', () => {
       treatedTotal: 0,
       lastSavedDate: fullDraft().event_date,
     })
-    expect(result.blocks.some((issue) => issue.id === 'callsign_number' || issue.fieldErrors?.patrol_callsign_number)).toBe(
-      true,
+    expect(mergeFieldErrors(result.blocks).patrol_callsign_number).toBe(
+      PATROL_CALLSIGN_NUMBER_ERROR,
     )
     expect(mergeFieldErrors(result.blocks).patrol_callsign_number).toBe(
       PATROL_CALLSIGN_NUMBER_ERROR,
@@ -111,7 +111,7 @@ describe('evaluateResponderFillSaveRules', () => {
       coveredPlateDigits: new Set(),
     })
     expect(result.blocks[0]?.id).toBe('fill_fields')
-    expect(result.blocks[0]?.fieldErrors?.vehicle_plate).toBeTruthy()
+    expect(mergeFieldErrors(result.blocks).vehicle_plate).toBeTruthy()
   })
 
   it('notifies when treated vehicles have no photos', () => {
