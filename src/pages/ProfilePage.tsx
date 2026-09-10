@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LogOut, Star } from 'lucide-react'
 import { useAuth, type AppRole } from '../lib/auth'
 import { formatDateTime, formatNumber, formatPhone, formatPlate, monoClass } from '../lib/format'
