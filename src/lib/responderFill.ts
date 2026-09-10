@@ -8,6 +8,7 @@ import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 import { pickDefaultVehiclePlate, queryVehiclesWithDefaultFallback } from './defaultVehicle'
 import { leftoverEventMediaError } from './eventMedia'
+import { deriveStoredEventStatus } from './eventStatus'
 import { ODOMETER_ORDER_ERROR } from './odometer'
 import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
 
@@ -65,13 +66,15 @@ export type ResponderFillContext = {
 
 export function deriveEventStatusAfterParticipation(
   participationStatuses: ParticipationStatus[],
+  gate?: { endedAt?: string | null; totalKms?: Array<number | null> },
 ): EventStatus {
-  if (participationStatuses.length === 0) return 'draft'
-  if (participationStatuses.every((status) => status === 'done')) return 'done'
-  // Draft saves (`in_progress`) stay on the lead pipeline as in_progress —
-  // partial only when at least one responder has fully completed.
-  if (participationStatuses.some((status) => status === 'done')) return 'partial'
-  return 'in_progress'
+  return deriveStoredEventStatus({
+    endedAt: gate?.endedAt,
+    responders: participationStatuses.map((status, index) => ({
+      status,
+      totalKm: gate?.totalKms?.[index] ?? null,
+    })),
+  })
 }
 
 export const RESPONDER_FILL_LOCKED_ERROR = 'לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.'
@@ -433,13 +436,17 @@ async function refreshEventStatus(eventId: string): Promise<EventStatus | null> 
   })
   if (error) {
     // Fallback: derive from rows if RPC missing (local/dev drift) — may fail RLS for responders.
-    const { data: rows, error: listError } = await supabase
-      .from('event_responders')
-      .select('status')
-      .eq('event_id', eventId)
+    const [{ data: eventRow }, { data: rows, error: listError }] = await Promise.all([
+      supabase.from('events').select('ended_at').eq('id', eventId).maybeSingle(),
+      supabase.from('event_responders').select('status, total_km').eq('event_id', eventId),
+    ])
     if (listError) return null
     const next = deriveEventStatusAfterParticipation(
       (rows ?? []).map((row) => row.status as ParticipationStatus),
+      {
+        endedAt: (eventRow?.ended_at as string | null) ?? null,
+        totalKms: (rows ?? []).map((row) => (row.total_km as number | null) ?? null),
+      },
     )
     await supabase
       .from('events')

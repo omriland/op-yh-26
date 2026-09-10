@@ -23,8 +23,31 @@ describe('deriveEventStatusAfterParticipation', () => {
     expect(deriveEventStatusAfterParticipation(['done', 'pending'])).toBe('partial')
   })
 
-  it('marks done when every participation is done', () => {
-    expect(deriveEventStatusAfterParticipation(['done', 'done'])).toBe('done')
+  it('marks done only when every participation is done and the event gate is met', () => {
+    expect(
+      deriveEventStatusAfterParticipation(['done', 'done'], {
+        endedAt: '2026-09-10T09:00:00',
+        totalKms: [12, 0],
+      }),
+    ).toBe('done')
+  })
+
+  it('stays partial when every participation is done but ended_at is missing', () => {
+    expect(
+      deriveEventStatusAfterParticipation(['done', 'done'], {
+        endedAt: null,
+        totalKms: [12, 8],
+      }),
+    ).toBe('partial')
+  })
+
+  it('stays partial when every participation is done but a lead KM is null', () => {
+    expect(
+      deriveEventStatusAfterParticipation(['done', 'done'], {
+        endedAt: '2026-09-10T09:00:00',
+        totalKms: [12, null],
+      }),
+    ).toBe('partial')
   })
 })
 

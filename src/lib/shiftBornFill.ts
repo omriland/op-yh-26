@@ -1,3 +1,8 @@
+import {
+  EVENT_DONE_NEEDS_END_ERROR,
+  EVENT_DONE_NEEDS_KM_ERROR,
+  eventDoneGateError,
+} from './eventStatus'
 import { fetchEventLookups, type LookupOption } from './eventForm'
 import { fetchEventDetail, type EventDetail } from './events'
 import { policeEventIdForInput } from './format'
@@ -26,7 +31,7 @@ export type ShiftBornFillContext = {
 }
 
 export type ShiftBornFillErrors = Partial<
-  Record<'road_id' | 'location' | 'treatment_detail', string>
+  Record<'road_id' | 'location' | 'treatment_detail' | 'form', string>
 >
 
 /**
@@ -39,12 +44,23 @@ export type ShiftBornFillErrors = Partial<
  */
 export function shiftBornCompleteErrors(
   draft: ShiftBornFillDraft,
+  event?: {
+    ended_at?: string | null
+    responders?: { total_km: number | null }[]
+  },
 ): ShiftBornFillErrors {
   const errors: ShiftBornFillErrors = {}
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש'
   if (!draft.location.trim()) errors.location = 'יש להזין מיקום'
   if (!draft.treatment_detail.trim()) {
     errors.treatment_detail = 'יש להזין פירוט טיפול'
+  }
+  if (event) {
+    const gate = eventDoneGateError({
+      endedAt: event.ended_at,
+      responders: event.responders ?? [],
+    })
+    if (gate) errors.form = gate
   }
   return errors
 }
@@ -159,6 +175,8 @@ function mapFillError(message: string | undefined): string {
   if (message?.includes(STALE_SAVE_MESSAGE)) return STALE_SAVE_MESSAGE
   if (message?.includes(COUNT_DECREASE_BLOCKED)) return COUNT_DECREASE_BLOCKED
   if (message?.includes('אין הרשאה')) return 'אין הרשאה'
+  if (message?.includes(EVENT_DONE_NEEDS_END_ERROR)) return EVENT_DONE_NEEDS_END_ERROR
+  if (message?.includes(EVENT_DONE_NEEDS_KM_ERROR)) return EVENT_DONE_NEEDS_KM_ERROR
   return 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
 }
 

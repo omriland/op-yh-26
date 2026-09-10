@@ -28,6 +28,7 @@ import {
   mapSecondaryLeadRows,
   type SecondaryLead,
 } from './eventShiftLeads'
+import { deriveStoredEventStatus } from './eventStatus'
 import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocked } from './assignedVolunteerEventEdit'
 import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from './eventEditLock'
 import {
@@ -1143,13 +1144,19 @@ export function buildLocationPayload(draft: EventFormDraft): {
 /**
  * Derive stored event status from current assignments.
  * Adding a new pending responder after `done` must reopen to `partial` —
- * never freeze the previous status.
+ * never freeze the previous status. `done` also requires event end + every lead KM.
  */
 export function deriveEventStatus(draft: EventFormDraft): EventStatus {
-  if (draft.responders.length === 0) return 'draft'
-  if (draft.responders.every((row) => row.status === 'done')) return 'done'
-  if (draft.responders.some((row) => row.status === 'done')) return 'partial'
-  return 'in_progress'
+  return deriveStoredEventStatus({
+    endedAt: draft.end_time,
+    responders: draft.responders.map((row) => {
+      const km = leadKmForSave(row.hasVehicle, row.total_km)
+      return {
+        status: row.status,
+        totalKm: km != null && !Number.isNaN(km) ? km : null,
+      }
+    }),
+  })
 }
 
 /** Attach DB assignment ids after insert so the next save updates instead of re-inserting. */
