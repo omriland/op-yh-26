@@ -1,7 +1,7 @@
 {
-  "minBuild": 14,
-  "latestBuild": 15,
-  "latestVersionName": "1.0.1",
+  "minBuild": 16,
+  "latestBuild": 16,
+  "latestVersionName": "1.0.2",
   "manifestUrl": "https://yahpz.com/ios/manifest.plist",
   "messageHe": "יש גרסה חדשה של האפליקציה. יש להוריד ולהתקין כדי להמשיך."
 }
