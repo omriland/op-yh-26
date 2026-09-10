@@ -4912,6 +4912,7 @@ html[data-keyboard-open] .event-form__footer {
 .report-catalog-card__includes {
   display: block;
   opacity: 0.85;
+  white-space: pre-line;
 }
 
 .report-catalog-card__cta {
@@ -5065,16 +5066,6 @@ html[data-keyboard-open] .event-form__footer {
 .fuel-hub__prompt {
   text-align: center;
   color: var(--text-primary);
-}
-
-.fuel-hub__card {
-  padding: var(--space-5);
-  gap: var(--space-3);
-  color: var(--text-primary);
-}
-
-.fuel-hub__card svg {
-  color: var(--accent);
 }
 
 .list-rows {

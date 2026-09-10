@@ -136,7 +136,10 @@ export const LEAD_KM_PENDING_NOTE = 'אחמ״ש טרם הזין ק״מ'
 export function leadKmPendingNote(
   participation: ParticipationStatus | null | undefined,
   totalKm: number | null | undefined,
+  origin?: 'manual' | 'shift' | null,
 ): string | null {
+  // Shift-born docs are shared — lead KM note is irrelevant.
+  if (origin === 'shift') return null
   if (participation !== 'done' || totalKm != null) return null
   return LEAD_KM_PENDING_NOTE
 }

@@ -7,6 +7,7 @@ import {
   eventTypeName,
   isShiftBornEventEmpty,
   lastSavedByLabel,
+  mineShiftBornIsOpen,
   shiftBornFillStamp,
   type ShiftBornEventSnapshot,
 } from './shiftBornEvents'
@@ -39,17 +40,25 @@ describe('isShiftBornEventEmpty', () => {
 })
 
 describe('shiftBornFillStamp', () => {
-  it('marks done events as completed', () => {
-    expect(shiftBornFillStamp(snapshot({ status: 'done', police_event_id: '1' }))).toEqual({
+  it('marks done events as completed only when פירוט הטיפול is filled', () => {
+    expect(
+      shiftBornFillStamp({
+        ...snapshot({ status: 'done', police_event_id: '1', treatment_detail: 'חילוץ' }),
+      }),
+    ).toEqual({
       label: 'הושלם',
       tone: 'done',
     })
   })
 
-  it('marks empty open events as waiting for details', () => {
+  it('keeps missing פירוט הטיפול as pending — never סיימת לתעד / הושלם', () => {
+    expect(shiftBornFillStamp(snapshot({ status: 'done', police_event_id: '1' }))).toEqual({
+      label: 'ממתין לתיעוד',
+      tone: 'pending',
+    })
     expect(shiftBornFillStamp(snapshot())).toEqual({
       label: 'ממתין לתיעוד',
-      tone: 'draft',
+      tone: 'pending',
     })
   })
 
@@ -58,6 +67,18 @@ describe('shiftBornFillStamp', () => {
       label: 'טיוטה נשמרה',
       tone: 'draft',
     })
+  })
+})
+
+describe('mineShiftBornIsOpen', () => {
+  it('stays pending without פירוט הטיפול even when status is done', () => {
+    expect(mineShiftBornIsOpen({ status: 'done', treatment_detail: null })).toBe(true)
+    expect(mineShiftBornIsOpen({ status: 'done', treatment_detail: '  ' })).toBe(true)
+  })
+
+  it('closes only when treatment_detail is set and status is done', () => {
+    expect(mineShiftBornIsOpen({ status: 'done', treatment_detail: 'חילוץ' })).toBe(false)
+    expect(mineShiftBornIsOpen({ status: 'in_progress', treatment_detail: 'חילוץ' })).toBe(true)
   })
 })
 

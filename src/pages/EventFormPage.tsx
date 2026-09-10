@@ -169,7 +169,8 @@ export function EventFormPage({
   const { show } = useToast()
   const isDesktop = useIsDesktop()
   const isAdmin = roles.includes('admin')
-  const canManage = isAdmin || roles.includes('shift_lead')
+  const canManage =
+    isAdmin || roles.includes('shift_lead') || roles.includes('super_admin')
   const canClearCancelled = canClearEventCancelled(roles)
   const [blockSelfAssign] = useState(() => blockSelfAssignProp ?? !eventId)
   const phoneLayout = variant !== 'cockpit' && !isDesktop
@@ -299,6 +300,7 @@ export function EventFormPage({
               viewerId: userId,
               responderIds: existing.responders.map((row) => row.responder_id),
               secondaryLeadIds: existing.secondary_leads.map((row) => row.user_id),
+              roles,
             }),
         )
         assignedVolunteerBlockedRef.current = blocked
@@ -372,7 +374,7 @@ export function EventFormPage({
     // wipe an in-progress אירוע חדש.
     // loadState intentionally omitted — only boot / switch eventId
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canManage, eventId, userId, leadName, leadCallsign, focusResponderId, variant])
+  }, [canManage, eventId, userId, leadName, leadCallsign, focusResponderId, variant, roles])
 
   useEffect(() => {
     if (loadState !== 'ready' || !focusResponderId) return
@@ -610,6 +612,7 @@ export function EventFormPage({
         draft: draftToSave,
         shiftLeadId: user.id,
         viewerId: user.id,
+        roles,
         vehicleKinds: currentLookups.vehicleKinds,
         districts: currentLookups.districts,
         roads: currentLookups.roads,

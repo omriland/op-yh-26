@@ -38,10 +38,26 @@ export function isShiftBornEventEmpty(event: ShiftBornEventSnapshot): boolean {
   )
 }
 
+/**
+ * Shift-born documentation stamp.
+ * Missing פירוט הטיפול always stays pending — never סיימת לתעד / הושלם.
+ */
 export function shiftBornFillStamp(event: ShiftBornEventSnapshot): StampDescriptor {
+  if (blank(event.treatment_detail)) {
+    return { label: 'ממתין לתיעוד', tone: 'pending' }
+  }
   if (event.status === 'done') return { label: 'הושלם', tone: 'done' }
   if (isShiftBornEventEmpty(event)) return { label: 'ממתין לתיעוד', tone: 'draft' }
   return { label: 'טיוטה נשמרה', tone: 'draft' }
+}
+
+/** Mine inbox: shift-born stays pending until פירוט הטיפול is filled and status is done. */
+export function mineShiftBornIsOpen(event: {
+  status: EventStatus
+  treatment_detail: string | null | undefined
+}): boolean {
+  if (blank(event.treatment_detail)) return true
+  return event.status !== 'done'
 }
 
 export function lastSavedByLabel(name: string | null | undefined): string | null {

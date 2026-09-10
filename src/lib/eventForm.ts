@@ -1047,6 +1047,8 @@ export async function saveEventForm(input: {
   draft: EventFormDraft
   shiftLeadId: string
   viewerId?: string
+  /** When `super_admin` is present, assigned-as-responder edit block is skipped. */
+  roles?: readonly string[]
   vehicleKinds: LookupOption[]
   districts: LookupOption[]
   roads?: LookupOption[]
@@ -1084,6 +1086,7 @@ export async function saveEventForm(input: {
       viewerId: input.viewerId ?? shiftLeadId,
       responderIds: draft.responders.map((row) => row.responder_id),
       secondaryLeadIds: (draft.secondary_leads ?? []).map((row) => row.user_id),
+      roles: input.roles,
     })
   ) {
     return { ok: false, error: ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR }

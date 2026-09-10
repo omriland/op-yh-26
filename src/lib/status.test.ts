@@ -150,6 +150,10 @@ describe('leadKmPendingNote', () => {
     expect(leadKmPendingNote(null, null)).toBeNull()
   })
 
+  it('never shows the lead-KM note on shift-origin events', () => {
+    expect(leadKmPendingNote('done', null, 'shift')).toBeNull()
+  })
+
   it('keeps done-without-KM events on ממתינים לתיעוד', () => {
     expect(mineInboxIsOpen('pending', null)).toBe(true)
     expect(mineInboxIsOpen('done', null)).toBe(true)

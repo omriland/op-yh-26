@@ -10,6 +10,7 @@ import { EmptyState } from './components/ui/EmptyState'
 import { EventListSkeleton } from './components/ui/Skeleton'
 import { ToastProvider } from './components/ui/Toast'
 import { Button } from './components/ui/Button'
+import { AlertDialog } from './components/ui/AlertDialog'
 import { OtpGate } from './components/otp/OtpGate'
 import { ShieldAlert } from 'lucide-react'
 import {
@@ -67,6 +68,14 @@ import { appAnalyticsPath } from './lib/posthogAppPath'
 import { isAndroidDownloadPath } from './lib/androidDownload'
 import { isIosDownloadPath } from './lib/iosDownload'
 import { takePostLoginPath } from './lib/postLoginPath'
+import {
+  canSeeMissingKmAlert,
+  fetchEventsMissingLeadKmCount,
+  missingKmAlertMessage,
+  readMissingKmPopupDismissed,
+  shouldShowMissingKmAlert,
+  writeMissingKmPopupDismissed,
+} from './lib/missingKmAlert'
 import { isDeleteDataPath } from './lib/deleteDataPage'
 import { verifyPrivacyPageAccess } from './lib/privacyPageAccess'
 import { isPrivacyPath, parsePrivacyTokenFromSearch } from './lib/privacyPageToken'
@@ -264,11 +273,26 @@ function Gate() {
     impersonating: superAdminChrome.impersonating,
     previewing: superAdminChrome.previewing,
   })
-  const manages = isAdmin || roles.includes('shift_lead')
+  const manages =
+    isAdmin || roles.includes('shift_lead') || roles.includes('super_admin')
   const responds = roles.includes('responder')
   // Leads also go on events — same personal list/fill surface, not only the responder role.
   const hasMineList = responds || roles.includes('shift_lead')
   const fallbackView: AppView = defaultHomeView({ manages, hasMineList, isAdmin })
+  const [missingKmPopup, setMissingKmPopup] = useState<{ count: number } | null>(null)
+
+  useEffect(() => {
+    if (!session || loginOtp.state !== 'ok' || passwordSetupReason) return
+    if (!canSeeMissingKmAlert(roles) || readMissingKmPopupDismissed()) return
+    let active = true
+    fetchEventsMissingLeadKmCount().then((count) => {
+      if (!active || count == null || !shouldShowMissingKmAlert(count)) return
+      setMissingKmPopup({ count })
+    })
+    return () => {
+      active = false
+    }
+  }, [session, loginOtp.state, passwordSetupReason, roles])
 
   useEffect(() => {
     const sync = () =>
@@ -1168,6 +1192,42 @@ function Gate() {
       ) : null}
       </>
       )}
+      <AlertDialog
+        open={missingKmPopup !== null}
+        status="warning"
+        title="לתשומת ליבך"
+        onClose={() => {
+          writeMissingKmPopupDismissed()
+          setMissingKmPopup(null)
+        }}
+        footer={
+          <>
+            <Button
+              variant="primary"
+              onClick={() => {
+                writeMissingKmPopupDismissed()
+                setMissingKmPopup(null)
+                navigate('events')
+              }}
+            >
+              להזנת הק"מ
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                writeMissingKmPopupDismissed()
+                setMissingKmPopup(null)
+              }}
+            >
+              תזכירו לי מאוחר יותר
+            </Button>
+          </>
+        }
+      >
+        {missingKmPopup ? (
+          <p className="t-body">{missingKmAlertMessage(missingKmPopup.count)}</p>
+        ) : null}
+      </AlertDialog>
     </AppShell>
   )
 }

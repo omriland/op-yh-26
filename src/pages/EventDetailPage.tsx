@@ -18,6 +18,7 @@ import { saveEventGeocodePin } from '../lib/cockpit'
 import { SYSTEM_DISTRICT_NAMES, isUrbanRoadName } from '../lib/systemDistricts'
 import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
 import { mineFillCtaLabel, cancelledStamp, leadKmPendingNote, mineParticipationStamp, participationStamp, viewerStamp } from '../lib/status'
+import { shiftBornFillStamp } from '../lib/shiftBornEvents'
 import { StampChip } from '../components/ui/StampChip'
 import { StampWithNote } from '../components/ui/StampWithNote'
 import {
@@ -63,8 +64,11 @@ export function EventDetailPage({
 }: EventDetailPageProps) {
   const { user, roles } = useAuth()
   const { show } = useToast()
-  const canEdit = Boolean(onEdit) && (roles.includes('admin') || roles.includes('shift_lead'))
-  const canSeeLeadKm = roles.includes('admin') || roles.includes('shift_lead')
+  const canEdit =
+    Boolean(onEdit) &&
+    (roles.includes('admin') || roles.includes('shift_lead') || roles.includes('super_admin'))
+  const canSeeLeadKm =
+    roles.includes('admin') || roles.includes('shift_lead') || roles.includes('super_admin')
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -208,11 +212,12 @@ export function EventDetailPage({
   })
   const mine = event.responders.find((row) => row.responder_id === user?.id)?.status ?? null
   const mineKm = event.responders.find((row) => row.responder_id === user?.id)?.total_km ?? null
-  const mineLeadKmNote = leadKmPendingNote(mine, mineKm)
+  const mineLeadKmNote = leadKmPendingNote(mine, mineKm, event.origin)
   const assignedEditBlocked = isAssignedVolunteerEventEditBlocked({
     viewerId: user?.id,
     responderIds: event.responders.map((row) => row.responder_id),
     secondaryLeadIds: mapSecondaryLeadRows(event.secondary_leads).map((row) => row.user_id),
+    roles,
   })
   const doneCount = event.responders.filter((row) => row.status === 'done').length
   // Shift-born events carry event-keyed plates, but a responder filling their own
@@ -287,7 +292,20 @@ export function EventDetailPage({
         </div>
         <span className="event-stamps">
           {event.is_cancelled ? <StampChip {...cancelledStamp()} header /> : null}
-          <StampWithNote {...viewerStamp(event.status, mine, mineKm)} header note={mineLeadKmNote} />
+          <StampWithNote
+            {...(event.origin === 'shift'
+              ? shiftBornFillStamp({
+                  status: event.status,
+                  police_event_id: event.police_event_id,
+                  treatment_detail: event.treatment_detail,
+                  treatment_notes: event.treatment_notes,
+                  location: event.location,
+                  treated_count: event.shared_treated?.length ?? 0,
+                })
+              : viewerStamp(event.status, mine, mineKm))}
+            header
+            note={mineLeadKmNote}
+          />
         </span>
       </div>
 
@@ -432,6 +450,7 @@ export function EventDetailPage({
                     manages: canSeeLeadKm,
                   })}
                   showTreatedPlates={event.origin !== 'shift'}
+                  origin={event.origin}
                 />
               )
             })
@@ -483,6 +502,7 @@ function ResponderCard({
   showLeadKm,
   showOdometers,
   showTreatedPlates,
+  origin,
 }: {
   responder: EventResponderDetail
   eventDate: string
@@ -494,6 +514,7 @@ function ResponderCard({
   showLeadKm: boolean
   showOdometers: boolean
   showTreatedPlates: boolean
+  origin: 'manual' | 'shift'
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const name = responder.profile?.full_name ?? 'מתנדב'
@@ -501,6 +522,10 @@ function ResponderCard({
     .map((row) => `${row.kind?.name ?? 'רכב'} × ${row.quantity}`)
     .join(', ')
   const bodyId = `responder-card-${responder.id}`
+  const viewerStampValue =
+    origin === 'shift'
+      ? participationStamp(responder.status, true)
+      : mineParticipationStamp(responder.status, responder.total_km)
 
   return (
     <article className={['card', open ? 'stack-3' : ''].join(' ')}>
@@ -524,10 +549,10 @@ function ResponderCard({
             </span>
           </span>
           <StampWithNote
-            {...(isViewer
-              ? mineParticipationStamp(responder.status, responder.total_km)
-              : participationStamp(responder.status, false))}
-            note={isViewer ? leadKmPendingNote(responder.status, responder.total_km) : null}
+            {...(isViewer ? viewerStampValue : participationStamp(responder.status, false))}
+            note={
+              isViewer ? leadKmPendingNote(responder.status, responder.total_km, origin) : null
+            }
           />
           <ChevronDown
             size={20}

@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-07 (Android 0.3.32 force-update live)
+Last updated: 2026-09-10 (delete null Event ID events; demo event data cleanup; vehicles admin-only; KM backfill + אחמ״ש alerts; shift-born stamp/KM note; super_admin edit bypass; Fuel Mgmt white cards)
 
 ## What this is
 
@@ -43,6 +43,14 @@ Repo: `yhpz-2026`
 - **Kilometers for calculations / refunds:** only `event_responders.total_km` (lead-entered). `odometer_start` / `odometer_end` are logging / future discrepancy only — never use them for sums, reports, or refunds.
 - **Responder fill odometer:** user enters both `odometer_start` and `odometer_end`. Lead `total_km` is never shown on fill or to plain responders on event detail; complete still requires lead `total_km != null` (generic error). Spec: `2026-08-15-yahpaz-revert-auto-odometer-end-design.md` (supersedes auto-odometer-end).
 - **Odometer field labels (HE):** `מד אוץ התחלה` / `מד אוץ סיום` (not `ק"מ התחלה` / `ק"מ סיום`). Lead km field remains `קילומטרים`.
+- **Vehicles (2026-09-09):** Responders view-only on profile (may still set רכב ראשי via `set_default_vehicle` security definer). Add/edit/archive/delete only via admin panel. RLS `vehicles_write_admin` (admin only; was own-or-admin). Migration `20260909210000_vehicles_admin_only_write.sql`.
+- **KM backfill (2026-09-09):** One-off on prod: for `events.created_at < 2026-09-01`, set null `event_responders.total_km` to varied 8–55 (`8 + abs(hashtext(id)) % 48`); stamped overdue/fill clocks to event `created_at` to avoid mail spam. **169 rows** updated.
+- **Demo event data cleanup (2026-09-09):** One-off on prod for demo readiness. Deleted **2** empty shell events (no police id/type/location/road/treatment/notes/plates). Backfilled invented Hebrew TLV/demo details on most incomplete events (police id, type, district, road, location, patrol, notes, treatment; responder treatment/plate/route where needed). Left **~32** intentionally incomplete (~12%). Rough before→after: 274→272 total; complete 83→~240; incomplete 189→~32. Invented demo text only — not real PII.
+- **Delete events without Event ID (2026-09-10):** One-off on prod: hard-deleted **8** null/blank `police_event_id` (UI מספר אירוע); 280→272; 0 remaining.
+- **Missing lead-KM alerts (2026-09-09):** For `shift_lead` / `admin` when ≥2 events have any responder with `total_km` null: Events page top banner + login/refresh popup (`תזכירו לי מאוחר יותר` = sessionStorage dismiss; banner always while condition holds). RPC `count_events_missing_lead_km()`.
+- **Shift-born UX (2026-09-09):** Never show `אחמ״ש טרם הזין ק״מ` on `origin=shift`. Missing `treatment_detail` → `ממתין לתיעוד` / pending mine inbox — never `סיימת לתעד`.
+- **Super admin edit (2026-09-09):** `super_admin` bypasses `isAssignedVolunteerEventEditBlocked` (admins who are also responders stay blocked).
+- **Fuel Mgmt hub cards (2026-09-09):** Same `ReportCatalogCard` as דוחות; forced white `default` variant only.
 
 ### Event statuses
 
@@ -66,11 +74,16 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 ## Current app state
 
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
-- **Latest Netlify prod (2026-09-07):** commit `48cca83` on `infra/bootstrap` — deploy `6a9e616c6edcd300083c1a7f` **ready** at https://yahpz.com. Force-update Android to **0.3.32** (`minVersionCode` 43, APK `yahpaz-0.3.32.apk` 64,659,293 bytes). Prior same day: `48e8c36` 0.3.31; earlier: `7f778d5` PR #37 field limits.
+- **Latest Netlify prod (2026-09-09):** Git CD deploy `6aa1085e74778d0008dc5952` **ready**, published 2026-09-09T07:20:00Z at https://yahpz.com, commit `919a819` on `infra/bootstrap` — Force-update Android to signed **0.3.34**. Prior web commit `ff53b7a` Prepare Yahpaz web production release. CLI `npx netlify deploy --prod` failed JSONHTTPError Not Found; **Git CD is the live path.** Prior prod (2026-09-07): `48cca83` / deploy `6a9e616c6edcd300083c1a7f` Android 0.3.32.
+- **Android force-update (2026-09-09):** 0.3.34 `versionCode` 45; `minVersionCode` 45; APK `yahpaz-0.3.34.apk` 64,659,293 bytes at https://yahpz.com/android/yahpaz-0.3.34.apk. Android commit `47cb3a6` on origin/main.
+- **Prod smoke (2026-09-09):** yahpz.com 200 HE/RTL; `version.json` 200 with 0.3.34 / min 45; APK 200 64,659,293 bytes.
+- **Migrations (2026-09-09):** `event_delete_with_responders` applied (remote name `20260909071841`; local file `20260909045235_event_delete_with_responders.sql`). Partner webhook cron **not** replayed (`20260908034425` already present).
+- **Edge (2026-09-09):** `responder-fill` ACTIVE v21 (`verify_jwt` true); `responder-api` ACTIVE v7 (`verify_jwt` false).
+- **iOS Ad Hoc live (2026-09-09):** Git CD commit `07853fe` on `infra/bootstrap`. Signed IPA build **14** (`1.0.0`), **6,076,317** bytes, Ad Hoc profile 2 devices expires 2027-08-17. Live `minBuild`/`latestBuild` **14** at https://yahpz.com/ios/version.json; IPA https://yahpz.com/ios/Yahpaz.ipa 200 6076317; manifest https://yahpz.com/ios/manifest.plist 200. Archive+export succeeded after Apple ID in Xcode. iOS source `dcd4736` on `feat/android-parity` (`CFBundleVersion=$(CURRENT_PROJECT_VERSION)`). Team `477WWCHXU7`, bundle `com.yahpz.responder`.
 - Core flows: auth, events, responder fill, admin users + closed lists
 - **Partner Telegram bot:** MCP-style connect via `/oauth/authorize?client_id&state`. **Profile חיבורים** (2026-09-04, PR #28): re-enabled + empty-state **קישור לטלגרם** starts the same OAuth consent flow (uses `list_apps` + `buildPartnerAuthorizeUrl` with current origin). Bot-initiated link still works. Spec: `2026-09-04-yahpaz-profile-telegram-link-design.md` (supersedes 2026-08-30 revoke-only). Fill API unchanged (`responder:fill`, 60-day token). Contract `/partner-api/` **v1.3**. Edge `partner-auth` responds live (Hebrew 401 without session); GitHub deploy workflow still skips when `SUPABASE_ACCESS_TOKEN` secret is missing.
-- **Telegram live trip tracking (2026-09-05, PR #33):** `responder-api` `start_live_track` / `stop_live_track` mint/clear the same `track_token_hash` the SMS flow uses; bot pings existing `responder-track` `ping`. Completing a report also stops tracking (fail-open). Reuses `responder:fill` grant; no new consent. Spec: `2026-09-04-yahpaz-telegram-live-trip-tracking-design.md`. **Blocked on Edge redeploy** — GitHub workflow now deploys `responder-api` + `responder-track` (`--no-verify-jwt`) but still needs repo secret `SUPABASE_ACCESS_TOKEN`.
-- **Assignment webhook Part B (2026-09-05, PR #34):** on `event_responders` insert, enqueue `assignment_created` to `partner_webhook_events` for each active unexpired grant + configured `oauth_clients.webhook_url`. Enqueue trigger is fail-open (assignment insert never rolls back). Minute `pg_cron` → `partner-auth` `deliver_webhooks` (HMAC-SHA256 `X-Yahpaz-Signature`, backoff). Admin sets URL + one-time `webhook_secret` on Partner Bot settings. Migration `20260905120000_partner_webhook_events.sql` (idempotent). Spec/plan: `2026-09-04-yahpaz-profile-telegram-link-design.md` Part B, `2026-09-05-yahpaz-partner-assignment-webhook.md`. **Blocked on that migration + Edge `partner-auth` redeploy** (workflow applies the one webhook SQL file; same `yahpaz_service_role_key` vault secret as overdue-fill cron).
+- **Telegram live trip tracking (2026-09-05, PR #33):** `responder-api` `start_live_track` / `stop_live_track` mint/clear the same `track_token_hash` the SMS flow uses; bot pings existing `responder-track` `ping`. Completing a report also stops tracking (fail-open). Reuses `responder:fill` grant; no new consent. Spec: `2026-09-04-yahpaz-telegram-live-trip-tracking-design.md`. **`responder-api` ACTIVE v7** (`verify_jwt` false, 2026-09-09). GitHub workflow still needs repo secret `SUPABASE_ACCESS_TOKEN` for future deploys of `responder-api` + `responder-track` (`--no-verify-jwt`).
+- **Assignment webhook Part B (2026-09-05, PR #34):** on `event_responders` insert, enqueue `assignment_created` to `partner_webhook_events` for each active unexpired grant + configured `oauth_clients.webhook_url`. Enqueue trigger is fail-open (assignment insert never rolls back). Minute `pg_cron` → `partner-auth` `deliver_webhooks` (HMAC-SHA256 `X-Yahpaz-Signature`, backoff). Admin sets URL + one-time `webhook_secret` on Partner Bot settings. Migration `20260905120000_partner_webhook_events.sql` (idempotent). Spec/plan: `2026-09-04-yahpaz-profile-telegram-link-design.md` Part B, `2026-09-05-yahpaz-partner-assignment-webhook.md`. **2026-09-09:** webhook cron not replayed (`20260908034425` already present). Edge `partner-auth` redeploy still needs `SUPABASE_ACCESS_TOKEN`.
 - Desktop forms: ⌘/Ctrl+Enter primary submit + hint (`useDesktopFormSubmit`, `SubmitShortcutHint`) — desktop ≥1025px only; not on confirm dialogs
 - Spec: `docs/superpowers/specs/2026-08-10-desktop-form-submit-shortcut-design.md`
 - **Event create draft survival (2026-09-03):** `EventFormPage` boot effect depends on stable `userId` / lead name+callsign (not auth object refs). Typed אירוע חדש is kept across tab-focus `TOKEN_REFRESHED`. Local stash (`eventFormStash`) runs on all viewports (was mobile-only).
@@ -86,7 +99,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Default vehicle (2026-09-01):** `vehicles.is_default` (רכב ראשי). Profile star when 2+ active cars; `set_default_vehicle` RPC; new `event_responders` insert copies that plate; fill + personal-shift preselect it. Spec: `2026-09-01-yahpaz-default-vehicle-design.md`. **Not yet applied on prod** — UI fallback retries without `is_default` so the vehicle list still loads.
 - **24-hour time (2026-09-03):** Event time inputs are digit-masked `HH:mm` (not native `type="time"`, which followed device 12/24). Display formatters use `hour12: false` + `hourCycle: 'h23'`. Same pattern as Android `TimeField`.
 - **Form field limits (2026-09-05):** Event `מספר אירוע` max 7 digits (`maxLength` + `policeEventIdForInput`). Lead `קילומטרים` max 3 digits. Create-event `או״ק ניידת` max 16 characters. Treated plates accept **5–8** digits (was 7–8); format 5=`XX-XXX`, 6=`XXX-XXX`. Error copy: `יש להזין 5 עד 8 ספרות.`
-- **Latest `infra/bootstrap` tip (2026-09-07):** `48cca83` — AlertDialog wrapper + `@heroui/react` so the already-pushed 0.3.32 EventFormPage confirm can build. Prior: `54c8522` 0.3.32 force-update (Netlify failed until this follow-up); `48e8c36` 0.3.31.
+- **Latest `infra/bootstrap` tip (2026-09-09):** `919a819` Force-update Android to signed 0.3.34. Prior: `ff53b7a` Prepare Yahpaz web production release; `48cca83` AlertDialog / 0.3.32.
 
 ## Email (Resend)
 
@@ -167,11 +180,12 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 2. Later: add/verify `yahpz.com` on Resend when plan allows
 3. Set `VITE_GOOGLE_MAPS_API_KEY` in Netlify + `.env.local` for Places autocomplete
 4. Smoke phone OTP on production (enable per user → SMS → login / משתמשים gates)
-5. Add GitHub repo secret `SUPABASE_ACCESS_TOKEN` and re-run **Deploy Edge Functions** so the webhook migration + `partner-auth` / `responder-api` / `responder-track` go live (PRs #33/#34)
+5. Add GitHub repo secret `SUPABASE_ACCESS_TOKEN` and re-run **Deploy Edge Functions** for remaining functions (`partner-auth`, `responder-track`). `responder-api` is already ACTIVE v7; webhook cron `20260908034425` already present (not replayed 2026-09-09).
 
 ## Netlify CD
 
 - Linked (2026-08-09): GitHub `omriland/yhpz-2026`, branch `infra/bootstrap`
+- **Live prod path (2026-09-09):** Git CD. Do not rely on `npx netlify deploy --prod` (failed JSONHTTPError Not Found that day).
 - Build env set: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (all contexts); `NODE_VERSION=22`
 - **Security headers (2026-08-16):** `netlify.toml` sets HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` (camera/mic/geo/payment off). CSP deferred (Fonts/Maps/PostHog/Supabase). **LIVE on https://yahpz.com** (merged PR #9 → `infra/bootstrap`; browser smoke PASS, clean console).
 - **Edge CORS allowlist (2026-08-16):** functions reject `*`; reflect Origin only for `yahpz.com` / www, `yahpaz-2026.netlify.app`, Netlify `*--yahpaz-2026.netlify.app` previews, and `localhost:5173` / `127.0.0.1:5173`. Shared: `supabase/functions/_shared/cors.ts`. **Code on `infra/bootstrap`; live Edge still `*` until redeploy** (needs `SUPABASE_ACCESS_TOKEN`). Workflow: `.github/workflows/deploy-edge-functions.yml` (skips if secret missing).

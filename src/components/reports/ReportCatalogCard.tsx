@@ -1,9 +1,11 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
+  BarChart3,
   ChevronLeft,
   ClipboardList,
   Copy,
+  Fuel,
   Gauge,
   GitCompareArrows,
   Users,
@@ -21,6 +23,8 @@ const ICONS: Record<string, LucideIcon> = {
   km_discrepancy: GitCompareArrows,
   km_exceptions: Gauge,
   duplicate_events: Copy,
+  fuel_allocate: Fuel,
+  fuel_usage: BarChart3,
 }
 
 type ReportCatalogCardProps = {
@@ -30,6 +34,9 @@ type ReportCatalogCardProps = {
   /** 0-based position in the visible catalog — drives repeating color cycle. */
   index: number
   onOpen: () => void
+  /** Force a palette slot (Fuel Mgmt uses white `default` only). */
+  variant?: ReportCatalogVariant
+  ctaLabel?: string
 }
 
 export function reportCatalogIcon(id: string): LucideIcon {
@@ -40,9 +47,17 @@ export function reportCatalogVariant(index: number): ReportCatalogVariant {
   return REPORT_CATALOG_VARIANTS[index % REPORT_CATALOG_VARIANTS.length]!
 }
 
-export function ReportCatalogCard({ id, title, includes, index, onOpen }: ReportCatalogCardProps) {
+export function ReportCatalogCard({
+  id,
+  title,
+  includes,
+  index,
+  onOpen,
+  variant: forcedVariant,
+  ctaLabel = OPEN_LABEL,
+}: ReportCatalogCardProps) {
   const Icon = reportCatalogIcon(id)
-  const variant = reportCatalogVariant(index)
+  const variant = forcedVariant ?? reportCatalogVariant(index)
 
   return (
     <button
@@ -54,7 +69,7 @@ export function ReportCatalogCard({ id, title, includes, index, onOpen }: Report
         <span className="report-catalog-card__title t-section">{title}</span>
         <span className="report-catalog-card__includes t-body">{includes}</span>
         <span className="report-catalog-card__cta t-body-strong">
-          {OPEN_LABEL}
+          {ctaLabel}
           <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
         </span>
       </span>

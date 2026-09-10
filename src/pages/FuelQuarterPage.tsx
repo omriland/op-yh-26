@@ -1,10 +1,24 @@
-import { BarChart3, ChevronRight, Fuel } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { FuelQuarterWorkbook } from '../components/admin/FuelQuarterWorkbook'
 import { FuelUsagePanel } from '../components/admin/FuelUsagePanel'
+import { ReportCatalogCard } from '../components/reports/ReportCatalogCard'
 import { Button } from '../components/ui/Button'
+import {
+  FUEL_ALLOCATION_INCLUDES,
+  FUEL_USAGE_INCLUDES,
+} from '../lib/fuelAllocationPolicy'
 
 type FuelPane = 'chooser' | 'allocate' | 'usage'
+
+const FUEL_ALLOCATE_INCLUDES = [
+  'ניהול חלוקת כרטיסי דלק לפי רבעון.',
+  'יתרות עוברות באופן אוטומטי לרבעון הבא.',
+  'ניתן להעביר יתרה שלילית או חיובית.',
+  FUEL_ALLOCATION_INCLUDES,
+].join('\n')
+
+const FUEL_USAGE_BODY = ['ק״מ, אירועים וליטרים לפי תקופה.', FUEL_USAGE_INCLUDES].join('\n')
 
 export function FuelQuarterPage() {
   const [pane, setPane] = useState<FuelPane>('chooser')
@@ -34,38 +48,26 @@ export function FuelQuarterPage() {
 
       <ul className="report-catalog">
         <li>
-          <button
-            type="button"
-            className="card report-catalog__card fuel-hub__card"
-            onClick={() => setPane('allocate')}
-          >
-            <Fuel size={24} strokeWidth={1.75} aria-hidden="true" />
-            <span className="t-section">לנהל ולהקצות כרטיסי דלק לרבעון</span>
-            <span className="t-body text-secondary">
-              ניהול חלוקת כרטיסי דלק לפי רבעון.
-              <br />
-              יתרות עוברות באופן אוטומטי לרבעון הבא.
-              <br />
-              ניתן להעביר יתרה שלילית או חיובית.
-              <br />
-              נספרים רק אירועים שתועדו במלואם.
-            </span>
-          </button>
+          <ReportCatalogCard
+            id="fuel_allocate"
+            title="לנהל ולהקצות כרטיסי דלק לרבעון"
+            includes={FUEL_ALLOCATE_INCLUDES}
+            index={0}
+            variant="default"
+            ctaLabel="לפתיחת ניהול ההקצאה"
+            onOpen={() => setPane('allocate')}
+          />
         </li>
         <li>
-          <button
-            type="button"
-            className="card report-catalog__card fuel-hub__card"
-            onClick={() => setPane('usage')}
-          >
-            <BarChart3 size={24} strokeWidth={1.75} aria-hidden="true" />
-            <span className="t-section">לראות / לייצא שימוש בדלק</span>
-            <span className="t-body text-secondary">
-              ק״מ, אירועים וליטרים לפי תקופה.
-              <br />
-              מוצגים כל האירועים עם ק״מ, גם אם תועדו חלקית.
-            </span>
-          </button>
+          <ReportCatalogCard
+            id="fuel_usage"
+            title="לראות / לייצא שימוש בדלק"
+            includes={FUEL_USAGE_BODY}
+            index={1}
+            variant="default"
+            ctaLabel="לפתיחת דוח השימוש"
+            onOpen={() => setPane('usage')}
+          />
         </li>
       </ul>
     </div>

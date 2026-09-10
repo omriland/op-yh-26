@@ -37,7 +37,7 @@ import {
   type EventStatus,
   type StampDescriptor,
 } from '../lib/status'
-import { shiftBornFillStamp } from '../lib/shiftBornEvents'
+import { shiftBornFillStamp, mineShiftBornIsOpen } from '../lib/shiftBornEvents'
 import {
   INCOMPLETE_FUEL_REFUND_NOTICE,
   shouldShowIncompleteFuelNotice,
@@ -87,6 +87,12 @@ import {
   eventHasMissingResponderKm,
   partitionIncompleteEvents,
 } from '../lib/eventIncomplete'
+import {
+  canSeeMissingKmAlert,
+  fetchEventsMissingLeadKmCount,
+  missingKmAlertMessage,
+  shouldShowMissingKmAlert,
+} from '../lib/missingKmAlert'
 
 type EventsPageProps = {
   scope: 'unit' | 'mine'
@@ -135,6 +141,26 @@ export function EventsPage({
   } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<EventListItem | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [missingKmCount, setMissingKmCount] = useState<number | null>(null)
+  const showMissingKmBanner =
+    scope === 'unit' &&
+    canSeeMissingKmAlert(roles) &&
+    missingKmCount != null &&
+    shouldShowMissingKmAlert(missingKmCount)
+
+  useEffect(() => {
+    if (scope !== 'unit' || !canSeeMissingKmAlert(roles)) {
+      setMissingKmCount(null)
+      return
+    }
+    let active = true
+    fetchEventsMissingLeadKmCount().then((count) => {
+      if (active) setMissingKmCount(count)
+    })
+    return () => {
+      active = false
+    }
+  }, [scope, roles, reloadKey, events])
 
   function openDeleteMenu(event: EventListItem, pointer: { x: number; y: number }) {
     setDeleteMenu({ event, ...pointer })
@@ -253,11 +279,7 @@ export function EventsPage({
       const mine = ownParticipation(event, user?.id)
       const ownKm = ownResponderKm(event, user?.id)
       if (scope === 'mine') {
-        // Finished fill always uses the responder stamp (סיימת לתעד / הושלם),
-        // including shift-born events that previously short-circuited to הושלם.
-        if (mine === 'done') {
-          return mineParticipationStamp(mine, ownKm)
-        }
+        // Shift-born: shared documentation stamp — never סיימת לתעד / lead-KM waiting.
         if (event.origin === 'shift') {
           return shiftBornFillStamp({
             status: event.status,
@@ -268,6 +290,9 @@ export function EventsPage({
             road_id: event.road?.name,
             treated_count: event.shared_treated?.length ?? 0,
           })
+        }
+        if (mine === 'done') {
+          return mineParticipationStamp(mine, ownKm)
         }
         return mineParticipationStamp(mine ?? 'pending', ownKm)
       }
@@ -290,6 +315,11 @@ export function EventsPage({
     },
     [scope, user?.id],
   )
+
+  function mineEventIsOpen(event: EventListItem): boolean {
+    if (event.origin === 'shift') return mineShiftBornIsOpen(event)
+    return mineInboxIsOpen(ownParticipation(event, user?.id), ownResponderKm(event, user?.id))
+  }
 
   const unitWindow = useMemo(() => {
     if (scope !== 'unit' || !events) return null
@@ -324,12 +354,8 @@ export function EventsPage({
 
     // Open assignments first — the responder's list is a to-do list.
     return [...filtered].sort((a, b) => {
-      const aOpen = mineInboxIsOpen(ownParticipation(a, user?.id), ownResponderKm(a, user?.id))
-        ? 0
-        : 1
-      const bOpen = mineInboxIsOpen(ownParticipation(b, user?.id), ownResponderKm(b, user?.id))
-        ? 0
-        : 1
+      const aOpen = mineEventIsOpen(a) ? 0 : 1
+      const bOpen = mineEventIsOpen(b) ? 0 : 1
       return aOpen - bOpen
     })
   }, [events, filter, query, scope, user?.id, searchIds, unitWindow])
@@ -339,10 +365,7 @@ export function EventsPage({
     if (scope !== 'mine' || !events) return null
     return partitionMineList(events, {
       dateOf: (event) => event.event_date,
-      bucket: (event) =>
-        mineInboxIsOpen(ownParticipation(event, user?.id), ownResponderKm(event, user?.id))
-          ? 'pending'
-          : 'logged',
+      bucket: (event) => (mineEventIsOpen(event) ? 'pending' : 'logged'),
       today: jerusalemToday(),
       windowsLoaded: loggedWindows,
     })
@@ -353,9 +376,7 @@ export function EventsPage({
   }, [loggedQuery, mineSections])
   const openMineCount = useMemo(() => {
     if (scope !== 'mine' || !events) return 0
-    return events.filter((event) =>
-      mineInboxIsOpen(ownParticipation(event, user?.id), ownResponderKm(event, user?.id)),
-    ).length
+    return events.filter((event) => mineEventIsOpen(event)).length
   }, [events, scope, user?.id])
 
   return (
@@ -402,6 +423,12 @@ export function EventsPage({
           ) : null}
         </div>
       )}
+
+      {showMissingKmBanner && missingKmCount != null ? (
+        <p className="banner banner--alert t-body" role="status">
+          {missingKmAlertMessage(missingKmCount)}
+        </p>
+      ) : null}
 
       {scope === 'unit' ? (
         <div className="events-toolbar">
@@ -744,7 +771,11 @@ function MineLoggedList({
               key={event.id}
               event={event}
               stamp={stampFor(event)}
-              leadKmNote={leadKmPendingNote(ownParticipation(event, userId), ownResponderKm(event, userId))}
+              leadKmNote={leadKmPendingNote(
+                ownParticipation(event, userId),
+                ownResponderKm(event, userId),
+                event.origin,
+              )}
               onOpen={onOpen}
             />
           ))}
@@ -791,7 +822,11 @@ function EventCards({
                 key={event.id}
                 event={event}
                 stamp={stampFor(event)}
-                leadKmNote={leadKmPendingNote(mineStatus, ownResponderKm(event, userId))}
+                leadKmNote={leadKmPendingNote(
+                  mineStatus,
+                  ownResponderKm(event, userId),
+                  event.origin,
+                )}
                 onOpen={onOpen}
                 onFill={fillLabel && onFill ? onFill : undefined}
                 fillLabel={fillLabel ?? undefined}
@@ -840,7 +875,11 @@ function EventCards({
             key={event.id}
             event={event}
             stamp={stampFor(event)}
-            leadKmNote={leadKmPendingNote(mineStatus, ownResponderKm(event, userId))}
+            leadKmNote={leadKmPendingNote(
+              mineStatus,
+              ownResponderKm(event, userId),
+              event.origin,
+            )}
             onOpen={onOpen}
             onFill={fillLabel && onFill ? onFill : undefined}
             fillLabel={fillLabel ?? undefined}

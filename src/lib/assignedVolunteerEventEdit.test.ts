@@ -15,6 +15,28 @@ describe('isAssignedVolunteerEventEditBlocked', () => {
     ).toBe(true)
   })
 
+  it('lets super_admin edit even when assigned as a responder', () => {
+    expect(
+      isAssignedVolunteerEventEditBlocked({
+        viewerId: 'me',
+        responderIds: ['me'],
+        secondaryLeadIds: [],
+        roles: ['admin', 'super_admin'],
+      }),
+    ).toBe(false)
+  })
+
+  it('still blocks admin without super_admin when assigned as a responder', () => {
+    expect(
+      isAssignedVolunteerEventEditBlocked({
+        viewerId: 'me',
+        responderIds: ['me'],
+        secondaryLeadIds: [],
+        roles: ['admin', 'shift_lead'],
+      }),
+    ).toBe(true)
+  })
+
   it('does not block a secondary אחמ״ש who is not a responder', () => {
     expect(
       isAssignedVolunteerEventEditBlocked({
