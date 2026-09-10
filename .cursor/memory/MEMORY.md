@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-10 (prod deploy `4ebf78f` / `6aa21923f7e52f0008130a16`; vehicles admin-only; KM alerts; shift-born UX; super_admin edit; Fuel white cards)
+Last updated: 2026-09-10 (prod tip `d1a33a0` / deploy `6aa21986240c820008666778`; feature ship `76b3440`+`4ebf78f`)
 
 ## What this is
 
@@ -74,7 +74,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 ## Current app state
 
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
-- **Latest Netlify prod (2026-09-10):** Git CD deploy `6aa21923f7e52f0008130a16` **ready**, published 2026-09-10T02:43:44Z at https://yahpz.com, commit `4ebf78f` on `infra/bootstrap` — vehicles admin-only + missing-KM alerts + shift-born UX + super_admin edit + Fuel white cards (feature commit `76b3440`; follow-up fixed unused `useRef` so prod `tsc -b` passed). Prior failed attempt: `6aa218869f0f4e0008ede652` error on `76b3440`. **Git CD is the live path.** Prior tip before this ship: `f24d7b5`.
+- **Latest Netlify prod (2026-09-10):** Git CD deploy `6aa21986240c820008666778` **ready**, published 2026-09-10T02:45:01Z at https://yahpz.com, tip commit `d1a33a0` on `infra/bootstrap` (memory note). Feature ship: `76b3440` + build fix `4ebf78f` (deploy `6aa21923f7e52f0008130a16`); first `76b3440` attempt `6aa218869f0f4e0008ede652` errored on unused `useRef`. **Git CD is the live path.**
 - **Android force-update (2026-09-09):** 0.3.34 `versionCode` 45; `minVersionCode` 45; APK `yahpaz-0.3.34.apk` 64,659,293 bytes at https://yahpz.com/android/yahpaz-0.3.34.apk. Android commit `47cb3a6` on origin/main.
 - **Prod smoke (2026-09-09):** yahpz.com 200 HE/RTL; `version.json` 200 with 0.3.34 / min 45; APK 200 64,659,293 bytes.
 - **Migrations (2026-09-09):** `event_delete_with_responders` applied (remote name `20260909071841`; local file `20260909045235_event_delete_with_responders.sql`). Partner webhook cron **not** replayed (`20260908034425` already present).
@@ -99,7 +99,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Default vehicle (2026-09-01):** `vehicles.is_default` (רכב ראשי). Profile star when 2+ active cars; `set_default_vehicle` RPC; new `event_responders` insert copies that plate; fill + personal-shift preselect it. Spec: `2026-09-01-yahpaz-default-vehicle-design.md`. **Not yet applied on prod** — UI fallback retries without `is_default` so the vehicle list still loads.
 - **24-hour time (2026-09-03):** Event time inputs are digit-masked `HH:mm` (not native `type="time"`, which followed device 12/24). Display formatters use `hour12: false` + `hourCycle: 'h23'`. Same pattern as Android `TimeField`.
 - **Form field limits (2026-09-05):** Event `מספר אירוע` max 7 digits (`maxLength` + `policeEventIdForInput`). Lead `קילומטרים` max 3 digits. Create-event `או״ק ניידת` max 16 characters. Treated plates accept **5–8** digits (was 7–8); format 5=`XX-XXX`, 6=`XXX-XXX`. Error copy: `יש להזין 5 עד 8 ספרות.`
-- **Latest `infra/bootstrap` tip (2026-09-10):** `4ebf78f` Fix unused useRef for Netlify build; prior `76b3440` vehicles admin-only / KM alerts / shift-born UX.
+- **Latest `infra/bootstrap` tip (2026-09-10):** `d1a33a0` Record prod deploy; prior `4ebf78f` useRef build fix; `76b3440` vehicles admin-only / KM alerts / shift-born UX.
 
 ## Email (Resend)
 
