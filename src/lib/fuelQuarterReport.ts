@@ -204,7 +204,9 @@ async function fetchParticipationsInQuarter(
       `
       responder_id,
       total_km,
-      events!inner(created_at, status, frozen_over_60km, frozen_suspicious_duplicate)
+      frozen_over_60km,
+      frozen_suspicious_duplicate,
+      events!inner(created_at, status)
     `,
     )
     .eq('events.status', 'done')
@@ -217,25 +219,19 @@ async function fetchParticipationsInQuarter(
   type Row = {
     responder_id: string
     total_km: number | null
+    frozen_over_60km?: boolean
+    frozen_suspicious_duplicate?: boolean
     events:
-      | {
-          created_at: string
-          status: EventStatus
-          frozen_over_60km?: boolean
-          frozen_suspicious_duplicate?: boolean
-        }
-      | {
-          created_at: string
-          status: EventStatus
-          frozen_over_60km?: boolean
-          frozen_suspicious_duplicate?: boolean
-        }[]
+      | { created_at: string; status: EventStatus }
+      | { created_at: string; status: EventStatus }[]
   }
 
   return ((data ?? []) as Row[]).flatMap((row) => {
     const event = Array.isArray(row.events) ? row.events[0] : row.events
     if (!event || !includeEventInFuelAllocation(event.status)) return []
-    if (event.frozen_over_60km || event.frozen_suspicious_duplicate) return []
+    // Per participation: a frozen teammate on the same event still gets nothing,
+    // but this responder's justified km is allocated.
+    if (row.frozen_over_60km || row.frozen_suspicious_duplicate) return []
     return [
       {
         responder_id: row.responder_id,

@@ -382,10 +382,18 @@ function visibleCommands(
   return (kind.commands ?? []).filter((command) => !command.visible || command.visible(row, viewer))
 }
 
-function ReportTitle({ row, value }: { row: ReportTableRow; value: string }) {
+function ReportTitle({
+  row,
+  value,
+  viewer,
+}: {
+  row: ReportTableRow
+  value: string
+  viewer: ReportViewer
+}) {
   return (
     <span className="event-card__type">
-      <EventFrozenMark flags={row.freeze} />
+      <EventFrozenMark event={row.freeze} viewer={viewer} />
       <span>{value}</span>
     </span>
   )
@@ -475,7 +483,7 @@ function ReportTable({
                       onAction={onAction}
                     />
                   ) : index === 0 ? (
-                    <ReportTitle row={row} value={value} />
+                    <ReportTitle row={row} value={value} viewer={viewer} />
                   ) : (
                     value
                   )}
@@ -522,7 +530,7 @@ function ReportCard({
     isAction: Boolean(actionId && column.id === actionId),
   }))
 
-  const titleNode = <ReportTitle row={row} value={title} />
+  const titleNode = <ReportTitle row={row} value={title} viewer={viewer} />
   const commandBar = (
     <ReportCommandButtons commands={commands} row={row} onCommand={onCommand} />
   )

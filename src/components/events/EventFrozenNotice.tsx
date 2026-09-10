@@ -1,20 +1,35 @@
 import { Snowflake } from 'lucide-react'
-import { freezeNoticeHe, isEventFrozen, type EventFreezeFlags } from '../../lib/eventFreeze'
+import {
+  freezeNoticeHe,
+  freezeViewFor,
+  participationFreezeView,
+  type FreezeSource,
+  type FreezeViewer,
+  type ResponderFreezeRow,
+} from '../../lib/eventFreeze'
 
 type EventFrozenNoticeProps = {
-  flags: EventFreezeFlags | null | undefined
+  /** Event row, with its participations when the projection carries them. */
+  event?: FreezeSource | null
+  /** One volunteer's record — used on the responder sections of event detail. */
+  participation?: ResponderFreezeRow | null
+  viewer?: FreezeViewer | null
 }
 
 /**
  * Always-visible freeze line for a card or row.
  *
- * A frozen event is excluded from the quarterly fuel refund, so its reason must
- * be readable without hover or focus — the field device has no pointer. The
- * snowflake stays as the glance-level mark; this line carries the words.
+ * A frozen participation is excluded from the quarterly fuel refund, so its
+ * reason must be readable without hover or focus — the field device has no
+ * pointer. The snowflake stays as the glance-level mark; this line carries the
+ * words. Same audience rules as `EventFrozenMark`.
  */
-export function EventFrozenNotice({ flags }: EventFrozenNoticeProps) {
-  if (!isEventFrozen(flags)) return null
-  const notice = freezeNoticeHe(flags)
+export function EventFrozenNotice({ event, participation, viewer }: EventFrozenNoticeProps) {
+  const view = participation
+    ? participationFreezeView(viewer, participation)
+    : freezeViewFor(viewer, event)
+  if (!view) return null
+  const notice = freezeNoticeHe(view.flags, view.scope)
   if (!notice) return null
 
   return (

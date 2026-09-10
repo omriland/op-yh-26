@@ -6,6 +6,9 @@ export const KM_EXCEPTION_THRESHOLD = 80
 export type KmExceptionResponderSource = {
   status: ParticipationStatus
   total_km: number | null
+  /** Per-participation freeze. Absent on legacy projections — fall back to the event. */
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   profile: { full_name: string; callsign: string } | null
 }
 
@@ -49,14 +52,18 @@ export function buildKmExceptionRows(
 
   for (const event of events) {
     if (range && (event.event_date < range.from || event.event_date > range.to)) continue
-    // Approved over-threshold events leave the list (frozen_over_60km = false).
-    // Missing flag keeps legacy fixtures on the list. A later responder at/above
-    // the threshold re-freezes the event and it reappears.
-    if (event.frozen_over_60km === false) continue
     for (const responder of event.responders) {
       // Lead-entered km only (`event_responders.total_km`). Participation
       // status does not matter — odometer fields are never used here.
       if (responder.total_km == null || responder.total_km < KM_EXCEPTION_THRESHOLD) continue
+
+      // Approval is per responder, so an approved volunteer drops off the list
+      // even while a teammate on the same event is still pending. Missing flag
+      // keeps legacy fixtures on the list.
+      const frozenOverKm = responder.frozen_over_60km ?? event.frozen_over_60km
+      if (frozenOverKm === false) continue
+      const frozenDuplicate =
+        responder.frozen_suspicious_duplicate ?? event.frozen_suspicious_duplicate
 
       rows.push({
         event_id: event.id,
@@ -71,8 +78,8 @@ export function buildKmExceptionRows(
         responder_name: responder.profile?.full_name ?? null,
         responder_callsign: responder.profile?.callsign ?? null,
         total_km: responder.total_km,
-        frozen_over_60km: Boolean(event.frozen_over_60km),
-        frozen_suspicious_duplicate: Boolean(event.frozen_suspicious_duplicate),
+        frozen_over_60km: Boolean(frozenOverKm),
+        frozen_suspicious_duplicate: Boolean(frozenDuplicate),
       })
     }
   }
@@ -100,6 +107,8 @@ const KM_EXCEPTION_SELECT = `
   responders:event_responders(
     status,
     total_km,
+    frozen_over_60km,
+    frozen_suspicious_duplicate,
     profile:profiles(full_name, callsign)
   )
 `

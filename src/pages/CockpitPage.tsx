@@ -50,6 +50,7 @@ import { useToast } from '../components/ui/Toast'
 import { OpsMapPanel } from '../components/map/OpsMapPanel'
 import { EventFormPage } from './EventFormPage'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
+import { useFreezeViewer } from '../lib/freezeViewer'
 
 type CockpitPageProps = {
   selectedEventId?: string
@@ -61,6 +62,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
   const userId = user?.id
   const isAdmin = roles.includes('admin') || roles.includes('super_admin')
   const deleteViewer = { userId, isAdmin }
+  const freezeViewer = useFreezeViewer()
   const { show } = useToast()
   const [reel, setReel] = useState<CockpitReelItem[]>([])
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -410,7 +412,7 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
                       }
                     >
                       <span className="event-card__type">
-                        <EventFrozenMark flags={event} theme="command" />
+                        <EventFrozenMark event={event} viewer={freezeViewer} theme="command" />
                         {cockpitReelTitle(event)}
                       </span>
                     </span>

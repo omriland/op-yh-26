@@ -11,7 +11,10 @@ export type FuelRefundParticipation = {
   responder_id: string
   event_id: string
   total_km: number | null
-  /** Frozen events are excluded from refund totals until an admin approves. */
+  /**
+   * This participation is frozen (high km / suspected duplicate) and waits for
+   * an admin. A frozen teammate on the same event does not affect this row.
+   */
   frozen?: boolean
 }
 
@@ -67,7 +70,8 @@ export function buildFuelRefundRows(
   credits: FuelRefundKmCredit[] = [],
 ): FuelRefundRow[] {
   // Only rows where the shift-lead entered kilometers — event/participation status ignored.
-  // Frozen events (high-km / duplicate, pending admin) do not count until approved.
+  // A frozen participation (high-km / duplicate, pending admin) does not count
+  // until approved; its teammates on the same event still do.
   const withKm = participations.filter((row) => row.total_km != null && !row.frozen)
 
   const byUser = new Map<string, FuelRefundParticipation[]>()
@@ -113,10 +117,8 @@ type ParticipationQueryRow = {
   responder_id: string
   event_id: string
   total_km: number | null
-  events:
-    | { frozen_over_60km?: boolean; frozen_suspicious_duplicate?: boolean }
-    | { frozen_over_60km?: boolean; frozen_suspicious_duplicate?: boolean }[]
-    | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
 }
 
 /**
@@ -136,7 +138,9 @@ export async function fetchParticipationsReportedInRange(
       responder_id,
       event_id,
       total_km,
-      events!inner(created_at, origin, frozen_over_60km, frozen_suspicious_duplicate)
+      frozen_over_60km,
+      frozen_suspicious_duplicate,
+      events!inner(created_at, origin)
     `,
     )
     .eq('events.origin', 'manual')
@@ -146,16 +150,12 @@ export async function fetchParticipationsReportedInRange(
 
   if (error) throw new Error(error.message)
 
-  return ((data ?? []) as ParticipationQueryRow[]).map((row) => {
-    const event = Array.isArray(row.events) ? row.events[0] : row.events
-    const frozen = Boolean(event?.frozen_over_60km || event?.frozen_suspicious_duplicate)
-    return {
-      responder_id: row.responder_id,
-      event_id: row.event_id,
-      total_km: row.total_km,
-      frozen,
-    }
-  })
+  return ((data ?? []) as ParticipationQueryRow[]).map((row) => ({
+    responder_id: row.responder_id,
+    event_id: row.event_id,
+    total_km: row.total_km,
+    frozen: Boolean(row.frozen_over_60km || row.frozen_suspicious_duplicate),
+  }))
 }
 
 export async function fetchPersonalShiftKmCredits(

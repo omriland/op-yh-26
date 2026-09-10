@@ -7,6 +7,7 @@ import { formatDate, monoClass } from '../../lib/format'
 import { OVERDUE_FILL_CARD_TIP } from '../../lib/overdueFill'
 import type { StampDescriptor } from '../../lib/status'
 import type { EventListItem } from '../../lib/events'
+import type { FreezeViewer } from '../../lib/eventFreeze'
 import { policeEventLabel } from '../../lib/shiftBornEvents'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
@@ -16,6 +17,8 @@ import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
 type EventCardProps = {
   event: EventListItem
   stamp: StampDescriptor
+  /** Freeze reader. Without it the card shows no freeze mark. */
+  viewer?: FreezeViewer | null
   /** Responder archive: lead has not entered KM yet. Stamp is סיימת לתעד. */
   leadKmNote?: string | null
   onOpen: (eventId: string) => void
@@ -36,6 +39,7 @@ type EventCardProps = {
 export function EventCard({
   event,
   stamp,
+  viewer,
   leadKmNote,
   onOpen,
   onFill,
@@ -90,7 +94,7 @@ export function EventCard({
               </span>
             </HoverTip>
           ) : null}
-          <EventFrozenMark flags={event} />
+          <EventFrozenMark event={event} viewer={viewer} />
           <EventTypeLabel event={event} as="section" fallback="אירוע" />
         </span>
         <span className="event-card__place t-body text-secondary">{place || '—'}</span>
@@ -115,7 +119,7 @@ export function EventCard({
           />
         ) : null}
       </button>
-      <EventFrozenNotice flags={event} />
+      <EventFrozenNotice event={event} viewer={viewer} />
       <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>
         <StampWithNote {...stamp} note={leadKmNote} />
       </button>

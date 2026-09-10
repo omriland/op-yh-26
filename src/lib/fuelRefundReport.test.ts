@@ -92,7 +92,18 @@ describe('buildFuelRefundRows', () => {
     expect(beni.event_count).toBe(1)
   })
 
-  it('excludes frozen events from km and event count', () => {
+  it('holds back only the frozen responder on a shared event', () => {
+    // 'a' is over the km threshold and waits for an admin; 'b' drove 20 km on
+    // the same event and must still be refunded.
+    const rows = buildFuelRefundRows(profiles, [
+      part({ responder_id: 'a', event_id: 'e-shared', total_km: 92, frozen: true }),
+      part({ responder_id: 'b', event_id: 'e-shared', total_km: 20, frozen: false }),
+    ])
+    expect(rows.find((r) => r.id === 'a')).toMatchObject({ total_km: 0, event_count: 0 })
+    expect(rows.find((r) => r.id === 'b')).toMatchObject({ total_km: 20, event_count: 1 })
+  })
+
+  it('excludes a frozen participation from km and event count', () => {
     const rows = buildFuelRefundRows(profiles, [
       part({ responder_id: 'b', event_id: 'e-ok', total_km: 12 }),
       part({ responder_id: 'b', event_id: 'e-frozen', total_km: 80, frozen: true }),

@@ -17,11 +17,14 @@ import { shiftRecordLogStatus } from '../../lib/shiftLogStatus'
 import { shiftStamp } from '../../lib/status'
 import { StampChip } from '../ui/StampChip'
 import { EventFrozenMark } from '../events/EventFrozenMark'
+import type { FreezeViewer } from '../../lib/eventFreeze'
 
 type ShiftsTableProps = {
   shifts: ShiftListItem[]
   onOpen: (shiftId: string) => void
   onOpenEvent?: (eventId: string) => void
+  /** Freeze reader for the shift-born event rows. */
+  viewer?: FreezeViewer | null
 }
 
 function bornSnapshot(event: ShiftBornEventSummary) {
@@ -37,7 +40,7 @@ function bornSnapshot(event: ShiftBornEventSummary) {
 }
 
 /** Command desktop only — mobile renders the same data as cards. */
-export function ShiftsTable({ shifts, onOpen, onOpenEvent }: ShiftsTableProps) {
+export function ShiftsTable({ shifts, onOpen, onOpenEvent, viewer }: ShiftsTableProps) {
   const [openId, setOpenId] = useState<string | null>(null)
 
   return (
@@ -134,7 +137,7 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent }: ShiftsTableProps) {
                                 >
                                   <span className="event-card__top">
                                     <span className="event-card__type">
-                                      <EventFrozenMark flags={event} />
+                                      <EventFrozenMark event={event} viewer={viewer} />
                                       <span className="t-body-strong">
                                         {event.event_type?.name ?? 'אירוע'}
                                       </span>

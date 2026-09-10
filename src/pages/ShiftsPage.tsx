@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { useFreezeViewer } from '../lib/freezeViewer'
 import {
   UNIT_SHIFTS_LIST_LIMIT,
   UNIT_SHIFTS_LOAD_MORE_LABEL,
@@ -55,6 +56,7 @@ export function ShiftsPage({
 }: ShiftsPageProps) {
   const isDesktop = useIsDesktop()
   const { user, roles } = useAuth()
+  const freezeViewer = useFreezeViewer()
   const canManageLead = roles.includes('admin') || roles.includes('shift_lead')
   const { show } = useToast()
   const [shifts, setShifts] = useState<ShiftListItem[] | null>(null)
@@ -330,7 +332,12 @@ export function ShiftsPage({
         />
       ) : asTable ? (
         <div className="stack-4">
-          <ShiftsTable shifts={visible} onOpen={onOpen} onOpenEvent={onOpenEvent} />
+          <ShiftsTable
+            shifts={visible}
+            onOpen={onOpen}
+            onOpenEvent={onOpenEvent}
+            viewer={freezeViewer}
+          />
           {scope === 'unit' && unitWindow?.hasMore ? (
             <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>
               {UNIT_SHIFTS_LOAD_MORE_LABEL}
@@ -387,6 +394,7 @@ function ShiftCards({
   onOpenEvent?: (eventId: string) => void
   canManageLead: boolean
 }) {
+  const freezeViewer = useFreezeViewer()
   return (
     <ul className="stack-3">
       {shifts.map((shift) => (
@@ -396,6 +404,7 @@ function ShiftCards({
           onOpen={onOpen}
           onFill={onFill}
           onOpenEvent={onOpenEvent}
+          viewer={freezeViewer}
           fillDisabled={!canDocumentShift({ shiftDate: shift.shift_date, canManageLead })}
           fillDisabledReason={SHIFT_TOO_EARLY_MESSAGE}
         />

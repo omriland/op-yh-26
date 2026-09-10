@@ -2,6 +2,7 @@ import { StampWithNote } from '../ui/StampWithNote'
 import { formatDate, monoClass } from '../../lib/format'
 import type { StampDescriptor } from '../../lib/status'
 import type { EventListItem } from '../../lib/events'
+import type { FreezeViewer } from '../../lib/eventFreeze'
 import { policeEventLabel } from '../../lib/shiftBornEvents'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
@@ -9,12 +10,19 @@ import { EventFrozenMark } from './EventFrozenMark'
 type MineLoggedEventRowProps = {
   event: EventListItem
   stamp: StampDescriptor
+  viewer?: FreezeViewer | null
   /** Responder archive: lead has not entered KM yet. Stamp is סיימת לתעד. */
   leadKmNote?: string | null
   onOpen: (eventId: string) => void
 }
 
-export function MineLoggedEventRow({ event, stamp, leadKmNote, onOpen }: MineLoggedEventRowProps) {
+export function MineLoggedEventRow({
+  event,
+  stamp,
+  viewer,
+  leadKmNote,
+  onOpen,
+}: MineLoggedEventRowProps) {
   const place = [event.road?.name, event.location].filter(Boolean).join(' · ')
   const idLabel =
     event.origin === 'shift'
@@ -28,7 +36,7 @@ export function MineLoggedEventRow({ event, stamp, leadKmNote, onOpen }: MineLog
       <button type="button" className="mine-logged-row__hit" onClick={() => onOpen(event.id)}>
         <span className="list-rows__label">
           <span className="event-card__type">
-            <EventFrozenMark flags={event} />
+            <EventFrozenMark event={event} viewer={viewer} />
             <EventTypeLabel event={event} as="body" fallback="אירוע" />
           </span>
           <span className="t-body text-secondary">{place || '—'}</span>

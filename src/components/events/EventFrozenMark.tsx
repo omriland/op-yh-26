@@ -1,16 +1,29 @@
 import { Snowflake } from 'lucide-react'
-import { freezeTooltipHe, isEventFrozen, type EventFreezeFlags } from '../../lib/eventFreeze'
+import {
+  freezeTooltipHe,
+  freezeViewFor,
+  type FreezeSource,
+  type FreezeViewer,
+} from '../../lib/eventFreeze'
 import { HoverTip } from '../ui/HoverTip'
 
 type EventFrozenMarkProps = {
-  flags: EventFreezeFlags | null | undefined
+  /** Event row, with its participations when the projection carries them. */
+  event: FreezeSource | null | undefined
+  /** Omitted viewer shows nothing — freeze is never public to a screen. */
+  viewer?: FreezeViewer | null
   theme?: 'command' | 'field'
 }
 
-/** Small snowflake next to frozen events. Tooltip explains the pending-review reason(s). */
-export function EventFrozenMark({ flags, theme = 'field' }: EventFrozenMarkProps) {
-  if (!isEventFrozen(flags)) return null
-  const tip = freezeTooltipHe(flags)
+/**
+ * Small snowflake next to a frozen record. Tooltip explains the pending-review
+ * reason(s). An admin sees it when any participation on the event is frozen; a
+ * responder only for their own; a shift-lead never.
+ */
+export function EventFrozenMark({ event, viewer, theme = 'field' }: EventFrozenMarkProps) {
+  const view = freezeViewFor(viewer, event)
+  if (!view) return null
+  const tip = freezeTooltipHe(view.flags, view.scope)
   if (!tip) return null
 
   return (

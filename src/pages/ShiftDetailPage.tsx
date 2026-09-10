@@ -26,6 +26,7 @@ import { Skeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
 import { shiftStamp } from '../lib/status'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
+import { useFreezeViewer } from '../lib/freezeViewer'
 import { useToast } from '../components/ui/Toast'
 
 type ShiftDetailPageProps = {
@@ -60,6 +61,7 @@ export function ShiftDetailPage({
   onOpenEvent,
 }: ShiftDetailPageProps) {
   const { user } = useAuth()
+  const freezeViewer = useFreezeViewer()
   const { show } = useToast()
   const [shift, setShift] = useState<ShiftDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
@@ -303,7 +305,7 @@ export function ShiftDetailPage({
                       >
                         <span className="event-card__top">
                           <span className="event-card__type">
-                            <EventFrozenMark flags={event} />
+                            <EventFrozenMark event={event} viewer={freezeViewer} />
                             <span className="t-body-strong">
                               {event.event_type?.name ?? 'אירוע'}
                             </span>

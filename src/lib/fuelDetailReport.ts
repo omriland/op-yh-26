@@ -65,22 +65,20 @@ type DetailQueryRow = {
   event_id: string
   total_km: number | null
   started_at: string | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   events:
     | {
         created_at: string
         location: string | null
         notes: string | null
         event_type: { name: string } | { name: string }[] | null
-        frozen_over_60km?: boolean
-        frozen_suspicious_duplicate?: boolean
       }
     | {
         created_at: string
         location: string | null
         notes: string | null
         event_type: { name: string } | { name: string }[] | null
-        frozen_over_60km?: boolean
-        frozen_suspicious_duplicate?: boolean
       }[]
   profile:
     | { full_name: string; callsign: string }
@@ -117,12 +115,12 @@ export async function fetchFuelDetailSources(
       event_id,
       total_km,
       started_at,
+      frozen_over_60km,
+      frozen_suspicious_duplicate,
       events!inner(
         created_at,
         location,
         notes,
-        frozen_over_60km,
-        frozen_suspicious_duplicate,
         event_type:event_types(name)
       ),
       profile:profiles(full_name, callsign)
@@ -148,7 +146,7 @@ export async function fetchFuelDetailSources(
       event_type_name: eventTypeName(event?.event_type),
       full_name: profile?.full_name ?? '',
       callsign: profile?.callsign ?? '',
-      frozen: Boolean(event?.frozen_over_60km || event?.frozen_suspicious_duplicate),
+      frozen: Boolean(row.frozen_over_60km || row.frozen_suspicious_duplicate),
     }
   })
 }

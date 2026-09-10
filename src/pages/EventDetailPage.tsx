@@ -34,6 +34,9 @@ import { mergeTreatedPlates } from '../lib/treatedPlates'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
 import { EventLeadLedgerRows } from '../components/events/EventShiftLeadsFields'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
+import { EventFrozenNotice } from '../components/events/EventFrozenNotice'
+import { useFreezeViewer } from '../lib/freezeViewer'
+import type { FreezeViewer } from '../lib/eventFreeze'
 import { AssignedVolunteerEditBlockedDialog } from '../components/events/AssignedVolunteerEditBlockedDialog'
 import { Button } from '../components/ui/Button'
 import { AlertDialog } from '../components/ui/AlertDialog'
@@ -69,6 +72,7 @@ export function EventDetailPage({
   onEditLeadFields,
 }: EventDetailPageProps) {
   const { user, roles } = useAuth()
+  const freezeViewer = useFreezeViewer()
   const { show } = useToast()
   const canEdit =
     Boolean(onEdit) &&
@@ -296,7 +300,7 @@ export function EventDetailPage({
         <div>
           <h1 className="t-title">
             <span className="event-card__type">
-              <EventFrozenMark flags={event} />
+              <EventFrozenMark event={event} viewer={freezeViewer} />
               {eventLabel}
             </span>
           </h1>
@@ -482,6 +486,7 @@ export function EventDetailPage({
                   })}
                   showTreatedPlates={event.origin !== 'shift'}
                   origin={event.origin}
+                  freezeViewer={freezeViewer}
                 />
               )
             })
@@ -533,6 +538,7 @@ function ResponderCard({
   showOdometers,
   showTreatedPlates,
   origin,
+  freezeViewer,
 }: {
   responder: EventResponderDetail
   isViewer: boolean
@@ -544,6 +550,7 @@ function ResponderCard({
   showOdometers: boolean
   showTreatedPlates: boolean
   origin: 'manual' | 'shift'
+  freezeViewer?: FreezeViewer | null
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const name = responder.profile?.full_name ?? 'מתנדב'
@@ -591,6 +598,8 @@ function ResponderCard({
           />
         </button>
       </header>
+
+      <EventFrozenNotice participation={responder} viewer={freezeViewer} />
 
       {open ? (
         <div id={bodyId} className="responder-card__body stack-3">

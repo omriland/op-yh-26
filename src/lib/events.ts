@@ -26,6 +26,9 @@ export type EventResponderSummary = {
   total_km: number | null
   started_at: string | null
   ended_at: string | null
+  /** Per-participation freeze — the truth for fuel refund and for what a responder sees. */
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   profile: { full_name: string; callsign: string } | null
 }
 
@@ -106,6 +109,8 @@ export const EVENT_LIST_SELECT = `
     total_km,
     started_at,
     ended_at,
+    frozen_over_60km,
+    frozen_suspicious_duplicate,
     profile:profiles(full_name, callsign)
   )
 `
@@ -304,6 +309,8 @@ export type EventResponderDetail = {
   emergency_means: boolean
   treatment_notes: string | null
   status: ParticipationStatus
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   profile: { full_name: string; callsign: string } | null
   treated: { quantity: number; kind: { name: string } | null }[]
   treated_plates: TreatedPlate[]
@@ -374,6 +381,7 @@ const EVENT_DETAIL_SELECT = `
     id, responder_id, started_at, ended_at, vehicle_plate, total_km,
     odometer_start, odometer_end, route, treatment_detail, emergency_means,
     treatment_notes, status,
+    frozen_over_60km, frozen_suspicious_duplicate,
     profile:profiles(full_name, callsign),
     treated:event_treated_vehicles(quantity, kind:vehicle_kinds(name)),
     treated_plates:event_treated_plates!event_treated_plates_event_responder_id_fkey(plate_number, model, color, left_where, manufacturer, logo_slug, sort_order)
@@ -427,6 +435,7 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
     id, responder_id, started_at, ended_at, vehicle_plate, total_km,
     odometer_start, odometer_end, route, treatment_detail, emergency_means,
     treatment_notes, status,
+    frozen_over_60km, frozen_suspicious_duplicate,
     profile:profiles(full_name, callsign),
     treated:event_treated_vehicles(quantity, kind:vehicle_kinds(name))
   )

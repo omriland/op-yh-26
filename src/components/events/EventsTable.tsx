@@ -2,6 +2,7 @@ import { Fragment, useRef, type MouseEvent } from 'react'
 import { formatDate, monoClass } from '../../lib/format'
 import { doneFraction, type EventListItem } from '../../lib/events'
 import { mapSecondaryLeadRows } from '../../lib/eventShiftLeads'
+import type { FreezeViewer } from '../../lib/eventFreeze'
 import { HoverTip } from '../ui/HoverTip'
 import { EventListLeadCaption } from './EventListLeadCaption'
 import { EventTypeLabel } from './EventTypeLabel'
@@ -18,6 +19,8 @@ type IncompleteNotice = {
 type EventsTableProps = {
   events: EventListItem[]
   onOpen: (eventId: string) => void
+  /** Freeze reader. Without it the table shows no freeze marks. */
+  viewer?: FreezeViewer | null
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
   /** Unit list: missing required fields as a full-width ledger line under the data row. */
   incompleteNoticeFor?: (event: EventListItem) => IncompleteNotice | undefined
@@ -29,6 +32,7 @@ type EventsTableProps = {
 export function EventsTable({
   events,
   onOpen,
+  viewer,
   onContextDelete,
   incompleteNoticeFor,
   caption,
@@ -90,7 +94,7 @@ export function EventsTable({
                   </td>
                   <td>
                     <span className="event-card__type">
-                      <EventFrozenMark flags={event} />
+                      <EventFrozenMark event={event} viewer={viewer} />
                       <EventTypeLabel event={event} />
                     </span>
                   </td>

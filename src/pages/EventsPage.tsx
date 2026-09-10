@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { useFreezeViewer } from '../lib/freezeViewer'
 import { textIncludesQuery } from '../lib/searchQuery'
 import {
   UNIT_EVENTS_LIST_LIMIT,
@@ -734,6 +735,7 @@ function MineLoggedList({
   hasMore: boolean
   onLoadMore: () => void
 }) {
+  const freezeViewer = useFreezeViewer()
   const trimmed = query.trim()
   return (
     <div className="stack-4">
@@ -771,6 +773,7 @@ function MineLoggedList({
               key={event.id}
               event={event}
               stamp={stampFor(event)}
+              viewer={freezeViewer}
               leadKmNote={leadKmPendingNote(
                 ownParticipation(event, userId),
                 ownResponderKm(event, userId),
@@ -809,6 +812,7 @@ function EventCards({
   mode?: 'default' | 'inbox'
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
 }) {
+  const freezeViewer = useFreezeViewer()
   const blocks = groupMineEventCards(events)
   return (
     <ul className="stack-3">
@@ -822,6 +826,7 @@ function EventCards({
                 key={event.id}
                 event={event}
                 stamp={stampFor(event)}
+                viewer={freezeViewer}
                 leadKmNote={leadKmPendingNote(
                   mineStatus,
                   ownResponderKm(event, userId),
@@ -875,6 +880,7 @@ function EventCards({
             key={event.id}
             event={event}
             stamp={stampFor(event)}
+            viewer={freezeViewer}
             leadKmNote={leadKmPendingNote(
               mineStatus,
               ownResponderKm(event, userId),
@@ -915,6 +921,7 @@ function UnitTableList({
   hasMore: boolean
   onLoadMore: () => void
 }) {
+  const freezeViewer = useFreezeViewer()
   const { incomplete, rest } =
     scope === 'unit' ? partitionIncompleteEvents(visible) : { incomplete: [], rest: visible }
 
@@ -925,6 +932,7 @@ function UnitTableList({
           caption="דורשים השלמת פרטים"
           events={incomplete}
           onOpen={onOpen}
+          viewer={freezeViewer}
           onContextDelete={onContextDelete}
           incompleteNoticeFor={(event) => {
             const fields = missingEventFields(event)
@@ -936,7 +944,12 @@ function UnitTableList({
         />
       ) : null}
       {rest.length > 0 ? (
-        <EventsTable events={rest} onOpen={onOpen} onContextDelete={onContextDelete} />
+        <EventsTable
+          events={rest}
+          onOpen={onOpen}
+          viewer={freezeViewer}
+          onContextDelete={onContextDelete}
+        />
       ) : null}
       {hasMore ? (
         <Button variant="secondary" block onClick={onLoadMore}>
@@ -966,6 +979,7 @@ function UnitCardList({
   hasMore: boolean
   onLoadMore: () => void
 }) {
+  const freezeViewer = useFreezeViewer()
   const { incomplete: incompleteEvents } =
     scope === 'unit' ? partitionIncompleteEvents(visible) : { incomplete: [] }
   const incompleteIds = new Set(incompleteEvents.map((e) => e.id))
@@ -987,6 +1001,7 @@ function UnitCardList({
                   key={event.id}
                   event={event}
                   stamp={stampFor(event)}
+                  viewer={freezeViewer}
                   onOpen={onOpen}
                   onContextDelete={onContextDelete}
                   incompleteFields={incompleteFieldLabels(fields)}

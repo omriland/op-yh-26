@@ -31,7 +31,13 @@ export type CockpitReelItem = {
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
   secondary_leads?: SecondaryLead[]
-  responders: { id: string; ended_at: string | null }[]
+  responders: {
+    id: string
+    responder_id: string
+    ended_at: string | null
+    frozen_over_60km?: boolean
+    frozen_suspicious_duplicate?: boolean
+  }[]
 }
 
 const COCKPIT_REEL_SELECT = `
@@ -52,7 +58,7 @@ const COCKPIT_REEL_SELECT = `
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
   ${EVENT_SECONDARY_LEADS_EMBED},
-  responders:event_responders(id, ended_at)
+  responders:event_responders(id, responder_id, ended_at, frozen_over_60km, frozen_suspicious_duplicate)
 `
 
 export function isInCockpitWindow(createdAt: string, now: Date): boolean {

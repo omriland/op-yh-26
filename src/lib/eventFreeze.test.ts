@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   computeFreezeFlags,
-  eventCountsTowardFuelRefund,
+  participationCountsTowardFuelRefund,
   freezeTooltipHe,
+  freezeViewFor,
   hasPendingOver60km,
+  isFreezeAdminRole,
+  participationFreezeView,
   isEventFrozen, freezeNoticeHe, FREEZE_OVER_KM_HINT, FREEZE_OVER_KM_THRESHOLD, over60kmHint } from './eventFreeze'
 
 describe('computeFreezeFlags', () => {
@@ -47,7 +50,7 @@ describe('computeFreezeFlags', () => {
       frozen_suspicious_duplicate: true,
     })
     expect(isEventFrozen(flags)).toBe(true)
-    expect(eventCountsTowardFuelRefund(flags)).toBe(false)
+    expect(participationCountsTowardFuelRefund(flags)).toBe(false)
   })
 
   it('clears only the approved reason when both match', () => {
@@ -61,7 +64,7 @@ describe('computeFreezeFlags', () => {
       frozen_over_60km: false,
       frozen_suspicious_duplicate: true,
     })
-    expect(eventCountsTowardFuelRefund(afterKmApprove)).toBe(false)
+    expect(participationCountsTowardFuelRefund(afterKmApprove)).toBe(false)
 
     const afterBothApprove = computeFreezeFlags({
       matchesOver60km: true,
@@ -74,7 +77,7 @@ describe('computeFreezeFlags', () => {
       frozen_suspicious_duplicate: false,
     })
     expect(isEventFrozen(afterBothApprove)).toBe(false)
-    expect(eventCountsTowardFuelRefund(afterBothApprove)).toBe(true)
+    expect(participationCountsTowardFuelRefund(afterBothApprove)).toBe(true)
   })
 
   it('does not freeze after approve even if the event still matches the report', () => {
@@ -107,25 +110,37 @@ describe('computeFreezeFlags', () => {
 })
 
 describe('freezeTooltipHe', () => {
-  it('explains high-km freeze pending admin review', () => {
+  it('tells an admin the event holds a frozen record, not that the event is frozen', () => {
     expect(freezeTooltipHe({ frozen_over_60km: true, frozen_suspicious_duplicate: false })).toBe(
-      'האירוע מוקפא בגלל חריגת קילומטרים (מעל 80 ק״מ) וממתין לאישור מנהל.',
+      'באירוע קיימת הקפאה בגלל חריגת קילומטרים (מעל 80 ק״מ), הממתינה לאישור מנהל.',
     )
   })
 
   it('explains suspicious-duplicate freeze pending admin review', () => {
     expect(freezeTooltipHe({ frozen_over_60km: false, frozen_suspicious_duplicate: true })).toBe(
-      'האירוע מוקפא בגלל חשד לאירוע כפול וממתין לאישור מנהל.',
+      'באירוע קיימת הקפאה בגלל חשד לאירוע כפול, הממתינה לאישור מנהל.',
     )
   })
 
   it('explains both reasons together', () => {
     expect(freezeTooltipHe({ frozen_over_60km: true, frozen_suspicious_duplicate: true })).toBe(
-      'האירוע מוקפא בגלל חריגת קילומטרים (מעל 80 ק״מ) ובגלל חשד לאירוע כפול, וממתין לאישור מנהל.',
+      'באירוע קיימת הקפאה בגלל חריגת קילומטרים (מעל 80 ק״מ) ובגלל חשד לאירוע כפול, הממתינה לאישור מנהל.',
     )
   })
 
-  it('returns null when the event is not frozen', () => {
+  it('speaks about the reader own record on the mine scope', () => {
+    expect(freezeTooltipHe({ frozen_over_60km: true }, 'mine')).toBe(
+      'הדיווח שלך מוקפא בגלל חריגת קילומטרים (מעל 80 ק״מ) וממתין לאישור מנהל.',
+    )
+  })
+
+  it('speaks about one volunteer record on the participation scope', () => {
+    expect(freezeTooltipHe({ frozen_suspicious_duplicate: true }, 'participation')).toBe(
+      'הדיווח מוקפא בגלל חשד לאירוע כפול וממתין לאישור מנהל.',
+    )
+  })
+
+  it('returns null when nothing is frozen', () => {
     expect(freezeTooltipHe({ frozen_over_60km: false, frozen_suspicious_duplicate: false })).toBeNull()
   })
 })
@@ -176,7 +191,13 @@ describe('freezeNoticeHe', () => {
     )
   })
 
-  it('returns nothing when the event is not frozen', () => {
+  it('marks the reader own record on the mine scope', () => {
+    expect(freezeNoticeHe({ frozen_over_60km: true }, 'mine')).toBe(
+      'הדיווח שלך מוקפא · חריגת ק״מ · ממתין לאישור מנהל',
+    )
+  })
+
+  it('returns nothing when nothing is frozen', () => {
     expect(freezeNoticeHe({ frozen_over_60km: false, frozen_suspicious_duplicate: false })).toBeNull()
     expect(freezeNoticeHe(null)).toBeNull()
     expect(freezeNoticeHe(undefined)).toBeNull()
@@ -214,5 +235,98 @@ describe('over60kmHint', () => {
   it('mirrors the database threshold and does not shout', () => {
     expect(FREEZE_OVER_KM_THRESHOLD).toBe(80)
     expect(FREEZE_OVER_KM_HINT).not.toContain('!')
+  })
+})
+
+describe('freezeViewFor', () => {
+  // The case that started this: one volunteer over the km threshold, one well
+  // under it, same event.
+  const mixedEvent = {
+    frozen_over_60km: true,
+    frozen_suspicious_duplicate: false,
+    responders: [
+      { responder_id: 'over', frozen_over_60km: true, frozen_suspicious_duplicate: false },
+      { responder_id: 'under', frozen_over_60km: false, frozen_suspicious_duplicate: false },
+    ],
+  }
+
+  it('shows an admin the event whenever any participation is frozen', () => {
+    const view = freezeViewFor({ userId: 'boss', isAdmin: true }, mixedEvent)
+    expect(view).toEqual({
+      flags: { frozen_over_60km: true, frozen_suspicious_duplicate: false },
+      scope: 'event',
+    })
+  })
+
+  it('shows the over-threshold responder their own freeze', () => {
+    expect(freezeViewFor({ userId: 'over', isAdmin: false }, mixedEvent)?.scope).toBe('mine')
+  })
+
+  it('shows nothing to the responder whose km is under the threshold', () => {
+    expect(freezeViewFor({ userId: 'under', isAdmin: false }, mixedEvent)).toBeNull()
+  })
+
+  it('shows nothing to a shift-lead who is not assigned', () => {
+    expect(freezeViewFor({ userId: 'lead', isAdmin: false }, mixedEvent)).toBeNull()
+  })
+
+  it('never falls back to the event aggregate for a non-admin', () => {
+    const noParticipations = { frozen_over_60km: true, frozen_suspicious_duplicate: true }
+    expect(freezeViewFor({ userId: 'lead', isAdmin: false }, noParticipations)).toBeNull()
+    expect(freezeViewFor({ userId: 'lead', isAdmin: true }, noParticipations)?.scope).toBe('event')
+  })
+
+  it('lets an admin see a freeze carried only on the participations', () => {
+    const view = freezeViewFor(
+      { userId: 'boss', isAdmin: true },
+      {
+        responders: [
+          { responder_id: 'over', frozen_suspicious_duplicate: true },
+        ],
+      },
+    )
+    expect(view).toEqual({
+      flags: { frozen_over_60km: false, frozen_suspicious_duplicate: true },
+      scope: 'event',
+    })
+  })
+
+  it('shows nothing without a viewer or a source', () => {
+    expect(freezeViewFor(null, mixedEvent)).toBeNull()
+    expect(freezeViewFor({ userId: 'boss', isAdmin: true }, null)).toBeNull()
+  })
+})
+
+describe('participationFreezeView', () => {
+  const frozen = { responder_id: 'over', frozen_over_60km: true }
+
+  it('reads as the reader own record for the owner', () => {
+    expect(participationFreezeView({ userId: 'over', isAdmin: false }, frozen)?.scope).toBe('mine')
+  })
+
+  it('reads as one volunteer record for an admin', () => {
+    expect(participationFreezeView({ userId: 'boss', isAdmin: true }, frozen)?.scope).toBe(
+      'participation',
+    )
+  })
+
+  it('is hidden from a shift-lead and from other volunteers', () => {
+    expect(participationFreezeView({ userId: 'lead', isAdmin: false }, frozen)).toBeNull()
+    expect(participationFreezeView({ userId: 'other', isAdmin: false }, frozen)).toBeNull()
+  })
+
+  it('is hidden when that participation is not frozen', () => {
+    expect(
+      participationFreezeView({ userId: 'boss', isAdmin: true }, { responder_id: 'x' }),
+    ).toBeNull()
+  })
+})
+
+describe('isFreezeAdminRole', () => {
+  it('is true for admin and super admin only', () => {
+    expect(isFreezeAdminRole(['admin'])).toBe(true)
+    expect(isFreezeAdminRole(['super_admin'])).toBe(true)
+    expect(isFreezeAdminRole(['shift_lead', 'responder'])).toBe(false)
+    expect(isFreezeAdminRole([])).toBe(false)
   })
 })

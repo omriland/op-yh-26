@@ -18,6 +18,7 @@ import { shiftRecordLogStatus } from '../../lib/shiftLogStatus'
 import { shiftStamp } from '../../lib/status'
 import { StampChip } from '../ui/StampChip'
 import { EventFrozenMark } from '../events/EventFrozenMark'
+import type { FreezeViewer } from '../../lib/eventFreeze'
 
 type ShiftCardProps = {
   shift: ShiftListItem
@@ -26,6 +27,8 @@ type ShiftCardProps = {
   onOpenEvent?: (eventId: string) => void
   fillDisabled?: boolean
   fillDisabledReason?: string
+  /** Freeze reader for the shift-born event rows. */
+  viewer?: FreezeViewer | null
 }
 
 function bornSnapshot(event: ShiftBornEventSummary) {
@@ -47,6 +50,7 @@ export function ShiftCard({
   onOpenEvent,
   fillDisabled = false,
   fillDisabledReason,
+  viewer,
 }: ShiftCardProps) {
   const [open, setOpen] = useState(false)
   const responderCount = shift.responders.length
@@ -138,7 +142,7 @@ export function ShiftCard({
                   >
                     <span className="event-card__top">
                       <span className="event-card__type">
-                        <EventFrozenMark flags={event} />
+                        <EventFrozenMark event={event} viewer={viewer} />
                         <span className="t-body-strong">{event.event_type?.name ?? 'אירוע'}</span>
                       </span>
                       <StampChip {...stamp} />

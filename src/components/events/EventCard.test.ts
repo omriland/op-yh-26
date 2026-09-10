@@ -227,16 +227,31 @@ describe('EventCard default (unit list)', () => {
     expect(html).not.toContain('stamp--alert')
   })
 
-  it('shows a snowflake on frozen unit-list cards', () => {
+  it('shows a snowflake on frozen unit-list cards for an admin', () => {
     const html = renderToStaticMarkup(
       createElement(EventCard, {
         event: event({ frozen_over_60km: true }),
         stamp,
+        viewer: { userId: 'boss', isAdmin: true },
         onOpen: () => undefined,
       }),
     )
 
     expect(html).toContain('event-frozen-mark')
-    expect(html).toContain('האירוע מוקפא בגלל חריגת קילומטרים (מעל 80 ק״מ) וממתין לאישור מנהל.')
+    expect(html).toContain('באירוע קיימת הקפאה בגלל חריגת קילומטרים (מעל 80 ק״מ), הממתינה לאישור מנהל.')
+  })
+
+  it('hides the freeze from a shift-lead reading the same card', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({ frozen_over_60km: true }),
+        stamp,
+        viewer: { userId: 'lead', isAdmin: false },
+        onOpen: () => undefined,
+      }),
+    )
+
+    expect(html).not.toContain('event-frozen-mark')
+    expect(html).not.toContain('event-frozen-notice')
   })
 })

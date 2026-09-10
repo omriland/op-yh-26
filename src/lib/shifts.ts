@@ -54,6 +54,11 @@ export type ShiftBornEventSummary = {
   last_saved: { full_name: string } | null
   frozen_over_60km?: boolean
   frozen_suspicious_duplicate?: boolean
+  responders?: {
+    responder_id: string
+    frozen_over_60km?: boolean
+    frozen_suspicious_duplicate?: boolean
+  }[]
   updated_at?: string
   treated: { id?: string; vehicle_kind_id?: string; quantity?: number }[]
 }
@@ -98,6 +103,7 @@ export const SHIFT_LIST_SELECT = `
     emergency_means,
     frozen_over_60km,
     frozen_suspicious_duplicate,
+    responders:event_responders(responder_id, frozen_over_60km, frozen_suspicious_duplicate),
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
     treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id)
@@ -337,6 +343,7 @@ const SHIFT_DETAIL_SELECT = `
     updated_at,
     frozen_over_60km,
     frozen_suspicious_duplicate,
+    responders:event_responders(responder_id, frozen_over_60km, frozen_suspicious_duplicate),
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
     treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(vehicle_kind_id, quantity)
