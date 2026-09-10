@@ -51,6 +51,7 @@ Repo: `yhpz-2026`
 - **Shift-born UX (2026-09-09):** Never show `אחמ״ש טרם הזין ק״מ` on `origin=shift`. Missing `treatment_detail` → `ממתין לתיעוד` / pending mine inbox — never `סיימת לתעד`.
 - **Super admin edit (2026-09-09):** `super_admin` bypasses `isAssignedVolunteerEventEditBlocked` (admins who are also responders stay blocked).
 - **Fuel Mgmt hub cards (2026-09-09):** Same `ReportCatalogCard` as דוחות; forced white `default` variant only.
+- **Per-responder freeze (2026-09-10):** Freeze is a **participation**, not an event. `event_responders.frozen_over_60km` / `frozen_suspicious_duplicate` drive החזר דלק, monthly detail, quarterly allocation and `refresh_profile_lifetime_stats`; `events.frozen_*` remain the "at least one frozen participation" aggregate (same meaning as before). Fixes: one responder ≥80 ק״מ used to void a teammate's justified refund on the same event. Approval stays event-scoped (`approve_event_freeze` + `approved_over_60km_responder_ids`). **Visibility:** `admin`/`super_admin` see the event when any participation is frozen (+ which volunteer, on event detail); `shift_lead` never; a responder only their own. Non-admins never fall back to the event aggregate. Migration `20260910140000_responder_level_event_freeze.sql` — **not yet applied on prod** (agent had no Supabase access to `rtvizpsfvtjowbimugns`); verified on a local PG16 replay of all freeze migrations. Spec: `2026-09-10-yahpaz-per-responder-event-freeze-design.md`. Android port pending.
 
 ### Event statuses
 

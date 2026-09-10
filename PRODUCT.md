@@ -50,7 +50,7 @@ The product is built around the record itself rather than around a dashboard. It
 
 **Status model:** participation is `pending` / `in_progress` / `done`; event is `draft` / `in_progress` / `partial` / `done`, where `done` is computed from all responders being done. UI labels are viewer-relative.
 
-**Records and freeze:** events can be frozen (see `src/lib/eventFreeze.ts` and the `event_freeze` migrations). The user did **not** declare legal or regulatory auditability a binding product constraint, so future work should treat freeze as an existing capability with real semantics, not as a compliance obligation — and must still never make a frozen record look editable.
+**Records and freeze:** a volunteer's participation can be frozen — high km or a suspected duplicate — and the event carries that as an "at least one frozen record" aggregate (see `src/lib/eventFreeze.ts` and the `event_freeze` migrations). The user did **not** declare legal or regulatory auditability a binding product constraint, so future work should treat freeze as an existing capability with real semantics, not as a compliance obligation — and must still never make a frozen record look editable.
 
 **Explicit non-goals (v1):** offline/PWA sync, native iOS/Android apps, English UI, push notifications, Netlify Functions for privileged writes.
 
