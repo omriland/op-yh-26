@@ -32,6 +32,8 @@ const FIELD_LABELS: Record<string, string> = {
   police_event_id: 'מספר אירוע',
   district_id: 'שלוחה',
   patrol_callsign: 'או״ק סיור',
+  patrol_callsign_prefix: 'אוק - כינוי',
+  patrol_callsign_number: 'אוק - מס',
   event_type_id: 'סוג אירוע',
   event_type_detail: 'פירוט סוג אירוע',
   station: 'תחנה',

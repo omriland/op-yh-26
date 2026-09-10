@@ -138,8 +138,8 @@ export function formatEndTime(
   return time
 }
 
-/** Police event number — digits only, 7 max. */
-export const POLICE_EVENT_ID_MAX_LENGTH = 7
+/** Police event number — digits only, 5 max. */
+export const POLICE_EVENT_ID_MAX_LENGTH = 5
 
 export function policeEventIdForInput(raw: string): string {
   return digitsOnly(raw).slice(0, POLICE_EVENT_ID_MAX_LENGTH)

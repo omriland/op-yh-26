@@ -38,6 +38,12 @@ import { AssignedVolunteerEditBlockedDialog } from '../components/events/Assigne
 import { Button } from '../components/ui/Button'
 import { AlertDialog } from '../components/ui/AlertDialog'
 import { isAssignedVolunteerEventEditBlocked } from '../lib/assignedVolunteerEventEdit'
+import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from '../lib/eventEditLock'
+import {
+  PATROL_CALLSIGN_NUMBER_LABEL,
+  PATROL_CALLSIGN_PREFIX_LABEL,
+  resolvePatrolCallsign,
+} from '../lib/patrolCallsign'
 import { mapSecondaryLeadRows } from '../lib/eventShiftLeads'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Avatar } from '../components/ui/Avatar'
@@ -219,6 +225,12 @@ export function EventDetailPage({
     secondaryLeadIds: mapSecondaryLeadRows(event.secondary_leads).map((row) => row.user_id),
     roles,
   })
+  const ageLocked = isEventEditAgeLocked({ createdAt: event.created_at, roles })
+  const callsign = resolvePatrolCallsign({
+    prefix: event.patrol_callsign_prefix,
+    number: event.patrol_callsign_number,
+    legacy: event.patrol_callsign,
+  })
   const doneCount = event.responders.filter((row) => row.status === 'done').length
   // Shift-born events carry event-keyed plates, but a responder filling their own
   // participation writes participation-keyed ones. Both belong in the event ledger.
@@ -312,9 +324,16 @@ export function EventDetailPage({
       {canEdit || canDelete ? (
         <div className="detail__actions">
           {canEdit ? (
-            <Button variant="secondary" onClick={requestEventEdit}>
-              עריכת אירוע
-            </Button>
+            <span title={ageLocked && !assignedEditBlocked ? EVENT_EDIT_LOCKED_TOOLTIP : undefined}>
+              <Button
+                variant="secondary"
+                disabled={ageLocked && !assignedEditBlocked}
+                title={ageLocked && !assignedEditBlocked ? EVENT_EDIT_LOCKED_TOOLTIP : undefined}
+                onClick={requestEventEdit}
+              >
+                עריכת אירוע
+              </Button>
+            </span>
           ) : null}
           {canDelete ? (
             <OverflowMenu
@@ -367,7 +386,20 @@ export function EventDetailPage({
             <LedgerRow label="מספר אירוע" value={event.police_event_id ?? undefined} numeric />
             <LedgerRow label="שלוחה" value={event.district?.name} />
             {event.station ? <LedgerRow label="תחנה" value={event.station} /> : null}
-            <LedgerRow label="או״ק ניידת" value={event.patrol_callsign ?? undefined} numeric />
+            {callsign.prefix ? (
+              <LedgerRow label={PATROL_CALLSIGN_PREFIX_LABEL} value={callsign.prefix} />
+            ) : null}
+            <LedgerRow
+              label={PATROL_CALLSIGN_NUMBER_LABEL}
+              value={callsign.number || undefined}
+              numeric
+            />
+            <LedgerRow label="זמן התחלה" value={formatTime(event.started_at)} numeric />
+            <LedgerRow
+              label="זמן סיום"
+              value={formatEndTime(event.ended_at, event.event_date)}
+              numeric
+            />
             <LedgerRow label="סוג אירוע" value={event.event_type?.name} />
             {isOtherEventTypeName(event.event_type?.name) && event.event_type_detail ? (
               <LedgerRow label="פירוט" value={event.event_type_detail} />
@@ -566,12 +598,6 @@ function ResponderCard({
       {open ? (
         <div id={bodyId} className="responder-card__body stack-3">
           <Ledger>
-            <LedgerRow label="זמן התחלה" value={formatTime(responder.started_at)} numeric />
-            <LedgerRow
-              label="זמן סיום"
-              value={formatEndTime(responder.ended_at, eventDate)}
-              numeric
-            />
             {showLeadKm ? (
               <LedgerRow
                 label="קילומטרים"

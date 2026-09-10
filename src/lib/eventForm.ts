@@ -29,6 +29,28 @@ import {
   type SecondaryLead,
 } from './eventShiftLeads'
 import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocked } from './assignedVolunteerEventEdit'
+import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from './eventEditLock'
+import {
+  PATROL_CALLSIGN_NUMBER_ERROR,
+  formatPatrolCallsign,
+  patrolCallsignNumberForInput,
+  patrolCallsignPrefixForInput,
+  resolvePatrolCallsign,
+} from './patrolCallsign'
+
+export {
+  PATROL_CALLSIGN_PREFIX_MAX_LENGTH,
+  PATROL_CALLSIGN_NUMBER_MAX_LENGTH,
+  PATROL_CALLSIGN_PREFIX_LABEL,
+  PATROL_CALLSIGN_NUMBER_LABEL,
+  PATROL_CALLSIGN_PREFIX_PLACEHOLDER,
+  PATROL_CALLSIGN_NUMBER_PLACEHOLDER,
+  PATROL_CALLSIGN_NUMBER_ERROR,
+  formatPatrolCallsign,
+  patrolCallsignNumberForInput,
+  patrolCallsignPrefixForInput,
+  splitPatrolCallsign,
+} from './patrolCallsign'
 
 export type LookupOption = { id: string; name: string; code?: string | null }
 
@@ -37,12 +59,14 @@ export const OTHER_EVENT_TYPE_NAME = 'אחר'
 export const EVENT_TYPE_DETAIL_MAX_LENGTH = 80
 export const STATION_MAX_LENGTH = 80
 export const LEAD_KM_MAX_DIGITS = 3
+/** @deprecated Use PATROL_CALLSIGN_PREFIX_MAX_LENGTH / NUMBER. Kept for old tests. */
 export const PATROL_CALLSIGN_MAX_LENGTH = 16
 
 export function leadKmForInput(raw: string): string {
   return digitsOnly(raw).slice(0, LEAD_KM_MAX_DIGITS)
 }
 
+/** @deprecated Combined field — prefer prefix + number helpers. */
 export function patrolCallsignForInput(raw: string): string {
   return raw.slice(0, PATROL_CALLSIGN_MAX_LENGTH)
 }
@@ -151,8 +175,6 @@ export const NEW_RESPONDER_EMERGENCY_MEANS = true
 export function eventResponderHasFilledFields(row: Pick<
   ResponderDraft,
   | 'assignmentId'
-  | 'start_time'
-  | 'end_time'
   | 'total_km'
   | 'emergency_means'
   | 'treated'
@@ -160,7 +182,6 @@ export function eventResponderHasFilledFields(row: Pick<
   | 'hasVehicle'
 >): boolean {
   if (row.hasOwnedData) return true
-  if (row.start_time.trim() || row.end_time.trim()) return true
   if (row.hasVehicle && row.total_km.trim()) return true
   // On a not-yet-saved assignment אמצעים is only the default, not entered data.
   if (row.emergency_means && row.assignmentId) return true
@@ -210,11 +231,20 @@ export function wallTimestamp(
 
 export type EventFormDraft = {
   id?: string
+  /** Used for the 7-day edit lock. Missing on creates / old stashes. */
+  created_at?: string
   status: EventStatus
   event_date: string
   police_event_id: string
   district_id: string
+  /** Legacy combined display; kept in sync from prefix + number. */
   patrol_callsign: string
+  patrol_callsign_prefix: string
+  patrol_callsign_number: string
+  /** HH:MM UI — stored as events.started_at on event_date */
+  start_time: string
+  /** HH:MM UI — stored as events.ended_at on event_date, or next day if end < start */
+  end_time: string
   event_type_id: string
   road_id: string
   location: string
@@ -285,6 +315,9 @@ export type EventFormErrors = Partial<
     | 'event_type_id'
     | 'road_id'
     | 'location'
+    | 'patrol_callsign_number'
+    | 'start_time'
+    | 'end_time'
     | 'form',
     string
   >
@@ -314,13 +347,27 @@ export type EventLookups = {
 }
 
 /** YYYY-MM-DD in Asia/Jerusalem. */
-export function todayJerusalem(): string {
+export function todayJerusalem(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jerusalem',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date())
+  }).format(now)
+}
+
+/** `HH:mm` wall clock in Asia/Jerusalem. */
+export function nowTimeJerusalem(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+  }).formatToParts(now)
+  const hour = parts.find((part) => part.type === 'hour')?.value ?? '00'
+  const minute = parts.find((part) => part.type === 'minute')?.value ?? '00'
+  return `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
 }
 
 export const FUTURE_EVENT_DATE_TITLE = 'אירוע זה נוצר בתאריך עתידי'
@@ -355,6 +402,10 @@ export function emptyEventDraft(lead: {
     police_event_id: '',
     district_id: '',
     patrol_callsign: '',
+    patrol_callsign_prefix: '',
+    patrol_callsign_number: '',
+    start_time: nowTimeJerusalem(),
+    end_time: '',
     event_type_id: '',
     road_id: '',
     location: '',
@@ -388,6 +439,9 @@ export function isAbandonedEmptyEventDraft(
   if (draft.police_event_id.trim()) return false
   if (draft.district_id) return false
   if (draft.patrol_callsign.trim()) return false
+  if ((draft.patrol_callsign_prefix ?? '').trim()) return false
+  if ((draft.patrol_callsign_number ?? '').trim()) return false
+  if ((draft.end_time ?? '').trim()) return false
   if (draft.event_type_id) return false
   if (draft.road_id) return false
   if (draft.location.trim()) return false
@@ -556,6 +610,20 @@ export function isMissingStationColumn(error: {
   )
 }
 
+export function isMissingEventCallsignTimeColumns(error: {
+  code?: string
+  message?: string
+} | null): boolean {
+  const message = error?.message ?? ''
+  return (
+    error?.code === '42703' ||
+    error?.code === 'PGRST204' ||
+    /patrol_callsign_prefix|patrol_callsign_number|events\.started_at|events\.ended_at/i.test(
+      message,
+    )
+  )
+}
+
 function isMissingOptionalEventColumn(error: {
   code?: string
   message?: string
@@ -563,7 +631,8 @@ function isMissingOptionalEventColumn(error: {
   return (
     isMissingBusLaneColumn(error) ||
     isMissingEventTypeDetailColumn(error) ||
-    isMissingStationColumn(error)
+    isMissingStationColumn(error) ||
+    isMissingEventCallsignTimeColumns(error)
   )
 }
 
@@ -575,17 +644,40 @@ function stripOptionalEventColumnsFromSelect(select: string): string {
     .replace(/\n  station,/, '')
     .replace(', bus_lane', '')
     .replace(/\n  bus_lane,/, '')
+    .replace(
+      ', patrol_callsign_prefix, patrol_callsign_number, started_at, ended_at',
+      '',
+    )
 }
 
 function stripOptionalEventColumnsFromPayload<T extends Record<string, unknown>>(
   payload: T,
-): Omit<T, 'bus_lane' | 'event_type_detail' | 'station'> {
-  const { bus_lane: _busLane, event_type_detail: _detail, station: _station, ...rest } = payload
+): Omit<
+  T,
+  | 'bus_lane'
+  | 'event_type_detail'
+  | 'station'
+  | 'patrol_callsign_prefix'
+  | 'patrol_callsign_number'
+  | 'started_at'
+  | 'ended_at'
+> {
+  const {
+    bus_lane: _busLane,
+    event_type_detail: _detail,
+    station: _station,
+    patrol_callsign_prefix: _prefix,
+    patrol_callsign_number: _number,
+    started_at: _started,
+    ended_at: _ended,
+    ...rest
+  } = payload
   return rest
 }
 
 const EVENT_EDIT_SELECT = `
-      id, status, event_date, police_event_id, district_id, patrol_callsign,
+      id, status, created_at, event_date, police_event_id, district_id, patrol_callsign,
+      patrol_callsign_prefix, patrol_callsign_number, started_at, ended_at,
       event_type_id, road_id, location, location_place_id, location_lat, location_lng,
       location_pin_source, location_pinned_at, location_pinned_by,
       notes, event_type_detail, station, is_cancelled, bus_lane, shift_lead_id,
@@ -625,10 +717,15 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
   const row = data as unknown as {
     id: string
     status: EventStatus
+    created_at?: string | null
     event_date: string
     police_event_id: string | null
     district_id: string | null
     patrol_callsign: string | null
+    patrol_callsign_prefix?: string | null
+    patrol_callsign_number?: string | null
+    started_at?: string | null
+    ended_at?: string | null
     event_type_id: string | null
     road_id: string | null
     location: string | null
@@ -649,13 +746,32 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     responders: LoadedResponder[]
   }
 
+  const callsign = resolvePatrolCallsign({
+    prefix: row.patrol_callsign_prefix,
+    number: row.patrol_callsign_number,
+    legacy: row.patrol_callsign,
+  })
+  const responderStarts = (row.responders ?? [])
+    .map((item) => toTimeInput(item.started_at))
+    .filter(Boolean)
+    .sort()
+  const responderEnds = (row.responders ?? [])
+    .map((item) => toTimeInput(item.ended_at))
+    .filter(Boolean)
+    .sort()
+
   return {
     id: row.id,
+    created_at: row.created_at ?? undefined,
     status: row.status,
     event_date: row.event_date,
     police_event_id: row.police_event_id ?? '',
     district_id: row.district_id ?? '',
-    patrol_callsign: row.patrol_callsign ?? '',
+    patrol_callsign: formatPatrolCallsign(callsign.prefix, callsign.number) || row.patrol_callsign || '',
+    patrol_callsign_prefix: callsign.prefix,
+    patrol_callsign_number: callsign.number,
+    start_time: toTimeInput(row.started_at) || responderStarts[0] || nowTimeJerusalem(),
+    end_time: toTimeInput(row.ended_at) || responderEnds[responderEnds.length - 1] || '',
     event_type_id: row.event_type_id ?? '',
     road_id: row.road_id ?? '',
     location: row.location ?? '',
@@ -773,6 +889,7 @@ export function eventCreateBlockedMessage(errors: EventFormErrors): string {
   if (errors.event_type_id) missing.push(IDENTITY_TOAST.type)
   if (errors.road_id) missing.push(IDENTITY_TOAST.road)
   if (errors.location) missing.push(IDENTITY_TOAST.location)
+  if (errors.patrol_callsign_number) missing.push('אוק - מס')
   const fields =
     missing.length > 0
       ? joinHebrewList(missing)
@@ -906,6 +1023,9 @@ export function validateEventMinimum(
   if (!draft.event_date) errors.event_date = 'יש לבחור תאריך.'
   if (!draft.event_type_id) errors.event_type_id = 'יש לבחור סוג אירוע.'
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש.'
+  if (!draft.patrol_callsign_number.trim()) {
+    errors.patrol_callsign_number = PATROL_CALLSIGN_NUMBER_ERROR
+  }
   if (
     needsPlacesLocation(districts, draft.district_id, roads, draft.road_id) &&
     !draft.location.trim()
@@ -1091,6 +1211,12 @@ export async function saveEventForm(input: {
   ) {
     return { ok: false, error: ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR }
   }
+  if (
+    draft.id &&
+    isEventEditAgeLocked({ createdAt: draft.created_at, roles: input.roles })
+  ) {
+    return { ok: false, error: EVENT_EDIT_LOCKED_TOOLTIP }
+  }
 
   const fieldErrors = canPersistEventDraft(draft, districts, {
     allowPartial,
@@ -1145,11 +1271,20 @@ export async function saveEventForm(input: {
   const foreignIds = eventForeignIds(draft, { allowPartial })
   const mainLeadId = draft.shift_lead_id?.trim() || shiftLeadId
   const wasCreate = !draft.id
+  const overnight = isOvernightEnd(draft.start_time, draft.end_time)
+  const eventStartedAt = wallTimestamp(draft.event_date, draft.start_time, 0)
+  const eventEndedAt = wallTimestamp(draft.event_date, draft.end_time, overnight ? 1 : 0)
+  const callsignPrefix = patrolCallsignPrefixForInput(draft.patrol_callsign_prefix).trim() || null
+  const callsignNumber = patrolCallsignNumberForInput(draft.patrol_callsign_number) || null
   const eventPayload = {
     event_date: draft.event_date,
     police_event_id: policeEventIdForInput(draft.police_event_id) || null,
     district_id: foreignIds.district_id,
-    patrol_callsign: patrolCallsignForInput(draft.patrol_callsign).trim() || null,
+    patrol_callsign: formatPatrolCallsign(callsignPrefix, callsignNumber) || null,
+    patrol_callsign_prefix: callsignPrefix,
+    patrol_callsign_number: callsignNumber,
+    started_at: eventStartedAt,
+    ended_at: eventEndedAt,
     event_type_id: foreignIds.event_type_id,
     road_id: foreignIds.road_id,
     location: locationPayload.location,
@@ -1247,6 +1382,8 @@ export async function saveEventForm(input: {
   const sync = await syncResponders({
     eventId,
     eventDate: draft.event_date,
+    startedAt: eventStartedAt,
+    endedAt: eventEndedAt,
     responders: draft.responders,
     vehicleKinds,
     isCancelled: draft.is_cancelled,
@@ -1272,13 +1409,8 @@ export async function saveEventForm(input: {
   const nextAssignments = draft.responders.flatMap((responder) => {
     const assignmentId = sync.assignmentIds[responder.responder_id]
     if (!assignmentId) return []
-    const overnight = isOvernightEnd(responder.start_time, responder.end_time)
-    return [
-      {
-        id: assignmentId,
-        endedAt: wallTimestamp(draft.event_date, responder.end_time, overnight ? 1 : 0),
-      },
-    ]
+    const previous = sync.previousAssignments.find((row) => row.id === assignmentId)
+    return [{ id: assignmentId, endedAt: previous?.endedAt ?? null }]
   })
   const trackingPlan = planTrackingSync({
     previous: sync.previousAssignments,
@@ -1382,6 +1514,8 @@ async function syncSecondaryLeads(input: {
 async function syncResponders(input: {
   eventId: string
   eventDate: string
+  startedAt: string | null
+  endedAt: string | null
   responders: ResponderDraft[]
   vehicleKinds: LookupOption[]
   isCancelled: boolean
@@ -1397,7 +1531,7 @@ async function syncResponders(input: {
     }
   | { ok: false; error: string }
 > {
-  const { eventId, eventDate, responders, vehicleKinds, isCancelled } = input
+  const { eventId, startedAt, endedAt, responders, vehicleKinds, isCancelled } = input
 
   const { data: existing, error: existingError } = await supabase
     .from('event_responders')
@@ -1443,9 +1577,10 @@ async function syncResponders(input: {
       return { ok: false, error: 'קילומטרים חייבים להיות מספר.' }
     }
 
-    const overnight = isOvernightEnd(responder.start_time, responder.end_time)
-    const startedAt = wallTimestamp(eventDate, responder.start_time, 0)
-    const endedAt = wallTimestamp(eventDate, responder.end_time, overnight ? 1 : 0)
+    // Copy event times onto responders so freeze / reports keep a start; do not
+    // clear an existing ended_at (live tracking) when the event end is empty.
+    const responderStartedAt = startedAt
+    const responderEndedAt = endedAt
 
     // Draft may lack assignmentId after the first insert in this session — reuse DB row.
     let assignmentId =
@@ -1454,8 +1589,8 @@ async function syncResponders(input: {
       const { error } = await supabase
         .from('event_responders')
         .update({
-          started_at: startedAt,
-          ended_at: endedAt,
+          started_at: responderStartedAt,
+          ...(responderEndedAt ? { ended_at: responderEndedAt } : {}),
           total_km: km,
           emergency_means: responder.emergency_means,
           updated_at: new Date().toISOString(),
@@ -1470,8 +1605,8 @@ async function syncResponders(input: {
         .insert({
           event_id: eventId,
           responder_id: responder.responder_id,
-          started_at: startedAt,
-          ended_at: endedAt,
+          started_at: responderStartedAt,
+          ended_at: responderEndedAt,
           total_km: km,
           emergency_means: responder.emergency_means,
           status: 'pending',

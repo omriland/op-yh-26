@@ -31,9 +31,14 @@ export type EventResponderSummary = {
 
 export type EventListItem = {
   id: string
+  created_at?: string | null
   event_date: string
   police_event_id: string | null
   patrol_callsign: string | null
+  patrol_callsign_prefix?: string | null
+  patrol_callsign_number?: string | null
+  started_at?: string | null
+  ended_at?: string | null
   location: string | null
   status: EventStatus
   is_cancelled: boolean
@@ -62,9 +67,14 @@ export type EventListItem = {
 
 export const EVENT_LIST_SELECT = `
   id,
+  created_at,
   event_date,
   police_event_id,
   patrol_callsign,
+  patrol_callsign_prefix,
+  patrol_callsign_number,
+  started_at,
+  ended_at,
   location,
   status,
   is_cancelled,
@@ -319,9 +329,14 @@ export type EventDetail = Omit<EventListItem, 'responders'> & {
 const EVENT_DETAIL_SELECT = `
   id,
   shift_lead_id,
+  created_at,
   event_date,
   police_event_id,
   patrol_callsign,
+  patrol_callsign_prefix,
+  patrol_callsign_number,
+  started_at,
+  ended_at,
   location,
   road_id,
   location_lat,
@@ -368,9 +383,14 @@ const EVENT_DETAIL_SELECT = `
 const EVENT_DETAIL_SELECT_NO_PLATES = `
   id,
   shift_lead_id,
+  created_at,
   event_date,
   police_event_id,
   patrol_callsign,
+  patrol_callsign_prefix,
+  patrol_callsign_number,
+  started_at,
+  ended_at,
   location,
   road_id,
   location_lat,

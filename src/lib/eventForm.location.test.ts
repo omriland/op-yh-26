@@ -13,6 +13,7 @@ function draft(partial: Partial<EventFormDraft> = {}): EventFormDraft {
     ...emptyEventDraft({ full_name: 'א', callsign: '1' }),
     event_type_id: 't1',
     road_id: 'r1',
+    patrol_callsign_number: '411',
     ...partial,
   }
 }

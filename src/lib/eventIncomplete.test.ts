@@ -85,12 +85,18 @@ describe('missingEventFields', () => {
     ).toEqual(new Set(['responder_km']))
   })
 
-  it('flags times when any responder is missing start or end', () => {
-    expect(missingEventFields(event({ responders: [responder({ started_at: null })] }))).toEqual(
-      new Set(['responder_times']),
+  it('flags times when the event is missing start or end', () => {
+    expect(missingEventFields(event({ started_at: null, ended_at: '2026-09-04T07:00:00' }))).toEqual(
+      new Set(['event_times']),
     )
-    expect(missingEventFields(event({ responders: [responder({ ended_at: '  ' })] }))).toEqual(
-      new Set(['responder_times']),
+    expect(missingEventFields(event({ started_at: '2026-09-04T06:00:00', ended_at: null }))).toEqual(
+      new Set(['event_times']),
+    )
+  })
+
+  it('falls back to responder times when event columns are absent', () => {
+    expect(missingEventFields(event({ responders: [responder({ started_at: null })] }))).toEqual(
+      new Set(['event_times']),
     )
   })
 

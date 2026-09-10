@@ -7,7 +7,6 @@ import {
   canClearEventCancelled,
   CANCELLED_CLEAR_ADMIN_ONLY,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
-  canPersistEventDraft,
   cockpitIdentityDraftWarning,
   attachEventIdAfterFailedSave,
   fetchSameDayPoliceEventIdRows,
@@ -23,20 +22,22 @@ import {
   isOtherEventTypeId,
   EVENT_TYPE_DETAIL_MAX_LENGTH,
   LEAD_KM_MAX_DIGITS,
-  PATROL_CALLSIGN_MAX_LENGTH,
+  PATROL_CALLSIGN_NUMBER_LABEL,
+  PATROL_CALLSIGN_NUMBER_PLACEHOLDER,
+  PATROL_CALLSIGN_PREFIX_LABEL,
+  PATROL_CALLSIGN_PREFIX_MAX_LENGTH,
+  PATROL_CALLSIGN_PREFIX_PLACEHOLDER,
+  PATROL_CALLSIGN_NUMBER_MAX_LENGTH,
   STATION_MAX_LENGTH,
+  formatPatrolCallsign,
   leadKmForInput,
-  patrolCallsignForInput,
+  patrolCallsignNumberForInput,
+  patrolCallsignPrefixForInput,
   isAbandonedEmptyEventDraft,
   policeEventIdForCockpitSave,
   sameDayPoliceEventIdCollides,
-  isOvernightEnd,
   isSelfAssignDisabledInPicker,
   mergeAssignmentIds,
-  shouldConfirmFutureEventDate,
-  FUTURE_EVENT_DATE_BACK,
-  FUTURE_EVENT_DATE_CONTINUE,
-  FUTURE_EVENT_DATE_TITLE,
   NEW_RESPONDER_EMERGENCY_MEANS,
   NO_VEHICLE_KM_PLACEHOLDER,
   registerAbandonedEmptyEventHandler,
@@ -114,6 +115,13 @@ import {
   isAssignedVolunteerEventEditBlocked,
 } from '../lib/assignedVolunteerEventEdit'
 import { AssignedVolunteerEditBlockedDialog } from '../components/events/AssignedVolunteerEditBlockedDialog'
+import { EventSaveRulesDialog } from '../components/events/EventSaveRulesDialog'
+import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from '../lib/eventEditLock'
+import {
+  evaluateEventFormSaveRules,
+  mergeFieldErrors,
+  type SaveRuleIssue,
+} from '../lib/eventSaveRules'
 
 type EventFormPageProps = {
   eventId?: string
@@ -184,7 +192,7 @@ export function EventFormPage({
   const [baseline, setBaseline] = useState<string>('')
   const [previousIsCancelled, setPreviousIsCancelled] = useState(false)
   const [loadState, setLoadState] = useState<
-    'loading' | 'ready' | 'denied' | 'assigned_blocked'
+    'loading' | 'ready' | 'denied' | 'assigned_blocked' | 'age_locked'
   >('loading')
   const [errors, setErrors] = useState<EventFormErrors>({})
   /** Bumped on every failed submit so an identical second failure still re-focuses. */
@@ -195,10 +203,8 @@ export function EventFormPage({
   const [pickerQuery, setPickerQuery] = useState('')
   const [leaveConfirm, setLeaveConfirm] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<ResponderDraft | null>(null)
-  const [overnightPrompt, setOvernightPrompt] = useState<{
-    options?: PersistOptions
-  } | null>(null)
-  const [futureDatePrompt, setFutureDatePrompt] = useState<{
+  const [notifyPrompt, setNotifyPrompt] = useState<{
+    issues: SaveRuleIssue[]
     options?: PersistOptions
   } | null>(null)
   const [sheetResponderKey, setSheetResponderKey] = useState<string | null>(null)
@@ -242,7 +248,7 @@ export function EventFormPage({
     assignedVolunteerBlockedRef.current = false
     setAssignedVolunteerBlocked(false)
     setAssignedEditDialog(false)
-    setFutureDatePrompt(null)
+    setNotifyPrompt(null)
   }, [eventId])
 
   const userId = user?.id
@@ -309,6 +315,14 @@ export function EventFormPage({
           setLoadState('assigned_blocked')
           return
         }
+        const ageLocked = Boolean(
+          existing &&
+            isEventEditAgeLocked({ createdAt: existing.created_at, roles }),
+        )
+        if (ageLocked && variant !== 'cockpit') {
+          setLoadState('age_locked')
+          return
+        }
         setLookups(nextLookups)
         setRoster(nextRoster)
         setShiftLeadUsers(nextLeads)
@@ -355,7 +369,7 @@ export function EventFormPage({
               full_name: leadName,
               callsign: leadCallsign,
             }).event_date
-        seedOvernightConfirmed(nextDraft)
+        overnightConfirmed.current.clear()
         lastPersistedPoliceIdRef.current = nextDraft.police_event_id
         setDraft(nextDraft)
         setPreviousIsCancelled(nextDraft.is_cancelled)
@@ -514,11 +528,22 @@ export function EventFormPage({
       }
 
       const allowPartial = variant === 'cockpit'
-      const persistErrors = canPersistEventDraft(current, currentLookups.districts, {
-        allowPartial,
+      const rules = evaluateEventFormSaveRules({
+        draft: current,
+        districts: currentLookups.districts,
         roads: currentLookups.roads,
+        allowPartial,
+        roles,
+        canClearCancelled,
+        previousIsCancelled,
+        treatedTotal: totalTreatedQuantity(current.responders),
+        assignedVolunteerBlocked: assignedVolunteerBlockedRef.current,
+        futureDateOk: options?.futureDateOk,
+        overnightOk: options?.overnightOk || overnightConfirmed.current.has('event'),
+        lastSavedDate: lastSavedEventDate(baselineRef.current, initialDateRef.current),
       })
-      if (Object.keys(persistErrors).length > 0) {
+      if (rules.blocks.length > 0) {
+        const persistErrors = mergeFieldErrors(rules.blocks)
         // Don't create a row until date + type + road are set; stay quiet on background autosave.
         if (!current.id && !options?.navigate && !options?.createNew && !options?.revealErrors) {
           setSavePulse('idle')
@@ -527,20 +552,14 @@ export function EventFormPage({
         setErrors(persistErrors)
         setSavePulse('error')
         if (options?.navigate || options?.createNew || options?.revealErrors) {
-          show(eventCreateBlockedMessage(persistErrors), 'alert')
+          show(rules.blocks[0]?.message ?? eventCreateBlockedMessage(persistErrors), 'alert')
           setSubmitAttempt((n) => n + 1)
         }
         return false
       }
 
-      if (
-        !options?.futureDateOk &&
-        shouldConfirmFutureEventDate({
-          eventDate: current.event_date,
-          lastSavedDate: lastSavedEventDate(baselineRef.current, initialDateRef.current),
-        })
-      ) {
-        setFutureDatePrompt({ options })
+      if (rules.notifies.length > 0) {
+        setNotifyPrompt({ issues: rules.notifies, options })
         setSavePulse('idle')
         return false
       }
@@ -592,20 +611,7 @@ export function EventFormPage({
         }
       }
 
-      const pendingOvernight = current.responders.filter(
-        (row) =>
-          isOvernightEnd(row.start_time, row.end_time) &&
-          !overnightConfirmed.current.has(row.key),
-      )
-      if (pendingOvernight.length > 0 && !options?.overnightOk) {
-        setOvernightPrompt({ options })
-        return false
-      }
-      for (const row of current.responders) {
-        if (isOvernightEnd(row.start_time, row.end_time)) {
-          overnightConfirmed.current.add(row.key)
-        }
-      }
+      overnightConfirmed.current.add('event')
 
       setSavePulse('saving')
       const result = await saveEventForm({
@@ -753,10 +759,13 @@ export function EventFormPage({
     }
   }
 
-  function revertFutureEventDate() {
-    const previous = lastSavedEventDate(baselineRef.current, initialDateRef.current)
-    updateDraft({ event_date: previous })
-    setFutureDatePrompt(null)
+  function revertNotifyPrompt() {
+    const issues = notifyPrompt?.issues ?? []
+    if (issues.some((issue) => issue.id === 'future_date')) {
+      const previous = lastSavedEventDate(baselineRef.current, initialDateRef.current)
+      updateDraft({ event_date: previous })
+    }
+    setNotifyPrompt(null)
   }
 
   function updateDraft(patch: Partial<EventFormDraft>) {
@@ -769,35 +778,35 @@ export function EventFormPage({
     if (errors.form) setErrors((current) => ({ ...current, form: undefined }))
   }
 
-  function seedOvernightConfirmed(next: EventFormDraft) {
-    overnightConfirmed.current.clear()
-    for (const row of next.responders) {
-      if (isOvernightEnd(row.start_time, row.end_time)) {
-        overnightConfirmed.current.add(row.key)
-      }
-    }
-  }
-
   function updateResponder(key: string, patch: Partial<ResponderDraft>) {
     setDraft((current) => {
       if (!current) return current
       const next = {
         ...current,
-        responders: current.responders.map((row) => {
-          if (row.key !== key) return row
-          const merged = { ...row, ...patch }
-          if (!isOvernightEnd(merged.start_time, merged.end_time)) {
-            overnightConfirmed.current.delete(key)
-          } else if ('start_time' in patch || 'end_time' in patch) {
-            // Times changed while still overnight — ask again on next save.
-            overnightConfirmed.current.delete(key)
-          }
-          return merged
-        }),
+        responders: current.responders.map((row) => (row.key === key ? { ...row, ...patch } : row)),
       }
       draftRef.current = next
       return next
     })
+  }
+
+  function updateCallsign(patch: { prefix?: string; number?: string }) {
+    setDraft((current) => {
+      if (!current) return current
+      const prefix = patch.prefix ?? current.patrol_callsign_prefix
+      const number = patch.number ?? current.patrol_callsign_number
+      const next = {
+        ...current,
+        patrol_callsign_prefix: prefix,
+        patrol_callsign_number: number,
+        patrol_callsign: formatPatrolCallsign(prefix, number),
+      }
+      draftRef.current = next
+      return next
+    })
+    if (errors.patrol_callsign_number) {
+      setErrors((current) => ({ ...current, patrol_callsign_number: undefined }))
+    }
   }
 
   function bumpTreated(responderKey: string, kindId: string, delta: number) {
@@ -932,8 +941,7 @@ export function EventFormPage({
   const dialogOpen =
     leaveConfirm ||
     removeTarget !== null ||
-    overnightPrompt !== null ||
-    futureDatePrompt !== null ||
+    notifyPrompt !== null ||
     pickerOpen ||
     sheetResponderKey !== null ||
     foreignEditPending ||
@@ -1119,6 +1127,20 @@ export function EventFormPage({
       <EmptyState
         icon={<UserRound size={40} strokeWidth={1.75} />}
         title={ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR}
+        action={
+          <Button variant="secondary" onClick={() => onCancel()}>
+            חזרה
+          </Button>
+        }
+      />
+    )
+  }
+
+  if (loadState === 'age_locked') {
+    return (
+      <EmptyState
+        icon={<UserRound size={40} strokeWidth={1.75} />}
+        title={EVENT_EDIT_LOCKED_TOOLTIP}
         action={
           <Button variant="secondary" onClick={() => onCancel()}>
             חזרה
@@ -1337,16 +1359,52 @@ export function EventFormPage({
                 />
                 </div>
 
-                <div className="event-form__f-patrol">
+                <div className="event-form__f-ok-prefix">
                 <TextField
-                  label="או״ק ניידת"
-                  numeric
-                  maxLength={PATROL_CALLSIGN_MAX_LENGTH}
-                  value={draft.patrol_callsign}
+                  label={PATROL_CALLSIGN_PREFIX_LABEL}
+                  placeholder={PATROL_CALLSIGN_PREFIX_PLACEHOLDER}
+                  maxLength={PATROL_CALLSIGN_PREFIX_MAX_LENGTH}
+                  value={draft.patrol_callsign_prefix}
                   onChange={(event) =>
-                    updateDraft({ patrol_callsign: patrolCallsignForInput(event.target.value) })
+                    updateCallsign({ prefix: patrolCallsignPrefixForInput(event.target.value) })
                   }
                   onBlur={() => void persistLatest()}
+                />
+                </div>
+
+                <div className="event-form__f-ok-number">
+                <TextField
+                  label={PATROL_CALLSIGN_NUMBER_LABEL}
+                  placeholder={PATROL_CALLSIGN_NUMBER_PLACEHOLDER}
+                  numeric
+                  isolate
+                  inputMode="numeric"
+                  autoComplete="off"
+                  pattern="[0-9]*"
+                  maxLength={PATROL_CALLSIGN_NUMBER_MAX_LENGTH}
+                  value={draft.patrol_callsign_number}
+                  error={errors.patrol_callsign_number}
+                  required={variant !== 'cockpit'}
+                  onChange={(event) =>
+                    updateCallsign({ number: patrolCallsignNumberForInput(event.target.value) })
+                  }
+                  onBlur={() => void persistLatest()}
+                />
+                </div>
+
+                <div className="event-form__f-times">
+                <EventTimes
+                  startTime={draft.start_time}
+                  endTime={draft.end_time}
+                  onChangeStart={(start_time) => {
+                    overnightConfirmed.current.delete('event')
+                    updateDraft({ start_time })
+                  }}
+                  onChangeEnd={(end_time) => {
+                    overnightConfirmed.current.delete('event')
+                    updateDraft({ end_time })
+                  }}
+                  onPersist={() => void persistLatest()}
                 />
                 </div>
 
@@ -1685,10 +1743,6 @@ export function EventFormPage({
                                 {!responder.expanded ? (
                                   <>
                                     {' · '}
-                                    {responder.start_time || responder.end_time
-                                      ? `${responder.start_time || '—'}–${responder.end_time || '—'}`
-                                      : 'ללא זמנים'}
-                                    {' · '}
                                     {responder.hasVehicle
                                       ? responder.total_km.trim()
                                         ? `${responder.total_km.trim()} ק״מ`
@@ -1729,12 +1783,6 @@ export function EventFormPage({
                               responder={responder}
                               vehicleKinds={lookups.vehicleKinds}
                               cancelled={draft.is_cancelled}
-                              onChangeStart={(start_time) =>
-                                updateResponder(responder.key, { start_time })
-                              }
-                              onChangeEnd={(end_time) =>
-                                updateResponder(responder.key, { end_time })
-                              }
                               onChangeKm={(total_km) =>
                                 updateResponder(responder.key, { total_km })
                               }
@@ -1901,62 +1949,22 @@ export function EventFormPage({
         }
       />
 
-      <AlertDialog
-        open={Boolean(overnightPrompt)}
-        status="warning"
-        title="סיום ביום למחרת"
-        onClose={() => setOvernightPrompt(null)}
-        footer={
-          <>
-            <Button
-              onClick={() => {
-                const options = overnightPrompt?.options
-                const current = draftRef.current
-                if (current) {
-                  for (const row of current.responders) {
-                    if (isOvernightEnd(row.start_time, row.end_time)) {
-                      overnightConfirmed.current.add(row.key)
-                    }
-                  }
-                }
-                setOvernightPrompt(null)
-                void persistLatest({ ...options, overnightOk: true, revealErrors: true })
-              }}
-            >
-              כן, מסתיים למחרת
-            </Button>
-            <Button variant="secondary" onClick={() => setOvernightPrompt(null)}>
-              תיקון זמנים
-            </Button>
-          </>
-        }
-      >
-        <p className="t-body">
-          זמן הסיום מוקדם מזמן ההתחלה. האם האירוע מסתיים ביום למחרת?
-        </p>
-      </AlertDialog>
-
-      <AlertDialog
-        open={Boolean(futureDatePrompt)}
-        status="warning"
-        title={FUTURE_EVENT_DATE_TITLE}
-        onClose={revertFutureEventDate}
-        footer={
-          <>
-            <Button
-              onClick={() => {
-                const options = futureDatePrompt?.options
-                setFutureDatePrompt(null)
-                void persistLatest({ ...options, futureDateOk: true, revealErrors: true })
-              }}
-            >
-              {FUTURE_EVENT_DATE_CONTINUE}
-            </Button>
-            <Button variant="secondary" onClick={revertFutureEventDate}>
-              {FUTURE_EVENT_DATE_BACK}
-            </Button>
-          </>
-        }
+      <EventSaveRulesDialog
+        open={Boolean(notifyPrompt)}
+        issues={notifyPrompt?.issues ?? []}
+        onBack={revertNotifyPrompt}
+        onProceed={() => {
+          const options = notifyPrompt?.options
+          const issues = notifyPrompt?.issues ?? []
+          overnightConfirmed.current.add('event')
+          setNotifyPrompt(null)
+          void persistLatest({
+            ...options,
+            overnightOk: true,
+            futureDateOk: issues.some((issue) => issue.id === 'future_date') || options?.futureDateOk,
+            revealErrors: true,
+          })
+        }}
       />
 
       <Dialog
@@ -1975,11 +1983,6 @@ export function EventFormPage({
             responder={sheetResponder}
             vehicleKinds={lookups.vehicleKinds}
             cancelled={draft.is_cancelled}
-            timeLabels={{ start: 'שעת התחלה', end: 'שעת סיום' }}
-            onChangeStart={(start_time) =>
-              updateResponder(sheetResponder.key, { start_time })
-            }
-            onChangeEnd={(end_time) => updateResponder(sheetResponder.key, { end_time })}
             onChangeKm={(total_km) => updateResponder(sheetResponder.key, { total_km })}
             onToggleMeans={(emergency_means) => {
               updateResponder(sheetResponder.key, { emergency_means })
@@ -2003,9 +2006,6 @@ function ResponderLeadFields({
   responder,
   vehicleKinds,
   cancelled,
-  timeLabels = { start: 'זמן התחלה', end: 'זמן סיום' },
-  onChangeStart,
-  onChangeEnd,
   onChangeKm,
   onToggleMeans,
   busLane,
@@ -2016,9 +2016,6 @@ function ResponderLeadFields({
   responder: ResponderDraft
   vehicleKinds: { id: string; name: string }[]
   cancelled: boolean
-  timeLabels?: { start: string; end: string }
-  onChangeStart: (value: string) => void
-  onChangeEnd: (value: string) => void
   onChangeKm: (value: string) => void
   onToggleMeans: (value: boolean) => void
   busLane: boolean
@@ -2028,15 +2025,6 @@ function ResponderLeadFields({
 }) {
   return (
     <>
-      <ResponderTimes
-        startLabel={timeLabels.start}
-        endLabel={timeLabels.end}
-        startTime={responder.start_time}
-        endTime={responder.end_time}
-        onChangeStart={onChangeStart}
-        onChangeEnd={onChangeEnd}
-        onPersist={onPersist}
-      />
       <TextField
         label="קילומטרים"
         numeric={responder.hasVehicle}
@@ -2085,17 +2073,13 @@ function ResponderLeadFields({
   )
 }
 
-function ResponderTimes({
-  startLabel,
-  endLabel,
+function EventTimes({
   startTime,
   endTime,
   onChangeStart,
   onChangeEnd,
   onPersist,
 }: {
-  startLabel: string
-  endLabel: string
   startTime: string
   endTime: string
   onChangeStart: (value: string) => void
@@ -2107,7 +2091,7 @@ function ResponderTimes({
   return (
     <div className="event-form__grid">
       <TimeField
-        label={startLabel}
+        label="זמן התחלה"
         value={startTime}
         onChange={onChangeStart}
         onBlur={onPersist}
@@ -2119,7 +2103,7 @@ function ResponderTimes({
         }}
       />
       <TimeField
-        label={endLabel}
+        label="זמן סיום"
         value={endTime}
         onChange={onChangeEnd}
         onBlur={onPersist}

@@ -37,8 +37,6 @@ describe('eventResponderHasFilledFields', () => {
   })
 
   it('is true after any single lead field', () => {
-    expect(eventResponderHasFilledFields(row({ start_time: '08:00' }))).toBe(true)
-    expect(eventResponderHasFilledFields(row({ end_time: '09:00' }))).toBe(true)
     expect(eventResponderHasFilledFields(row({ total_km: '12' }))).toBe(true)
     expect(eventResponderHasFilledFields(row({ emergency_means: true }))).toBe(true)
     expect(
@@ -58,7 +56,7 @@ describe('eventResponderHasFilledFields', () => {
       ),
     ).toBe(false)
     expect(
-      eventResponderHasFilledFields(row({ assignmentId: undefined, start_time: '08:00' })),
+      eventResponderHasFilledFields(row({ assignmentId: undefined, total_km: '8' })),
     ).toBe(true)
   })
 })

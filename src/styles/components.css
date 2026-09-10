@@ -5931,7 +5931,9 @@ html[data-keyboard-open] .event-form__footer {
   grid-template-columns: 1fr 1fr;
   grid-template-areas:
     'date date'
-    'police patrol'
+    'police police'
+    'okPrefix okNumber'
+    'times times'
     'district type'
     'loc loc'
     'places places'
@@ -5942,6 +5944,9 @@ html[data-keyboard-open] .event-form__footer {
 .event-form__f-police,
 .event-form__f-district,
 .event-form__f-patrol,
+.event-form__f-ok-prefix,
+.event-form__f-ok-number,
+.event-form__f-times,
 .event-form__f-type,
 .event-form__f-road,
 .event-form__f-location,
@@ -5966,6 +5971,9 @@ html[data-keyboard-open] .event-form__footer {
 .event-form__identity > .event-form__f-type { grid-area: type; }
 .event-form__identity > .event-form__f-district { grid-area: district; }
 .event-form__identity > .event-form__f-patrol { grid-area: patrol; }
+.event-form__identity > .event-form__f-ok-prefix { grid-area: okPrefix; }
+.event-form__identity > .event-form__f-ok-number { grid-area: okNumber; }
+.event-form__identity > .event-form__f-times { grid-area: times; }
 .event-form__identity > .event-form__f-road { grid-area: road; }
 .event-form__identity > .event-form__f-location { grid-area: loc; }
 .event-form__identity > .event-form__f-places { grid-area: places; }
@@ -5993,7 +6001,9 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-3);
   grid-template-areas:
     'date date'
-    'police patrol'
+    'police police'
+    'okPrefix okNumber'
+    'times times'
     'type district'
     'loc loc'
     'places places'
@@ -6003,7 +6013,9 @@ html[data-keyboard-open] .event-form__footer {
 .event-form--phone.event-form--places .event-form__identity {
   grid-template-areas:
     'date date'
-    'police patrol'
+    'police police'
+    'okPrefix okNumber'
+    'times times'
     'type district'
     'places places'
     'road road';

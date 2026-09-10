@@ -40,6 +40,7 @@ describe('canPersistEventDraft', () => {
     expect(canPersistEventDraft(empty, districts)).toMatchObject({
       event_type_id: 'יש לבחור סוג אירוע.',
       road_id: 'יש לבחור כביש.',
+      patrol_callsign_number: 'יש למלא אוק - מס.',
     })
     expect(canPersistEventDraft(empty, districts, { allowPartial: true })).toEqual({})
   })

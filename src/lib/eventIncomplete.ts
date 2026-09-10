@@ -6,12 +6,13 @@
  * their status (including ממתין לתיעוד) so the shift-lead can't miss them.
  *
  * Fields checked:
- *  - Event-level: police_event_id, patrol_callsign, district, event_type,
- *                 road, location
- *  - Per-responder: total_km, started_at, ended_at
+ *  - Event-level: police_event_id, patrol_callsign_number (אוק - מס),
+ *                 district, event_type, road, location, started_at, ended_at
+ *  - Per-responder: total_km
  */
 
 import type { EventListItem } from './events'
+import { resolvePatrolCallsign } from './patrolCallsign'
 
 export type IncompleteField =
   | 'police_event_id'
@@ -21,17 +22,17 @@ export type IncompleteField =
   | 'road'
   | 'location'
   | 'responder_km'
-  | 'responder_times'
+  | 'event_times'
 
 export const INCOMPLETE_FIELD_LABELS: Record<IncompleteField, string> = {
   police_event_id: 'מספר אירוע',
-  patrol_callsign: 'או״ק ניידת',
+  patrol_callsign: 'אוק - מס',
   district: 'שלוחה',
   event_type: 'סוג אירוע',
   road: 'כביש',
   location: 'מיקום',
   responder_km: 'ק״מ',
-  responder_times: 'שעות',
+  event_times: 'שעות',
 }
 
 function isMissing(value: string | null | undefined): boolean {
@@ -46,19 +47,33 @@ export function missingEventFields(event: EventListItem): Set<IncompleteField> {
   const missing = new Set<IncompleteField>()
 
   if (isMissing(event.police_event_id)) missing.add('police_event_id')
-  if (isMissing(event.patrol_callsign)) missing.add('patrol_callsign')
+  const callsign = resolvePatrolCallsign({
+    prefix: event.patrol_callsign_prefix,
+    number: event.patrol_callsign_number,
+    legacy: event.patrol_callsign,
+  })
+  if (isMissing(callsign.number)) missing.add('patrol_callsign')
   if (!event.district) missing.add('district')
   if (!event.event_type) missing.add('event_type')
   if (!event.road) missing.add('road')
   if (isMissing(event.location)) missing.add('location')
 
+  const eventStart = event.started_at
+  const eventEnd = event.ended_at
+  if (eventStart !== undefined || eventEnd !== undefined) {
+    if (isMissing(eventStart) || isMissing(eventEnd)) missing.add('event_times')
+  } else {
+    for (const responder of event.responders) {
+      if (isMissing(responder.started_at) || isMissing(responder.ended_at)) {
+        missing.add('event_times')
+        break
+      }
+    }
+  }
+
   for (const responder of event.responders) {
     if (responder.total_km == null) missing.add('responder_km')
-    if (isMissing(responder.started_at) || isMissing(responder.ended_at)) {
-      missing.add('responder_times')
-    }
-    // Stop scanning once both responder flags are set
-    if (missing.has('responder_km') && missing.has('responder_times')) break
+    if (missing.has('responder_km')) break
   }
 
   return missing

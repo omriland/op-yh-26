@@ -33,6 +33,13 @@ import {
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
+import { EventSaveRulesDialog } from '../components/events/EventSaveRulesDialog'
+import {
+  evaluateResponderFillSaveRules,
+  mergeFieldErrors,
+  type SaveRuleIssue,
+} from '../lib/eventSaveRules'
+import { fetchEventPhotoCoverage } from '../lib/eventVehiclePhotos'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
@@ -98,6 +105,9 @@ export function ResponderFillPage({
   const [submitAttempt, setSubmitAttempt] = useState(0)
   /** Holds the screen just long enough to show the stamp land — 07-motion.md. */
   const [justCompleted, setJustCompleted] = useState(false)
+  const [notifyPrompt, setNotifyPrompt] = useState<SaveRuleIssue[] | null>(null)
+  const photoNotifyOkRef = useRef(false)
+  const pendingSaveMode = useRef<'draft' | 'complete' | null>(null)
   const plateLookupTail = useRef(Promise.resolve())
   const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stashLatest = useRef<(() => void) | null>(null)
@@ -339,8 +349,45 @@ export function ResponderFillPage({
     })
   }
 
+  async function runFillRules(
+    nextDraft: ResponderFillDraft,
+    mode: 'draft' | 'complete',
+  ): Promise<boolean> {
+    if (!ctx) return false
+    const coverage = await fetchEventPhotoCoverage(ctx.eventId)
+    const rules = evaluateResponderFillSaveRules({
+      draft: nextDraft,
+      mode,
+      allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
+      totalKm: ctx.totalKm,
+      unfinishedMediaDraftCount: unfinishedMediaDrafts,
+      coveredPlateDigits: coverage.coveredDigits,
+      photoNotifyOk: photoNotifyOkRef.current,
+    })
+    if (rules.blocks.length > 0) {
+      setErrors(mergeFieldErrors(rules.blocks))
+      setSubmitAttempt((n) => n + 1)
+      const message = rules.blocks[0]?.message
+      const plateOnly =
+        rules.blocks[0]?.fieldErrors &&
+        'treated_plates' in rules.blocks[0].fieldErrors &&
+        rules.blocks[0].fieldErrors.treated_plates != null &&
+        message === rules.blocks[0].fieldErrors.treated_plates
+      if (message && !plateOnly) show(message, 'alert')
+      return false
+    }
+    if (rules.notifies.length > 0) {
+      pendingSaveMode.current = mode
+      setNotifyPrompt(rules.notifies)
+      return false
+    }
+    return true
+  }
+
   async function onSaveDraft() {
     if (!ctx || !draft || readOnly) return
+    const allowed = await runFillRules(draft, 'draft')
+    if (!allowed) return
     setSavingDraft(true)
     setErrors({})
     const result = fillToken
@@ -395,6 +442,8 @@ export function ResponderFillPage({
       treated_plates: settled.plates,
       treated_plate_pending: '',
     })
+    const allowed = await runFillRules(nextDraft, 'complete')
+    if (!allowed) return
     setCompleting(true)
     setErrors({})
     const result = fillToken
@@ -707,6 +756,22 @@ export function ResponderFillPage({
           </FormStickyFooter>
         )}
       </div>
+      <EventSaveRulesDialog
+        open={Boolean(notifyPrompt)}
+        issues={notifyPrompt ?? []}
+        onBack={() => {
+          pendingSaveMode.current = null
+          setNotifyPrompt(null)
+        }}
+        onProceed={() => {
+          const mode = pendingSaveMode.current
+          setNotifyPrompt(null)
+          photoNotifyOkRef.current = true
+          pendingSaveMode.current = null
+          if (mode === 'complete') void onComplete()
+          else void onSaveDraft()
+        }}
+      />
     </div>
   )
 }

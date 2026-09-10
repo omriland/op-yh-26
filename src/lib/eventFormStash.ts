@@ -4,6 +4,7 @@ import {
   stashFillDraft,
 } from './fillDraftStash'
 import { isAbandonedEmptyEventDraft, type EventFormDraft } from './eventForm'
+import { formatPatrolCallsign, resolvePatrolCallsign } from './patrolCallsign'
 
 export const EVENT_FORM_STASH_SCOPE = 'eventForm'
 export const EVENT_FORM_STASH_DEBOUNCE_MS = 600
@@ -38,10 +39,21 @@ export function applyStashedEventDraft(
   if (typeof draft.event_date !== 'string') return null
   const stashedLeadId = typeof draft.shift_lead_id === 'string' ? draft.shift_lead_id : undefined
   const keepStashedLead = !base.id && Boolean(stashedLeadId && stashedLeadId !== base.shift_lead_id)
+  const callsign = resolvePatrolCallsign({
+    prefix: typeof draft.patrol_callsign_prefix === 'string' ? draft.patrol_callsign_prefix : base.patrol_callsign_prefix,
+    number: typeof draft.patrol_callsign_number === 'string' ? draft.patrol_callsign_number : base.patrol_callsign_number,
+    legacy:
+      typeof draft.patrol_callsign === 'string' ? draft.patrol_callsign : base.patrol_callsign,
+  })
   return {
     ...base,
     ...draft,
     event_date: draft.event_date,
+    patrol_callsign_prefix: callsign.prefix,
+    patrol_callsign_number: callsign.number,
+    patrol_callsign: formatPatrolCallsign(callsign.prefix, callsign.number),
+    start_time: typeof draft.start_time === 'string' ? draft.start_time : base.start_time,
+    end_time: typeof draft.end_time === 'string' ? draft.end_time : base.end_time,
     shift_lead: keepStashedLead && draft.shift_lead ? draft.shift_lead : base.shift_lead,
     shift_lead_id: keepStashedLead && draft.shift_lead_id ? draft.shift_lead_id : base.shift_lead_id,
     secondary_leads: Array.isArray(draft.secondary_leads)

@@ -54,10 +54,10 @@ describe('digitsOnly', () => {
 })
 
 describe('policeEventIdForInput', () => {
-  it('keeps digits only and caps at 7', () => {
-    expect(POLICE_EVENT_ID_MAX_LENGTH).toBe(7)
-    expect(policeEventIdForInput('12-345-67')).toBe('1234567')
-    expect(policeEventIdForInput('12345678')).toBe('1234567')
+  it('keeps digits only and caps at 5', () => {
+    expect(POLICE_EVENT_ID_MAX_LENGTH).toBe(5)
+    expect(policeEventIdForInput('12-345')).toBe('12345')
+    expect(policeEventIdForInput('12345678')).toBe('12345')
     expect(policeEventIdForInput('abc12')).toBe('12')
   })
 })
