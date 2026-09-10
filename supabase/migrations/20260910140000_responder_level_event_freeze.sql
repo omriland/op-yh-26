@@ -48,48 +48,71 @@ begin
 
   perform set_config('yahpaz.refreshing_event_freeze', '1', true);
 
+  with wanted as (
+    select
+      er.id,
+      (
+        er.total_km is not null
+        and er.total_km >= 80
+        and not (er.responder_id = any (e.approved_over_60km_responder_ids))
+      ) as over_km,
+      (
+        not e.approved_suspicious_duplicate
+        and er.started_at is not null
+        and nullif(btrim(coalesce(e.location, '')), '') is not null
+        and exists (
+          select 1
+          from public.event_responders other
+          join public.events other_event on other_event.id = other.event_id
+          where other.responder_id = er.responder_id
+            and other.event_id <> er.event_id
+            and other_event.event_date = e.event_date
+            and btrim(coalesce(other_event.location, '')) = btrim(e.location)
+            and other.started_at is not null
+            and abs(extract(epoch from (er.started_at - other.started_at))) <= 1800
+        )
+      ) as duplicate
+    from public.event_responders er
+    join public.events e on e.id = er.event_id
+    where er.event_id = p_event_id
+  )
   update public.event_responders er
   set
-    frozen_over_60km = (
-      er.total_km is not null
-      and er.total_km >= 80
-      and not (er.responder_id = any (e.approved_over_60km_responder_ids))
-    ),
-    frozen_suspicious_duplicate = (
-      not e.approved_suspicious_duplicate
-      and er.started_at is not null
-      and nullif(btrim(coalesce(e.location, '')), '') is not null
-      and exists (
-        select 1
-        from public.event_responders other
-        join public.events other_event on other_event.id = other.event_id
-        where other.responder_id = er.responder_id
-          and other.event_id <> er.event_id
-          and other_event.event_date = e.event_date
-          and btrim(coalesce(other_event.location, '')) = btrim(e.location)
-          and other.started_at is not null
-          and abs(extract(epoch from (er.started_at - other.started_at))) <= 1800
-      )
-    )
-  from public.events e
-  where e.id = p_event_id
-    and er.event_id = e.id;
+    frozen_over_60km = wanted.over_km,
+    frozen_suspicious_duplicate = wanted.duplicate
+  from wanted
+  where wanted.id = er.id
+    -- Only real transitions: refresh fans out across a responder's whole day,
+    -- and a no-op write would still fire the audit trigger.
+    and (
+      er.frozen_over_60km is distinct from wanted.over_km
+      or er.frozen_suspicious_duplicate is distinct from wanted.duplicate
+    );
 
   update public.events e
   set
-    frozen_over_60km = exists (
-      select 1
-      from public.event_responders er
-      where er.event_id = e.id
-        and er.frozen_over_60km
-    ),
-    frozen_suspicious_duplicate = exists (
-      select 1
-      from public.event_responders er
-      where er.event_id = e.id
-        and er.frozen_suspicious_duplicate
-    )
-  where e.id = p_event_id;
+    frozen_over_60km = agg.over_km,
+    frozen_suspicious_duplicate = agg.duplicate
+  from (
+    select
+      exists (
+        select 1
+        from public.event_responders er
+        where er.event_id = p_event_id
+          and er.frozen_over_60km
+      ) as over_km,
+      exists (
+        select 1
+        from public.event_responders er
+        where er.event_id = p_event_id
+          and er.frozen_suspicious_duplicate
+      ) as duplicate
+  ) agg
+  where e.id = p_event_id
+    and (
+      e.frozen_over_60km is distinct from agg.over_km
+      or e.frozen_suspicious_duplicate is distinct from agg.duplicate
+    );
 end;
 $$;
 
