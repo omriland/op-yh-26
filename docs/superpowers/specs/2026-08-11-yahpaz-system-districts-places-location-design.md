@@ -53,7 +53,7 @@ Lock one system שלוחה named **תחנה / אחר / משוכפל** so admins 
 
 1. Billing + enable Maps JavaScript API + Places API (New)
 2. API key restricted to those APIs
-3. HTTP referrers: `yahpz.com`, `www.yahpz.com`, `yahpaz-2026.netlify.app`, `localhost:5173`
+3. HTTP referrers (Google Cloud → APIs & Services → Credentials → Maps browser key → Application restrictions → HTTP referrers): `https://yahpz.com/*`, `https://www.yahpz.com/*`, `https://yahpaz-2026.netlify.app/*`, plus local Vite `http://localhost:5173/*` … `http://localhost:5179/*` and the same for `127.0.0.1`. Yahpaz local is often **`:5175`** when 5173/5174 are taken — without those referrers, localhost Maps/Places fail with `RefererNotAllowedMapError` / `API_KEY_HTTP_REFERRER_BLOCKED` while yahpz.com still works.
 4. Env: `VITE_GOOGLE_MAPS_API_KEY` (Netlify + `.env.local`)
 5. Budget / quota alert recommended
 

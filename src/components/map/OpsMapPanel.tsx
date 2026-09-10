@@ -523,7 +523,7 @@ function OpsMapCanvas({
         chrome.tooltip,
         chrome.unavailable,
         undefined,
-        chrome.tone === 'phone' ? 'user-map-pin--phone' : undefined,
+        chrome.tone === 'phone' ? 'user-map-pin--phone' : 'user-map-pin--volunteer',
       )
       overlay.setMap(session.map)
       overlays.push(overlay)

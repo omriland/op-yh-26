@@ -8,6 +8,9 @@ describe('Edge CORS allowlist', () => {
     expect(isAllowedOrigin('https://yahpaz-2026.netlify.app')).toBe(true)
     expect(isAllowedOrigin('http://localhost:5173')).toBe(true)
     expect(isAllowedOrigin('http://127.0.0.1:5173')).toBe(true)
+    expect(isAllowedOrigin('http://localhost:5175')).toBe(true)
+    expect(isAllowedOrigin('http://127.0.0.1:5175')).toBe(true)
+    expect(isAllowedOrigin('http://localhost:5179')).toBe(true)
   })
 
   it('allows Netlify preview/branch hosts for this site', () => {
@@ -22,6 +25,7 @@ describe('Edge CORS allowlist', () => {
   it('rejects unrelated origins', () => {
     expect(isAllowedOrigin('https://evil.example')).toBe(false)
     expect(isAllowedOrigin('http://localhost:3000')).toBe(false)
+    expect(isAllowedOrigin('http://localhost:5180')).toBe(false)
     expect(isAllowedOrigin('https://yahpaz-2026.netlify.app.evil.com')).toBe(false)
     expect(isAllowedOrigin('https://other--someone.netlify.app')).toBe(false)
   })

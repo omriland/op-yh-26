@@ -29,6 +29,8 @@ type HoverTipProps = {
    * `always`: whenever tip text/content is present.
    */
   mode?: 'truncate' | 'always'
+  /** Override trigger tab stop. Field notes pass `-1` so Tab skips the `?`. */
+  tabIndex?: number
 }
 
 const VIEWPORT_PAD = 8
@@ -50,6 +52,7 @@ export function HoverTip({
   tipClassName,
   theme = 'command',
   mode = 'truncate',
+  tabIndex,
 }: HoverTipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null)
   const tipRef = useRef<HTMLDivElement>(null)
@@ -180,7 +183,7 @@ export function HoverTip({
         className={className}
         aria-describedby={open ? tipId : undefined}
         role={interactive ? 'button' : undefined}
-        tabIndex={interactive ? 0 : undefined}
+        tabIndex={tabIndex ?? (interactive ? 0 : undefined)}
         aria-expanded={interactive ? open : undefined}
         onPointerEnter={openTip}
         onPointerLeave={interactive ? closeOnPointerLeave : closeTip}

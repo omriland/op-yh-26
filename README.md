@@ -14,9 +14,11 @@ Hebrew-only RTL web app for Yahpaz volunteer / event management.
 ```bash
 npm install
 cp .env.example .env.local
-# fill VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+# fill VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_GOOGLE_MAPS_API_KEY
 npm run dev
 ```
+
+Local Vite prefers **http://localhost:5175** (5173/5174 are often other apps). The Google Maps key must allow `http://localhost:5175/*` and `http://127.0.0.1:5175/*` in Cloud Console (plus existing 5173 / yahpz.com), or the map and Places autocomplete fail locally while production still works.
 
 ## Hosting
 

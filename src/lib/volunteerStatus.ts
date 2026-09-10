@@ -52,3 +52,9 @@ const MAP_HIDDEN_VOLUNTEER_STATUSES = new Set<VolunteerStatus>([
 export function isMapVisibleVolunteerStatus(value: unknown): boolean {
   return !MAP_HIDDEN_VOLUNTEER_STATUSES.has(parseVolunteerStatus(value))
 }
+
+/** Green map pins: מתנדב פעיל and חניכה ברכב פרטי. */
+export const MAP_LEGEND_VOLUNTEER = `${VOLUNTEER_STATUS_LABELS.active_volunteer} / ${VOLUNTEER_STATUS_LABELS.personal_vehicle_training}`
+
+/** Grey map pins: חניכה טלפונית. */
+export const MAP_LEGEND_PHONE = VOLUNTEER_STATUS_LABELS.phone_training

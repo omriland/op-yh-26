@@ -1,6 +1,7 @@
 /**
  * Shared CORS allowlist for Yahpaz Edge Functions.
- * Reflects Origin only when it matches production, Netlify, or local Vite.
+ * Reflects Origin only when it matches production, Netlify, or local Vite
+ * (`localhost` / `127.0.0.1` ports 5173–5179).
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { isAllowedOrigin } from "./cors.allowlist.ts";

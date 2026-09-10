@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { isForeignShiftLeadEvent } from './foreignEventEdit'
 import {
   EVENT_SECONDARY_LEADS_EMBED,
+  EVENT_FORM_LEADS_SECTION,
   MAIN_LEAD_LABEL,
   MAIN_LEAD_LABEL_SHORT,
   SECONDARY_LEAD_LABEL,
@@ -377,6 +378,7 @@ describe('lead copy', () => {
   it('uses אחמ״ש until a secondary exists, then אחמ״ש ראשי / אחמ״ש משני', () => {
     expect(eventLeadFieldLabel(false)).toBe(MAIN_LEAD_LABEL_SHORT)
     expect(eventLeadFieldLabel(true)).toBe(MAIN_LEAD_LABEL)
+    expect(EVENT_FORM_LEADS_SECTION).toBe('אחמ״ש/ים')
     expect(SECONDARY_LEAD_LABEL).toBe('אחמ״ש משני')
     expect(SECONDARY_LEAD_LOCKED_HINT).toBe('נוסף אוטומטית בעריכה — לא ניתן להסיר')
   })

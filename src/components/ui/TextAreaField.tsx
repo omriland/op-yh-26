@@ -1,4 +1,5 @@
 import { useId, type TextareaHTMLAttributes } from 'react'
+import { FieldLabel } from './FieldLabel'
 
 type TextAreaFieldProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'> & {
   label: string
@@ -25,10 +26,9 @@ export function TextAreaField({
 
   return (
     <div className="field">
-      <label className="field__label" htmlFor={fieldId}>
+      <FieldLabel htmlFor={fieldId} required={required}>
         {label}
-        {required ? <span className="visually-hidden"> שדה חובה</span> : null}
-      </label>
+      </FieldLabel>
       <div className="field__control">
         <textarea
           id={fieldId}

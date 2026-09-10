@@ -13,6 +13,7 @@ import { Check, ChevronDown, Search } from 'lucide-react'
 import { isSelectSearchNavKey, nextActiveIndex } from '../../lib/selectFieldNav'
 import { filterSelectOptions } from '../../lib/searchQuery'
 import { placeSelectMenu, readSelectMenuViewport } from '../../lib/selectMenuPlacement'
+import { FieldLabel } from './FieldLabel'
 
 type Option = { value: string; label: string; content?: ReactNode; disabled?: boolean }
 
@@ -247,10 +248,9 @@ export function SelectField({
 
   return (
     <div className="field select-field" ref={rootRef}>
-      <label className={hideLabel ? 'visually-hidden' : 'field__label'} htmlFor={fieldId}>
+      <FieldLabel htmlFor={fieldId} required={required} hide={hideLabel}>
         {label}
-        {required ? <span className="visually-hidden"> שדה חובה</span> : null}
-      </label>
+      </FieldLabel>
       <div className="field__control">
         {name && !multiple ? <input type="hidden" name={name} value={selectedValue} /> : null}
         <button
@@ -267,6 +267,7 @@ export function SelectField({
             .join(' ')}
           data-blank={isBlank ? 'true' : undefined}
           aria-invalid={error ? true : undefined}
+          aria-required={required || undefined}
           aria-describedby={describedBy}
           aria-haspopup="listbox"
           aria-expanded={open}

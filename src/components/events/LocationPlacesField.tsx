@@ -18,6 +18,7 @@ import {
   rankLocationSuggestions,
   searchLocationSuggestionsCombined,
 } from '../../lib/locationSuggestions'
+import { FieldLabel } from '../ui/FieldLabel'
 
 type LocationPlacesFieldProps = {
   value: LocationPlaceFields
@@ -291,10 +292,9 @@ export function LocationPlacesField({
         .join(' ')}
       ref={rootRef}
     >
-      <label className={hideLabel ? 'visually-hidden' : 'field__label'} htmlFor={fieldId}>
+      <FieldLabel htmlFor={fieldId} required={required} hide={hideLabel}>
         {label}
-        {required ? <span className="visually-hidden"> שדה חובה</span> : null}
-      </label>
+      </FieldLabel>
       <div className="field__control location-places__control">
         <input
           id={fieldId}

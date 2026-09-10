@@ -1,5 +1,6 @@
-import { useId, useState, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useId, useState, type InputHTMLAttributes, type ReactNode, type Ref } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { FieldLabel } from './FieldLabel'
 
 type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> & {
   label: string
@@ -9,6 +10,7 @@ type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> &
   /** LTR isolate for plates / phones / emails / URLs — 05-rtl-language.md */
   isolate?: boolean
   affix?: ReactNode
+  inputRef?: Ref<HTMLInputElement>
 }
 
 export function TextField({
@@ -18,6 +20,7 @@ export function TextField({
   numeric = false,
   isolate = false,
   affix,
+  inputRef,
   id,
   required,
   value,
@@ -32,16 +35,16 @@ export function TextField({
 
   return (
     <div className="field">
-      <label className="field__label" htmlFor={fieldId}>
+      <FieldLabel htmlFor={fieldId} required={required}>
         {label}
-        {required ? <span className="visually-hidden"> שדה חובה</span> : null}
-      </label>
+      </FieldLabel>
       <div
         className={['field__control', isolate ? 'ltr' : ''].filter(Boolean).join(' ')}
         dir={isolate ? 'ltr' : undefined}
       >
         <input
           id={fieldId}
+          ref={inputRef}
           className={[
             'field__input',
             numeric ? 'field__input--numeric' : '',

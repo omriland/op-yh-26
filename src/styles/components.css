@@ -122,6 +122,12 @@
   letter-spacing: 0.01em;
 }
 
+.field__required {
+  margin-inline-start: 0.2em;
+  color: var(--status-alert);
+  font-weight: 700;
+}
+
 .field__control {
   position: relative;
   display: flex;
@@ -411,6 +417,37 @@ textarea.field__input {
 
 .field__hint--error {
   color: var(--status-alert);
+}
+
+/* Short policy/help note above a field — not the helper line below the input.
+   More space above (separate from the previous field) than below (bind to this field). */
+.field-note {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space-1) / 2);
+  margin-block-start: var(--space-2);
+  margin-block-end: var(--space-1);
+}
+
+.field-note__text {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-secondary);
+  font: 400 12px/16px var(--font-ui);
+  text-align: start;
+}
+
+.field-note__tip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.field-note__tip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ============================================================
@@ -2490,6 +2527,10 @@ div.app-footer__brand {
   color: var(--text-muted);
   font: 400 14px/22px var(--font-ui);
   text-align: start;
+}
+
+.app-footer__legal {
+  white-space: nowrap;
 }
 
 .app-footer__actions {
@@ -5924,20 +5965,28 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .event-form--phone .event-leads-row {
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--space-3);
 }
 
-.event-form__identity {
-  grid-template-columns: 1fr 1fr;
+.event-form--phone .event-leads-row__main,
+.event-form--phone .event-leads-row__secondary {
+  flex: 1 1 100%;
+  min-inline-size: 100%;
+}
+
+/* Mobile-first areas. Beats .event-form__grid { 1fr 1fr } at ≥720px. */
+.event-form__grid.event-form__identity {
+  width: 100%;
+  grid-template-columns: 1fr;
   grid-template-areas:
-    'date date'
-    'police police'
-    'okPrefix okNumber'
-    'times times'
-    'district type'
-    'loc loc'
-    'places places'
-    'road road';
+    'date'
+    'typeId'
+    'callsign'
+    'timesNote'
+    'times'
+    'districtPlace';
 }
 
 .event-form__f-date,
@@ -5946,11 +5995,16 @@ html[data-keyboard-open] .event-form__footer {
 .event-form__f-patrol,
 .event-form__f-ok-prefix,
 .event-form__f-ok-number,
+.event-form__f-type-id,
+.event-form__f-callsign,
 .event-form__f-times,
+.event-form__f-times-note,
+.event-form__f-district-place,
 .event-form__f-type,
 .event-form__f-road,
 .event-form__f-location,
 .event-form__f-places {
+  width: 100%;
   min-width: 0;
 }
 
@@ -5966,17 +6020,78 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-3);
 }
 
+.event-form__identity > .event-form__f-type-id { grid-area: typeId; }
+.event-form__identity > .event-form__f-callsign { grid-area: callsign; }
+.event-form__identity > .event-form__f-times-note { grid-area: timesNote; }
 .event-form__identity > .event-form__f-date { grid-area: date; }
-.event-form__identity > .event-form__f-police { grid-area: police; }
-.event-form__identity > .event-form__f-type { grid-area: type; }
-.event-form__identity > .event-form__f-district { grid-area: district; }
-.event-form__identity > .event-form__f-patrol { grid-area: patrol; }
-.event-form__identity > .event-form__f-ok-prefix { grid-area: okPrefix; }
-.event-form__identity > .event-form__f-ok-number { grid-area: okNumber; }
 .event-form__identity > .event-form__f-times { grid-area: times; }
-.event-form__identity > .event-form__f-road { grid-area: road; }
-.event-form__identity > .event-form__f-location { grid-area: loc; }
-.event-form__identity > .event-form__f-places { grid-area: places; }
+.event-form__identity > .event-form__f-district-place { grid-area: districtPlace; }
+
+.event-type-id,
+.event-callsign,
+.event-date-times {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.event-type-id__fields,
+.event-callsign__fields,
+.event-date-times__fields {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.event-district-place {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  grid-template-areas:
+    'district'
+    'note'
+    'place'
+    'road';
+}
+
+.event-district-place > .event-form__f-district { grid-area: district; }
+.event-district-place > .field-note { grid-area: note; }
+.event-district-place > .event-form__f-location,
+.event-district-place > .event-form__f-places { grid-area: place; }
+.event-district-place > .event-form__f-road { grid-area: road; }
+
+@media (min-width: 641px) {
+  .event-form__grid.event-form__identity {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'typeId typeId typeId'
+      'callsign callsign callsign'
+      'timesNote timesNote timesNote'
+      'date times times'
+      'districtPlace districtPlace districtPlace';
+  }
+
+  .event-form__identity > .event-form__f-date,
+  .event-form__identity > .event-form__f-times {
+    align-self: end;
+  }
+
+  .event-type-id__fields,
+  .event-callsign__fields,
+  .event-date-times__fields {
+    gap: var(--space-4);
+  }
+
+  .event-district-place {
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.6fr) minmax(0, 0.7fr);
+    gap: var(--space-4);
+    grid-template-areas:
+      'note note note'
+      'district place road';
+  }
+}
 
 .event-form--phone .event-form__head {
   margin-block-end: var(--space-4);
@@ -5986,9 +6101,8 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-6);
 }
 
-.event-form--phone .form-section {
+.event-form--phone .form-section:first-child {
   margin-block-start: 0;
-  border-block-start: 0;
 }
 
 .event-form--phone .event-form__grid {
@@ -5996,29 +6110,20 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-3);
 }
 
-.event-form--phone .event-form__identity {
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-  grid-template-areas:
-    'date date'
-    'police police'
-    'okPrefix okNumber'
-    'times times'
-    'type district'
-    'loc loc'
-    'places places'
-    'road road';
-}
-
-.event-form--phone.event-form--places .event-form__identity {
-  grid-template-areas:
-    'date date'
-    'police police'
-    'okPrefix okNumber'
-    'times times'
-    'type district'
-    'places places'
-    'road road';
+@media (max-width: 640px) {
+  .event-form--phone .event-form__grid.event-form__identity,
+  .event-form--phone.event-form--places .event-form__grid.event-form__identity {
+    width: 100%;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+    grid-template-areas:
+      'date'
+      'typeId'
+      'callsign'
+      'timesNote'
+      'times'
+      'districtPlace';
+  }
 }
 
 .event-form--phone .responder-assign__toolbar {
@@ -6331,6 +6436,7 @@ html[data-keyboard-open] .event-form__footer {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  min-height: 18px;
   margin-block-end: var(--space-1);
 }
 
@@ -6341,7 +6447,10 @@ html[data-keyboard-open] .event-form__footer {
 .time-field__now {
   border: 0;
   padding: var(--space-1) var(--space-2);
+  min-width: 44px;
   min-height: 44px;
+  /* 44px tap target on the label row — do not push the input down. */
+  margin-block: calc((18px - 44px) / 2);
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--accent);
@@ -6409,6 +6518,10 @@ html[data-keyboard-open] .event-form__footer {
 @media (min-width: 720px) {
   .event-form__grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .event-form__grid.event-form__identity {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
@@ -7055,19 +7168,25 @@ html[data-keyboard-open] .event-form__footer {
   font: 500 12px/16px var(--font-ui);
 }
 
-.user-map-pin--phone .user-map-pin__dot {
-  background: var(--status-done-tint);
-  border-color: var(--status-done);
+.user-map-pin--volunteer .user-map-pin__dot {
+  background: var(--status-done);
+  border-color: var(--surface-raised);
 }
 
-.user-map-pin--phone .user-map-pin__label {
-  background: var(--status-done-tint);
-  border-color: var(--status-done);
-  color: var(--status-done-on-tint);
+.user-map-pin--phone .user-map-pin__dot {
+  background: var(--status-draft);
+  border-color: var(--surface-raised);
+}
+
+.user-map-pin--phone .user-map-pin__phone {
+  width: var(--space-3);
+  height: var(--space-3);
+  flex: none;
+  color: currentColor;
 }
 
 .user-map-pin__tip--phone {
-  border-color: var(--status-done);
+  border-color: var(--status-draft);
 }
 
 .user-map-pin--unavailable .user-map-pin__dot {
@@ -7141,7 +7260,8 @@ html[data-keyboard-open] .event-form__footer {
   top: var(--space-4);
   inset-inline-end: var(--space-4);
   z-index: 5;
-  max-inline-size: 22ch;
+  inline-size: max-content;
+  max-inline-size: 36ch;
   padding-block: var(--space-2);
   padding-inline: var(--space-3);
   border: 1px solid var(--stroke-hairline);
@@ -7166,6 +7286,7 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-2);
   font: 400 12px/16px var(--font-ui);
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .user-map-legend__swatch {
@@ -7178,9 +7299,23 @@ html[data-keyboard-open] .event-form__footer {
   box-shadow: var(--shadow-overlay);
 }
 
-.user-map-legend__swatch--phone {
-  background: var(--status-done-tint);
+.user-map-legend__swatch--volunteer {
+  background: var(--status-done);
   border-color: var(--status-done);
+}
+
+.user-map-legend__swatch--phone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--status-draft);
+  border-color: var(--status-draft);
+  color: var(--text-on-accent);
+}
+
+.user-map-legend__swatch--phone svg {
+  width: 70%;
+  height: 70%;
 }
 
 .user-map-legend__swatch--unavailable {
@@ -7313,6 +7448,9 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .user-map-pin__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font: 400 12px/16px var(--font-ui);
   color: var(--text-primary);
   background: var(--surface-raised);

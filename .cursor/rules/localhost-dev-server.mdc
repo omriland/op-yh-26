@@ -5,11 +5,11 @@ alwaysApply: true
 
 # Localhost stays running
 
-The user keeps `npm run dev` (Vite, usually `http://localhost:5173`) running. **Do not touch it.**
+The user keeps `npm run dev` (Vite) running. Yahpaz local is often **`http://localhost:5175`** (5173/5174 are frequently other apps). **Do not touch it.**
 
 ## Never do this without asking first
 
-- `kill`, `pkill`, `killall`, `fuser -k`, or `lsof … | xargs kill` on `node`, `vite`, or ports `5173` / `4173`
+- `kill`, `pkill`, `killall`, `fuser -k`, or `lsof … | xargs kill` on `node`, `vite`, or ports `5173` / `5175` / `4173`
 - Stop, restart, or replace an existing `npm run dev` / `vite` / `vite preview` process
 - Start a second Vite on the same port (it will steal or fail the user's server)
 - Clear / reuse the terminal that is already serving localhost

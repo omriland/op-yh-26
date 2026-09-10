@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_VOLUNTEER_STATUS,
+  MAP_LEGEND_PHONE,
+  MAP_LEGEND_VOLUNTEER,
   VOLUNTEER_STATUS_LABELS,
   VOLUNTEER_STATUS_OPTIONS,
   isMapVisibleVolunteerStatus,
@@ -54,5 +56,10 @@ describe('volunteerStatus', () => {
     expect(isMapVisibleVolunteerStatus('active_volunteer')).toBe(true)
     expect(isMapVisibleVolunteerStatus('phone_training')).toBe(true)
     expect(isMapVisibleVolunteerStatus('personal_vehicle_training')).toBe(true)
+  })
+
+  it('uses the product volunteer-status labels on the map legend', () => {
+    expect(MAP_LEGEND_VOLUNTEER).toBe('מתנדב פעיל / חניכה ברכב פרטי')
+    expect(MAP_LEGEND_PHONE).toBe('חניכה טלפונית')
   })
 })

@@ -128,8 +128,7 @@ export function SnykBadge({
 
       <div className="app-footer__bottom">
         <div className="app-footer__copy">
-          <div>{`© ${year} ${BRAND_NAME}`}</div>
-          <div>{UNIT_LINE}</div>
+          <div className="app-footer__legal">{`© ${year} ${BRAND_NAME} | ${UNIT_LINE}`}</div>
           <button type="button" className="app-footer__link app-footer__link--legal" onClick={onOpenPrivacy}>
             {PRIVACY_FOOTER_LINK.label}
           </button>

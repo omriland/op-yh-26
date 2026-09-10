@@ -1,3 +1,5 @@
+/** Create/edit form section title — gershayim match `אחמ״ש`. */
+export const EVENT_FORM_LEADS_SECTION = 'אחמ״ש/ים'
 export const MAIN_LEAD_LABEL = 'אחמ״ש ראשי'
 export const MAIN_LEAD_LABEL_SHORT = 'אחמ״ש'
 export const SECONDARY_LEAD_LABEL = 'אחמ״ש משני'

@@ -4,6 +4,7 @@ import {
   isCompleteTimeInput,
   shouldAdvanceAfterTimeEntry,
 } from '../../lib/format'
+import { FieldLabel } from './FieldLabel'
 
 type TimeFieldProps = {
   label: string
@@ -11,6 +12,7 @@ type TimeFieldProps = {
   onChange: (value: string) => void
   onBlur?: () => void
   inputRef?: RefObject<HTMLInputElement | null>
+  required?: boolean
   /** Fired once the 4th digit lands — used to hop to the next time field. */
   onComplete?: () => void
 }
@@ -39,6 +41,7 @@ export function TimeField({
   onChange,
   onBlur,
   inputRef,
+  required,
   onComplete,
 }: TimeFieldProps) {
   const fieldId = useId()
@@ -51,12 +54,13 @@ export function TimeField({
   return (
     <div className="field">
       <div className="time-field__label-row">
-        <label className="field__label" htmlFor={fieldId}>
+        <FieldLabel htmlFor={fieldId} required={required}>
           {label}
-        </label>
+        </FieldLabel>
         <button
           type="button"
           className="time-field__now"
+          tabIndex={-1}
           onClick={() => {
             const now = nowTimeJerusalem()
             latestValue.current = now
@@ -77,6 +81,7 @@ export function TimeField({
           maxLength={5}
           className="field__input field__input--numeric ltr"
           dir="ltr"
+          required={required}
           aria-label={`${label} (24 שעות)`}
           value={value}
           onChange={(event) => {

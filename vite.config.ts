@@ -77,4 +77,9 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersionId),
   },
+  // Prefer 5175: 5173/5174 are often other apps. Google Maps key referrers must
+  // include this port (and 5173) — see MEMORY + Places spec.
+  server: {
+    port: 5175,
+  },
 })

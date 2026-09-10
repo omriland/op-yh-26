@@ -61,6 +61,7 @@ import { CounterStepper } from '../components/ui/CounterStepper'
 import { AlertDialog } from '../components/ui/AlertDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
+import { FieldNote } from '../components/ui/FieldNote'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
 import { SelectField } from '../components/ui/SelectField'
 import { StampChip } from '../components/ui/StampChip'
@@ -95,6 +96,7 @@ import {
 import { COCKPIT_AUTOSAVE_MS, COCKPIT_CLICK_TO_EDIT } from '../lib/cockpit'
 import { LocationPlacesField } from '../components/events/LocationPlacesField'
 import { EventShiftLeadsFields } from '../components/events/EventShiftLeadsFields'
+import { EVENT_FORM_LEADS_SECTION } from '../lib/eventShiftLeads'
 import {
   applyLeadMapPin,
   applyLocationFieldChange,
@@ -184,6 +186,7 @@ export function EventFormPage({
   const phoneLayout = variant !== 'cockpit' && !isDesktop
   const assignSearchRef = useRef<HTMLInputElement>(null)
   const assignSectionRef = useRef<HTMLDivElement>(null)
+  const callsignNumberRef = useRef<HTMLInputElement>(null)
 
   const [lookups, setLookups] = useState<EventLookups | null>(null)
   const [roster, setRoster] = useState<AssignableUser[]>([])
@@ -921,6 +924,14 @@ export function EventFormPage({
     setSaving(false)
   }
 
+  async function persistDraftStay() {
+    if (!draft || !user || !lookups) return
+    setSaving(true)
+    setErrors({})
+    await persistLatest({ revealErrors: true })
+    setSaving(false)
+  }
+
   async function persistAndCreateNew() {
     if (!draft || !user || !lookups) return
     setSaving(true)
@@ -1299,10 +1310,7 @@ export function EventFormPage({
 
         <div className="event-form__sections">
           <section className="form-section">
-            <h2 className={phoneLayout ? 'visually-hidden' : 'form-section__heading'}>
-              <span className="form-section__counter">חלק א׳</span>
-              <span>פרטי האירוע</span>
-            </h2>
+            <h2 className="form-section__heading">{EVENT_FORM_LEADS_SECTION}</h2>
             <div className="form-section__fields">
               <EventShiftLeadsFields
                 roles={roles}
@@ -1312,279 +1320,352 @@ export function EventFormPage({
                 shiftLead={draft.shift_lead}
                 secondaryLeads={draft.secondary_leads ?? []}
                 shiftLeadUsers={shiftLeadUsers}
+                secondaryAddButton={phoneLayout}
                 onChange={(next) => {
                   updateDraft(next)
                   queueMicrotask(() => void persistLatest())
                 }}
               />
+            </div>
+          </section>
 
+          <section className="form-section">
+            <h2 className="form-section__heading">פרטי האירוע</h2>
+            <div className="form-section__fields">
               <div className="event-form__grid event-form__identity">
+                <div className="event-form__f-type-id">
+                  <div className="event-type-id">
+                    <div className="event-type-id__fields">
+                      <div className="event-form__f-type">
+                        <FieldNote field="event_type_id" />
+                        <SelectField
+                          label="סוג אירוע"
+                          required
+                          value={draft.event_type_id}
+                          error={errors.event_type_id}
+                          options={lookups.eventTypes.map((row) => ({
+                            value: row.id,
+                            label: row.name,
+                          }))}
+                          onChange={(event) => {
+                            const nextId = event.target.value
+                            updateDraft({
+                              event_type_id: nextId,
+                              ...(isOtherEventTypeId(nextId, lookups.eventTypes)
+                                ? {}
+                                : { event_type_detail: '' }),
+                            })
+                            setErrors((current) => ({ ...current, event_type_id: undefined }))
+                            queueMicrotask(() => void persistLatest())
+                          }}
+                        />
+                        {isOtherEventTypeId(draft.event_type_id, lookups.eventTypes) ? (
+                          <>
+                            <FieldNote field="event_type_detail" />
+                            <TextField
+                              label="פירוט"
+                              value={draft.event_type_detail}
+                              maxLength={EVENT_TYPE_DETAIL_MAX_LENGTH}
+                              onChange={(event) =>
+                                updateDraft({ event_type_detail: event.target.value })
+                              }
+                              onBlur={() => void persistLatest()}
+                            />
+                          </>
+                        ) : null}
+                      </div>
+
+                      <div className="event-form__f-police">
+                        <FieldNote field="police_event_id" />
+                        <TextField
+                          label="מספר אירוע"
+                          type="text"
+                          numeric
+                          isolate
+                          inputMode="numeric"
+                          autoComplete="off"
+                          pattern="[0-9]*"
+                          maxLength={POLICE_EVENT_ID_MAX_LENGTH}
+                          value={draft.police_event_id}
+                          error={errors.police_event_id}
+                          onChange={(event) => {
+                            updateDraft({
+                              police_event_id: policeEventIdForInput(event.target.value),
+                            })
+                            setErrors((current) => ({ ...current, police_event_id: undefined }))
+                          }}
+                          onBlur={() => void persistLatest()}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="event-form__f-callsign">
+                  <div className="event-callsign">
+                    <FieldNote field="patrol_callsign" />
+                    <div className="event-callsign__fields">
+                      <div className="event-form__f-ok-prefix">
+                        <FieldNote field="patrol_callsign_prefix" />
+                        <TextField
+                          label={PATROL_CALLSIGN_PREFIX_LABEL}
+                          placeholder={PATROL_CALLSIGN_PREFIX_PLACEHOLDER}
+                          maxLength={PATROL_CALLSIGN_PREFIX_MAX_LENGTH}
+                          value={draft.patrol_callsign_prefix}
+                          onChange={(event) =>
+                            updateCallsign({
+                              prefix: patrolCallsignPrefixForInput(event.target.value),
+                            })
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key !== ' ') return
+                            event.preventDefault()
+                            callsignNumberRef.current?.focus()
+                          }}
+                          onBlur={() => void persistLatest()}
+                        />
+                      </div>
+
+                      <div className="event-form__f-ok-number">
+                        <FieldNote field="patrol_callsign_number" />
+                        <TextField
+                          label={PATROL_CALLSIGN_NUMBER_LABEL}
+                          placeholder={PATROL_CALLSIGN_NUMBER_PLACEHOLDER}
+                          numeric
+                          isolate
+                          inputMode="numeric"
+                          autoComplete="off"
+                          pattern="[0-9]*"
+                          maxLength={PATROL_CALLSIGN_NUMBER_MAX_LENGTH}
+                          value={draft.patrol_callsign_number}
+                          inputRef={callsignNumberRef}
+                          error={errors.patrol_callsign_number}
+                          required={variant !== 'cockpit'}
+                          onChange={(event) =>
+                            updateCallsign({
+                              number: patrolCallsignNumberForInput(event.target.value),
+                            })
+                          }
+                          onBlur={() => void persistLatest()}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="event-form__f-times-note">
+                  <FieldNote field="event_times" />
+                </div>
+
                 <div className="event-form__f-date">
-                <TextField
-                  label="תאריך"
-                  type="date"
-                  required
-                  value={draft.event_date}
-                  error={errors.event_date}
-                  onChange={(event) => {
-                    updateDraft({ event_date: event.target.value })
-                    setErrors((current) => ({ ...current, event_date: undefined }))
-                  }}
-                  onBlur={() => void persistLatest()}
-                  affix={
-                    <span className="field__affix" aria-hidden="true">
-                      <Calendar size={20} strokeWidth={1.75} />
-                    </span>
-                  }
-                />
-                </div>
-
-                <div className="event-form__f-police">
-                <TextField
-                  label="מספר אירוע"
-                  type="text"
-                  numeric
-                  isolate
-                  inputMode="numeric"
-                  autoComplete="off"
-                  pattern="[0-9]*"
-                  maxLength={POLICE_EVENT_ID_MAX_LENGTH}
-                  value={draft.police_event_id}
-                  error={errors.police_event_id}
-                  onChange={(event) => {
-                    updateDraft({ police_event_id: policeEventIdForInput(event.target.value) })
-                    setErrors((current) => ({ ...current, police_event_id: undefined }))
-                  }}
-                  onBlur={() => void persistLatest()}
-                />
-                </div>
-
-                <div className="event-form__f-ok-prefix">
-                <TextField
-                  label={PATROL_CALLSIGN_PREFIX_LABEL}
-                  placeholder={PATROL_CALLSIGN_PREFIX_PLACEHOLDER}
-                  maxLength={PATROL_CALLSIGN_PREFIX_MAX_LENGTH}
-                  value={draft.patrol_callsign_prefix}
-                  onChange={(event) =>
-                    updateCallsign({ prefix: patrolCallsignPrefixForInput(event.target.value) })
-                  }
-                  onBlur={() => void persistLatest()}
-                />
-                </div>
-
-                <div className="event-form__f-ok-number">
-                <TextField
-                  label={PATROL_CALLSIGN_NUMBER_LABEL}
-                  placeholder={PATROL_CALLSIGN_NUMBER_PLACEHOLDER}
-                  numeric
-                  isolate
-                  inputMode="numeric"
-                  autoComplete="off"
-                  pattern="[0-9]*"
-                  maxLength={PATROL_CALLSIGN_NUMBER_MAX_LENGTH}
-                  value={draft.patrol_callsign_number}
-                  error={errors.patrol_callsign_number}
-                  required={variant !== 'cockpit'}
-                  onChange={(event) =>
-                    updateCallsign({ number: patrolCallsignNumberForInput(event.target.value) })
-                  }
-                  onBlur={() => void persistLatest()}
-                />
+                  <FieldNote field="event_date" />
+                  <TextField
+                    label="תאריך"
+                    type="date"
+                    required
+                    value={draft.event_date}
+                    error={errors.event_date}
+                    onChange={(event) => {
+                      updateDraft({ event_date: event.target.value })
+                      setErrors((current) => ({ ...current, event_date: undefined }))
+                    }}
+                    onBlur={() => void persistLatest()}
+                    affix={
+                      <span className="field__affix" aria-hidden="true">
+                        <Calendar size={20} strokeWidth={1.75} />
+                      </span>
+                    }
+                  />
                 </div>
 
                 <div className="event-form__f-times">
-                <EventTimes
-                  startTime={draft.start_time}
-                  endTime={draft.end_time}
-                  onChangeStart={(start_time) => {
-                    overnightConfirmed.current.delete('event')
-                    updateDraft({ start_time })
-                  }}
-                  onChangeEnd={(end_time) => {
-                    overnightConfirmed.current.delete('event')
-                    updateDraft({ end_time })
-                  }}
-                  onPersist={() => void persistLatest()}
-                />
-                </div>
-
-                <div className="event-form__f-district">
-                <SelectField
-                  label="שלוחה"
-                  value={draft.district_id}
-                  error={errors.district_id}
-                  options={lookups.districts.map((row) => ({ value: row.id, label: row.name }))}
-                  onChange={(event) => {
-                    const nextId = event.target.value
-                    const previousCode = districtCodeById(lookups.districts, draft.district_id)
-                    const nextCode = districtCodeById(lookups.districts, nextId)
-                    const locationFields = applyDistrictChangeLocation(previousCode, nextCode, {
-                      location: draft.location,
-                      location_place_id: draft.location_place_id,
-                      location_lat: draft.location_lat,
-                      location_lng: draft.location_lng,
-                    })
-                    const nextRoadId = applyDistrictChangeRoad(
-                      previousCode,
-                      nextCode,
-                      draft.road_id,
-                      lookups.roads,
-                    )
-                    updateDraft({
-                      district_id: nextId,
-                      road_id: nextRoadId,
-                      ...locationFields,
-                      ...(districtNeedsStation(lookups.districts, nextId)
-                        ? {}
-                        : { station: '' }),
-                      ...(shouldClearLocationOnDistrictChange(previousCode, nextCode)
-                        ? emptyLocationPinMeta()
-                        : {}),
-                    })
-                    setErrors((current) => ({
-                      ...current,
-                      location: undefined,
-                      road_id: nextRoadId ? undefined : current.road_id,
-                    }))
-                    queueMicrotask(() => void persistLatest())
-                  }}
-                />
-                {districtNeedsStation(lookups.districts, draft.district_id) ? (
-                  <TextField
-                    label="תחנה"
-                    value={draft.station}
-                    maxLength={STATION_MAX_LENGTH}
-                    onChange={(event) => updateDraft({ station: event.target.value })}
-                    onBlur={() => void persistLatest()}
+                  <EventTimes
+                    startTime={draft.start_time}
+                    endTime={draft.end_time}
+                    onChangeStart={(start_time) => {
+                      overnightConfirmed.current.delete('event')
+                      updateDraft({ start_time })
+                    }}
+                    onChangeEnd={(end_time) => {
+                      overnightConfirmed.current.delete('event')
+                      updateDraft({ end_time })
+                    }}
+                    onPersist={() => void persistLatest()}
                   />
-                ) : null}
                 </div>
 
-                <div className="event-form__f-type">
-                <SelectField
-                  label="סוג אירוע"
-                  required
-                  value={draft.event_type_id}
-                  error={errors.event_type_id}
-                  options={lookups.eventTypes.map((row) => ({ value: row.id, label: row.name }))}
-                  onChange={(event) => {
-                    const nextId = event.target.value
-                    updateDraft({
-                      event_type_id: nextId,
-                      ...(isOtherEventTypeId(nextId, lookups.eventTypes)
-                        ? {}
-                        : { event_type_detail: '' }),
-                    })
-                    setErrors((current) => ({ ...current, event_type_id: undefined }))
-                    queueMicrotask(() => void persistLatest())
-                  }}
-                />
-                {isOtherEventTypeId(draft.event_type_id, lookups.eventTypes) ? (
-                  <TextField
-                    label="פירוט"
-                    value={draft.event_type_detail}
-                    maxLength={EVENT_TYPE_DETAIL_MAX_LENGTH}
-                    onChange={(event) =>
-                      updateDraft({ event_type_detail: event.target.value })
-                    }
-                    onBlur={() => void persistLatest()}
-                  />
-                ) : null}
-                </div>
+                <div className="event-form__f-district-place">
+                  <div className="event-district-place">
+                      <div className="event-form__f-district">
+                        <FieldNote field="district_id" />
+                        <SelectField
+                          label="שלוחה"
+                          value={draft.district_id}
+                          error={errors.district_id}
+                          options={lookups.districts.map((row) => ({
+                            value: row.id,
+                            label: row.name,
+                          }))}
+                          onChange={(event) => {
+                            const nextId = event.target.value
+                            const previousCode = districtCodeById(
+                              lookups.districts,
+                              draft.district_id,
+                            )
+                            const nextCode = districtCodeById(lookups.districts, nextId)
+                            const locationFields = applyDistrictChangeLocation(
+                              previousCode,
+                              nextCode,
+                              {
+                                location: draft.location,
+                                location_place_id: draft.location_place_id,
+                                location_lat: draft.location_lat,
+                                location_lng: draft.location_lng,
+                              },
+                            )
+                            const nextRoadId = applyDistrictChangeRoad(
+                              previousCode,
+                              nextCode,
+                              draft.road_id,
+                              lookups.roads,
+                            )
+                            updateDraft({
+                              district_id: nextId,
+                              road_id: nextRoadId,
+                              ...locationFields,
+                              ...(districtNeedsStation(lookups.districts, nextId)
+                                ? {}
+                                : { station: '' }),
+                              ...(shouldClearLocationOnDistrictChange(previousCode, nextCode)
+                                ? emptyLocationPinMeta()
+                                : {}),
+                            })
+                            setErrors((current) => ({
+                              ...current,
+                              location: undefined,
+                              road_id: nextRoadId ? undefined : current.road_id,
+                            }))
+                            queueMicrotask(() => void persistLatest())
+                          }}
+                        />
+                        {districtNeedsStation(lookups.districts, draft.district_id) ? (
+                          <>
+                            <FieldNote field="station" />
+                            <TextField
+                              label="תחנה"
+                              value={draft.station}
+                              maxLength={STATION_MAX_LENGTH}
+                              onChange={(event) => updateDraft({ station: event.target.value })}
+                              onBlur={() => void persistLatest()}
+                            />
+                          </>
+                        ) : null}
+                      </div>
 
-              <div className={placesLocation ? 'event-form__f-places' : 'event-form__f-location'}>
-                <LocationPlacesField
-                  required={placesLocation}
-                  allowJunctions
-                  error={errors.location}
-                  placeholder={placesLocation ? undefined : 'למשל: מחלף שורק'}
-                  roadName={selectedRoadName}
-                  value={{
-                    location: draft.location,
-                    location_place_id: draft.location_place_id,
-                    location_lat: draft.location_lat,
-                    location_lng: draft.location_lng,
-                  }}
-                  onChange={(next) => {
-                    updateDraft(
-                      applyLocationFieldChange(
-                        {
-                          location: draft.location,
-                          location_place_id: draft.location_place_id,
-                          location_lat: draft.location_lat,
-                          location_lng: draft.location_lng,
-                          location_pin_source: draft.location_pin_source,
-                          location_pinned_at: draft.location_pinned_at,
-                          location_pinned_by: draft.location_pinned_by,
-                        },
-                        next,
-                      ),
-                    )
-                    setErrors((current) => ({ ...current, location: undefined }))
-                  }}
-                  onJunctionCommit={(junction) => {
-                    const nextRoadId = roadIdAfterJunctionSelection(
-                      draft.road_id,
-                      junction.roads,
-                      lookups.roads,
-                    )
-                    if (!nextRoadId || nextRoadId === draft.road_id) return
-                    updateDraft({ road_id: nextRoadId })
-                    setErrors((current) => ({ ...current, road_id: undefined }))
-                    queueMicrotask(() => void persistLatest())
-                  }}
-                  onBlurCommit={() => void persistLatest()}
-                  onAutocompleteUnavailable={() =>
-                    show('השלמת מיקום מגוגל אינה זמינה כרגע. אפשר להזין מיקום ידנית.', 'alert')
-                  }
-                />
-              </div>
+                      <FieldNote field="location" />
 
-                <div className="event-form__f-road">
-                <SelectField
-                  label="כביש"
-                  required
-                  searchable
-                  searchPlaceholder="חיפוש כביש"
-                  value={draft.road_id}
-                  error={errors.road_id}
-                  options={lookups.roads.map((row) => ({ value: row.id, label: row.name }))}
-                  onChange={(event) => {
-                    updateDraft({
-                      road_id: event.target.value,
-                      ...(variant === 'cockpit' &&
-                      !locationPinIsLocked(draft.location_pin_source)
-                        ? {
-                            location_place_id: null,
-                            location_lat: null,
-                            location_lng: null,
-                            ...emptyLocationPinMeta(),
+                      <div
+                        className={
+                          placesLocation ? 'event-form__f-places' : 'event-form__f-location'
+                        }
+                      >
+                        <LocationPlacesField
+                          required={placesLocation}
+                          allowJunctions
+                          error={errors.location}
+                          placeholder={placesLocation ? undefined : 'למשל: מחלף שורק'}
+                          roadName={selectedRoadName}
+                          value={{
+                            location: draft.location,
+                            location_place_id: draft.location_place_id,
+                            location_lat: draft.location_lat,
+                            location_lng: draft.location_lng,
+                          }}
+                          onChange={(next) => {
+                            updateDraft(
+                              applyLocationFieldChange(
+                                {
+                                  location: draft.location,
+                                  location_place_id: draft.location_place_id,
+                                  location_lat: draft.location_lat,
+                                  location_lng: draft.location_lng,
+                                  location_pin_source: draft.location_pin_source,
+                                  location_pinned_at: draft.location_pinned_at,
+                                  location_pinned_by: draft.location_pinned_by,
+                                },
+                                next,
+                              ),
+                            )
+                            setErrors((current) => ({ ...current, location: undefined }))
+                          }}
+                          onJunctionCommit={(junction) => {
+                            const nextRoadId = roadIdAfterJunctionSelection(
+                              draft.road_id,
+                              junction.roads,
+                              lookups.roads,
+                            )
+                            if (!nextRoadId || nextRoadId === draft.road_id) return
+                            updateDraft({ road_id: nextRoadId })
+                            setErrors((current) => ({ ...current, road_id: undefined }))
+                            queueMicrotask(() => void persistLatest())
+                          }}
+                          onBlurCommit={() => void persistLatest()}
+                          onAutocompleteUnavailable={() =>
+                            show(
+                              'השלמת מיקום מגוגל אינה זמינה כרגע. אפשר להזין מיקום ידנית.',
+                              'alert',
+                            )
                           }
-                        : {}),
-                    })
-                    setErrors((current) => ({ ...current, road_id: undefined }))
-                    queueMicrotask(() => void persistLatest())
-                  }}
-                />
+                        />
+                      </div>
+
+                      <div className="event-form__f-road">
+                        <FieldNote field="road_id" />
+                        <SelectField
+                          label="כביש"
+                          required
+                          searchable
+                          searchPlaceholder="חיפוש כביש"
+                          value={draft.road_id}
+                          error={errors.road_id}
+                          options={lookups.roads.map((row) => ({
+                            value: row.id,
+                            label: row.name,
+                          }))}
+                          onChange={(event) => {
+                            updateDraft({
+                              road_id: event.target.value,
+                              ...(variant === 'cockpit' &&
+                              !locationPinIsLocked(draft.location_pin_source)
+                                ? {
+                                    location_place_id: null,
+                                    location_lat: null,
+                                    location_lng: null,
+                                    ...emptyLocationPinMeta(),
+                                  }
+                                : {}),
+                            })
+                            setErrors((current) => ({ ...current, road_id: undefined }))
+                            queueMicrotask(() => void persistLatest())
+                          }}
+                        />
+                      </div>
+                  </div>
                 </div>
               </div>
 
-              {phoneLayout ? null : (
+              <FieldNote field="notes" />
               <TextAreaField
                 label="הערות"
                 value={draft.notes}
                 onChange={(event) => updateDraft({ notes: event.target.value })}
                 onBlur={() => void persistLatest()}
               />
-              )}
             </div>
           </section>
 
           <section className="form-section">
-            <h2 className={phoneLayout ? 'visually-hidden' : 'form-section__heading'}>
-              <span className="form-section__counter">חלק ב׳</span>
-              <span>מתנדבים</span>
-            </h2>
+            <h2 className="form-section__heading">מתנדבים</h2>
             <div className="form-section__fields">
               <div className="responder-assign" ref={assignSectionRef}>
                 <div className="responder-assign__toolbar">
@@ -1808,14 +1889,6 @@ export function EventFormPage({
                 </ul>
               )}
 
-              {phoneLayout ? (
-              <TextAreaField
-                label="הערות"
-                value={draft.notes}
-                onChange={(event) => updateDraft({ notes: event.target.value })}
-                onBlur={() => void persistLatest()}
-              />
-              ) : null}
             </div>
           </section>
         </div>
@@ -1829,16 +1902,18 @@ export function EventFormPage({
               loadingLabel="שומר…"
               onClick={() => void persistExplicit()}
             >
-              שמירת אירוע
+              {phoneLayout && !isEdit ? 'יצירת אירוע' : 'שמירת אירוע'}
             </Button>
             <Button
               block
               variant="secondary"
               loading={saving}
               loadingLabel="שומר…"
-              onClick={() => void persistAndCreateNew()}
+              onClick={() =>
+                void (phoneLayout && !isEdit ? persistDraftStay() : persistAndCreateNew())
+              }
             >
-              שמירת אירוע ויצירת חדש
+              {phoneLayout && !isEdit ? 'שמירה כטיוטה' : 'שמירת אירוע ויצירת חדש'}
             </Button>
           </div>
         </FormStickyFooter>
@@ -2089,26 +2164,34 @@ function EventTimes({
   const endInputRef = useRef<HTMLInputElement | null>(null)
 
   return (
-    <div className="event-form__grid">
-      <TimeField
-        label="זמן התחלה"
-        value={startTime}
-        onChange={onChangeStart}
-        onBlur={onPersist}
-        onComplete={() => {
-          const input = endInputRef.current
-          if (!input) return
-          input.focus()
-          input.select()
-        }}
-      />
-      <TimeField
-        label="זמן סיום"
-        value={endTime}
-        onChange={onChangeEnd}
-        onBlur={onPersist}
-        inputRef={endInputRef}
-      />
+    <div className="event-date-times">
+      <div className="event-date-times__fields">
+        <div>
+          <FieldNote field="started_at" />
+          <TimeField
+            label="זמן התחלה"
+            value={startTime}
+            onChange={onChangeStart}
+            onBlur={onPersist}
+            onComplete={() => {
+              const input = endInputRef.current
+              if (!input) return
+              input.focus()
+              input.select()
+            }}
+          />
+        </div>
+        <div>
+          <FieldNote field="ended_at" />
+          <TimeField
+            label="זמן סיום"
+            value={endTime}
+            onChange={onChangeEnd}
+            onBlur={onPersist}
+            inputRef={endInputRef}
+          />
+        </div>
+      </div>
     </div>
   )
 }

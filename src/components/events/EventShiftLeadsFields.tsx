@@ -1,11 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { Button } from '../ui/Button'
+import { FieldNote } from '../ui/FieldNote'
 import { Ledger, LedgerRow } from '../ui/Ledger'
 import { SelectField } from '../ui/SelectField'
 import { monoClass } from '../../lib/format'
 import type { AssignableUser } from '../../lib/eventForm'
 import {
   MAIN_LEAD_LABEL,
+  MAIN_LEAD_LABEL_SHORT,
   MAIN_LEAD_LOCKED_HINT,
+  SECONDARY_LEAD_ADD,
   SECONDARY_LEAD_ADD_SHORT,
   SECONDARY_LEAD_LABEL,
   SECONDARY_LEAD_LOCKED_HINT,
@@ -54,6 +58,8 @@ type EventShiftLeadsFieldsProps = {
   shiftLead: { full_name: string; callsign: string }
   secondaryLeads: SecondaryLead[]
   shiftLeadUsers: AssignableUser[]
+  /** Mobile: button until a secondary exists (or they tap add). */
+  secondaryAddButton?: boolean
   onChange: (next: {
     shift_lead_id: string
     shift_lead: { full_name: string; callsign: string }
@@ -69,8 +75,10 @@ export function EventShiftLeadsFields({
   shiftLead,
   secondaryLeads,
   shiftLeadUsers,
+  secondaryAddButton = false,
   onChange,
 }: EventShiftLeadsFieldsProps) {
+  const [addingSecondary, setAddingSecondary] = useState(false)
   const canManage = canManageSecondaryLeads(roles)
   const canChangeMain = canChangeEventMainLead({
     roles,
@@ -116,7 +124,14 @@ export function EventShiftLeadsFields({
     value: row.id,
     label: `${row.full_name} · ${row.callsign}`,
   }))
-  const mainLabel = canManage ? MAIN_LEAD_LABEL : eventLeadFieldLabel(secondaryLeads.length > 0)
+  const showSecondaryPicker =
+    canManage && (secondaryLeads.length > 0 || !secondaryAddButton || addingSecondary)
+  const mainLabel =
+    secondaryAddButton && secondaryLeads.length === 0
+      ? MAIN_LEAD_LABEL_SHORT
+      : canManage
+        ? MAIN_LEAD_LABEL
+        : eventLeadFieldLabel(secondaryLeads.length > 0)
 
   function applyMain(nextId: string) {
     const picked = shiftLeadUsers.find((row) => row.id === nextId)
@@ -152,6 +167,7 @@ export function EventShiftLeadsFields({
     <div className="event-shift-leads stack-3">
       <div className="event-leads-row">
         <div className="event-leads-row__main">
+          <FieldNote field="shift_lead_id" />
           {canChangeMain ? (
             <SelectField
               label={mainLabel}
@@ -167,8 +183,9 @@ export function EventShiftLeadsFields({
             </Ledger>
           )}
         </div>
-        {canManage ? (
+        {canManage && showSecondaryPicker ? (
           <div className="event-leads-row__secondary">
+            <FieldNote field="secondary_leads" />
             <SelectField
               label={SECONDARY_LEAD_LABEL}
               multiple
@@ -180,6 +197,12 @@ export function EventShiftLeadsFields({
               options={secondaryOptions}
               onValuesChange={applySecondaries}
             />
+          </div>
+        ) : canManage && secondaryAddButton ? (
+          <div className="event-leads-row__secondary">
+            <Button block variant="secondary" onClick={() => setAddingSecondary(true)}>
+              {SECONDARY_LEAD_ADD}
+            </Button>
           </div>
         ) : null}
       </div>
