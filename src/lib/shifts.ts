@@ -2,6 +2,7 @@ import { addCalendarDays } from './mineListSections'
 import { searchQueryVariants } from './searchQuery'
 import { shiftRecordLogStatus } from './shiftLogStatus'
 import { supabase } from './supabase'
+import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 import type { EventStatus, ShiftStatus } from './status'
 
 export type ShiftVehicleType = 'patrol_north' | 'patrol_center' | 'personal'
@@ -103,7 +104,7 @@ export const SHIFT_LIST_SELECT = `
     emergency_means,
     frozen_over_60km,
     frozen_suspicious_duplicate,
-    responders:event_responders(responder_id, frozen_over_60km, frozen_suspicious_duplicate),
+    responders:event_responders(${RESPONDER_FREEZE_FIELDS} responder_id),
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
     treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(id)
@@ -195,7 +196,7 @@ export function filterUnitShiftsForList(
 export async function fetchShifts(opts?: { limit?: number }): Promise<ShiftListItem[]> {
   let query = supabase
     .from('shifts')
-    .select(SHIFT_LIST_SELECT)
+    .select(await withResponderFreeze(SHIFT_LIST_SELECT))
     .order('shift_date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -224,7 +225,7 @@ export async function fetchShiftsByIds(ids: string[]): Promise<ShiftListItem[]> 
   for (const chunk of chunks) {
     const { data, error } = await supabase
       .from('shifts')
-      .select(SHIFT_LIST_SELECT)
+      .select(await withResponderFreeze(SHIFT_LIST_SELECT))
       .in('id', chunk)
       .order('shift_date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -267,7 +268,7 @@ export async function fetchMyShifts(userId: string): Promise<ShiftListItem[]> {
 
   const { data, error } = await supabase
     .from('shifts')
-    .select(SHIFT_LIST_SELECT)
+    .select(await withResponderFreeze(SHIFT_LIST_SELECT))
     .in('id', shiftIds)
     .order('shift_date', { ascending: false })
 
@@ -343,7 +344,7 @@ const SHIFT_DETAIL_SELECT = `
     updated_at,
     frozen_over_60km,
     frozen_suspicious_duplicate,
-    responders:event_responders(responder_id, frozen_over_60km, frozen_suspicious_duplicate),
+    responders:event_responders(${RESPONDER_FREEZE_FIELDS} responder_id),
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
     treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(vehicle_kind_id, quantity)
@@ -380,7 +381,7 @@ const SHIFT_DETAIL_SELECT = `
 export async function fetchShiftDetail(shiftId: string): Promise<ShiftDetail | null> {
   const { data, error } = await supabase
     .from('shifts')
-    .select(SHIFT_DETAIL_SELECT)
+    .select(await withResponderFreeze(SHIFT_DETAIL_SELECT))
     .eq('id', shiftId)
     .maybeSingle()
 

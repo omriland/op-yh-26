@@ -1,4 +1,6 @@
 import { includeEventInFuelAllocation } from './fuelAllocationPolicy'
+import { participationFrozen } from './eventFreeze'
+import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 import { supabase } from './supabase'
 import { localDateRangeToUtcBounds } from './fuelRefundReport'
 import type { EventStatus } from './status'
@@ -201,13 +203,12 @@ async function fetchParticipationsInQuarter(
   const { data, error } = await supabase
     .from('event_responders')
     .select(
-      `
+      await withResponderFreeze(`
       responder_id,
       total_km,
-      frozen_over_60km,
-      frozen_suspicious_duplicate,
-      events!inner(created_at, status)
-    `,
+      ${RESPONDER_FREEZE_FIELDS}
+      events!inner(created_at, status, frozen_over_60km, frozen_suspicious_duplicate)
+    `),
     )
     .eq('events.status', 'done')
     .not('total_km', 'is', null)
@@ -216,22 +217,27 @@ async function fetchParticipationsInQuarter(
 
   if (error) throw new Error(error.message)
 
+  type QuarterEvent = {
+    created_at: string
+    status: EventStatus
+    frozen_over_60km?: boolean
+    frozen_suspicious_duplicate?: boolean
+  }
+
   type Row = {
     responder_id: string
     total_km: number | null
     frozen_over_60km?: boolean
     frozen_suspicious_duplicate?: boolean
-    events:
-      | { created_at: string; status: EventStatus }
-      | { created_at: string; status: EventStatus }[]
+    events: QuarterEvent | QuarterEvent[]
   }
 
-  return ((data ?? []) as Row[]).flatMap((row) => {
+  return ((data ?? []) as unknown as Row[]).flatMap((row) => {
     const event = Array.isArray(row.events) ? row.events[0] : row.events
     if (!event || !includeEventInFuelAllocation(event.status)) return []
     // Per participation: a frozen teammate on the same event still gets nothing,
     // but this responder's justified km is allocated.
-    if (row.frozen_over_60km || row.frozen_suspicious_duplicate) return []
+    if (participationFrozen(row, event)) return []
     return [
       {
         responder_id: row.responder_id,

@@ -7,6 +7,7 @@ import { addCalendarDays } from './mineListSections'
 import { searchQueryVariants } from './searchQuery'
 import type { EventOrigin } from './shiftBornEvents'
 import { supabase } from './supabase'
+import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 import type { EventStatus, ParticipationStatus } from './status'
 import {
   SHIFT_KIND_LABELS,
@@ -109,8 +110,7 @@ export const EVENT_LIST_SELECT = `
     total_km,
     started_at,
     ended_at,
-    frozen_over_60km,
-    frozen_suspicious_duplicate,
+    ${RESPONDER_FREEZE_FIELDS}
     profile:profiles(full_name, callsign)
   )
 `
@@ -193,7 +193,7 @@ export async function fetchEvents(opts?: {
 }): Promise<EventListItem[]> {
   let query = supabase
     .from('events')
-    .select(EVENT_LIST_SELECT)
+    .select(await withResponderFreeze(EVENT_LIST_SELECT))
     .order('event_date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -229,7 +229,7 @@ export async function fetchEventsByIds(
   for (const chunk of chunks) {
     let query = supabase
       .from('events')
-      .select(EVENT_LIST_SELECT)
+      .select(await withResponderFreeze(EVENT_LIST_SELECT))
       .in('id', chunk)
       .order('event_date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -283,7 +283,7 @@ export async function fetchMyEvents(userId: string): Promise<EventListItem[]> {
       : (async () => {
           const { data, error } = await supabase
             .from('events')
-            .select(EVENT_LIST_SELECT)
+            .select(await withResponderFreeze(EVENT_LIST_SELECT))
             .in('id', doneIds)
             .order('event_date', { ascending: false })
             .limit(MINE_LOGGED_FETCH_LIMIT)
@@ -381,7 +381,7 @@ const EVENT_DETAIL_SELECT = `
     id, responder_id, started_at, ended_at, vehicle_plate, total_km,
     odometer_start, odometer_end, route, treatment_detail, emergency_means,
     treatment_notes, status,
-    frozen_over_60km, frozen_suspicious_duplicate,
+    ${RESPONDER_FREEZE_FIELDS}
     profile:profiles(full_name, callsign),
     treated:event_treated_vehicles(quantity, kind:vehicle_kinds(name)),
     treated_plates:event_treated_plates!event_treated_plates_event_responder_id_fkey(plate_number, model, color, left_where, manufacturer, logo_slug, sort_order)
@@ -435,7 +435,7 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
     id, responder_id, started_at, ended_at, vehicle_plate, total_km,
     odometer_start, odometer_end, route, treatment_detail, emergency_means,
     treatment_notes, status,
-    frozen_over_60km, frozen_suspicious_duplicate,
+    ${RESPONDER_FREEZE_FIELDS}
     profile:profiles(full_name, callsign),
     treated:event_treated_vehicles(quantity, kind:vehicle_kinds(name))
   )
@@ -481,9 +481,10 @@ function normalizeEventDetail(raw: EventDetailRaw): EventDetail {
 }
 
 export async function fetchEventDetail(eventId: string): Promise<EventDetail | null> {
+  const detailSelect = await withResponderFreeze(EVENT_DETAIL_SELECT)
   let { data, error } = await supabase
     .from('events')
-    .select(EVENT_DETAIL_SELECT)
+    .select(detailSelect)
     .eq('id', eventId)
     .maybeSingle()
 
@@ -496,7 +497,8 @@ export async function fetchEventDetail(eventId: string): Promise<EventDetail | n
     const retry = await supabase
       .from('events')
       .select(
-        EVENT_DETAIL_SELECT.replace(/\n  event_type_detail,/, '')
+        detailSelect
+          .replace(/\n  event_type_detail,/, '')
           .replace(/\n  station,/, '')
           .replace(/\n  bus_lane,/, ''),
       )
@@ -517,9 +519,10 @@ export async function fetchEventDetail(eventId: string): Promise<EventDetail | n
 }
 
 async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventDetail | null> {
+  const detailSelect = await withResponderFreeze(EVENT_DETAIL_SELECT_NO_PLATES)
   let { data, error } = await supabase
     .from('events')
-    .select(EVENT_DETAIL_SELECT_NO_PLATES)
+    .select(detailSelect)
     .eq('id', eventId)
     .maybeSingle()
 
@@ -532,7 +535,8 @@ async function fetchEventDetailWithPlateQueries(eventId: string): Promise<EventD
     const retry = await supabase
       .from('events')
       .select(
-        EVENT_DETAIL_SELECT_NO_PLATES.replace(/\n  event_type_detail,/, '')
+        detailSelect
+          .replace(/\n  event_type_detail,/, '')
           .replace(/\n  station,/, '')
           .replace(/\n  bus_lane,/, ''),
       )

@@ -45,6 +45,22 @@ export function participationCountsTowardFuelRefund(
 }
 
 /**
+ * A participation carries its own flags once
+ * `20260910140000_responder_level_event_freeze.sql` has run. Until then only the
+ * event aggregate exists, and holding the whole event back is the safe side of
+ * that gap — it is what production did before the per-responder split.
+ */
+export function participationFrozen(
+  participation: EventFreezeFlags | null | undefined,
+  event: EventFreezeFlags | null | undefined,
+): boolean {
+  return Boolean(
+    (participation?.frozen_over_60km ?? event?.frozen_over_60km) ||
+      (participation?.frozen_suspicious_duplicate ?? event?.frozen_suspicious_duplicate),
+  )
+}
+
+/**
  * Kilometre value at or above which the database freezes the participation
  * pending admin approval. Mirrored here so the lead can be told at the moment
  * of typing rather than discovering it in a quarterly refund report.

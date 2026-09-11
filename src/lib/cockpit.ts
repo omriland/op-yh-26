@@ -5,6 +5,7 @@ import { isUrbanRoadName } from './systemDistricts'
 import { locationPinIsLocked, type LocationPinSource } from './locationPin'
 import { geocodePlaceQuery } from './googlePlaces'
 import { supabase } from './supabase'
+import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 
 export const COCKPIT_WINDOW_MS = 5 * 60 * 60 * 1000
 /** Allow a just-inserted row whose server `created_at` is slightly ahead of the client clock. */
@@ -58,7 +59,7 @@ const COCKPIT_REEL_SELECT = `
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
   ${EVENT_SECONDARY_LEADS_EMBED},
-  responders:event_responders(id, responder_id, ended_at, frozen_over_60km, frozen_suspicious_duplicate)
+  responders:event_responders(id, responder_id, ${RESPONDER_FREEZE_FIELDS} ended_at)
 `
 
 export function isInCockpitWindow(createdAt: string, now: Date): boolean {
@@ -405,7 +406,7 @@ export async function fetchCockpitReel(now = new Date()): Promise<CockpitReelIte
   const since = new Date(now.getTime() - COCKPIT_WINDOW_MS).toISOString()
   const { data, error } = await supabase
     .from('events')
-    .select(COCKPIT_REEL_SELECT)
+    .select(await withResponderFreeze(COCKPIT_REEL_SELECT))
     .gte('created_at', since)
     .order('created_at', { ascending: false })
 

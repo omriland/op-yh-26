@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 import type { ParticipationStatus } from './status'
 
 export const KM_EXCEPTION_THRESHOLD = 80
@@ -107,8 +108,7 @@ const KM_EXCEPTION_SELECT = `
   responders:event_responders(
     status,
     total_km,
-    frozen_over_60km,
-    frozen_suspicious_duplicate,
+    ${RESPONDER_FREEZE_FIELDS}
     profile:profiles(full_name, callsign)
   )
 `
@@ -116,7 +116,7 @@ const KM_EXCEPTION_SELECT = `
 export async function fetchKmExceptionRows(from?: string, to?: string): Promise<KmExceptionRow[]> {
   let query = supabase
     .from('events')
-    .select(KM_EXCEPTION_SELECT)
+    .select(await withResponderFreeze(KM_EXCEPTION_SELECT))
     .order('event_date', { ascending: false })
 
   if (from) query = query.gte('event_date', from)

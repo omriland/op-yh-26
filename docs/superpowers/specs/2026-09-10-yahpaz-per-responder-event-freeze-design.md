@@ -79,6 +79,32 @@ event (92 km and 20 km) yielded **0** refundable kilometers.
 - `kmExceptionsReport` filters per responder row, falling back to the event flag
   when a projection has no participation flags.
 
+## Deploy compatibility
+
+The client ships before the migration is applied, so nothing may hard-depend on
+the new columns: PostgREST fails an entire query when one selected column is
+missing, which would take out the events list, cockpit, shifts, event detail and
+the fuel and km reports at once.
+
+`src/lib/responderFreezeSchema.ts` probes `event_responders.frozen_over_60km`
+once per session. Every select that wants the participation columns writes them
+as the `RESPONDER_FREEZE_FIELDS` token — a standalone list item carrying its own
+trailing comma — and `withResponderFreeze()` either expands or drops it. Only
+`42703` (undefined column) drops the columns; any other probe failure keeps
+them, so a transient error cannot silently downgrade a session.
+
+While the columns are missing:
+
+- fuel refund, monthly detail and quarterly allocation fall back to the event
+  aggregate through `participationFrozen(participation, event)`, which is
+  exactly the behaviour production had before this change — a frozen event holds
+  back every responder on it. No refund is paid out that was not paid before.
+- admins still see the mark, since it reads the event aggregate.
+- a responder does not yet see their own mark, because nothing says which
+  participation is frozen.
+
+Applying the migration switches all of it on; open tabs pick it up on reload.
+
 ## Out of scope
 
 - Per-responder approval UI (approval remains one action per event/reason).

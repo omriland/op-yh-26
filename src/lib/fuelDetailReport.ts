@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { participationFrozen } from './eventFreeze'
+import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 import { localDateRangeToUtcBounds } from './fuelRefundReport'
 
 /** Flattened source row before / after filter (may still have null km). */
@@ -60,6 +62,15 @@ export function buildFuelDetailRows(sources: FuelDetailSource[]): FuelDetailRow[
   return rows
 }
 
+type DetailQueryEvent = {
+  created_at: string
+  location: string | null
+  notes: string | null
+  event_type: { name: string } | { name: string }[] | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
+}
+
 type DetailQueryRow = {
   responder_id: string
   event_id: string
@@ -67,19 +78,7 @@ type DetailQueryRow = {
   started_at: string | null
   frozen_over_60km?: boolean
   frozen_suspicious_duplicate?: boolean
-  events:
-    | {
-        created_at: string
-        location: string | null
-        notes: string | null
-        event_type: { name: string } | { name: string }[] | null
-      }
-    | {
-        created_at: string
-        location: string | null
-        notes: string | null
-        event_type: { name: string } | { name: string }[] | null
-      }[]
+  events: DetailQueryEvent | DetailQueryEvent[]
   profile:
     | { full_name: string; callsign: string }
     | { full_name: string; callsign: string }[]
@@ -110,21 +109,22 @@ export async function fetchFuelDetailSources(
   const { data, error } = await supabase
     .from('event_responders')
     .select(
-      `
+      await withResponderFreeze(`
       responder_id,
       event_id,
       total_km,
       started_at,
-      frozen_over_60km,
-      frozen_suspicious_duplicate,
+      ${RESPONDER_FREEZE_FIELDS}
       events!inner(
         created_at,
         location,
         notes,
+        frozen_over_60km,
+        frozen_suspicious_duplicate,
         event_type:event_types(name)
       ),
       profile:profiles(full_name, callsign)
-    `,
+    `),
     )
     .not('total_km', 'is', null)
     .gte('events.created_at', startIso)
@@ -132,7 +132,7 @@ export async function fetchFuelDetailSources(
 
   if (error) throw new Error(error.message)
 
-  return ((data ?? []) as DetailQueryRow[]).map((row) => {
+  return ((data ?? []) as unknown as DetailQueryRow[]).map((row) => {
     const event = one(row.events)
     const profile = one(row.profile)
     return {
@@ -146,7 +146,7 @@ export async function fetchFuelDetailSources(
       event_type_name: eventTypeName(event?.event_type),
       full_name: profile?.full_name ?? '',
       callsign: profile?.callsign ?? '',
-      frozen: Boolean(row.frozen_over_60km || row.frozen_suspicious_duplicate),
+      frozen: participationFrozen(row, event),
     }
   })
 }

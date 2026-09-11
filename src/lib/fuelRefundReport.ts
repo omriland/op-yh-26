@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { participationFrozen } from './eventFreeze'
+import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 
 export type FuelRefundProfile = {
   id: string
@@ -113,12 +115,25 @@ export async function fetchActiveFuelRefundProfiles(): Promise<FuelRefundProfile
   return (data ?? []) as FuelRefundProfile[]
 }
 
+type ParticipationEvent = {
+  created_at: string
+  origin: string
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
+}
+
 type ParticipationQueryRow = {
   responder_id: string
   event_id: string
   total_km: number | null
   frozen_over_60km?: boolean
   frozen_suspicious_duplicate?: boolean
+  events: ParticipationEvent | ParticipationEvent[] | null
+}
+
+function isParticipationFrozen(row: ParticipationQueryRow): boolean {
+  const event = Array.isArray(row.events) ? row.events[0] : row.events
+  return participationFrozen(row, event)
 }
 
 /**
@@ -134,14 +149,13 @@ export async function fetchParticipationsReportedInRange(
   const { data, error } = await supabase
     .from('event_responders')
     .select(
-      `
+      await withResponderFreeze(`
       responder_id,
       event_id,
       total_km,
-      frozen_over_60km,
-      frozen_suspicious_duplicate,
-      events!inner(created_at, origin)
-    `,
+      ${RESPONDER_FREEZE_FIELDS}
+      events!inner(created_at, origin, frozen_over_60km, frozen_suspicious_duplicate)
+    `),
     )
     .eq('events.origin', 'manual')
     .not('total_km', 'is', null)
@@ -150,11 +164,11 @@ export async function fetchParticipationsReportedInRange(
 
   if (error) throw new Error(error.message)
 
-  return ((data ?? []) as ParticipationQueryRow[]).map((row) => ({
+  return ((data ?? []) as unknown as ParticipationQueryRow[]).map((row) => ({
     responder_id: row.responder_id,
     event_id: row.event_id,
     total_km: row.total_km,
-    frozen: Boolean(row.frozen_over_60km || row.frozen_suspicious_duplicate),
+    frozen: isParticipationFrozen(row),
   }))
 }
 
