@@ -46,29 +46,6 @@ jobs:
             -f supabase/migrations/20260908040000_partner_webhook_cron_auth.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260910140000_responder_level_event_freeze.sql
-      - name: Report freeze state
-        if: steps.creds.outputs.present == 'true'
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            "select
-               (select count(*) from public.events e
-                 where e.frozen_over_60km <> exists (
-                   select 1 from public.event_responders r
-                   where r.event_id = e.id and r.frozen_over_60km)) as aggregate_mismatch,
-               (select count(*) from public.event_responders r
-                join public.events e on e.id = r.event_id
-                 where r.total_km >= 80
-                   and not (r.responder_id = any (e.approved_over_60km_responder_ids))
-                   and not r.frozen_over_60km) as missed_freeze,
-               (select count(*) from public.event_responders r
-                 where r.total_km is not null
-                   and not r.frozen_over_60km and not r.frozen_suspicious_duplicate
-                   and exists (
-                     select 1 from public.event_responders o
-                     where o.event_id = r.event_id
-                       and (o.frozen_over_60km or o.frozen_suspicious_duplicate))) as refunds_restored"
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
