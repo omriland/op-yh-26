@@ -52,10 +52,23 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            "select count(*) filter (where frozen_over_60km) as frozen_km,
-                    count(*) filter (where frozen_suspicious_duplicate) as frozen_dup,
-                    count(*) as participations
-             from public.event_responders"
+            "select
+               (select count(*) from public.events e
+                 where e.frozen_over_60km <> exists (
+                   select 1 from public.event_responders r
+                   where r.event_id = e.id and r.frozen_over_60km)) as aggregate_mismatch,
+               (select count(*) from public.event_responders r
+                join public.events e on e.id = r.event_id
+                 where r.total_km >= 80
+                   and not (r.responder_id = any (e.approved_over_60km_responder_ids))
+                   and not r.frozen_over_60km) as missed_freeze,
+               (select count(*) from public.event_responders r
+                 where r.total_km is not null
+                   and not r.frozen_over_60km and not r.frozen_suspicious_duplicate
+                   and exists (
+                     select 1 from public.event_responders o
+                     where o.event_id = r.event_id
+                       and (o.frozen_over_60km or o.frozen_suspicious_duplicate))) as refunds_restored"
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
