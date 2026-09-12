@@ -59,7 +59,7 @@
       /* ---- Masthead ---- */
       .masthead {
         position: absolute;
-        top: 58px;
+        top: 74px;
         left: 0;
         right: 0;
         text-align: center;
@@ -73,8 +73,8 @@
 
       .masthead__wordmark {
         font-family: var(--font-brand);
-        font-size: 72px;
-        line-height: 80px;
+        font-size: 80px;
+        line-height: 88px;
         color: #f2f6fa;
       }
 
@@ -87,14 +87,13 @@
 
       .masthead__unit {
         text-align: start;
-        font: 600 23px/31px var(--font-ui);
+        font: 600 25px/34px var(--font-ui);
         color: #c3cedc;
       }
 
-      .masthead__tagline {
-        margin-block-start: var(--space-4);
-        font: 500 25px/34px var(--font-ui);
-        color: #dde7f2;
+      /* Own line: the stamp is inline-flex, so it needs a block row of its own. */
+      .masthead__badge {
+        display: block;
       }
 
       /* Reuses the stamp recipe straight from components.css. */
@@ -117,8 +116,8 @@
       /* A — mine-inbox event card. Element itself IS the real component root. */
       .float--inbox {
         left: 58px;
-        top: 318px;
-        width: 438px;
+        top: 312px;
+        width: 446px;
         transform: rotate(-2.1deg);
         z-index: 3;
       }
@@ -126,8 +125,8 @@
       /* B — event detail: letterhead + פרטי האירוע ledger */
       .float--detail {
         left: 80px;
-        top: 548px;
-        width: 500px;
+        top: 572px;
+        width: 508px;
         transform: rotate(1.4deg);
         z-index: 4;
       }
@@ -135,8 +134,8 @@
       /* C — cockpit יומן משמרת (Command chrome), tall right column */
       .float--reel {
         right: 56px;
-        top: 340px;
-        width: 356px;
+        top: 334px;
+        width: 364px;
         border: 1px solid var(--stroke-hairline);
         border-radius: var(--radius-lg);
         overflow: hidden;
@@ -168,15 +167,6 @@
         border-block-end: 1px solid var(--stroke-hairline);
       }
 
-      .footer-note {
-        position: absolute;
-        bottom: 40px;
-        left: 0;
-        right: 0;
-        text-align: center;
-        font: 500 21px/28px var(--font-ui);
-        color: #aebed1;
-      }
     </style>
   </head>
   <body>
@@ -192,8 +182,9 @@
               לפינוי צירים
             </span>
           </div>
-          <p class="masthead__tagline">ניהול ותיעוד אירועי חילוץ — יחפ״צ</p>
-          <span class="stamp stamp--pending masthead__stamp">בקרוב</span>
+          <span class="masthead__badge">
+            <span class="stamp stamp--pending masthead__stamp">בקרוב</span>
+          </span>
         </header>
 
         <!-- ===== A: real EventCard (mine inbox, manual origin) ===== -->
@@ -202,13 +193,13 @@
             <div class="event-card">
               <span class="event-card__type">
                 <span class="event-type-label event-type-label--section">
-                  <span class="event-type-label__name">חילוץ רכב מנתיב</span>
+                  <span class="event-type-label__name">תאונה</span>
                 </span>
               </span>
               <span class="event-card__place t-body text-secondary">כביש 6 · מחלף שורק</span>
               <span class="event-card__meta">
                 <span class="mono">12.09.2026</span>
-                <span>· אירוע <span class="mono">4827193</span></span>
+                <span>· אירוע <span class="mono">3431</span></span>
               </span>
             </div>
             <div class="event-card__stamp">
@@ -226,7 +217,7 @@
             <div class="detail__letterhead detail-float__head">
               <div>
                 <h1 class="t-title">
-                  <span class="event-card__type">אירוע 4826044</span>
+                  <span class="event-card__type">אירוע 3428</span>
                 </h1>
                 <p class="t-caption text-muted">12.09.2026 · כביש 431 · מחלף נשרים</p>
               </div>
@@ -241,7 +232,7 @@
               <div class="ledger__row">
                 <dt class="ledger__label">סוג אירוע</dt>
                 <span class="ledger__leader" aria-hidden="true"></span>
-                <dd class="ledger__value">חילוץ רכב מנתיב</dd>
+                <dd class="ledger__value">נטוש</dd>
               </div>
               <div class="ledger__row">
                 <dt class="ledger__label">מד אוץ התחלה</dt>
@@ -328,10 +319,10 @@
               <li class="cockpit__row is-current">
                 <button type="button" class="cockpit__item" aria-current="true">
                   <span class="t-num-lg cockpit__item-id">
-                    <span class="event-card__type">4827193</span>
+                    <span class="event-card__type">3431</span>
                   </span>
                   <span class="t-body text-secondary cockpit__item-detail"
-                    >חילוץ רכב · 6 · מחלף שורק</span
+                    >תאונה · 6 · מחלף שורק</span
                   >
                   <span class="cockpit__item-stamp">
                     <span class="stamp stamp--pending">ממתין לתיעוד</span>
@@ -344,10 +335,10 @@
               <li class="cockpit__row">
                 <button type="button" class="cockpit__item">
                   <span class="t-num-lg cockpit__item-id">
-                    <span class="event-card__type">4827188</span>
+                    <span class="event-card__type">3429</span>
                   </span>
                   <span class="t-body text-secondary cockpit__item-detail"
-                    >תאונה · 4 · צומת גהה</span
+                    >תקוע · 4 · צומת גהה</span
                   >
                   <span class="cockpit__item-stamp">
                     <span class="stamp stamp--partial">תועד חלקית</span>
@@ -360,10 +351,10 @@
               <li class="cockpit__row">
                 <button type="button" class="cockpit__item">
                   <span class="t-num-lg cockpit__item-id">
-                    <span class="event-card__type">4826044</span>
+                    <span class="event-card__type">3428</span>
                   </span>
                   <span class="t-body text-secondary cockpit__item-detail"
-                    >חילוץ רכב · 431 · מחלף נשרים</span
+                    >נטוש · 431 · מחלף נשרים</span
                   >
                   <span class="cockpit__item-stamp">
                     <span class="stamp stamp--done">הושלם</span>
@@ -377,7 +368,6 @@
           </aside>
         </div>
 
-        <p class="footer-note">מהקריאה בשטח ועד סגירת הרשומה — במקום אחד</p>
       </div>
     </div>
   </body>
