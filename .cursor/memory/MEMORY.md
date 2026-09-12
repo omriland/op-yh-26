@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-11 (prod tip `f3da689` / deploy `6aa37b6e669a950008dfc234`; feature ship: per-responder freeze PR #45)
+Last updated: 2026-09-12 (fuel-report freeze snowflake + save confirm)
 
 ## What this is
 
@@ -149,6 +149,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **No filter** on event status, participation status, or cancelled — km entered is enough
 - All active users as rows; columns: כונן · קילומטרים · אירועים
 - Out of scope: money math, CSV, shift km
+- **Freeze mark (2026-09-12):** On שימוש בדלק and quarterly allocation, a snowflake next to the name when that volunteer has frozen participations in the viewed period (`frozen_event_count`; tooltip `יש אירוע הקפאה אחד` / `יש X אירועי הקפאה`). Frozen km stay excluded. Saving or locking a quarter with freezes asks to confirm (`שמירה למרות אירועים קפואים`); autosave is skipped until they confirm.
 
 ## Exceptions hub (implemented 2026-08-10)
 

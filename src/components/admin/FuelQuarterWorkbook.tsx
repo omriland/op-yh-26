@@ -2,6 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Fuel, Search, ShieldAlert } from 'lucide-react'
 import { useAuth } from '../../lib/auth'
 import {
+  FUEL_FREEZE_EXCLUDED_NOTICE,
+  FUEL_FREEZE_SAVE_CONFIRM_BODY,
+  FUEL_FREEZE_SAVE_CONFIRM_LABEL,
+  FUEL_FREEZE_SAVE_CONFIRM_TITLE,
+  frozenFuelEventTotals,
+} from '../../lib/eventFreeze'
+import {
   defaultFuelQuarter,
   loadFuelQuarterWorkbook,
   lockFuelQuarter,
@@ -9,6 +16,7 @@ import {
   type FuelQuarterRow,
   type FuelQuarterWorkbook as FuelQuarterWorkbookData,
 } from '../../lib/fuelQuarterReport'
+import { FuelFrozenEventsMark } from '../events/FuelFrozenEventsMark'
 import { remainingKm, unitFuelQuarterKpis } from '../../lib/fuelQuarterMath'
 import {
   cardNumbersMatchCount,
@@ -66,6 +74,7 @@ export function FuelQuarterWorkbook() {
   const [reloadKey, setReloadKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [confirmLock, setConfirmLock] = useState(false)
+  const [confirmSave, setConfirmSave] = useState(false)
   const [query, setQuery] = useState('')
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
   const autosaveGen = useRef(0)
@@ -113,11 +122,13 @@ export function FuelQuarterWorkbook() {
 
   const filteredRows = useMemo(() => filterFuelQuarterRows(rows, query), [rows, query])
   const unitKpis = useMemo(() => unitFuelQuarterKpis(rows), [rows])
+  const freezeTotals = useMemo(() => frozenFuelEventTotals(rows), [rows])
+  const hasFrozenEvents = freezeTotals.eventCount > 0
 
   const locked = workbook?.status === 'locked'
 
   useEffect(() => {
-    if (!workbook || locked || !dirty) return
+    if (!workbook || locked || !dirty || hasFrozenEvents) return
 
     setAutosaveStatus('pending')
     const gen = ++autosaveGen.current
@@ -140,7 +151,7 @@ export function FuelQuarterWorkbook() {
     return () => {
       window.clearTimeout(timer)
     }
-  }, [dirty, rows, workbook, locked])
+  }, [dirty, rows, workbook, locked, hasFrozenEvents])
 
   useEffect(() => {
     if (autosaveStatus !== 'saved') return
@@ -171,7 +182,16 @@ export function FuelQuarterWorkbook() {
     )
   }
 
-  async function onSave() {
+  function requestSave() {
+    if (!workbook || locked) return
+    if (hasFrozenEvents) {
+      setConfirmSave(true)
+      return
+    }
+    void persistDraft()
+  }
+
+  async function persistDraft() {
     if (!workbook || locked) return
     autosaveGen.current += 1
     setSaving(true)
@@ -180,6 +200,7 @@ export function FuelQuarterWorkbook() {
       await saveFuelQuarterDraft(workbook, rows)
       setWorkbook({ ...workbook, rows: rows.map((r) => ({ ...r })) })
       setAutosaveStatus('saved')
+      setConfirmSave(false)
     } catch {
       setAutosaveStatus('error')
       show('שמירה נכשלה. נסו שוב.', 'alert')
@@ -258,7 +279,7 @@ export function FuelQuarterWorkbook() {
                   <Button
                     variant="secondary"
                     disabled={!dirty || saving}
-                    onClick={() => void onSave()}
+                    onClick={requestSave}
                   >
                     שמירה
                   </Button>
@@ -404,7 +425,10 @@ export function FuelQuarterWorkbook() {
               {filteredRows.map((row) => (
                 <tr key={row.responder_id}>
                   <td className="table--fuel-quarter__sticky">
-                    <div className="table--fuel-quarter__name">{row.full_name}</div>
+                    <div className="table--fuel-quarter__name fuel-responder-name">
+                      <span>{row.full_name}</span>
+                      <FuelFrozenEventsMark count={row.frozen_event_count} />
+                    </div>
                     <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
                       {row.callsign}
                     </div>
@@ -473,7 +497,10 @@ export function FuelQuarterWorkbook() {
             <article key={row.responder_id} className="card stack-3">
               <div className="row-between">
                 <div>
-                  <div className="t-body">{row.full_name}</div>
+                  <div className="t-body fuel-responder-name">
+                    <span>{row.full_name}</span>
+                    <FuelFrozenEventsMark count={row.frozen_event_count} />
+                  </div>
                   <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
                     {row.callsign}
                   </div>
@@ -545,11 +572,36 @@ export function FuelQuarterWorkbook() {
         }
       >
         <p className="t-body">לנעול את הרבעון? לא ניתן לערוך לאחר הנעילה. היתרות יעברו לרבעון הבא.</p>
+        {hasFrozenEvents ? (
+          <p className="t-body" style={{ marginBlockStart: 'var(--space-2)' }}>
+            {FUEL_FREEZE_EXCLUDED_NOTICE}
+          </p>
+        ) : null}
         {dirty ? (
           <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
             שינויים שלא נשמרו יישמרו לפני הנעילה.
           </p>
         ) : null}
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmSave}
+        status="warning"
+        title={FUEL_FREEZE_SAVE_CONFIRM_TITLE}
+        busy={saving}
+        onClose={() => setConfirmSave(false)}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmSave(false)}>
+              ביטול
+            </Button>
+            <Button variant="primary" disabled={saving} onClick={() => void persistDraft()}>
+              {FUEL_FREEZE_SAVE_CONFIRM_LABEL}
+            </Button>
+          </>
+        }
+      >
+        <p className="t-body">{FUEL_FREEZE_SAVE_CONFIRM_BODY}</p>
       </AlertDialog>
     </div>
   )

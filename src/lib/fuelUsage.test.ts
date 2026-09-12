@@ -3,9 +3,9 @@ import type { FuelRefundRow } from './fuelRefundReport'
 import { formatLiters, litersFromKm, toUsageRows, usageTotals } from './fuelUsage'
 
 const rows: FuelRefundRow[] = [
-  { id: 'a', full_name: 'אבי לוי', callsign: 'A1', total_km: 90, event_count: 2 },
-  { id: 'b', full_name: 'בני כהן', callsign: 'B1', total_km: 0, event_count: 0 },
-  { id: 'c', full_name: 'גיא דהן', callsign: 'G1', total_km: 12, event_count: 1 },
+  { id: 'a', full_name: 'אבי לוי', callsign: 'A1', total_km: 90, event_count: 2, frozen_event_count: 1 },
+  { id: 'b', full_name: 'בני כהן', callsign: 'B1', total_km: 0, event_count: 0, frozen_event_count: 0 },
+  { id: 'c', full_name: 'גיא דהן', callsign: 'G1', total_km: 12, event_count: 1, frozen_event_count: 0 },
 ]
 
 describe('litersFromKm', () => {

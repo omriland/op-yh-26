@@ -4,6 +4,7 @@ import { PeriodPicker } from './PeriodPicker'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
+import { FuelFrozenEventsMark } from '../events/FuelFrozenEventsMark'
 import { formatNumber, monoClass } from '../../lib/format'
 import { isValidFuelRefundRange, loadFuelRefundReport } from '../../lib/fuelRefundReport'
 import { formatLiters, toUsageRows, usageTotals, type FuelUsageRow } from '../../lib/fuelUsage'
@@ -150,7 +151,10 @@ export function FuelUsagePanel() {
                   {filtered.map((row) => (
                     <tr key={row.id}>
                       <td>
-                        <div>{row.full_name}</div>
+                        <div className="fuel-responder-name">
+                          <span>{row.full_name}</span>
+                          <FuelFrozenEventsMark count={row.frozen_event_count} />
+                        </div>
                         <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
                           {row.callsign}
                         </div>
@@ -167,7 +171,10 @@ export function FuelUsagePanel() {
             <ul className="stack-3">
               {filtered.map((row) => (
                 <li key={row.id} className="card stack-2">
-                  <span className="t-body">{row.full_name}</span>
+                  <span className="t-body fuel-responder-name">
+                    <span>{row.full_name}</span>
+                    <FuelFrozenEventsMark count={row.frozen_event_count} />
+                  </span>
                   <span className={`t-caption text-muted ${monoClass(row.callsign)}`}>
                     {row.callsign}
                   </span>

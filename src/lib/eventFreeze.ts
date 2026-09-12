@@ -107,6 +107,35 @@ function freezeReasonsHe(flags: EventFreezeFlags | null | undefined): string | n
   return null
 }
 
+/** Tooltip on a fuel-report snowflake: how many of this volunteer's events are frozen. */
+export function frozenEventCountTooltipHe(count: number): string | null {
+  if (count <= 0) return null
+  if (count === 1) return 'יש אירוע הקפאה אחד'
+  return `יש ${count} אירועי הקפאה`
+}
+
+export const FUEL_FREEZE_SAVE_CONFIRM_TITLE = 'שמירה למרות אירועים קפואים'
+
+export const FUEL_FREEZE_EXCLUDED_NOTICE =
+  'לחלק מהמתנדבים יש אירועי הקפאה שלא ייכללו בחישוב ההחזר.'
+
+export const FUEL_FREEZE_SAVE_CONFIRM_BODY = `${FUEL_FREEZE_EXCLUDED_NOTICE} לשמור בכל זאת?`
+
+export const FUEL_FREEZE_SAVE_CONFIRM_LABEL = 'שמירה בכל זאת'
+
+export function frozenFuelEventTotals(
+  rows: readonly { frozen_event_count: number }[],
+): { responderCount: number; eventCount: number } {
+  let responderCount = 0
+  let eventCount = 0
+  for (const row of rows) {
+    if (row.frozen_event_count <= 0) continue
+    responderCount += 1
+    eventCount += row.frozen_event_count
+  }
+  return { responderCount, eventCount }
+}
+
 export function freezeTooltipHe(
   flags: EventFreezeFlags | null | undefined,
   scope: FreezeScope = 'event',

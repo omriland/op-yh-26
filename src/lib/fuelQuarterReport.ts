@@ -29,6 +29,8 @@ export type FuelQuarterParticipation = {
   responder_id: string
   created_at: string
   total_km: number | null
+  /** Frozen — counted for the snowflake, excluded from km. */
+  frozen?: boolean
 }
 
 export type SavedDistribution = {
@@ -52,6 +54,8 @@ export type FuelQuarterRow = {
   cards: number
   remaining_km: number
   card_numbers: string
+  /** Frozen participations in this quarter (excluded from km). */
+  frozen_event_count: number
 }
 
 export type FuelQuarterWorkbook = {
@@ -72,7 +76,12 @@ export function buildFuelQuarterRows(input: {
   savedByUser: Record<string, SavedDistribution>
 }): FuelQuarterRow[] {
   const byUser = new Map<string, FuelQuarterParticipation[]>()
+  const frozenByUser = new Map<string, number>()
   for (const p of input.participations) {
+    if (p.frozen) {
+      frozenByUser.set(p.responder_id, (frozenByUser.get(p.responder_id) ?? 0) + 1)
+      continue
+    }
     const list = byUser.get(p.responder_id) ?? []
     list.push(p)
     byUser.set(p.responder_id, list)
@@ -82,6 +91,7 @@ export function buildFuelQuarterRows(input: {
   const ids = new Set<string>()
 
   for (const id of byUser.keys()) ids.add(id)
+  for (const id of frozenByUser.keys()) ids.add(id)
   for (const [id, opening] of Object.entries(input.openingByUser)) {
     if (opening !== 0) ids.add(id)
   }
@@ -101,8 +111,9 @@ export function buildFuelQuarterRows(input: {
     const opening = input.openingByUser[id] ?? 0
     const quarter_km = buckets.km_month_1 + buckets.km_month_2 + buckets.km_month_3
     const saved = input.savedByUser[id]
+    const frozen_event_count = frozenByUser.get(id) ?? 0
 
-    if (opening === 0 && quarter_km === 0 && !saved) continue
+    if (opening === 0 && quarter_km === 0 && !saved && frozen_event_count === 0) continue
 
     const payable = payableKm(opening, buckets)
     const suggested = suggestedCards(payable)
@@ -125,6 +136,7 @@ export function buildFuelQuarterRows(input: {
       cards,
       remaining_km: remainingKm(payable, cards),
       card_numbers,
+      frozen_event_count,
     })
   }
 
@@ -236,13 +248,15 @@ async function fetchParticipationsInQuarter(
     const event = Array.isArray(row.events) ? row.events[0] : row.events
     if (!event || !includeEventInFuelAllocation(event.status)) return []
     // Per participation: a frozen teammate on the same event still gets nothing,
-    // but this responder's justified km is allocated.
-    if (participationFrozen(row, event)) return []
+    // but this responder's justified km is allocated. Frozen rows stay in the
+    // payload so the workbook can mark the volunteer (they do not add km).
+    const frozen = participationFrozen(row, event)
     return [
       {
         responder_id: row.responder_id,
         total_km: row.total_km,
         created_at: event.created_at,
+        frozen,
       },
     ]
   })

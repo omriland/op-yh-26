@@ -68,6 +68,7 @@ describe('buildFuelRefundRows', () => {
     expect(rows[0]).toMatchObject({
       total_km: 0,
       event_count: 0,
+      frozen_event_count: 0,
     })
     expect(rows[0]).not.toHaveProperty('odometer_first')
   })
@@ -99,8 +100,16 @@ describe('buildFuelRefundRows', () => {
       part({ responder_id: 'a', event_id: 'e-shared', total_km: 92, frozen: true }),
       part({ responder_id: 'b', event_id: 'e-shared', total_km: 20, frozen: false }),
     ])
-    expect(rows.find((r) => r.id === 'a')).toMatchObject({ total_km: 0, event_count: 0 })
-    expect(rows.find((r) => r.id === 'b')).toMatchObject({ total_km: 20, event_count: 1 })
+    expect(rows.find((r) => r.id === 'a')).toMatchObject({
+      total_km: 0,
+      event_count: 0,
+      frozen_event_count: 1,
+    })
+    expect(rows.find((r) => r.id === 'b')).toMatchObject({
+      total_km: 20,
+      event_count: 1,
+      frozen_event_count: 0,
+    })
   })
 
   it('excludes a frozen participation from km and event count', () => {
@@ -111,6 +120,20 @@ describe('buildFuelRefundRows', () => {
     const avi = rows.find((r) => r.id === 'b')!
     expect(avi.total_km).toBe(12)
     expect(avi.event_count).toBe(1)
+    expect(avi.frozen_event_count).toBe(1)
+  })
+
+  it('counts several frozen events for the same volunteer', () => {
+    const rows = buildFuelRefundRows(profiles, [
+      part({ responder_id: 'a', event_id: 'e1', total_km: 80, frozen: true }),
+      part({ responder_id: 'a', event_id: 'e2', total_km: 90, frozen: true }),
+      part({ responder_id: 'a', event_id: 'e3', total_km: 10, frozen: false }),
+    ])
+    expect(rows.find((r) => r.id === 'a')).toMatchObject({
+      total_km: 10,
+      event_count: 1,
+      frozen_event_count: 2,
+    })
   })
 
   it('still excludes a 60km-approved event that remains frozen as a duplicate', () => {

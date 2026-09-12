@@ -26,6 +26,8 @@ export type FuelRefundRow = {
   callsign: string
   total_km: number
   event_count: number
+  /** Frozen participations in the viewed period (excluded from km / event count). */
+  frozen_event_count: number
 }
 
 /** Extra KM that is not an event participation (private-vehicle shift). */
@@ -88,6 +90,12 @@ export function buildFuelRefundRows(
     extraByUser.set(credit.responder_id, (extraByUser.get(credit.responder_id) ?? 0) + credit.total_km)
   }
 
+  const frozenByUser = new Map<string, number>()
+  for (const row of participations) {
+    if (row.total_km == null || !row.frozen) continue
+    frozenByUser.set(row.responder_id, (frozenByUser.get(row.responder_id) ?? 0) + 1)
+  }
+
   const rows: FuelRefundRow[] = profiles.map((profile) => {
     const parts = byUser.get(profile.id) ?? []
     const total_km =
@@ -98,6 +106,7 @@ export function buildFuelRefundRows(
       callsign: profile.callsign,
       total_km,
       event_count: parts.length,
+      frozen_event_count: frozenByUser.get(profile.id) ?? 0,
     }
   })
 

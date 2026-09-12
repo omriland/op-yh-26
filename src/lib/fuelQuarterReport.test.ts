@@ -46,6 +46,7 @@ describe('buildFuelQuarterRows', () => {
       cards: 1,
       remaining_km: 0,
       card_numbers: '',
+      frozen_event_count: 0,
     })
   })
 
@@ -64,6 +65,48 @@ describe('buildFuelQuarterRows', () => {
       cards: 0,
       remaining_km: 90,
       card_numbers: 'n/a',
+    })
+  })
+
+  it('counts frozen events without adding their km', () => {
+    const rows = buildFuelQuarterRows({
+      year: 2026,
+      quarter: 1,
+      profiles,
+      participations: [
+        { responder_id: 'a', created_at: '2026-01-10T12:00:00+03:00', total_km: 20, frozen: false },
+        { responder_id: 'a', created_at: '2026-02-10T12:00:00+03:00', total_km: 80, frozen: true },
+        { responder_id: 'a', created_at: '2026-03-10T12:00:00+03:00', total_km: 90, frozen: true },
+      ],
+      openingByUser: {},
+      savedByUser: {},
+    })
+    expect(rows[0]).toMatchObject({
+      responder_id: 'a',
+      km_month_1: 20,
+      km_month_2: 0,
+      km_month_3: 0,
+      quarter_km: 20,
+      frozen_event_count: 2,
+    })
+  })
+
+  it('keeps a volunteer who only has frozen events so the snowflake can show', () => {
+    const rows = buildFuelQuarterRows({
+      year: 2026,
+      quarter: 1,
+      profiles,
+      participations: [
+        { responder_id: 'b', created_at: '2026-01-10T12:00:00+03:00', total_km: 88, frozen: true },
+      ],
+      openingByUser: {},
+      savedByUser: {},
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      responder_id: 'b',
+      quarter_km: 0,
+      frozen_event_count: 1,
     })
   })
 })

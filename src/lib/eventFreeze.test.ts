@@ -3,6 +3,8 @@ import {
   computeFreezeFlags,
   participationCountsTowardFuelRefund,
   freezeTooltipHe,
+  frozenEventCountTooltipHe,
+  frozenFuelEventTotals,
   freezeViewFor,
   hasPendingOver60km,
   isFreezeAdminRole,
@@ -106,6 +108,32 @@ describe('computeFreezeFlags', () => {
       frozen_over_60km: false,
       frozen_suspicious_duplicate: false,
     })
+  })
+})
+
+describe('frozenEventCountTooltipHe', () => {
+  it('is silent when there are no frozen events', () => {
+    expect(frozenEventCountTooltipHe(0)).toBeNull()
+  })
+
+  it('names a single freeze event', () => {
+    expect(frozenEventCountTooltipHe(1)).toBe('יש אירוע הקפאה אחד')
+  })
+
+  it('counts several freeze events', () => {
+    expect(frozenEventCountTooltipHe(4)).toBe('יש 4 אירועי הקפאה')
+  })
+})
+
+describe('frozenFuelEventTotals', () => {
+  it('sums only rows that have frozen events', () => {
+    expect(
+      frozenFuelEventTotals([
+        { frozen_event_count: 0 },
+        { frozen_event_count: 2 },
+        { frozen_event_count: 1 },
+      ]),
+    ).toEqual({ responderCount: 2, eventCount: 3 })
   })
 })
 
