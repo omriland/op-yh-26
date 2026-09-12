@@ -106,6 +106,13 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Form field limits (2026-09-05):** Event `מספר אירוע` max 7 digits (`maxLength` + `policeEventIdForInput`). Lead `קילומטרים` max 3 digits. Create-event `או״ק ניידת` max 16 characters. Treated plates accept **5–8** digits (was 7–8); format 5=`XX-XXX`, 6=`XXX-XXX`. Error copy: `יש להזין 5 עד 8 ספרות.`
 - **Latest `infra/bootstrap` tip (2026-09-10):** `d1a33a0` Record prod deploy; prior `4ebf78f` useRef build fix; `76b3440` vehicles admin-only / KM alerts / shift-born UX.
 
+## Marketing teaser render (2026-09-12)
+
+- `tools/teaser/` renders a square social/WhatsApp teaser by loading `src/styles/{tokens,base,components}.css` in headless Chrome, so the cards in the image are the **real** רשומה components (mine-inbox `card event-card-shell--manual`, event-detail letterhead + `ledger` + `license-plate--sm` plate stack, cockpit `יומן משמרת` reel) — never redrawn approximations.
+- `./tools/teaser/render.sh [out.png]` → 2160×2160 PNG (device scale 2); downscale to 1080×1080 for WhatsApp. Needs network (fonts come from Google Fonts, same link as `index.html`).
+- To change content, edit the markup in `tools/teaser/teaser.html` by copying from the matching `.tsx`. Harness CSS may only place/rotate the floats and draw the background — it must not restyle components.
+- Background plate `tools/teaser/bg.png` is generated art (navy, no text/UI).
+
 ## Email (Resend)
 
 - Decision (2026-08-09): keep temporary sender domain until Resend plan allows apex `yahpz.com` fully (choice 3).
