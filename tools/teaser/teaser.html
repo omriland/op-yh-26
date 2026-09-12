@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Yahpaz teaser render</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Suez+One&display=swap"
+      rel="stylesheet"
+    />
+    <!-- The app's real design-system stylesheets. Components are not re-implemented. -->
+    <link rel="stylesheet" href="../../src/styles/tokens.css" />
+    <link rel="stylesheet" href="../../src/styles/base.css" />
+    <link rel="stylesheet" href="../../src/styles/components.css" />
+    <style>
+      /* Harness only — the stage and the float placement, never the components.
+         Physical left/right are deliberate here: this is image composition. */
+      html,
+      body {
+        height: auto;
+        overflow: visible;
+        margin: 0;
+        background: #0b1526;
+      }
+
+      .stage {
+        position: relative;
+        width: 1080px;
+        height: 1080px;
+        overflow: hidden;
+        background-color: #122036;
+        background-image: url('bg.png');
+        background-size: cover;
+        background-position: center;
+      }
+
+      .stage__scrim {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background: linear-gradient(
+          180deg,
+          rgba(18, 32, 54, 0.86) 0%,
+          rgba(18, 32, 54, 0.42) 30%,
+          rgba(18, 32, 54, 0.12) 52%,
+          rgba(18, 32, 54, 0.5) 82%,
+          rgba(18, 32, 54, 0.88) 100%
+        );
+      }
+
+      .stage__content {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* ---- Masthead ---- */
+      .masthead {
+        position: absolute;
+        top: 58px;
+        left: 0;
+        right: 0;
+        text-align: center;
+      }
+
+      .masthead__lockup {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-5);
+      }
+
+      .masthead__wordmark {
+        font-family: var(--font-brand);
+        font-size: 72px;
+        line-height: 80px;
+        color: #f2f6fa;
+      }
+
+      .masthead__rule {
+        width: 1px;
+        align-self: stretch;
+        margin-block: 12px;
+        background: rgba(242, 246, 250, 0.3);
+      }
+
+      .masthead__unit {
+        text-align: start;
+        font: 600 23px/31px var(--font-ui);
+        color: #c3cedc;
+      }
+
+      .masthead__tagline {
+        margin-block-start: var(--space-4);
+        font: 500 25px/34px var(--font-ui);
+        color: #dde7f2;
+      }
+
+      /* Reuses the stamp recipe straight from components.css. */
+      .masthead__stamp {
+        margin-block-start: var(--space-5);
+        font-size: 17px;
+        line-height: 22px;
+        padding: 8px 20px;
+        transform: rotate(-8deg);
+      }
+
+      /* ---- Floats ---- */
+      .float {
+        position: absolute;
+        box-shadow:
+          0 34px 74px rgba(5, 11, 22, 0.66),
+          0 8px 20px rgba(5, 11, 22, 0.46);
+      }
+
+      /* A — mine-inbox event card. Element itself IS the real component root. */
+      .float--inbox {
+        left: 58px;
+        top: 318px;
+        width: 438px;
+        transform: rotate(-2.1deg);
+        z-index: 3;
+      }
+
+      /* B — event detail: letterhead + פרטי האירוע ledger */
+      .float--detail {
+        left: 80px;
+        top: 548px;
+        width: 500px;
+        transform: rotate(1.4deg);
+        z-index: 4;
+      }
+
+      /* C — cockpit יומן משמרת (Command chrome), tall right column */
+      .float--reel {
+        right: 56px;
+        top: 340px;
+        width: 356px;
+        border: 1px solid var(--stroke-hairline);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        background: var(--surface-page);
+        transform: rotate(2.2deg);
+        z-index: 5;
+      }
+
+      .float--reel .cockpit__reel {
+        max-height: none;
+        border-block-end: 0;
+      }
+
+      .float--reel .cockpit__list {
+        overflow: visible;
+      }
+
+      .float--reel .cockpit__row:last-child {
+        border-block-end: 0;
+      }
+
+      /* Detail float: letterhead sits inside the same paper card as the ledger. */
+      .detail-float__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        padding-block-end: var(--space-4);
+        border-block-end: 1px solid var(--stroke-hairline);
+      }
+
+      .footer-note {
+        position: absolute;
+        bottom: 40px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font: 500 21px/28px var(--font-ui);
+        color: #aebed1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="stage__scrim" aria-hidden="true"></div>
+      <div class="stage__content" data-theme="command">
+        <header class="masthead">
+          <div class="masthead__lockup">
+            <span class="masthead__wordmark">אבן דרך</span>
+            <span class="masthead__rule" aria-hidden="true"></span>
+            <span class="masthead__unit">
+              היחידה הארצית<br />
+              לפינוי צירים
+            </span>
+          </div>
+          <p class="masthead__tagline">ניהול ותיעוד אירועי חילוץ — יחפ״צ</p>
+          <span class="stamp stamp--pending masthead__stamp">בקרוב</span>
+        </header>
+
+        <!-- ===== A: real EventCard (mine inbox, manual origin) ===== -->
+        <div class="float float--inbox" data-theme="field">
+          <div class="card event-card-shell event-card-shell--manual">
+            <div class="event-card">
+              <span class="event-card__type">
+                <span class="event-type-label event-type-label--section">
+                  <span class="event-type-label__name">חילוץ רכב מנתיב</span>
+                </span>
+              </span>
+              <span class="event-card__place t-body text-secondary">כביש 6 · מחלף שורק</span>
+              <span class="event-card__meta">
+                <span class="mono">12.09.2026</span>
+                <span>· אירוע <span class="mono">4827193</span></span>
+              </span>
+            </div>
+            <div class="event-card__stamp">
+              <span class="stamp stamp--pending">ממתין לתיעוד שלך</span>
+            </div>
+            <div class="event-card__fill">
+              <button type="button" class="btn btn--primary">השלמת התיעוד שלי</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== B: real event-detail letterhead + פרטי האירוע ledger ===== -->
+        <div class="float float--detail" data-theme="field">
+          <section class="card detail__aside stack-4">
+            <div class="detail__letterhead detail-float__head">
+              <div>
+                <h1 class="t-title">
+                  <span class="event-card__type">אירוע 4826044</span>
+                </h1>
+                <p class="t-caption text-muted">12.09.2026 · כביש 431 · מחלף נשרים</p>
+              </div>
+              <span class="event-stamps">
+                <span class="stamp stamp--done stamp--header">הושלם</span>
+              </span>
+            </div>
+
+            <h2 class="t-section">פרטי האירוע</h2>
+
+            <dl class="ledger">
+              <div class="ledger__row">
+                <dt class="ledger__label">סוג אירוע</dt>
+                <span class="ledger__leader" aria-hidden="true"></span>
+                <dd class="ledger__value">חילוץ רכב מנתיב</dd>
+              </div>
+              <div class="ledger__row">
+                <dt class="ledger__label">מד אוץ התחלה</dt>
+                <span class="ledger__leader" aria-hidden="true"></span>
+                <dd class="ledger__value ledger__value--numeric">142,500</dd>
+              </div>
+              <div class="ledger__row">
+                <dt class="ledger__label">מד אוץ סיום</dt>
+                <span class="ledger__leader" aria-hidden="true"></span>
+                <dd class="ledger__value ledger__value--numeric">142,548</dd>
+              </div>
+              <div class="ledger__row">
+                <dt class="ledger__label">קילומטרים</dt>
+                <span class="ledger__leader" aria-hidden="true"></span>
+                <dd class="ledger__value ledger__value--numeric">48</dd>
+              </div>
+              <div class="ledger__row">
+                <dt class="ledger__label">מספרי כלי רכב</dt>
+                <span class="ledger__leader" aria-hidden="true"></span>
+                <dd class="ledger__value">
+                  <ul class="treated-plates treated-plates--stack">
+                    <li class="treated-plates__item treated-plates__item--row">
+                      <div class="treated-plates__main">
+                        <span class="license-plate license-plate--sm" dir="ltr">
+                          <span class="license-plate__band" aria-hidden="true">
+                            <svg
+                              class="license-plate__flag"
+                              viewBox="0 0 22 16"
+                              aria-hidden="true"
+                              focusable="false"
+                            >
+                              <rect width="22" height="16" fill="var(--plate-band-text)" />
+                              <rect y="2" width="22" height="2.2" fill="var(--plate-flag)" />
+                              <rect y="11.8" width="22" height="2.2" fill="var(--plate-flag)" />
+                              <g fill="none" stroke="var(--plate-flag)" stroke-width="1">
+                                <polygon points="11,4.1 14.4,10.1 7.6,10.1" />
+                                <polygon points="11,11.9 7.6,5.9 14.4,5.9" />
+                              </g>
+                            </svg>
+                            <span class="license-plate__il">IL</span>
+                          </span>
+                          <span class="license-plate__serial">84-921-33</span>
+                        </span>
+                        <span class="treated-plates__caption t-body text-secondary"
+                          >מאזדה 3 · לבן</span
+                        >
+                      </div>
+                    </li>
+                  </ul>
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+
+        <!-- ===== C: real cockpit יומן משמרת ===== -->
+        <div class="float float--reel" data-theme="command">
+          <aside class="cockpit__reel" aria-label="יומן משמרת">
+            <div class="cockpit__reel-head">
+              <div class="cockpit__reel-meta">
+                <p class="t-num-lg cockpit__clock" aria-label="שעון ירושלים">19:34</p>
+                <p class="t-caption text-muted">3 בחלון</p>
+              </div>
+              <button type="button" class="btn btn--primary btn--block">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14" />
+                  <path d="M12 5v14" />
+                </svg>
+                אירוע חדש
+              </button>
+            </div>
+            <ul class="cockpit__list">
+              <li class="cockpit__row is-current">
+                <button type="button" class="cockpit__item" aria-current="true">
+                  <span class="t-num-lg cockpit__item-id">
+                    <span class="event-card__type">4827193</span>
+                  </span>
+                  <span class="t-body text-secondary cockpit__item-detail"
+                    >חילוץ רכב · 6 · מחלף שורק</span
+                  >
+                  <span class="cockpit__item-stamp">
+                    <span class="stamp stamp--pending">ממתין לתיעוד</span>
+                  </span>
+                  <span class="cockpit__item-age">
+                    <span class="t-caption text-muted">לפני 12 דק׳</span>
+                  </span>
+                </button>
+              </li>
+              <li class="cockpit__row">
+                <button type="button" class="cockpit__item">
+                  <span class="t-num-lg cockpit__item-id">
+                    <span class="event-card__type">4827188</span>
+                  </span>
+                  <span class="t-body text-secondary cockpit__item-detail"
+                    >תאונה · 4 · צומת גהה</span
+                  >
+                  <span class="cockpit__item-stamp">
+                    <span class="stamp stamp--partial">תועד חלקית</span>
+                  </span>
+                  <span class="cockpit__item-age">
+                    <span class="t-caption text-muted">לפני שעה</span>
+                  </span>
+                </button>
+              </li>
+              <li class="cockpit__row">
+                <button type="button" class="cockpit__item">
+                  <span class="t-num-lg cockpit__item-id">
+                    <span class="event-card__type">4826044</span>
+                  </span>
+                  <span class="t-body text-secondary cockpit__item-detail"
+                    >חילוץ רכב · 431 · מחלף נשרים</span
+                  >
+                  <span class="cockpit__item-stamp">
+                    <span class="stamp stamp--done">הושלם</span>
+                  </span>
+                  <span class="cockpit__item-age">
+                    <span class="t-caption text-muted">לפני 3 שע׳</span>
+                  </span>
+                </button>
+              </li>
+            </ul>
+          </aside>
+        </div>
+
+        <p class="footer-note">מהקריאה בשטח ועד סגירת הרשומה — במקום אחד</p>
+      </div>
+    </div>
+  </body>
+</html>
