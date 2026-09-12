@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-12 (fuel-report freeze snowflake + save confirm)
+Last updated: 2026-09-12 (prod tip `75636a0` / deploy `6aa5829430dd9b0008b48736`; fuel-report freeze snowflake + save confirm)
 
 ## What this is
 
@@ -77,6 +77,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 ## Current app state
 
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
+- **Latest Netlify prod (2026-09-12):** Git CD deploy `6aa5829430dd9b0008b48736` **ready**, published 2026-09-12T16:50:51Z at https://yahpz.com, tip commit `75636a0` on `infra/bootstrap` (PR #47, fuel-report freeze snowflake + save confirm, fast-forward). Bundle `assets/index-BWHr9I5F.js`; smoke: `/` 200 HE/RTL. Preview was `6aa58177bd23060008fec375`. **Git CD is the live path.**
 - **Latest Netlify prod (2026-09-10):** Git CD deploy `6aa21986240c820008666778` **ready**, published 2026-09-10T02:45:01Z at https://yahpz.com, tip commit `d1a33a0` on `infra/bootstrap` (memory note). Feature ship: `76b3440` + build fix `4ebf78f` (deploy `6aa21923f7e52f0008130a16`); first `76b3440` attempt `6aa218869f0f4e0008ede652` errored on unused `useRef`. **Git CD is the live path.**
 - **Latest Netlify prod (2026-09-11):** Git CD deploy `6aa37b6e669a950008dfc234` **ready**, published 2026-09-11T03:55:43Z at https://yahpz.com, tip commit `f3da689` on `infra/bootstrap` (PR #45, per-responder freeze, fast-forward). Bundle `assets/index-BeEozeAm.js`; smoke: `/` 200 HE/RTL, `/android/version.json` 200, `/partner-api/openapi.yaml` 200. **Migration `20260910140000_responder_level_event_freeze.sql` still pending on prod** — the client runs on the old schema via the freeze probe until it is applied.
 - **Android force-update (2026-09-09):** 0.3.34 `versionCode` 45; `minVersionCode` 45; APK `yahpaz-0.3.34.apk` 64,659,293 bytes at https://yahpz.com/android/yahpaz-0.3.34.apk. Android commit `47cb3a6` on origin/main.
