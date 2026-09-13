@@ -26,6 +26,7 @@ import {
   mapSecondaryLeadRows,
   reassignMainLeads,
   shouldAutoLockSecondary,
+  viewerIsEventLead,
   type SecondaryLead,
 } from './eventShiftLeads'
 
@@ -38,6 +39,39 @@ const lead = (
   full_name: user_id,
   callsign: user_id,
   ...extra,
+})
+
+describe('viewerIsEventLead', () => {
+  it('is true only for the event main or secondary lead — not a lead-role responder', () => {
+    expect(
+      viewerIsEventLead({
+        viewerId: 'lead',
+        shiftLeadId: 'lead',
+        secondaryLeadIds: ['sec'],
+      }),
+    ).toBe(true)
+    expect(
+      viewerIsEventLead({
+        viewerId: 'sec',
+        shiftLeadId: 'lead',
+        secondaryLeadIds: ['sec'],
+      }),
+    ).toBe(true)
+    expect(
+      viewerIsEventLead({
+        viewerId: 'responder-who-is-also-a-lead',
+        shiftLeadId: 'lead',
+        secondaryLeadIds: ['sec'],
+      }),
+    ).toBe(false)
+    expect(
+      viewerIsEventLead({
+        viewerId: 'lead',
+        shiftLeadId: 'other',
+      }),
+    ).toBe(false)
+    expect(viewerIsEventLead({ viewerId: '', shiftLeadId: 'lead' })).toBe(false)
+  })
 })
 
 describe('canManageSecondaryLeads', () => {

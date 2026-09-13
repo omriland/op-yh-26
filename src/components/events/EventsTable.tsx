@@ -9,7 +9,7 @@ import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
-import { eventHasMissingResponderKm, missingFullyLoggedFieldLabels } from '../../lib/eventIncomplete'
+import { leadFacingMissingKm, missingFullyLoggedFieldLabels } from '../../lib/eventIncomplete'
 
 type IncompleteNotice = {
   fields: string[]
@@ -21,6 +21,8 @@ type EventsTableProps = {
   onOpen: (eventId: string) => void
   /** Freeze reader. Without it the table shows no freeze marks. */
   viewer?: FreezeViewer | null
+  /** Current user — lead-facing חסר ק״מ only when they lead this event. */
+  viewerId?: string
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
   /** Unit list: missing required fields as a full-width ledger line under the data row. */
   incompleteNoticeFor?: (event: EventListItem) => IncompleteNotice | undefined
@@ -33,6 +35,7 @@ export function EventsTable({
   events,
   onOpen,
   viewer,
+  viewerId,
   onContextDelete,
   incompleteNoticeFor,
   caption,
@@ -121,7 +124,7 @@ export function EventsTable({
                   <td className="table-cell--status">
                     <EventStatusTrail
                       status={event.status}
-                      missingKm={eventHasMissingResponderKm(event)}
+                      missingKm={leadFacingMissingKm(event, viewerId)}
                       missingFields={
                         event.status === 'partial' || event.status === 'in_progress'
                           ? missingFullyLoggedFieldLabels(event)

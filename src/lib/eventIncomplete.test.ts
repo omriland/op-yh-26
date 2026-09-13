@@ -5,10 +5,13 @@ import {
   incompleteNoticeLabel,
   isEventIncomplete,
   eventHasMissingResponderKm,
+  leadFacingMissingKm,
   missingEventFields,
+  missingEventFieldsForViewer,
   missingFullyLoggedFieldLabels,
   partialStampHoverText,
   partitionIncompleteEvents,
+  partitionIncompleteEventsForViewer,
 } from './eventIncomplete'
 
 function responder(partial: Partial<EventResponderSummary> = {}): EventResponderSummary {
@@ -155,6 +158,34 @@ describe('partitionIncompleteEvents', () => {
     expect(partitionIncompleteEvents([complete, incomplete])).toEqual({
       incomplete: [incomplete],
       rest: [complete],
+    })
+  })
+})
+
+describe('lead-facing missing KM', () => {
+  const missingKm = event({
+    shift_lead_id: 'lead',
+    secondary_leads: [{ user_id: 'sec', locked: false, full_name: 'משני', callsign: 'S1' }],
+    responders: [responder({ responder_id: 'lead-as-volunteer', total_km: null })],
+  })
+
+  it('shows the lead KM note only to the event main or secondary lead', () => {
+    expect(leadFacingMissingKm(missingKm, 'lead')).toBe(true)
+    expect(leadFacingMissingKm(missingKm, 'sec')).toBe(true)
+    expect(leadFacingMissingKm(missingKm, 'lead-as-volunteer')).toBe(false)
+    expect(leadFacingMissingKm(missingKm, 'admin-who-is-not-the-lead')).toBe(false)
+    expect(missingEventFieldsForViewer(missingKm, 'lead')).toEqual(new Set(['responder_km']))
+    expect(missingEventFieldsForViewer(missingKm, 'lead-as-volunteer')).toEqual(new Set())
+  })
+
+  it('does not pin a KM-only gap for a lead-role responder who is not the event lead', () => {
+    expect(partitionIncompleteEventsForViewer([missingKm], 'lead-as-volunteer')).toEqual({
+      incomplete: [],
+      rest: [missingKm],
+    })
+    expect(partitionIncompleteEventsForViewer([missingKm], 'lead')).toEqual({
+      incomplete: [missingKm],
+      rest: [],
     })
   })
 })

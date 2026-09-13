@@ -12,6 +12,7 @@
  */
 
 import type { EventListItem } from './events'
+import { mapSecondaryLeadRows, viewerIsEventLead } from './eventShiftLeads'
 import { resolvePatrolCallsign } from './patrolCallsign'
 
 export type IncompleteField =
@@ -146,6 +147,32 @@ export function eventHasMissingResponderKm(event: EventListItem): boolean {
   return missingEventFields(event).has('responder_km')
 }
 
+function viewerLeadsEvent(event: EventListItem, viewerId?: string | null): boolean {
+  return viewerIsEventLead({
+    viewerId,
+    shiftLeadId: event.shift_lead_id,
+    secondaryLeadIds: mapSecondaryLeadRows(event.secondary_leads).map((row) => row.user_id),
+  })
+}
+
+/** Lead-facing "חסר ק״מ" / banner — only the event's actual אחמ״ש, not a lead-role responder. */
+export function leadFacingMissingKm(
+  event: EventListItem,
+  viewerId?: string | null,
+): boolean {
+  return viewerLeadsEvent(event, viewerId) && eventHasMissingResponderKm(event)
+}
+
+/** Incomplete fields the viewer is responsible for. KM is lead-only. */
+export function missingEventFieldsForViewer(
+  event: EventListItem,
+  viewerId?: string | null,
+): Set<IncompleteField> {
+  const missing = missingEventFields(event)
+  if (!viewerLeadsEvent(event, viewerId)) missing.delete('responder_km')
+  return missing
+}
+
 /** Split a unit list so incomplete events can be pinned above the rest. */
 export function partitionIncompleteEvents(events: EventListItem[]): {
   incomplete: EventListItem[]
@@ -155,6 +182,22 @@ export function partitionIncompleteEvents(events: EventListItem[]): {
   const rest: EventListItem[] = []
   for (const event of events) {
     if (isEventIncomplete(event)) incomplete.push(event)
+    else rest.push(event)
+  }
+  return { incomplete, rest }
+}
+
+export function partitionIncompleteEventsForViewer(
+  events: EventListItem[],
+  viewerId?: string | null,
+): {
+  incomplete: EventListItem[]
+  rest: EventListItem[]
+} {
+  const incomplete: EventListItem[] = []
+  const rest: EventListItem[] = []
+  for (const event of events) {
+    if (missingEventFieldsForViewer(event, viewerId).size > 0) incomplete.push(event)
     else rest.push(event)
   }
   return { incomplete, rest }

@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   MISSING_KM_ALERT_THRESHOLD,
@@ -42,6 +45,37 @@ describe('missingKmAlert', () => {
         { responders: [] },
       ]),
     ).toBe(2)
+  })
+
+  it('counts missing-KM alerts only for events the viewer actually leads', () => {
+    expect(
+      countEventsMissingResponderKmFromList(
+        [
+          { shift_lead_id: 'me', responders: [{ total_km: null }] },
+          { shift_lead_id: 'other', responders: [{ total_km: null }] },
+          {
+            shift_lead_id: 'other',
+            secondary_leads: [{ user_id: 'me' }],
+            responders: [{ total_km: null }],
+          },
+          { shift_lead_id: 'me', responders: [{ total_km: 12 }] },
+        ],
+        'me',
+      ),
+    ).toBe(2)
+  })
+
+  it('scopes the RPC to the event lead, not every visible event', () => {
+    const sql = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../supabase/migrations/20260913080000_count_events_missing_lead_km_for_event_lead.sql',
+      ),
+      'utf8',
+    )
+    expect(sql).toContain('e.shift_lead_id = auth.uid()')
+    expect(sql).toContain('event_secondary_leads')
+    expect(sql).toContain('er.total_km is null')
   })
 
   it('persists popup dismiss in sessionStorage', () => {

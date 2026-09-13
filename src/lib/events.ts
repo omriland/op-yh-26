@@ -35,6 +35,7 @@ export type EventResponderSummary = {
 
 export type EventListItem = {
   id: string
+  shift_lead_id?: string | null
   created_at?: string | null
   event_date: string
   police_event_id: string | null
@@ -71,6 +72,7 @@ export type EventListItem = {
 
 export const EVENT_LIST_SELECT = `
   id,
+  shift_lead_id,
   created_at,
   event_date,
   police_event_id,

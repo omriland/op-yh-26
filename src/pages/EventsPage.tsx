@@ -84,9 +84,9 @@ import {
 import {
   incompleteFieldLabels,
   incompleteNoticeLabel,
-  missingEventFields,
-  eventHasMissingResponderKm,
-  partitionIncompleteEvents,
+  leadFacingMissingKm,
+  missingEventFieldsForViewer,
+  partitionIncompleteEventsForViewer,
   partialStampHoverText,
 } from '../lib/eventIncomplete'
 import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
@@ -311,11 +311,11 @@ export function EventsPage({
           road_id: event.road?.name,
           treated_count: event.shared_treated?.length ?? 0,
         })
-        return overlayMissingKmOnDoneStamp(stamp, eventHasMissingResponderKm(event))
+        return overlayMissingKmOnDoneStamp(stamp, leadFacingMissingKm(event, user?.id))
       }
       return overlayMissingKmOnDoneStamp(
         viewerStamp(event.status, mine, ownKm),
-        eventHasMissingResponderKm(event),
+        leadFacingMissingKm(event, user?.id),
       )
     },
     [scope, user?.id],
@@ -573,6 +573,7 @@ export function EventsPage({
         <UnitTableList
           scope={scope}
           visible={visible}
+          viewerId={user?.id}
           onOpen={onOpen}
           onContextDelete={canListDelete ? openDeleteMenu : undefined}
           hasMore={scope === 'unit' && Boolean(unitWindow?.hasMore)}
@@ -584,6 +585,7 @@ export function EventsPage({
           visible={visible}
           grouped={grouped}
           stampFor={stampFor}
+          viewerId={user?.id}
           onOpen={onOpen}
           onContextDelete={canListDelete ? openDeleteMenu : undefined}
           hasMore={scope === 'unit' && Boolean(unitWindow?.hasMore)}
@@ -922,6 +924,7 @@ function EventCards({
 function UnitTableList({
   scope,
   visible,
+  viewerId,
   onOpen,
   onContextDelete,
   hasMore,
@@ -929,6 +932,7 @@ function UnitTableList({
 }: {
   scope: 'unit' | 'mine'
   visible: EventListItem[]
+  viewerId?: string
   onOpen: (eventId: string) => void
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
   hasMore: boolean
@@ -936,7 +940,9 @@ function UnitTableList({
 }) {
   const freezeViewer = useFreezeViewer()
   const { incomplete, rest } =
-    scope === 'unit' ? partitionIncompleteEvents(visible) : { incomplete: [], rest: visible }
+    scope === 'unit'
+      ? partitionIncompleteEventsForViewer(visible, viewerId)
+      : { incomplete: [], rest: visible }
 
   return (
     <div className="stack-4">
@@ -946,9 +952,10 @@ function UnitTableList({
           events={incomplete}
           onOpen={onOpen}
           viewer={freezeViewer}
+          viewerId={viewerId}
           onContextDelete={onContextDelete}
           incompleteNoticeFor={(event) => {
-            const fields = missingEventFields(event)
+            const fields = missingEventFieldsForViewer(event, viewerId)
             return {
               fields: incompleteFieldLabels(fields),
               spoken: incompleteNoticeLabel(fields),
@@ -961,6 +968,7 @@ function UnitTableList({
           events={rest}
           onOpen={onOpen}
           viewer={freezeViewer}
+          viewerId={viewerId}
           onContextDelete={onContextDelete}
         />
       ) : null}
@@ -978,6 +986,7 @@ function UnitCardList({
   visible,
   grouped,
   stampFor,
+  viewerId,
   onOpen,
   onContextDelete,
   hasMore,
@@ -987,6 +996,7 @@ function UnitCardList({
   visible: EventListItem[]
   grouped: [string, EventListItem[]][]
   stampFor: (event: EventListItem) => StampDescriptor
+  viewerId?: string
   onOpen: (eventId: string) => void
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
   hasMore: boolean
@@ -994,7 +1004,9 @@ function UnitCardList({
 }) {
   const freezeViewer = useFreezeViewer()
   const { incomplete: incompleteEvents } =
-    scope === 'unit' ? partitionIncompleteEvents(visible) : { incomplete: [] }
+    scope === 'unit'
+      ? partitionIncompleteEventsForViewer(visible, viewerId)
+      : { incomplete: [] }
   const incompleteIds = new Set(incompleteEvents.map((e) => e.id))
   const restGrouped =
     scope === 'unit' && incompleteEvents.length > 0
@@ -1008,7 +1020,7 @@ function UnitCardList({
           <h2 className="events-incomplete-heading">דורשים השלמת פרטים</h2>
           <ul className="stack-3">
             {incompleteEvents.map((event) => {
-              const fields = missingEventFields(event)
+              const fields = missingEventFieldsForViewer(event, viewerId)
               return (
                 <EventCard
                   key={event.id}

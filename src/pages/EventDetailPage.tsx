@@ -61,7 +61,7 @@ import {
   PATROL_CALLSIGN_PREFIX_LABEL,
   resolvePatrolCallsign,
 } from '../lib/patrolCallsign'
-import { mapSecondaryLeadRows } from '../lib/eventShiftLeads'
+import { mapSecondaryLeadRows, viewerIsEventLead } from '../lib/eventShiftLeads'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Avatar } from '../components/ui/Avatar'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
@@ -236,6 +236,14 @@ export function EventDetailPage({
   })
   const mine = event.responders.find((row) => row.responder_id === user?.id)?.status ?? null
   const mineKm = event.responders.find((row) => row.responder_id === user?.id)?.total_km ?? null
+  const secondaryLeadIds = mapSecondaryLeadRows(event.secondary_leads).map((row) => row.user_id)
+  const eventLead = viewerIsEventLead({
+    viewerId: user?.id,
+    shiftLeadId: event.shift_lead_id,
+    secondaryLeadIds,
+  })
+  const assignedAsResponder = event.responders.some((row) => row.responder_id === user?.id)
+  const showLeadKm = eventLead || (canSeeLeadKm && !assignedAsResponder)
   const missingLeadFields = missingEventFields(event)
   const missingLeadStart = !event.started_at?.trim()
   const missingLeadEnd = !event.ended_at?.trim()
@@ -256,14 +264,14 @@ export function EventDetailPage({
         ? mineParticipationStamp(mine, mineKm, { missingLeadDetails })
         : overlayMissingKmOnDoneStamp(
             eventStamp(event.status),
-            eventHasMissingResponderKm(event),
+            eventLead && eventHasMissingResponderKm(event),
           )
   const headerStampTip =
     headerStamp.label === 'תועד חלקית' ? partialStampHoverText(event) : null
   const assignedEditBlocked = isAssignedVolunteerEventEditBlocked({
     viewerId: user?.id,
     responderIds: event.responders.map((row) => row.responder_id),
-    secondaryLeadIds: mapSecondaryLeadRows(event.secondary_leads).map((row) => row.user_id),
+    secondaryLeadIds,
     roles,
   })
   const ageLocked = isEventEditAgeLocked({ createdAt: event.created_at, roles })
@@ -521,7 +529,7 @@ export function EventDetailPage({
                   isViewer={isViewer}
                   defaultOpen={responderCardStartsOpen({
                     isViewer,
-                    manages: canSeeLeadKm,
+                    manages: eventLead,
                   })}
                   onFillOwn={
                     isViewer && responder.status !== 'done' && onFillOwn
@@ -536,10 +544,11 @@ export function EventDetailPage({
                       ? () => requestLeadFieldsEdit(responder.responder_id)
                       : undefined
                   }
-                  showLeadKm={canSeeLeadKm}
+                  showLeadKm={showLeadKm}
+                  leadKmMissing={eventLead && responder.total_km == null}
                   showOdometers={responderCardShowsOdometers({
                     isViewer,
-                    manages: canSeeLeadKm,
+                    manages: eventLead,
                   })}
                   showTreatedPlates={event.origin !== 'shift'}
                   origin={event.origin}
@@ -593,6 +602,7 @@ function ResponderCard({
   fillLabel,
   onEditLeadFields,
   showLeadKm,
+  leadKmMissing,
   showOdometers,
   showTreatedPlates,
   origin,
@@ -606,6 +616,7 @@ function ResponderCard({
   fillLabel?: string
   onEditLeadFields?: () => void
   showLeadKm: boolean
+  leadKmMissing: boolean
   showOdometers: boolean
   showTreatedPlates: boolean
   origin: 'manual' | 'shift'
@@ -678,7 +689,7 @@ function ResponderCard({
                     </>
                   ) : undefined
                 }
-                missing={responder.total_km == null}
+                missing={leadKmMissing}
               />
             ) : null}
             <LedgerRow label="אמצעים" value={responder.emergency_means ? 'כן' : 'לא'} />

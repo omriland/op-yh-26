@@ -44,6 +44,7 @@ describe('EVENT_LIST_SELECT embeds', () => {
     expect(EVENT_LIST_SELECT).toContain('profiles!events_last_saved_by_fkey')
     expect(EVENT_LIST_SELECT).toContain('frozen_over_60km')
     expect(EVENT_LIST_SELECT).toContain('frozen_suspicious_duplicate')
+    expect(EVENT_LIST_SELECT).toContain('\n  shift_lead_id,')
     expect(EVENT_LIST_SELECT).not.toMatch(/shift_lead:profiles\(/)
   })
 })

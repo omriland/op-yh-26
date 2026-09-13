@@ -214,6 +214,25 @@ export function formatSecondaryLeadTrigger(secondaries: readonly LeadPerson[]): 
   return rest > 0 ? `${name} +${rest}` : name
 }
 
+function sameLeadId(
+  viewerId: string | undefined | null,
+  otherId: string | undefined | null,
+): boolean {
+  const viewer = viewerId?.trim() ?? ''
+  const other = otherId?.trim() ?? ''
+  return Boolean(viewer && other && viewer === other)
+}
+
+/** True when the viewer is this event's main or secondary אחמ״ש — not merely a lead-role user. */
+export function viewerIsEventLead(input: {
+  viewerId?: string | null
+  shiftLeadId?: string | null
+  secondaryLeadIds?: readonly (string | null | undefined)[]
+}): boolean {
+  if (sameLeadId(input.viewerId, input.shiftLeadId)) return true
+  return (input.secondaryLeadIds ?? []).some((id) => sameLeadId(input.viewerId, id))
+}
+
 export function eventLeadFieldLabel(hasSecondaries: boolean): string {
   return hasSecondaries ? MAIN_LEAD_LABEL : MAIN_LEAD_LABEL_SHORT
 }
