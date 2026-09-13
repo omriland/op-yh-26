@@ -21,6 +21,8 @@ type EventCardProps = {
   viewer?: FreezeViewer | null
   /** Responder archive: lead has not entered KM yet. Stamp is סיימת לתעד. */
   leadKmNote?: string | null
+  /** Unit list: hover on תועד חלקית lists the missing fields. */
+  stampTip?: string | null
   onOpen: (eventId: string) => void
   /** Mine list: open participation → footer CTA */
   onFill?: (eventId: string) => void
@@ -41,6 +43,7 @@ export function EventCard({
   stamp,
   viewer,
   leadKmNote,
+  stampTip,
   onOpen,
   onFill,
   fillLabel,
@@ -121,7 +124,7 @@ export function EventCard({
       </button>
       <EventFrozenNotice event={event} viewer={viewer} />
       <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>
-        <StampWithNote {...stamp} note={leadKmNote} />
+        <StampWithNote {...stamp} note={leadKmNote} tip={stampTip} />
       </button>
       {onFill && fillLabel ? (
         <div className="event-card__fill">

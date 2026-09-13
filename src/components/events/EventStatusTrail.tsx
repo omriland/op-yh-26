@@ -16,6 +16,8 @@ type EventStatusTrailProps = {
   status: EventStatus
   missingKm?: boolean
   responders?: TrailResponder[]
+  /** Lead-facing: fields that still keep the event from being fully logged. */
+  missingFields?: string[]
 }
 
 /** Desktop Events table — compact pipeline with current label under the active node. */
@@ -23,6 +25,7 @@ export function EventStatusTrail({
   status,
   missingKm = false,
   responders = [],
+  missingFields = [],
 }: EventStatusTrailProps) {
   const steps = eventStatusTrailSteps(status, { missingKm })
   const current = reportingDocumentationStamp(status, missingKm)
@@ -30,8 +33,9 @@ export function EventStatusTrail({
   const draft = responders.filter((row) => row.status === 'in_progress')
   const pending = responders.filter((row) => row.status === 'pending')
   const showTip =
-    responders.length > 0 &&
-    (status === 'partial' || status === 'in_progress' || draft.length > 0)
+    missingFields.length > 0 ||
+    (responders.length > 0 &&
+      (status === 'partial' || status === 'in_progress' || draft.length > 0))
 
   const label = (
     <span className={`event-status-trail__label event-status-trail__label--${current.tone}`}>
@@ -41,6 +45,16 @@ export function EventStatusTrail({
 
   const tipContent = (
     <div className="hover-tip__sections">
+      {missingFields.length > 0 ? (
+        <section className="hover-tip__section">
+          <p className="hover-tip__heading">חסרים</p>
+          <ul className="hover-tip__list">
+            {missingFields.map((field) => (
+              <li key={field}>{field}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {done.length > 0 ? (
         <section className="hover-tip__section">
           <p className="hover-tip__heading">הושלם</p>

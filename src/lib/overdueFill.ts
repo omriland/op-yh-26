@@ -8,7 +8,7 @@ export type OverdueMailKind = '48h' | '7d'
 export const OVERDUE_FILL_EMAIL_SUBJECT = 'חריגת זמנים בתיעוד אירוע - אבן דרך'
 export const OVERDUE_FILL_CTA_LABEL = 'להשלמת התיעוד'
 export const OVERDUE_FILL_FUEL_NOTE =
-  'שימו לב! אירוע שלא יתועד במלואו לא יחושב להחזר הדלק הרבעוני'
+  'שימו לב! אירוע שלא יתועד על ידי המתנדב, או ללא ק״מ, לא יחושב להחזר הדלק הרבעוני'
 
 export const OVERDUE_FILL_CARD_TIP = 'אירוע ממתין לתיעוד מעל ל־48 שעות'
 

@@ -133,14 +133,20 @@ export const FILL_DONE_AWAITING_KM_LABEL = 'סיימת לתעד'
 /** Responder-facing: they finished; the lead has not entered KM yet. */
 export const LEAD_KM_PENDING_NOTE = 'אחמ״ש טרם הזין ק״מ'
 
+/** Responder-facing: they finished; the lead still owes end time (or other done-gate fields). */
+export const AWAITING_LEAD_DETAILS_NOTE = 'ממתין לפרטים נוספים מאחמש'
+
 export function leadKmPendingNote(
   participation: ParticipationStatus | null | undefined,
   totalKm: number | null | undefined,
   origin?: 'manual' | 'shift' | null,
+  missingLeadDetails?: boolean,
 ): string | null {
-  // Shift-born docs are shared — lead KM note is irrelevant.
+  // Shift-born docs are shared — lead-waiting notes are irrelevant.
   if (origin === 'shift') return null
-  if (participation !== 'done' || totalKm != null) return null
+  if (participation !== 'done') return null
+  if (missingLeadDetails) return AWAITING_LEAD_DETAILS_NOTE
+  if (totalKm != null) return null
   return LEAD_KM_PENDING_NOTE
 }
 
@@ -148,8 +154,12 @@ export function leadKmPendingNote(
 export function mineParticipationStamp(
   status: ParticipationStatus | null | undefined,
   totalKm: number | null | undefined,
+  options?: { missingLeadDetails?: boolean },
 ): StampDescriptor {
   const resolved = status ?? 'pending'
+  if (resolved === 'done' && options?.missingLeadDetails) {
+    return eventStamp('partial')
+  }
   if (resolved === 'done' && totalKm == null) {
     return { label: FILL_DONE_AWAITING_KM_LABEL, tone: 'done' }
   }

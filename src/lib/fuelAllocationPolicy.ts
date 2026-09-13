@@ -1,16 +1,27 @@
-import type { EventStatus } from './status'
+import type { ParticipationStatus } from './status'
 
 export const FUEL_ALLOCATION_INCLUDES =
-  'נספרים רק אירועים שתועדו במלואם.'
+  'נספרים אירועים שתועדו על ידי המתנדב ויש להם ק״מ.'
 
 export const FUEL_USAGE_INCLUDES =
   'מוצגים כל האירועים עם ק״מ, גם אם תועדו חלקית.'
 
 export const INCOMPLETE_FUEL_REFUND_NOTICE =
-  'אירועים שלא תועדו במלואם אינם נכללים בהחזר הדלק הרבעוני.'
+  'אירועים שטרם תועדו על ידי המתנדב, או ללא ק״מ, אינם נכללים בהחזר הדלק הרבעוני.'
 
-export function includeEventInFuelAllocation(status: EventStatus): boolean {
-  return status === 'done'
+/**
+ * Quarterly allocation / refund gate for one assignment.
+ * Lead-entered `total_km` + that responder’s completed log.
+ * Event status and other lead blanks (end time, police id, …) do not matter.
+ */
+export function includeParticipationInFuelAllocation(input: {
+  totalKm: number | null | undefined
+  participationStatus: ParticipationStatus | null | undefined
+  frozen?: boolean
+}): boolean {
+  if (input.frozen) return false
+  if (input.totalKm == null) return false
+  return input.participationStatus === 'done'
 }
 
 /**

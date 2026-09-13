@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EVENT_DONE_NEEDS_END_ERROR,
   EVENT_DONE_NEEDS_KM_ERROR,
+  eventMissingLeadDoneDetails,
 } from './eventStatus'
 import {
   emptyShiftBornFillDraft,
@@ -69,5 +70,13 @@ describe('shiftBornCompleteErrors', () => {
       },
     )
     expect(errors.form).toBe(EVENT_DONE_NEEDS_KM_ERROR)
+  })
+})
+
+describe('eventMissingLeadDoneDetails', () => {
+  it('treats a missing event end time as a lead detail gap', () => {
+    expect(eventMissingLeadDoneDetails(null)).toBe(true)
+    expect(eventMissingLeadDoneDetails('   ')).toBe(true)
+    expect(eventMissingLeadDoneDetails('2026-09-10T11:13:00')).toBe(false)
   })
 })

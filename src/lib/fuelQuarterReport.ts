@@ -1,9 +1,9 @@
-import { includeEventInFuelAllocation } from './fuelAllocationPolicy'
+import { includeParticipationInFuelAllocation } from './fuelAllocationPolicy'
 import { participationFrozen } from './eventFreeze'
 import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 import { supabase } from './supabase'
 import { localDateRangeToUtcBounds } from './fuelRefundReport'
-import type { EventStatus } from './status'
+import type { EventStatus, ParticipationStatus } from './status'
 import {
   defaultFuelQuarter,
   litersFromPayableKm,
@@ -217,12 +217,13 @@ async function fetchParticipationsInQuarter(
     .select(
       await withResponderFreeze(`
       responder_id,
+      status,
       total_km,
       ${RESPONDER_FREEZE_FIELDS}
       events!inner(created_at, status, frozen_over_60km, frozen_suspicious_duplicate)
     `),
     )
-    .eq('events.status', 'done')
+    .eq('status', 'done')
     .not('total_km', 'is', null)
     .gte('events.created_at', startIso)
     .lte('events.created_at', endIso)
@@ -238,6 +239,7 @@ async function fetchParticipationsInQuarter(
 
   type Row = {
     responder_id: string
+    status: ParticipationStatus
     total_km: number | null
     frozen_over_60km?: boolean
     frozen_suspicious_duplicate?: boolean
@@ -246,7 +248,15 @@ async function fetchParticipationsInQuarter(
 
   return ((data ?? []) as unknown as Row[]).flatMap((row) => {
     const event = Array.isArray(row.events) ? row.events[0] : row.events
-    if (!event || !includeEventInFuelAllocation(event.status)) return []
+    if (
+      !event ||
+      !includeParticipationInFuelAllocation({
+        totalKm: row.total_km,
+        participationStatus: row.status,
+      })
+    ) {
+      return []
+    }
     // Per participation: a frozen teammate on the same event still gets nothing,
     // but this responder's justified km is allocated. Frozen rows stay in the
     // payload so the workbook can mark the volunteer (they do not add km).

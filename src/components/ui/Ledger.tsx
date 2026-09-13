@@ -11,15 +11,23 @@ type LedgerRowProps = {
   value?: ReactNode
   numeric?: boolean
   isolate?: boolean
+  /** Lead-owned required field that is still blank — red label and dash. */
+  missing?: boolean
 }
 
-export function LedgerRow({ label, value, numeric = false, isolate = false }: LedgerRowProps) {
+export function LedgerRow({
+  label,
+  value,
+  numeric = false,
+  isolate = false,
+  missing = false,
+}: LedgerRowProps) {
   const isEmpty = value === null || value === undefined || value === ''
   // A "numeric" field can still hold Hebrew (callsigns, patrol numbers) — mono only when it can't.
   const useMono = numeric && (typeof value !== 'string' || monoClass(value) === 'mono')
 
   return (
-    <div className="ledger__row">
+    <div className={['ledger__row', missing ? 'ledger__row--missing' : ''].filter(Boolean).join(' ')}>
       <dt className="ledger__label">{label}</dt>
       <span className="ledger__leader" aria-hidden="true" />
       <dd
@@ -31,6 +39,7 @@ export function LedgerRow({ label, value, numeric = false, isolate = false }: Le
         ]
           .filter(Boolean)
           .join(' ')}
+        aria-label={missing ? `${label}, חסר` : undefined}
       >
         {isEmpty ? '—' : value}
       </dd>

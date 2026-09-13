@@ -9,7 +9,7 @@ import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
-import { eventHasMissingResponderKm } from '../../lib/eventIncomplete'
+import { eventHasMissingResponderKm, missingFullyLoggedFieldLabels } from '../../lib/eventIncomplete'
 
 type IncompleteNotice = {
   fields: string[]
@@ -122,6 +122,11 @@ export function EventsTable({
                     <EventStatusTrail
                       status={event.status}
                       missingKm={eventHasMissingResponderKm(event)}
+                      missingFields={
+                        event.status === 'partial' || event.status === 'in_progress'
+                          ? missingFullyLoggedFieldLabels(event)
+                          : []
+                      }
                       responders={event.responders.map((row) => ({
                         id: row.id,
                         status: row.status,

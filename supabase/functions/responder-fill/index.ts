@@ -852,7 +852,7 @@ const OVERDUE_7D_MS = 7 * 24 * 60 * 60 * 1000;
 const OVERDUE_FILL_SUBJECT = "חריגת זמנים בתיעוד אירוע - אבן דרך";
 const OVERDUE_FILL_CTA = "להשלמת התיעוד";
 const OVERDUE_FILL_FUEL =
-  "שימו לב! אירוע שלא יתועד במלואו לא יחושב להחזר הדלק הרבעוני";
+  "שימו לב! אירוע שלא יתועד על ידי המתנדב, או ללא ק״מ, לא יחושב להחזר הדלק הרבעוני";
 
 type OverdueMailKind = "48h" | "7d";
 

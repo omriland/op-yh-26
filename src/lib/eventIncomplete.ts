@@ -88,6 +88,47 @@ export function incompleteFieldLabels(fields: Set<IncompleteField>): string[] {
   )
 }
 
+const START_TIME_LABEL = 'שעת התחלה'
+const END_TIME_LABEL = 'שעת סיום'
+
+/**
+ * Field names that still block a fully-logged event, with start/end split
+ * so a hover on תועד חלקית can say שעת סיום instead of the generic שעות.
+ */
+export function missingFullyLoggedFieldLabels(event: EventListItem): string[] {
+  const missing = missingEventFields(event)
+  const labels: string[] = []
+  for (const field of FIELD_ORDER) {
+    if (!missing.has(field)) continue
+    if (field === 'event_times') {
+      const startMissing = isMissing(event.started_at)
+      const endMissing = isMissing(event.ended_at)
+      if (startMissing) labels.push(START_TIME_LABEL)
+      if (endMissing) labels.push(END_TIME_LABEL)
+      if (!startMissing && !endMissing) labels.push(INCOMPLETE_FIELD_LABELS.event_times)
+      continue
+    }
+    labels.push(INCOMPLETE_FIELD_LABELS[field])
+  }
+  return labels
+}
+
+export function pendingResponderNames(event: EventListItem): string[] {
+  return event.responders
+    .filter((row) => row.status !== 'done')
+    .map((row) => row.profile?.full_name?.trim() || row.profile?.callsign?.trim() || 'מתנדב')
+}
+
+/** Hover / spoken copy for a תועד חלקית stamp: missing lead fields + open fills. */
+export function partialStampHoverText(event: EventListItem): string | null {
+  const fields = missingFullyLoggedFieldLabels(event)
+  const pending = pendingResponderNames(event)
+  const parts: string[] = []
+  if (fields.length > 0) parts.push(`חסרים: ${fields.join(' · ')}`)
+  if (pending.length > 0) parts.push(`ממתין לתיעוד: ${pending.join(' · ')}`)
+  return parts.length > 0 ? parts.join('\n') : null
+}
+
 /**
  * Spoken / aria label for the notice.
  * e.g. "חסרים: מספר אירוע · ק״מ"

@@ -17,7 +17,21 @@ import { geocodePlaceQuery } from '../lib/googlePlaces'
 import { saveEventGeocodePin } from '../lib/cockpit'
 import { SYSTEM_DISTRICT_NAMES, isUrbanRoadName } from '../lib/systemDistricts'
 import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
-import { mineFillCtaLabel, cancelledStamp, leadKmPendingNote, mineParticipationStamp, participationStamp, viewerStamp } from '../lib/status'
+import {
+  cancelledStamp,
+  eventStamp,
+  leadKmPendingNote,
+  mineFillCtaLabel,
+  mineParticipationStamp,
+  overlayMissingKmOnDoneStamp,
+  participationStamp,
+} from '../lib/status'
+import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
+import {
+  eventHasMissingResponderKm,
+  missingEventFields,
+  partialStampHoverText,
+} from '../lib/eventIncomplete'
 import { shiftBornFillStamp } from '../lib/shiftBornEvents'
 import { StampChip } from '../components/ui/StampChip'
 import { StampWithNote } from '../components/ui/StampWithNote'
@@ -222,7 +236,30 @@ export function EventDetailPage({
   })
   const mine = event.responders.find((row) => row.responder_id === user?.id)?.status ?? null
   const mineKm = event.responders.find((row) => row.responder_id === user?.id)?.total_km ?? null
-  const mineLeadKmNote = leadKmPendingNote(mine, mineKm, event.origin)
+  const missingLeadFields = missingEventFields(event)
+  const missingLeadStart = !event.started_at?.trim()
+  const missingLeadEnd = !event.ended_at?.trim()
+  const missingLeadDetails =
+    event.origin !== 'shift' && eventMissingLeadDoneDetails(event.ended_at)
+  const mineLeadKmNote = leadKmPendingNote(mine, mineKm, event.origin, missingLeadDetails)
+  const headerStamp =
+    event.origin === 'shift'
+      ? shiftBornFillStamp({
+          status: event.status,
+          police_event_id: event.police_event_id,
+          treatment_detail: event.treatment_detail,
+          treatment_notes: event.treatment_notes,
+          location: event.location,
+          treated_count: event.shared_treated?.length ?? 0,
+        })
+      : mine != null
+        ? mineParticipationStamp(mine, mineKm, { missingLeadDetails })
+        : overlayMissingKmOnDoneStamp(
+            eventStamp(event.status),
+            eventHasMissingResponderKm(event),
+          )
+  const headerStampTip =
+    headerStamp.label === 'תועד חלקית' ? partialStampHoverText(event) : null
   const assignedEditBlocked = isAssignedVolunteerEventEditBlocked({
     viewerId: user?.id,
     responderIds: event.responders.map((row) => row.responder_id),
@@ -309,18 +346,10 @@ export function EventDetailPage({
         <span className="event-stamps">
           {event.is_cancelled ? <StampChip {...cancelledStamp()} header /> : null}
           <StampWithNote
-            {...(event.origin === 'shift'
-              ? shiftBornFillStamp({
-                  status: event.status,
-                  police_event_id: event.police_event_id,
-                  treatment_detail: event.treatment_detail,
-                  treatment_notes: event.treatment_notes,
-                  location: event.location,
-                  treated_count: event.shared_treated?.length ?? 0,
-                })
-              : viewerStamp(event.status, mine, mineKm))}
+            {...headerStamp}
             header
             note={mineLeadKmNote}
+            tip={headerStampTip}
           />
         </span>
       </div>
@@ -387,8 +416,17 @@ export function EventDetailPage({
               secondaries={event.secondary_leads}
             />
             <LedgerRow label="תאריך" value={formatDate(event.event_date)} numeric />
-            <LedgerRow label="מספר אירוע" value={event.police_event_id ?? undefined} numeric />
-            <LedgerRow label="שלוחה" value={event.district?.name} />
+            <LedgerRow
+              label="מספר אירוע"
+              value={event.police_event_id ?? undefined}
+              numeric
+              missing={missingLeadFields.has('police_event_id')}
+            />
+            <LedgerRow
+              label="שלוחה"
+              value={event.district?.name}
+              missing={missingLeadFields.has('district')}
+            />
             {event.station ? <LedgerRow label="תחנה" value={event.station} /> : null}
             {callsign.prefix ? (
               <LedgerRow label={PATROL_CALLSIGN_PREFIX_LABEL} value={callsign.prefix} />
@@ -397,20 +435,39 @@ export function EventDetailPage({
               label={PATROL_CALLSIGN_NUMBER_LABEL}
               value={callsign.number || undefined}
               numeric
+              missing={missingLeadFields.has('patrol_callsign')}
             />
-            <LedgerRow label="זמן התחלה" value={formatTime(event.started_at)} numeric />
+            <LedgerRow
+              label="זמן התחלה"
+              value={formatTime(event.started_at)}
+              numeric
+              missing={missingLeadStart}
+            />
             <LedgerRow
               label="זמן סיום"
               value={formatEndTime(event.ended_at, event.event_date)}
               numeric
+              missing={missingLeadEnd}
             />
-            <LedgerRow label="סוג אירוע" value={event.event_type?.name} />
+            <LedgerRow
+              label="סוג אירוע"
+              value={event.event_type?.name}
+              missing={missingLeadFields.has('event_type')}
+            />
             {isOtherEventTypeName(event.event_type?.name) && event.event_type_detail ? (
               <LedgerRow label="פירוט" value={event.event_type_detail} />
             ) : null}
             {event.is_cancelled ? <LedgerRow label="בוטל" value="כן" /> : null}
-            <LedgerRow label="כביש" value={event.road?.name} />
-            <LedgerRow label="מיקום" value={event.location ?? undefined} />
+            <LedgerRow
+              label="כביש"
+              value={event.road?.name}
+              missing={missingLeadFields.has('road')}
+            />
+            <LedgerRow
+              label="מיקום"
+              value={event.location ?? undefined}
+              missing={missingLeadFields.has('location')}
+            />
             <LedgerRow label="נת״צ" value={event.bus_lane ? 'כן' : 'לא'} />
             {event.origin === 'shift' ? (
               <LedgerRow
@@ -487,6 +544,7 @@ export function EventDetailPage({
                   showTreatedPlates={event.origin !== 'shift'}
                   origin={event.origin}
                   freezeViewer={freezeViewer}
+                  missingLeadDetails={missingLeadDetails}
                 />
               )
             })
@@ -539,6 +597,7 @@ function ResponderCard({
   showTreatedPlates,
   origin,
   freezeViewer,
+  missingLeadDetails,
 }: {
   responder: EventResponderDetail
   isViewer: boolean
@@ -551,6 +610,7 @@ function ResponderCard({
   showTreatedPlates: boolean
   origin: 'manual' | 'shift'
   freezeViewer?: FreezeViewer | null
+  missingLeadDetails: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const name = responder.profile?.full_name ?? 'מתנדב'
@@ -561,7 +621,9 @@ function ResponderCard({
   const viewerStampValue =
     origin === 'shift'
       ? participationStamp(responder.status, true)
-      : mineParticipationStamp(responder.status, responder.total_km)
+      : mineParticipationStamp(responder.status, responder.total_km, {
+          missingLeadDetails,
+        })
 
   return (
     <article className={['card', open ? 'stack-3' : ''].join(' ')}>
@@ -587,7 +649,9 @@ function ResponderCard({
           <StampWithNote
             {...(isViewer ? viewerStampValue : participationStamp(responder.status, false))}
             note={
-              isViewer ? leadKmPendingNote(responder.status, responder.total_km, origin) : null
+              isViewer
+                ? leadKmPendingNote(responder.status, responder.total_km, origin, missingLeadDetails)
+                : null
             }
           />
           <ChevronDown
@@ -614,6 +678,7 @@ function ResponderCard({
                     </>
                   ) : undefined
                 }
+                missing={responder.total_km == null}
               />
             ) : null}
             <LedgerRow label="אמצעים" value={responder.emergency_means ? 'כן' : 'לא'} />

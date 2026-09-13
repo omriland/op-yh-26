@@ -87,7 +87,9 @@ import {
   missingEventFields,
   eventHasMissingResponderKm,
   partitionIncompleteEvents,
+  partialStampHoverText,
 } from '../lib/eventIncomplete'
+import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
 import {
   canSeeMissingKmAlert,
   fetchEventsMissingLeadKmCount,
@@ -293,7 +295,9 @@ export function EventsPage({
           })
         }
         if (mine === 'done') {
-          return mineParticipationStamp(mine, ownKm)
+          return mineParticipationStamp(mine, ownKm, {
+            missingLeadDetails: mineLeadDetailsMissing(event),
+          })
         }
         return mineParticipationStamp(mine ?? 'pending', ownKm)
       }
@@ -768,20 +772,25 @@ function MineLoggedList({
         />
       ) : (
         <ul className="list-rows">
-          {events.map((event) => (
-            <MineLoggedEventRow
-              key={event.id}
-              event={event}
-              stamp={stampFor(event)}
-              viewer={freezeViewer}
-              leadKmNote={leadKmPendingNote(
-                ownParticipation(event, userId),
-                ownResponderKm(event, userId),
-                event.origin,
-              )}
-              onOpen={onOpen}
-            />
-          ))}
+          {events.map((event) => {
+            const stamp = stampFor(event)
+            return (
+              <MineLoggedEventRow
+                key={event.id}
+                event={event}
+                stamp={stamp}
+                viewer={freezeViewer}
+                leadKmNote={leadKmPendingNote(
+                  ownParticipation(event, userId),
+                  ownResponderKm(event, userId),
+                  event.origin,
+                  mineLeadDetailsMissing(event),
+                )}
+                stampTip={unitPartialStampTip(event, stamp)}
+                onOpen={onOpen}
+              />
+            )
+          })}
         </ul>
       )}
       {hasMore ? (
@@ -831,7 +840,9 @@ function EventCards({
                   mineStatus,
                   ownResponderKm(event, userId),
                   event.origin,
+                  mineLeadDetailsMissing(event),
                 )}
+                stampTip={unitPartialStampTip(event, stampFor(event))}
                 onOpen={onOpen}
                 onFill={fillLabel && onFill ? onFill : undefined}
                 fillLabel={fillLabel ?? undefined}
@@ -885,7 +896,9 @@ function EventCards({
               mineStatus,
               ownResponderKm(event, userId),
               event.origin,
+              mineLeadDetailsMissing(event),
             )}
+            stampTip={unitPartialStampTip(event, stampFor(event))}
             onOpen={onOpen}
             onFill={fillLabel && onFill ? onFill : undefined}
             fillLabel={fillLabel ?? undefined}
@@ -1002,6 +1015,7 @@ function UnitCardList({
                   event={event}
                   stamp={stampFor(event)}
                   viewer={freezeViewer}
+                  stampTip={unitPartialStampTip(event, stampFor(event))}
                   onOpen={onOpen}
                   onContextDelete={onContextDelete}
                   incompleteFields={incompleteFieldLabels(fields)}
@@ -1031,6 +1045,15 @@ function UnitCardList({
       ) : null}
     </div>
   )
+}
+
+function mineLeadDetailsMissing(event: EventListItem): boolean {
+  return event.origin !== 'shift' && eventMissingLeadDoneDetails(event.ended_at)
+}
+
+function unitPartialStampTip(event: EventListItem, stamp: StampDescriptor): string | null {
+  if (stamp.label !== 'תועד חלקית') return null
+  return partialStampHoverText(event)
 }
 
 function groupByDate(events: EventListItem[]): [string, EventListItem[]][] {

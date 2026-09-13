@@ -6,6 +6,8 @@ import {
   isEventIncomplete,
   eventHasMissingResponderKm,
   missingEventFields,
+  missingFullyLoggedFieldLabels,
+  partialStampHoverText,
   partitionIncompleteEvents,
 } from './eventIncomplete'
 
@@ -104,6 +106,33 @@ describe('missingEventFields', () => {
     const waiting = event({ status: 'in_progress', police_event_id: null })
     expect(waiting.status).toBe('in_progress')
     expect(isEventIncomplete(waiting)).toBe(true)
+  })
+})
+
+describe('missingFullyLoggedFieldLabels', () => {
+  it('names a missing end time as שעת סיום', () => {
+    expect(
+      missingFullyLoggedFieldLabels(event({ started_at: '2026-09-04T06:00:00', ended_at: null })),
+    ).toEqual(['שעת סיום'])
+  })
+
+  it('builds a hover line for the partially-logged stamp', () => {
+    expect(
+      partialStampHoverText(
+        event({
+          started_at: '2026-09-04T06:00:00',
+          ended_at: null,
+          responders: [responder({ status: 'done' })],
+        }),
+      ),
+    ).toBe('חסרים: שעת סיום')
+    expect(
+      partialStampHoverText(
+        event({
+          responders: [responder({ status: 'pending', profile: { full_name: 'דנה', callsign: 'D1' } })],
+        }),
+      ),
+    ).toBe('ממתין לתיעוד: דנה')
   })
 })
 

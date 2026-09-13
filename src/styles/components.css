@@ -1087,6 +1087,11 @@ p.alert--info {
   color: var(--text-muted);
 }
 
+.ledger__row--missing .ledger__label,
+.ledger__row--missing .ledger__value {
+  color: var(--status-alert);
+}
+
 .ledger__row:has(.license-plate) {
   align-items: center;
 }

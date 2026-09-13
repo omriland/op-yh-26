@@ -13,6 +13,8 @@ type MineLoggedEventRowProps = {
   viewer?: FreezeViewer | null
   /** Responder archive: lead has not entered KM yet. Stamp is סיימת לתעד. */
   leadKmNote?: string | null
+  /** Unit-style hover when the stamp is תועד חלקית. */
+  stampTip?: string | null
   onOpen: (eventId: string) => void
 }
 
@@ -21,6 +23,7 @@ export function MineLoggedEventRow({
   stamp,
   viewer,
   leadKmNote,
+  stampTip,
   onOpen,
 }: MineLoggedEventRowProps) {
   const place = [event.road?.name, event.location].filter(Boolean).join(' · ')
@@ -49,7 +52,7 @@ export function MineLoggedEventRow({
             ) : null}
           </span>
         </span>
-        <StampWithNote {...stamp} note={leadKmNote} />
+        <StampWithNote {...stamp} note={leadKmNote} tip={stampTip} />
       </button>
     </li>
   )

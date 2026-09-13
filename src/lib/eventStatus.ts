@@ -3,6 +3,11 @@ import type { EventStatus, ParticipationStatus } from './status'
 /** Event-level complete is blocked until `events.ended_at` is set. */
 export const EVENT_DONE_NEEDS_END_ERROR = 'לא ניתן להשלים אירוע ללא שעת סיום.'
 
+/** Lead-owned field that keeps stored status from becoming `done`. */
+export function eventMissingLeadDoneDetails(endedAt: string | null | undefined): boolean {
+  return !endedAt || !String(endedAt).trim()
+}
+
 /** Event-level complete is blocked until every assigned lead `total_km` is set. */
 export const EVENT_DONE_NEEDS_KM_ERROR =
   'לא ניתן להשלים אירוע לפני הזנת קילומטרים לכל הכוננים.'

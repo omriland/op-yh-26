@@ -4,6 +4,7 @@ import {
   EVENT_STATUS_ORDER,
   eventStamp,
   eventStatusTrailSteps,
+  AWAITING_LEAD_DETAILS_NOTE,
   leadKmPendingNote,
   mineInboxIsOpen,
   mineParticipationStamp,
@@ -154,6 +155,12 @@ describe('leadKmPendingNote', () => {
     expect(leadKmPendingNote('done', null, 'shift')).toBeNull()
   })
 
+  it('prefers ממתין לפרטים נוספים מאחמש when lead done-gate fields are missing', () => {
+    expect(leadKmPendingNote('done', 12, 'manual', true)).toBe(AWAITING_LEAD_DETAILS_NOTE)
+    expect(leadKmPendingNote('done', null, 'manual', true)).toBe(AWAITING_LEAD_DETAILS_NOTE)
+    expect(leadKmPendingNote('done', 12, 'shift', true)).toBeNull()
+  })
+
   it('keeps done-without-KM events on ממתינים לתיעוד', () => {
     expect(mineInboxIsOpen('pending', null)).toBe(true)
     expect(mineInboxIsOpen('done', null)).toBe(true)
@@ -173,5 +180,19 @@ describe('mineParticipationStamp', () => {
   it('keeps הושלם once lead KM is entered', () => {
     expect(mineParticipationStamp('done', 0)).toEqual({ label: 'הושלם', tone: 'done' })
     expect(mineParticipationStamp('done', 12)).toEqual({ label: 'הושלם', tone: 'done' })
+  })
+
+  it('shows תועד חלקית when the responder finished but the lead still owes details', () => {
+    expect(mineParticipationStamp('done', 12, { missingLeadDetails: true })).toEqual({
+      label: 'תועד חלקית',
+      tone: 'partial',
+    })
+  })
+
+  it('does not treat another responder’s open fill as the viewer’s problem', () => {
+    expect(mineParticipationStamp('done', 12, { missingLeadDetails: false })).toEqual({
+      label: 'הושלם',
+      tone: 'done',
+    })
   })
 })

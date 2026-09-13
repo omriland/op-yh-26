@@ -115,7 +115,7 @@ describe('overdue fill email copy', () => {
     expect(overdueFillClickLine()).toBe('אפשר ללחוץ כאן כדי להשלים את התיעוד')
     expect(OVERDUE_FILL_CTA_LABEL).toBe('להשלמת התיעוד')
     expect(OVERDUE_FILL_FUEL_NOTE).toBe(
-      'שימו לב! אירוע שלא יתועד במלואו לא יחושב להחזר הדלק הרבעוני',
+      'שימו לב! אירוע שלא יתועד על ידי המתנדב, או ללא ק״מ, לא יחושב להחזר הדלק הרבעוני',
     )
     expect(OVERDUE_FILL_CARD_TIP).toBe('אירוע ממתין לתיעוד מעל ל־48 שעות')
   })

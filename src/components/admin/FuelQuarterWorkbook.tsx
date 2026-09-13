@@ -18,6 +18,7 @@ import {
 } from '../../lib/fuelQuarterReport'
 import { FuelFrozenEventsMark } from '../events/FuelFrozenEventsMark'
 import { remainingKm, unitFuelQuarterKpis } from '../../lib/fuelQuarterMath'
+import { FUEL_ALLOCATION_INCLUDES } from '../../lib/fuelAllocationPolicy'
 import {
   cardNumbersMatchCount,
   parseCardNumbers,
@@ -253,7 +254,7 @@ export function FuelQuarterWorkbook() {
             <br />
             ניתן להעביר יתרה שלילית או חיובית.
             <br />
-            נספרים רק אירועים שתועדו במלואם.
+            {FUEL_ALLOCATION_INCLUDES}
           </p>
         </div>
         {workbook ? (
