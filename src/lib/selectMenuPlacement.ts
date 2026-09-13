@@ -3,6 +3,7 @@ export const SELECT_MENU_PAD = 8
 export const SELECT_MENU_MIN_HEIGHT = 120
 export const SELECT_MENU_MAX_HEIGHT = 280
 export const SELECT_MENU_SEARCH_MAX_HEIGHT = 360
+export const SELECT_MENU_MIN_WIDTH = 256
 export const SELECT_MENU_SEARCH_MIN_WIDTH = 280
 
 type PlaceSelectMenuInput = {
@@ -21,7 +22,9 @@ export type SelectMenuCoords = {
 
 /**
  * Place a portaled select menu in visual-viewport coordinates (position:fixed).
- * Searchable menus get a minimum width so חיפוש כביש is not clipped on a half-column.
+ * Compact triggers (status filter, half-columns) keep their closed size; the open
+ * menu grows to a min width so Hebrew labels like ממתין לתיעוד are not clipped.
+ * Searchable menus stay a bit wider so חיפוש כביש is readable.
  */
 export function placeSelectMenu(input: PlaceSelectMenuInput): SelectMenuCoords {
   const pad = SELECT_MENU_PAD
@@ -36,10 +39,9 @@ export function placeSelectMenu(input: PlaceSelectMenuInput): SelectMenuCoords {
   const triggerWidth = Math.max(0, visRight - visLeft)
 
   const availableWidth = Math.max(1, input.viewport.width - pad * 2)
-  const minSearchWidth = Math.min(SELECT_MENU_SEARCH_MIN_WIDTH, availableWidth)
-  const width = input.searchable
-    ? Math.min(availableWidth, Math.max(triggerWidth, minSearchWidth))
-    : Math.min(availableWidth, Math.max(1, triggerWidth))
+  const floor = input.searchable ? SELECT_MENU_SEARCH_MIN_WIDTH : SELECT_MENU_MIN_WIDTH
+  const minWidth = Math.min(floor, availableWidth)
+  const width = Math.min(availableWidth, Math.max(triggerWidth, minWidth))
 
   const preferredLeft = input.rtl ? visRight - width : visLeft
   const maxLeft = Math.max(pad, input.viewport.width - width - pad)

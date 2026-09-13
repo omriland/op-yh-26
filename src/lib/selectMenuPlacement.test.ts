@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { placeSelectMenu } from './selectMenuPlacement'
+import { placeSelectMenu, SELECT_MENU_MIN_WIDTH } from './selectMenuPlacement'
 
 const pad = 8
 const gap = 4
@@ -16,6 +16,31 @@ describe('placeSelectMenu', () => {
     expect(result.width).toBe(320)
     expect(result.left).toBe(400)
     expect(result.top).toBe(128)
+  })
+
+  it('widens a compact non-searchable menu so Hebrew option labels are not clipped', () => {
+    const result = placeSelectMenu({
+      trigger: { top: 80, bottom: 124, left: 1100, right: 1220 },
+      viewport: { width: 1280, height: 800 },
+      searchable: false,
+      rtl: true,
+    })
+
+    expect(result.width).toBe(SELECT_MENU_MIN_WIDTH)
+    expect(result.left).toBe(1220 - SELECT_MENU_MIN_WIDTH)
+    expect(result.left + result.width).toBe(1220)
+  })
+
+  it('leaves a wide non-searchable field menu at the trigger width', () => {
+    const result = placeSelectMenu({
+      trigger: { top: 80, bottom: 124, left: 200, right: 560 },
+      viewport: { width: 1280, height: 800 },
+      searchable: false,
+      rtl: true,
+    })
+
+    expect(result.width).toBe(360)
+    expect(result.left).toBe(200)
   })
 
   it('widens a searchable menu on a narrow mobile column and keeps it on screen', () => {
