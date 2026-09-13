@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import {
   completeResponderFill,
   fetchResponderFillContext,
+  fillHeaderStatus,
   odometerRangeError,
   saveResponderFillDraft,
   type ResponderFillContext,
@@ -11,7 +12,6 @@ import {
   type ResponderFillErrors,
 } from '../lib/responderFill'
 import { loadFillByToken, saveFillByToken } from '../lib/responderFillToken'
-import { leadKmPendingNote, mineParticipationStamp } from '../lib/status'
 import { StampWithNote } from '../components/ui/StampWithNote'
 import {
   digitsOnly,
@@ -191,9 +191,15 @@ export function ResponderFillPage({
   }, [eventId, userId, fillToken])
 
   const readOnly =
-    ctx?.participationStatus === 'done' || ctx?.eventStatus === 'done'
+    ctx?.participationStatus === 'done' ||
+    ctx?.eventStatus === 'done' ||
+    Boolean(ctx?.is_cancelled)
   const eventClosedWhileOpen =
     ctx?.eventStatus === 'done' && ctx.participationStatus !== 'done'
+  // Surfaced up front so the כונן does not fill the whole form and only then
+  // hit the write gate.
+  const eventCancelledWhileOpen =
+    Boolean(ctx?.is_cancelled) && ctx?.participationStatus !== 'done'
 
   /**
    * Prefer the device copy when it differs from the server row. It can only differ
@@ -516,8 +522,15 @@ export function ResponderFillPage({
     return <EventListSkeleton count={2} />
   }
 
-  const stamp = mineParticipationStamp(ctx.participationStatus, ctx.totalKm)
-  const kmNote = leadKmPendingNote(ctx.participationStatus, ctx.totalKm)
+  // During the hold the server row is already done, but `ctx` is not refetched.
+  // Show the landed state on the stamp only — flipping `ctx` would also flip
+  // `readOnly` and swap the whole form to read-only mid-animation.
+  const { stamp, note: kmNote } = fillHeaderStatus({
+    participationStatus: justCompleted ? 'done' : ctx.participationStatus,
+    totalKm: ctx.totalKm,
+    origin: ctx.origin,
+    ended_at: ctx.ended_at,
+  })
 
   return (
     <div className="responder-fill">
@@ -530,7 +543,7 @@ export function ResponderFillPage({
           <div className="event-form__title-row">
             <div className="event-form__title-block">
               <h1 className="t-title">השלמת התיעוד שלי</h1>
-              {readOnly ? (
+              {readOnly && ctx.participationStatus === 'done' ? (
                 <p className="t-caption text-muted">
                   {ctx.updated_at
                     ? `הדיווח הושלם ב־${formatDateTime(ctx.updated_at)}. `
@@ -538,7 +551,7 @@ export function ResponderFillPage({
                   {kmNote ? `${kmNote}. ` : ''}
                   רק אחמ״ש יכול לערוך לאחר סיום.
                 </p>
-              ) : localSavedAt ? (
+              ) : readOnly ? null : localSavedAt ? (
                 <p className="t-caption text-muted" aria-live="polite">
                   {`נשמר במכשיר ${fillDraftSavedLabel(localSavedAt)}`}
                 </p>
@@ -558,7 +571,11 @@ export function ResponderFillPage({
           </p>
         ) : null}
 
-        {eventClosedWhileOpen ? (
+        {eventCancelledWhileOpen ? (
+          <p className="banner banner--info t-body" role="status">
+            האירוע בוטל. לא ניתן לעדכן את התיעוד.
+          </p>
+        ) : eventClosedWhileOpen ? (
           <p className="banner banner--info t-body" role="status">
             האירוע נסגר. לא ניתן לערוך את הדיווח.
           </p>

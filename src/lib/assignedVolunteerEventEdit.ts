@@ -1,6 +1,6 @@
 /** Block אחמ״ש/admin event-form edit when the viewer is assigned on that event. */
 export const ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR =
-  'לא ניתן לערוך אירוע עליו אתה מוצב כמתנדב. לעדכון פרטים יש לפנות לאחמ"ש המזין או למנהל מערכת'
+  'לא ניתן לערוך אירוע עליו אתה מוצב כמתנדב. לעדכון פרטים יש לפנות לאחמ״ש המזין או למנהל מערכת'
 
 export const ASSIGNED_VOLUNTEER_EVENT_EDIT_CLOSE = 'סגירה'
 

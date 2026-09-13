@@ -15,11 +15,23 @@ export const EVENT_DONE_NEEDS_KM_ERROR =
 export type EventStatusAssignment = {
   status: ParticipationStatus
   totalKm: number | null
+  /**
+   * False for a volunteer with no active vehicle — the form disables their KM
+   * input, so a null there is "nothing to enter", not "still owed". Defaults to
+   * true so callers that do not know about vehicles keep the old behaviour.
+   */
+  kmApplicable?: boolean
+}
+
+/** A null KM only blocks completion when the responder could have had one. */
+function owesKm(row: { totalKm?: number | null; total_km?: number | null; kmApplicable?: boolean }): boolean {
+  if (row.kmApplicable === false) return false
+  return (row.totalKm ?? row.total_km ?? null) == null
 }
 
 /**
  * Stored `events.status`. `done` requires every assigned responder `done`,
- * a non-null event end, and a non-null lead KM on every assignment.
+ * a non-null event end, and a lead KM on every assignment that can have one.
  */
 export function deriveStoredEventStatus(input: {
   endedAt: string | null | undefined
@@ -29,7 +41,7 @@ export function deriveStoredEventStatus(input: {
   const allDone = input.responders.every((row) => row.status === 'done')
   const someDone = input.responders.some((row) => row.status === 'done')
   const hasEnd = Boolean(input.endedAt && String(input.endedAt).trim())
-  const allKm = input.responders.every((row) => row.totalKm != null)
+  const allKm = !input.responders.some(owesKm)
   if (allDone && hasEnd && allKm) return 'done'
   if (someDone) return 'partial'
   return 'in_progress'
@@ -37,10 +49,9 @@ export function deriveStoredEventStatus(input: {
 
 export function eventDoneGateError(input: {
   endedAt: string | null | undefined
-  responders: { totalKm?: number | null; total_km?: number | null }[]
+  responders: { totalKm?: number | null; total_km?: number | null; kmApplicable?: boolean }[]
 }): string | null {
   if (!input.endedAt || !String(input.endedAt).trim()) return EVENT_DONE_NEEDS_END_ERROR
-  const missingKm = input.responders.some((row) => (row.totalKm ?? row.total_km ?? null) == null)
-  if (missingKm) return EVENT_DONE_NEEDS_KM_ERROR
+  if (input.responders.some(owesKm)) return EVENT_DONE_NEEDS_KM_ERROR
   return null
 }

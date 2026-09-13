@@ -11,7 +11,13 @@ import {
   type EventResponderDetail,
 } from '../lib/events'
 import { isOtherEventTypeName } from '../lib/eventForm'
-import { responderCardShowsOdometers, responderCardStartsOpen } from '../lib/responderCard'
+import {
+  responderCardShowsLeadKm,
+  responderCardShowsOdometers,
+  responderCardStartsOpen,
+  viewerManagesEvent,
+} from '../lib/responderCard'
+import { responderKmMissing } from '../lib/responderVehicle'
 import { eventGeocodeQuery, eventNeedsPersistedGeocode } from '../lib/eventGeocode'
 import { geocodePlaceQuery } from '../lib/googlePlaces'
 import { saveEventGeocodePin } from '../lib/cockpit'
@@ -91,8 +97,8 @@ export function EventDetailPage({
   const canEdit =
     Boolean(onEdit) &&
     (roles.includes('admin') || roles.includes('shift_lead') || roles.includes('super_admin'))
-  const canSeeLeadKm =
-    roles.includes('admin') || roles.includes('shift_lead') || roles.includes('super_admin')
+  const isAdmin = roles.includes('admin') || roles.includes('super_admin')
+  const canSeeLeadKm = isAdmin || roles.includes('shift_lead')
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -243,7 +249,12 @@ export function EventDetailPage({
     secondaryLeadIds,
   })
   const assignedAsResponder = event.responders.some((row) => row.responder_id === user?.id)
-  const showLeadKm = eventLead || (canSeeLeadKm && !assignedAsResponder)
+  const managesEvent = viewerManagesEvent({ isEventLead: eventLead, isAdmin })
+  const showLeadKm = responderCardShowsLeadKm({
+    managesEvent,
+    hasLeadRole: canSeeLeadKm,
+    assignedAsResponder,
+  })
   const missingLeadFields = missingEventFields(event)
   const missingLeadStart = !event.started_at?.trim()
   const missingLeadEnd = !event.ended_at?.trim()
@@ -267,7 +278,7 @@ export function EventDetailPage({
             eventLead && eventHasMissingResponderKm(event),
           )
   const headerStampTip =
-    headerStamp.label === 'תועד חלקית' ? partialStampHoverText(event) : null
+    headerStamp.label === 'תועד חלקית' ? partialStampHoverText(event, user?.id) : null
   const assignedEditBlocked = isAssignedVolunteerEventEditBlocked({
     viewerId: user?.id,
     responderIds: event.responders.map((row) => row.responder_id),
@@ -545,10 +556,10 @@ export function EventDetailPage({
                       : undefined
                   }
                   showLeadKm={showLeadKm}
-                  leadKmMissing={eventLead && responder.total_km == null}
+                  leadKmMissing={eventLead && responderKmMissing(responder)}
                   showOdometers={responderCardShowsOdometers({
                     isViewer,
-                    manages: eventLead,
+                    manages: managesEvent,
                   })}
                   showTreatedPlates={event.origin !== 'shift'}
                   origin={event.origin}

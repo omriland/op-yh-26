@@ -8,6 +8,7 @@ import { searchQueryVariants } from './searchQuery'
 import type { EventOrigin } from './shiftBornEvents'
 import { supabase } from './supabase'
 import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
+import type { ResponderVehicleRow } from './responderVehicle'
 import type { EventStatus, ParticipationStatus } from './status'
 import {
   SHIFT_KIND_LABELS,
@@ -30,7 +31,8 @@ export type EventResponderSummary = {
   /** Per-participation freeze — the truth for fuel refund and for what a responder sees. */
   frozen_over_60km?: boolean
   frozen_suspicious_duplicate?: boolean
-  profile: { full_name: string; callsign: string } | null
+  /** `vehicles` rides along so a ללא-רכב volunteer is not read as a missing KM. */
+  profile: { full_name: string; callsign: string; vehicles?: ResponderVehicleRow[] | null } | null
 }
 
 export type EventListItem = {
@@ -113,7 +115,7 @@ export const EVENT_LIST_SELECT = `
     started_at,
     ended_at,
     ${RESPONDER_FREEZE_FIELDS}
-    profile:profiles(full_name, callsign)
+    profile:profiles(full_name, callsign, vehicles(archived))
   )
 `
 
@@ -313,7 +315,7 @@ export type EventResponderDetail = {
   status: ParticipationStatus
   frozen_over_60km?: boolean
   frozen_suspicious_duplicate?: boolean
-  profile: { full_name: string; callsign: string } | null
+  profile: { full_name: string; callsign: string; vehicles?: ResponderVehicleRow[] | null } | null
   treated: { quantity: number; kind: { name: string } | null }[]
   treated_plates: TreatedPlate[]
 }
@@ -384,7 +386,7 @@ const EVENT_DETAIL_SELECT = `
     odometer_start, odometer_end, route, treatment_detail, emergency_means,
     treatment_notes, status,
     ${RESPONDER_FREEZE_FIELDS}
-    profile:profiles(full_name, callsign),
+    profile:profiles(full_name, callsign, vehicles(archived)),
     treated:event_treated_vehicles(quantity, kind:vehicle_kinds(name)),
     treated_plates:event_treated_plates!event_treated_plates_event_responder_id_fkey(plate_number, model, color, left_where, manufacturer, logo_slug, sort_order)
   )
@@ -438,7 +440,7 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
     odometer_start, odometer_end, route, treatment_detail, emergency_means,
     treatment_notes, status,
     ${RESPONDER_FREEZE_FIELDS}
-    profile:profiles(full_name, callsign),
+    profile:profiles(full_name, callsign, vehicles(archived)),
     treated:event_treated_vehicles(quantity, kind:vehicle_kinds(name))
   )
 `
@@ -645,26 +647,14 @@ export function canViewerDeleteEvent(input: {
   return Boolean(input.shiftLeadId) && input.shiftLeadId === input.userId
 }
 
-/** Hard-delete. RLS: admin, or owning shift-lead on a recent event. Cascades children. */
+/** Hard-delete via security-definer RPC so child RLS cannot block cascade. */
 export async function deleteEvent(
   eventId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { data, error } = await supabase
-    .from('events')
-    .delete()
-    .eq('id', eventId)
-    .select('id')
-    .maybeSingle()
-  if (!error && data) return { ok: true }
-
-  const [{ data: remaining }, { data: sessionData }] = await Promise.all([
-    supabase.from('events').select('shift_lead_id').eq('id', eventId).maybeSingle(),
-    supabase.auth.getUser(),
-  ])
-  const userId = sessionData.user?.id
-  if (remaining && userId && remaining.shift_lead_id !== userId) {
-    return { ok: false, error: EVENT_DELETE_OTHER_LEAD }
-  }
+  const { error } = await supabase.rpc('delete_event', { p_event_id: eventId })
+  if (!error) return { ok: true }
+  const message = error.message ?? ''
+  if (message.includes('אחמ״ש אחר')) return { ok: false, error: EVENT_DELETE_OTHER_LEAD }
   return { ok: false, error: EVENT_DELETE_FAILED }
 }
 

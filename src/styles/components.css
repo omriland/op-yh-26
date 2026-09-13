@@ -327,6 +327,32 @@ textarea.field__input {
   white-space: normal;
 }
 
+/* Option with an explanation under it (סינון לפי סטטוס) — two lines, menu only. */
+.select-field__option-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  text-align: start;
+}
+
+.select-field__option:has(.select-field__option-text) {
+  min-height: 52px;
+  padding-block: var(--space-2);
+}
+
+.select-field__option-label:has(.select-field__option-text) {
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+}
+
+/* Stays muted even on the selected row, which turns accent + semibold. */
+.select-field__option-description {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 .select-field__check {
   flex: none;
   color: var(--accent);

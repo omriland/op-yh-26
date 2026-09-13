@@ -1210,7 +1210,7 @@ function Gate() {
                 navigate('events')
               }}
             >
-              להזנת הק"מ
+              להזנת הק״מ
             </Button>
             <Button
               variant="secondary"

@@ -93,7 +93,7 @@ describe('isAssignedVolunteerEventEditBlocked', () => {
 
   it('keeps the exact Hebrew reject copy', () => {
     expect(ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR).toBe(
-      'לא ניתן לערוך אירוע עליו אתה מוצב כמתנדב. לעדכון פרטים יש לפנות לאחמ"ש המזין או למנהל מערכת',
+      'לא ניתן לערוך אירוע עליו אתה מוצב כמתנדב. לעדכון פרטים יש לפנות לאחמ״ש המזין או למנהל מערכת',
     )
   })
 })

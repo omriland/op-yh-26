@@ -3,6 +3,7 @@ import { EVENT_MEDIA_LEFTOVER_ERROR } from './eventMedia'
 import {
   deriveEventStatusAfterParticipation,
   emptyResponderFillDraft,
+  fillHeaderStatus,
   gateResponderFillWrite,
   odometerRangeError,
   validateResponderFillDraft,
@@ -295,6 +296,50 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
 })
 
 describe('gateResponderFillWrite', () => {
+  it('locks a cancelled event for both draft and complete', () => {
+    // Media upload already refuses on a cancelled event; the fill form and the
+    // סיום דיווח button did not, so a כונן could still document one.
+    expect(
+      gateResponderFillWrite({
+        complete: false,
+        participationStatus: 'in_progress',
+        eventStatus: 'in_progress',
+        isCancelled: true,
+      }),
+    ).toBe('cancelled')
+    expect(
+      gateResponderFillWrite({
+        complete: true,
+        participationStatus: 'in_progress',
+        eventStatus: 'in_progress',
+        isCancelled: true,
+      }),
+    ).toBe('cancelled')
+  })
+
+  it('still reports an already-finished participation as success on a cancelled event', () => {
+    // Retrying a save that already landed must not surface an error.
+    expect(
+      gateResponderFillWrite({
+        complete: true,
+        participationStatus: 'done',
+        eventStatus: 'partial',
+        isCancelled: true,
+      }),
+    ).toBe('already_complete')
+  })
+
+  it('leaves a live event untouched', () => {
+    expect(
+      gateResponderFillWrite({
+        complete: false,
+        participationStatus: 'in_progress',
+        eventStatus: 'in_progress',
+        isCancelled: false,
+      }),
+    ).toBe('proceed')
+  })
+
   it('treats a second complete after the write landed as success', () => {
     expect(
       gateResponderFillWrite({
@@ -333,5 +378,42 @@ describe('gateResponderFillWrite', () => {
         eventStatus: 'in_progress',
       }),
     ).toBe('proceed')
+  })
+})
+
+describe('fillHeaderStatus', () => {
+  const base = {
+    participationStatus: 'done' as const,
+    totalKm: null,
+    origin: 'manual' as const,
+    ended_at: '2026-09-13T10:00:00+03:00',
+  }
+
+  it('matches the mine list and the event detail on a shift-born event', () => {
+    // Shift-born docs are shared; the lead-KM note is irrelevant there.
+    expect(fillHeaderStatus({ ...base, origin: 'shift' }).note).toBeNull()
+  })
+
+  it('still tells a manual-event responder that the lead owes KM', () => {
+    expect(fillHeaderStatus(base).note).toBe('אחמ״ש טרם הזין ק״מ')
+  })
+
+  it('says תועד חלקית when the lead has not set an end time', () => {
+    // The mine list and the detail page both say תועד חלקית here; the fill
+    // page used to say סיימת לתעד and contradict them.
+    const open = { ...base, ended_at: null }
+    expect(fillHeaderStatus(open).stamp.label).toBe('תועד חלקית')
+    expect(fillHeaderStatus(open).note).toBe('ממתין לפרטים נוספים מאחמ״ש')
+  })
+
+  it('leaves a shift-born event out of the lead-details gate', () => {
+    expect(fillHeaderStatus({ ...base, origin: 'shift', ended_at: null }).stamp.label).not.toBe(
+      'תועד חלקית',
+    )
+  })
+
+  it('reports a clean finish once the lead entered KM and an end time', () => {
+    expect(fillHeaderStatus({ ...base, totalKm: 12 }).note).toBeNull()
+    expect(fillHeaderStatus({ ...base, totalKm: 12 }).stamp.label).toBe('הושלם')
   })
 })

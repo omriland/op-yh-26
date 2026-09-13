@@ -33,6 +33,7 @@ import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocke
 import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from './eventEditLock'
 import {
   PATROL_CALLSIGN_NUMBER_ERROR,
+  PATROL_CALLSIGN_NUMBER_LABEL,
   formatPatrolCallsign,
   patrolCallsignNumberForInput,
   patrolCallsignPrefixForInput,
@@ -139,7 +140,19 @@ export function hasActiveVehicle(
   return (vehicles ?? []).some((row) => !row.archived)
 }
 
-/** Lead `total_km` is never stored for a responder with no active vehicle. */
+/**
+ * Whether the KM field applies to this responder.
+ *
+ * Normally that is "owns an active vehicle". The exception is a responder who
+ * already has a stored `total_km` and whose car was archived afterwards: the
+ * field must stay live, or reloading the event drops the value and the next
+ * save writes null over a real refund figure.
+ */
+export function leadKmApplies(hasActiveVehicle: boolean, storedKm: number | null): boolean {
+  return hasActiveVehicle || storedKm != null
+}
+
+/** Lead `total_km` is never stored for a responder the KM field does not apply to. */
 export function leadKmForSave(hasVehicle: boolean, totalKm: string): number | null {
   if (!hasVehicle) return null
   const trimmed = totalKm.trim()
@@ -165,7 +178,7 @@ export type ResponderDraft = {
   status: ParticipationStatus
   hasOwnedData: boolean
   expanded: boolean
-  /** Active (non-archived) vehicle on the responder profile. */
+  /** Whether the KM field applies — see `leadKmApplies`. */
   hasVehicle: boolean
 }
 
@@ -791,7 +804,12 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     shift_lead: row.shift_lead ?? { full_name: '—', callsign: '—' },
     secondary_leads: mapSecondaryLeadRows(row.secondary_leads),
     responders: (row.responders ?? []).map((responder) => {
-      const hasVehicle = hasActiveVehicle(responder.profile?.vehicles)
+      // Keeps a stored KM editable even if the responder's car was archived
+      // after the fact — otherwise the reload drops it and the save wipes it.
+      const hasVehicle = leadKmApplies(
+        hasActiveVehicle(responder.profile?.vehicles),
+        responder.total_km,
+      )
       return {
         key: responder.id,
         assignmentId: responder.id,
@@ -883,19 +901,44 @@ export function cockpitIdentityDraftWarning(draft: {
   return `חסרים ${joinHebrewList(missing)}`
 }
 
-/** Standalone create toast: list only the fields that actually blocked persist. */
-export function eventCreateBlockedMessage(errors: EventFormErrors): string {
+/**
+ * Field names behind a `validateEventMinimum` result, in form order.
+ *
+ * Every message that tells a lead what is blocking the save goes through here.
+ * The hint under the button used to carry its own hand-written list, which
+ * omitted אוק - מס — so the lead filled exactly what the hint asked for, pressed
+ * save, and got refused on a field the hint never named.
+ */
+export function blockingMinimumFieldNames(errors: EventFormErrors): string[] {
   const missing: string[] = []
   if (errors.event_date) missing.push(IDENTITY_TOAST.date)
   if (errors.event_type_id) missing.push(IDENTITY_TOAST.type)
   if (errors.road_id) missing.push(IDENTITY_TOAST.road)
   if (errors.location) missing.push(IDENTITY_TOAST.location)
-  if (errors.patrol_callsign_number) missing.push('אוק - מס')
+  if (errors.patrol_callsign_number) missing.push(PATROL_CALLSIGN_NUMBER_LABEL)
+  return missing
+}
+
+/** Standalone create toast: list only the fields that actually blocked persist. */
+export function eventCreateBlockedMessage(errors: EventFormErrors): string {
+  const missing = blockingMinimumFieldNames(errors)
   const fields =
     missing.length > 0
       ? joinHebrewList(missing)
       : joinHebrewList([IDENTITY_TOAST.date, IDENTITY_TOAST.type, IDENTITY_TOAST.road])
   return `יש למלא ${fields} כדי ליצור אירוע.`
+}
+
+/**
+ * Hint under the save button — the same fields the toast would name.
+ *
+ * `creating` covers the first save of a brand-new event, where the sentence
+ * ends with the reason the fields are needed.
+ */
+export function eventMinimumHint(errors: EventFormErrors, creating: boolean): string {
+  const fields = joinHebrewList(blockingMinimumFieldNames(errors))
+  if (!fields) return ''
+  return creating ? `יש למלא ${fields} כדי ליצור את האירוע.` : `יש למלא ${fields}.`
 }
 
 export type SameDayPoliceEventRow = {
@@ -957,6 +1000,61 @@ export function policeEventIdForCockpitSave(input: {
   if (!input.collides) return digitsOnly(input.typed)
   if (digitsOnly(input.lastSaved) === digitsOnly(input.typed)) return ''
   return digitsOnly(input.lastSaved)
+}
+
+export type PoliceEventIdSaveAction =
+  | { kind: 'proceed' }
+  /** Cockpit only: fold this save into the lead's existing same-day row. */
+  | { kind: 'resume'; eventId: string }
+  /** Cockpit only: keep the partial save alive without the colliding number. */
+  | { kind: 'strip'; policeEventId: string }
+  | { kind: 'block' }
+
+/**
+ * What to do with a מספר אירוע that already exists on the same date.
+ *
+ * The cockpit saves continuously, so it resumes or strips rather than stopping
+ * the lead mid-entry. The full form has an explicit save, so it blocks and
+ * shows the field error — that check used to run in the cockpit only, which let
+ * the main form create a second event with the same number on one date.
+ */
+export function policeEventIdSaveAction(input: {
+  variant: 'cockpit' | 'full'
+  eventDate: string
+  policeEventId: string
+  currentEventId?: string | null
+  viewerLeadId: string
+  lastSavedPoliceEventId: string
+  existing: SameDayPoliceEventRow[]
+}): PoliceEventIdSaveAction {
+  if (!input.policeEventId.trim()) return { kind: 'proceed' }
+
+  if (input.variant === 'cockpit') {
+    const ownId = ownResumableEventId({
+      currentEventId: input.currentEventId,
+      viewerLeadId: input.viewerLeadId,
+      existing: input.existing,
+    })
+    if (ownId) return { kind: 'resume', eventId: ownId }
+  }
+
+  const collides = sameDayPoliceEventIdCollides({
+    eventDate: input.eventDate,
+    policeEventId: input.policeEventId,
+    currentEventId: input.currentEventId,
+    existing: input.existing,
+  })
+  if (!collides) return { kind: 'proceed' }
+
+  if (input.variant === 'full') return { kind: 'block' }
+  return {
+    kind: 'strip',
+    policeEventId: policeEventIdForCockpitSave({
+      typed: input.policeEventId,
+      lastSaved: input.lastSavedPoliceEventId,
+      collides: true,
+    }),
+  }
 }
 
 export async function fetchSameDayPoliceEventIdRows(input: {
@@ -1154,6 +1252,7 @@ export function deriveEventStatus(draft: EventFormDraft): EventStatus {
       return {
         status: row.status,
         totalKm: km != null && !Number.isNaN(km) ? km : null,
+        kmApplicable: row.hasVehicle,
       }
     }),
   })

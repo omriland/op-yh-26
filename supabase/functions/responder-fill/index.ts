@@ -463,7 +463,7 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
 
   const { data: event } = await adminClient
     .from("events")
-    .select("id, status")
+    .select("id, status, is_cancelled")
     .eq("id", assignment.event_id)
     .maybeSingle();
 
@@ -482,6 +482,12 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
     return json(400, {
       error: "לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.",
     });
+  }
+  // Matches gateResponderFillWrite on the web client: a cancelled event is
+  // closed to further documentation, but an already-finished participation
+  // still reports success so a retried save is not an error.
+  if (event.is_cancelled) {
+    return json(400, { error: "האירוע בוטל. לא ניתן לעדכן את התיעוד." });
   }
   if (event.status === "done") {
     return json(400, {
@@ -798,7 +804,7 @@ async function handleNotifyFillReady(
         ? `<p style="margin:0 0 16px;font-size:14px;color:#5B6F86;">${escapeHtml(contextBits)}</p>`
         : "",
       ctaButtonHtml(link, "להשלמת התיעוד"),
-      `<p style="margin:0;font-size:14px;color:#5B6F86;">שובצת לאירוע בטעות? התעלם מהודעה זו וצור קשר עם אחד האחמ"שים</p>`,
+      `<p style="margin:0;font-size:14px;color:#5B6F86;">שובצת לאירוע בטעות? התעלם מהודעה זו וצור קשר עם אחד האחמ״שים</p>`,
     ].join("");
 
     const text = [
@@ -812,7 +818,7 @@ async function handleNotifyFillReady(
       "",
       link,
       "",
-      'שובצת לאירוע בטעות? התעלם מהודעה זו וצור קשר עם אחד האחמ"שים',
+      'שובצת לאירוע בטעות? התעלם מהודעה זו וצור קשר עם אחד האחמ״שים',
     ]
       .filter((line) => line !== "")
       .join("\n");

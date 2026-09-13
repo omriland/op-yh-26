@@ -5,11 +5,18 @@ import {
   mapSecondaryLeadRows,
 } from './eventShiftLeads'
 import { supabase } from './supabase'
-import type { EventStatus, ParticipationStatus } from './status'
+import {
+  leadKmPendingNote,
+  mineParticipationStamp,
+  type EventStatus,
+  type ParticipationStatus,
+  type StampDescriptor,
+} from './status'
 import { pickDefaultVehiclePlate, queryVehiclesWithDefaultFallback } from './defaultVehicle'
 import { leftoverEventMediaError } from './eventMedia'
-import { deriveStoredEventStatus } from './eventStatus'
+import { deriveStoredEventStatus, eventMissingLeadDoneDetails } from './eventStatus'
 import { ODOMETER_ORDER_ERROR } from './odometer'
+import type { EventOrigin } from './shiftBornEvents'
 import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
 
 export { plateDigits }
@@ -52,6 +59,9 @@ export type ResponderFillContext = {
   police_event_id: string | null
   event_type_name: string | null
   is_cancelled: boolean
+  /** Needed so the fill header agrees with the mine list and the detail page. */
+  origin: EventOrigin
+  ended_at: string | null
   road_name: string | null
   location: string | null
   shift_lead_name: string | null
@@ -77,20 +87,46 @@ export function deriveEventStatusAfterParticipation(
   })
 }
 
+/**
+ * Own-row stamp and note for the fill page.
+ *
+ * The mine list and the event detail both feed `origin` and `missingLeadDetails`
+ * into these helpers. The fill page used to omit both, so it told a shift-born
+ * responder that `אחמ״ש טרם הזין ק״מ` (meaningless on a shared doc) and said
+ * `סיימת לתעד` where the other two screens said `תועד חלקית`.
+ */
+export function fillHeaderStatus(ctx: {
+  participationStatus: ParticipationStatus | null | undefined
+  totalKm: number | null
+  origin: EventOrigin | null | undefined
+  ended_at: string | null | undefined
+}): { stamp: StampDescriptor; note: string | null } {
+  const missingLeadDetails =
+    ctx.origin !== 'shift' && eventMissingLeadDoneDetails(ctx.ended_at)
+  return {
+    stamp: mineParticipationStamp(ctx.participationStatus, ctx.totalKm, { missingLeadDetails }),
+    note: leadKmPendingNote(ctx.participationStatus, ctx.totalKm, ctx.origin, missingLeadDetails),
+  }
+}
+
 export const RESPONDER_FILL_LOCKED_ERROR = 'לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.'
+export const RESPONDER_FILL_CANCELLED_ERROR = 'האירוע בוטל. לא ניתן לעדכן את התיעוד.'
 export const RESPONDER_FILL_NETWORK_ERROR = 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.'
 
-export type FillWriteGate = 'proceed' | 'locked' | 'already_complete'
+export type FillWriteGate = 'proceed' | 'locked' | 'already_complete' | 'cancelled'
 
 /** Completing an already-done assignment is success; draft saves stay locked. */
 export function gateResponderFillWrite(input: {
   complete: boolean
   participationStatus: ParticipationStatus
   eventStatus: EventStatus | null | undefined
+  isCancelled?: boolean
 }): FillWriteGate {
+  // Checked first so retrying a save that already landed still reads as success.
   if (input.participationStatus === 'done') {
     return input.complete ? 'already_complete' : 'locked'
   }
+  if (input.isCancelled) return 'cancelled'
   if (input.eventStatus === 'done') return 'locked'
   return 'proceed'
 }
@@ -188,6 +224,7 @@ export async function fetchResponderFillContext(
       .select(
         `
           id, status, event_date, police_event_id, location, is_cancelled,
+          origin, ended_at,
           event_type:event_types(name),
           road:roads(name),
           shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
@@ -229,6 +266,8 @@ export async function fetchResponderFillContext(
     police_event_id: string | null
     location: string | null
     is_cancelled: boolean
+    origin: EventOrigin
+    ended_at: string | null
     event_type: { name: string } | null
     road: { name: string } | null
     shift_lead: { full_name: string; callsign: string } | null
@@ -273,6 +312,7 @@ async function fetchResponderFillContextWithPlateQuery(
       .select(
         `
           id, status, event_date, police_event_id, location, is_cancelled,
+          origin, ended_at,
           event_type:event_types(name),
           road:roads(name),
           shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
@@ -307,6 +347,8 @@ async function fetchResponderFillContextWithPlateQuery(
     police_event_id: string | null
     location: string | null
     is_cancelled: boolean
+    origin: EventOrigin
+    ended_at: string | null
     event_type: { name: string } | null
     road: { name: string } | null
     shift_lead: { full_name: string; callsign: string } | null
@@ -348,6 +390,8 @@ function buildResponderFillContext(
     police_event_id: string | null
     location: string | null
     is_cancelled: boolean
+    origin: EventOrigin
+    ended_at: string | null
     event_type: { name: string } | null
     road: { name: string } | null
     shift_lead: { full_name: string; callsign: string } | null
@@ -408,6 +452,8 @@ function buildResponderFillContext(
     police_event_id: row.police_event_id,
     event_type_name: row.event_type?.name ?? null,
     is_cancelled: row.is_cancelled ?? false,
+    origin: row.origin ?? 'manual',
+    ended_at: row.ended_at,
     road_name: row.road?.name ?? null,
     location: row.location,
     shift_lead_name:
@@ -471,7 +517,7 @@ async function saveParticipation(input: {
 
   const { data: current, error: currentError } = await supabase
     .from('event_responders')
-    .select('status, event:events!inner(status)')
+    .select('status, event:events!inner(status, is_cancelled)')
     .eq('id', input.assignmentId)
     .maybeSingle()
 
@@ -484,18 +530,21 @@ async function saveParticipation(input: {
 
   const complete = input.status === 'done'
   const participationStatus = current.status as ParticipationStatus
-  const nestedEvent = (current as { event?: { status: EventStatus } | { status: EventStatus }[] | null })
-    .event
-  const eventStatusRaw = Array.isArray(nestedEvent)
-    ? nestedEvent[0]?.status
-    : nestedEvent?.status
+  type NestedEvent = { status: EventStatus; is_cancelled: boolean | null }
+  const nestedEvent = (current as { event?: NestedEvent | NestedEvent[] | null }).event
+  const resolvedEvent = Array.isArray(nestedEvent) ? nestedEvent[0] : nestedEvent
+  const eventStatusRaw = resolvedEvent?.status
   const gate = gateResponderFillWrite({
     complete,
     participationStatus,
     eventStatus: eventStatusRaw,
+    isCancelled: Boolean(resolvedEvent?.is_cancelled),
   })
   if (gate === 'already_complete') {
     return { ok: true, eventStatus: eventStatusRaw ?? null }
+  }
+  if (gate === 'cancelled') {
+    return { ok: false, error: RESPONDER_FILL_CANCELLED_ERROR }
   }
   if (gate === 'locked') {
     return { ok: false, error: RESPONDER_FILL_LOCKED_ERROR }

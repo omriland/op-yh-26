@@ -127,7 +127,7 @@ export function EventsTable({
                       missingKm={leadFacingMissingKm(event, viewerId)}
                       missingFields={
                         event.status === 'partial' || event.status === 'in_progress'
-                          ? missingFullyLoggedFieldLabels(event)
+                          ? missingFullyLoggedFieldLabels(event, viewerId)
                           : []
                       }
                       responders={event.responders.map((row) => ({

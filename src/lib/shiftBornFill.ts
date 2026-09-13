@@ -6,6 +6,7 @@ import {
 import { fetchEventLookups, type LookupOption } from './eventForm'
 import { fetchEventDetail, type EventDetail } from './events'
 import { policeEventIdForInput } from './format'
+import { responderKmApplicable, type KmBearingResponder } from './responderVehicle'
 import { refreshShiftLogStatus } from './shiftForm'
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import type { EventStatus } from './status'
@@ -46,7 +47,7 @@ export function shiftBornCompleteErrors(
   draft: ShiftBornFillDraft,
   event?: {
     ended_at?: string | null
-    responders?: { total_km: number | null }[]
+    responders?: KmBearingResponder[]
   },
 ): ShiftBornFillErrors {
   const errors: ShiftBornFillErrors = {}
@@ -58,7 +59,11 @@ export function shiftBornCompleteErrors(
   if (event) {
     const gate = eventDoneGateError({
       endedAt: event.ended_at,
-      responders: event.responders ?? [],
+      // A ללא-רכב teammate has no KM to enter — do not block completion on it.
+      responders: (event.responders ?? []).map((row) => ({
+        total_km: row.total_km,
+        kmApplicable: responderKmApplicable(row),
+      })),
     })
     if (gate) errors.form = gate
   }

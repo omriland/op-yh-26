@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   COCKPIT_IDENTITY_DRAFT_WARNING,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
+  policeEventIdSaveAction,
   canPersistEventDraft,
   cockpitIdentityDraftWarning,
   eventCreateBlockedMessage,
+  eventMinimumHint,
+  blockingMinimumFieldNames,
+  validateEventMinimum,
   cockpitPoliceEventIdCollides,
   discardAbandonedEmptyEventIfAny,
   emptyEventDraft,
@@ -274,6 +278,40 @@ describe('eventCreateBlockedMessage', () => {
   })
 })
 
+describe('eventMinimumHint', () => {
+  it('names every field the save will be refused on', () => {
+    expect(
+      eventMinimumHint({ event_date: 'x', event_type_id: 'x', road_id: 'x' }, true),
+    ).toBe('יש למלא תאריך, סוג אירוע וכביש כדי ליצור את האירוע.')
+    expect(eventMinimumHint({ road_id: 'x' }, false)).toBe('יש למלא כביש.')
+    expect(eventMinimumHint({}, true)).toBe('')
+  })
+
+  it('includes אוק - מס, which the old hand-written hint left out', () => {
+    expect(eventMinimumHint({ patrol_callsign_number: 'x' }, false)).toBe('יש למלא אוק - מס.')
+  })
+
+  it('names a field for every key validateEventMinimum can reject', () => {
+    // The hint drifted from the validator once already. Anyone adding a
+    // required field now has to name it here or this fails.
+    const districts = [{ id: 'd-1', name: 'תחנה', code: 'station_other_duplicated' }]
+    const blocked = validateEventMinimum(
+      { ...emptyEventDraft({ full_name: 'לי', callsign: '1' }), event_date: '', district_id: 'd-1' },
+      districts,
+      [],
+    )
+    const keys = Object.keys(blocked)
+    expect(keys.sort()).toEqual([
+      'event_date',
+      'event_type_id',
+      'location',
+      'patrol_callsign_number',
+      'road_id',
+    ])
+    expect(blockingMinimumFieldNames(blocked)).toHaveLength(keys.length)
+  })
+})
+
 describe('sameDayPoliceEventIdCollides', () => {
   const existing = [
     {
@@ -479,5 +517,78 @@ describe('isMissingBusLaneColumn', () => {
       true,
     )
     expect(isMissingBusLaneColumn({ code: '42501', message: 'permission denied' })).toBe(false)
+  })
+})
+
+describe('policeEventIdSaveAction', () => {
+  const existing = [
+    {
+      id: 'other',
+      event_date: '2026-09-13',
+      police_event_id: '12345',
+      is_cancelled: false,
+      shift_lead_id: 'someone-else',
+    },
+  ]
+  const base = {
+    eventDate: '2026-09-13',
+    policeEventId: '12345',
+    currentEventId: null,
+    viewerLeadId: 'me',
+    lastSavedPoliceEventId: '',
+    existing,
+  }
+
+  it('blocks a duplicate on the full event form', () => {
+    // The check used to run only when variant === cockpit, so the main form
+    // happily created a second event with the same מספר אירוע on one date.
+    expect(policeEventIdSaveAction({ ...base, variant: 'full' })).toEqual({ kind: 'block' })
+  })
+
+  it('keeps the cockpit stripping instead of blocking', () => {
+    expect(policeEventIdSaveAction({ ...base, variant: 'cockpit' })).toEqual({
+      kind: 'strip',
+      policeEventId: '',
+    })
+  })
+
+  it('still resumes the lead’s own same-day row in the cockpit', () => {
+    const mine = [{ ...existing[0]!, id: 'mine', shift_lead_id: 'me' }]
+    expect(policeEventIdSaveAction({ ...base, variant: 'cockpit', existing: mine })).toEqual({
+      kind: 'resume',
+      eventId: 'mine',
+    })
+  })
+
+  it('tells a full-form lead their own duplicate exists rather than silently switching event', () => {
+    const mine = [{ ...existing[0]!, id: 'mine', shift_lead_id: 'me' }]
+    expect(policeEventIdSaveAction({ ...base, variant: 'full', existing: mine })).toEqual({
+      kind: 'block',
+    })
+  })
+
+  it('lets a clean number through on both variants', () => {
+    expect(policeEventIdSaveAction({ ...base, variant: 'full', existing: [] })).toEqual({
+      kind: 'proceed',
+    })
+    expect(policeEventIdSaveAction({ ...base, variant: 'cockpit', existing: [] })).toEqual({
+      kind: 'proceed',
+    })
+  })
+
+  it('does not block an edit re-saving its own number', () => {
+    expect(
+      policeEventIdSaveAction({
+        ...base,
+        variant: 'full',
+        currentEventId: 'other',
+      }),
+    ).toEqual({ kind: 'proceed' })
+  })
+
+  it('ignores an empty מספר אירוע', () => {
+    expect(
+      policeEventIdSaveAction({ ...base, variant: 'full', policeEventId: '  ' }),
+    ).toEqual({ kind: 'proceed' })
   })
 })

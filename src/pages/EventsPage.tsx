@@ -455,7 +455,11 @@ export function EventsPage({
               <SelectField
                 label="סינון לפי סטטוס תיעוד"
                 hideLabel
-                options={EVENT_FILTERS.map((row) => ({ value: row.value, label: row.label }))}
+                options={EVENT_FILTERS.map((row) => ({
+                  value: row.value,
+                  label: row.label,
+                  description: row.tip,
+                }))}
                 value={filter}
                 onChange={(event) => {
                   const next = EVENT_FILTERS.find((row) => row.value === event.target.value)
@@ -788,7 +792,7 @@ function MineLoggedList({
                   event.origin,
                   mineLeadDetailsMissing(event),
                 )}
-                stampTip={unitPartialStampTip(event, stamp)}
+                stampTip={unitPartialStampTip(event, stamp, userId)}
                 onOpen={onOpen}
               />
             )
@@ -844,7 +848,7 @@ function EventCards({
                   event.origin,
                   mineLeadDetailsMissing(event),
                 )}
-                stampTip={unitPartialStampTip(event, stampFor(event))}
+                stampTip={unitPartialStampTip(event, stampFor(event), userId)}
                 onOpen={onOpen}
                 onFill={fillLabel && onFill ? onFill : undefined}
                 fillLabel={fillLabel ?? undefined}
@@ -900,7 +904,7 @@ function EventCards({
               event.origin,
               mineLeadDetailsMissing(event),
             )}
-            stampTip={unitPartialStampTip(event, stampFor(event))}
+            stampTip={unitPartialStampTip(event, stampFor(event), userId)}
             onOpen={onOpen}
             onFill={fillLabel && onFill ? onFill : undefined}
             fillLabel={fillLabel ?? undefined}
@@ -1027,7 +1031,7 @@ function UnitCardList({
                   event={event}
                   stamp={stampFor(event)}
                   viewer={freezeViewer}
-                  stampTip={unitPartialStampTip(event, stampFor(event))}
+                  stampTip={unitPartialStampTip(event, stampFor(event), viewerId)}
                   onOpen={onOpen}
                   onContextDelete={onContextDelete}
                   incompleteFields={incompleteFieldLabels(fields)}
@@ -1063,9 +1067,13 @@ function mineLeadDetailsMissing(event: EventListItem): boolean {
   return event.origin !== 'shift' && eventMissingLeadDoneDetails(event.ended_at)
 }
 
-function unitPartialStampTip(event: EventListItem, stamp: StampDescriptor): string | null {
+function unitPartialStampTip(
+  event: EventListItem,
+  stamp: StampDescriptor,
+  viewerId: string | null | undefined,
+): string | null {
   if (stamp.label !== 'תועד חלקית') return null
-  return partialStampHoverText(event)
+  return partialStampHoverText(event, viewerId)
 }
 
 function groupByDate(events: EventListItem[]): [string, EventListItem[]][] {

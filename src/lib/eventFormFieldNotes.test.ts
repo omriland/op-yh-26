@@ -26,7 +26,7 @@ describe('eventFormFieldNotes', () => {
       note: PATROL_CALLSIGN_FIELD_NOTE,
     })
     expect(PATROL_CALLSIGN_FIELD_NOTE).toBe(
-      `אתם מתבקשים להזין או"ק מלא של הניידת כולל קידומת (אביב, חוף וכו')`,
+      `אתם מתבקשים להזין או״ק מלא של הניידת כולל קידומת (אביב, חוף וכו')`,
     )
     expect(eventFormFieldNote('patrol_callsign')?.tooltip).toBeUndefined()
 
@@ -36,7 +36,7 @@ describe('eventFormFieldNotes', () => {
     })
     expect(LOCATION_FIELD_NOTE).toBe('חדש! הזנת כביש באופן אוטומטי מבוסס על המיקום הנבחר')
     expect(LOCATION_FIELD_TOOLTIP).toBe(
-      `מיקמנו את שדה 'מיקום' ראשון כדי להקל עליכם והטמענו הזנה אוטומטית של מספר הכביש. במקרה של כביש וק"מ או מיקום שאינו נמצא, תוכלו עדין להזין מספר כביש באופן ידני`,
+      `מיקמנו את שדה 'מיקום' ראשון כדי להקל עליכם והטמענו הזנה אוטומטית של מספר הכביש. במקרה של כביש וק״מ או מיקום שאינו נמצא, תוכלו עדיין להזין מספר כביש באופן ידני`,
     )
   })
 

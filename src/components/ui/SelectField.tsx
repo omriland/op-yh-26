@@ -15,7 +15,14 @@ import { filterSelectOptions } from '../../lib/searchQuery'
 import { placeSelectMenu, readSelectMenuViewport } from '../../lib/selectMenuPlacement'
 import { FieldLabel } from './FieldLabel'
 
-type Option = { value: string; label: string; content?: ReactNode; disabled?: boolean }
+type Option = {
+  value: string
+  label: string
+  /** Second line inside the menu only — the closed trigger stays one line. */
+  description?: string
+  content?: ReactNode
+  disabled?: boolean
+}
 
 type SelectFieldProps = {
   label: string
@@ -385,7 +392,17 @@ export function SelectField({
                           onClick={() => commit(option.value)}
                         >
                           <span className="select-field__option-label">
-                            {option.content ?? option.label}
+                            {option.content ??
+                              (option.description ? (
+                                <span className="select-field__option-text">
+                                  <span>{option.label}</span>
+                                  <span className="select-field__option-description t-caption">
+                                    {option.description}
+                                  </span>
+                                </span>
+                              ) : (
+                                option.label
+                              ))}
                           </span>
                           {isSelected ? (
                             <Check

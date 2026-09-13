@@ -19,11 +19,18 @@ as $$
         and s.user_id = auth.uid()
     )
   )
+  -- A ללא-רכב volunteer has no KM to report, so their null must not nag the lead.
   and exists (
     select 1
     from public.event_responders er
     where er.event_id = e.id
       and er.total_km is null
+      and exists (
+        select 1
+        from public.vehicles v
+        where v.user_id = er.responder_id
+          and not v.archived
+      )
   );
 $$;
 

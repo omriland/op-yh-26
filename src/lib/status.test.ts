@@ -41,10 +41,24 @@ describe('event status vocabulary', () => {
   it('explains each status filter on hover, except הכול', () => {
     const byValue = Object.fromEntries(EVENT_FILTERS.map((row) => [row.value, row.tip]))
     expect(byValue.all).toBeUndefined()
-    expect(byValue.in_progress).toBe('הוזן ע"י אחמש וטרם תועד ע"י מתנדב')
-    expect(byValue.partial).toBe('מתנדב החל בתיעוד אך לא השלים אותו')
+    expect(byValue.in_progress).toBe('הוזן ע״י אחמ״ש וטרם תועד ע״י מתנדב')
+    expect(byValue.partial).toBe(
+      'חלק מהתיעוד הושלם. ממתין למתנדבים נוספים או לשעת סיום וק״מ מהאחמ״ש',
+    )
     expect(byValue.done).toBe('אירוע סגור שתועד במלואו')
-    expect(byValue.draft).toBe('טיוטה נשמרה ע"י אחמ"ש. טרם זמין למתנדב לתיעוד')
+    expect(byValue.draft).toBe('טיוטה נשמרה ע״י אחמ״ש. טרם זמין למתנדב לתיעוד')
+  })
+
+  it('spells אחמ״ש and ק״מ with gershayim in every filter tip', () => {
+    // These strings sat unrendered for months, which is how three spellings of
+    // אחמ״ש drifted into two adjacent lines. Now that they are on screen, keep
+    // them to the same typography rule as the rest of the app.
+    for (const row of EVENT_FILTERS) {
+      if (!row.tip) continue
+      expect(row.tip).not.toMatch(/"/)
+      expect(row.tip).not.toMatch(/!/)
+      expect(row.tip).not.toMatch(/אחמש/)
+    }
   })
 })
 
@@ -155,7 +169,7 @@ describe('leadKmPendingNote', () => {
     expect(leadKmPendingNote('done', null, 'shift')).toBeNull()
   })
 
-  it('prefers ממתין לפרטים נוספים מאחמש when lead done-gate fields are missing', () => {
+  it('prefers ממתין לפרטים נוספים מאחמ״ש when lead done-gate fields are missing', () => {
     expect(leadKmPendingNote('done', 12, 'manual', true)).toBe(AWAITING_LEAD_DETAILS_NOTE)
     expect(leadKmPendingNote('done', null, 'manual', true)).toBe(AWAITING_LEAD_DETAILS_NOTE)
     expect(leadKmPendingNote('done', 12, 'shift', true)).toBeNull()

@@ -7,18 +7,20 @@ import {
   canClearEventCancelled,
   CANCELLED_CLEAR_ADMIN_ONLY,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
+  policeEventIdSaveAction,
   cockpitIdentityDraftWarning,
   attachEventIdAfterFailedSave,
   fetchSameDayPoliceEventIdRows,
-  ownResumableEventId,
   deriveEventStatus,
   emptyEventDraft,
   eventCreateBlockedMessage,
+  eventMinimumHint,
   fetchAssignableUsers,
   fetchShiftLeadUsers,
   fetchEventForEdit,
   fetchEventLookups,
   hasEventMinimum,
+  validateEventMinimum,
   isOtherEventTypeId,
   EVENT_TYPE_DETAIL_MAX_LENGTH,
   LEAD_KM_MAX_DIGITS,
@@ -34,8 +36,6 @@ import {
   patrolCallsignNumberForInput,
   patrolCallsignPrefixForInput,
   isAbandonedEmptyEventDraft,
-  policeEventIdForCockpitSave,
-  sameDayPoliceEventIdCollides,
   isSelfAssignDisabledInPicker,
   mergeAssignmentIds,
   NEW_RESPONDER_EMERGENCY_MEANS,
@@ -569,37 +569,34 @@ export function EventFormPage({
 
       let draftToSave = current
       let policeIdBlocked = false
-      if (allowPartial && current.police_event_id.trim()) {
+      if (current.police_event_id.trim()) {
         try {
           const existing = await fetchSameDayPoliceEventIdRows({
             eventDate: current.event_date,
             policeEventId: current.police_event_id,
           })
-          const ownId = ownResumableEventId({
+          const action = policeEventIdSaveAction({
+            variant: allowPartial ? 'cockpit' : 'full',
+            eventDate: current.event_date,
+            policeEventId: current.police_event_id,
             currentEventId: current.id,
             viewerLeadId: user.id,
+            lastSavedPoliceEventId: lastPersistedPoliceIdRef.current,
             existing,
           })
-          if (ownId) {
-            draftToSave = { ...current, id: ownId }
-          } else if (
-            sameDayPoliceEventIdCollides({
-              eventDate: current.event_date,
-              policeEventId: current.police_event_id,
-              currentEventId: current.id,
-              existing,
-            })
-          ) {
+          if (action.kind === 'resume') {
+            draftToSave = { ...current, id: action.eventId }
+          } else if (action.kind === 'strip') {
             policeIdBlocked = true
-            const lastSaved = lastPersistedPoliceIdRef.current
-            draftToSave = {
-              ...current,
-              police_event_id: policeEventIdForCockpitSave({
-                typed: current.police_event_id,
-                lastSaved,
-                collides: true,
-              }),
-            }
+            draftToSave = { ...current, police_event_id: action.policeEventId }
+          } else if (action.kind === 'block') {
+            // The full form has an explicit save, so stop and let the lead fix
+            // the number instead of quietly dropping it like the cockpit does.
+            setErrors({ police_event_id: POLICE_EVENT_ID_DUPLICATE_ERROR })
+            setSavePulse('error')
+            setSubmitAttempt((n) => n + 1)
+            show(POLICE_EVENT_ID_DUPLICATE_ERROR, 'alert')
+            return false
           }
         } catch {
           setSavePulse('error')
@@ -1189,7 +1186,8 @@ export function EventFormPage({
   )
   const selectedRoadName =
     lookups.roads.find((row) => row.id === draft.road_id)?.name ?? null
-  const needsMinimum = !hasEventMinimum(draft, lookups.districts, lookups.roads)
+  const minimumErrors = validateEventMinimum(draft, lookups.districts, lookups.roads)
+  const needsMinimum = Object.keys(minimumErrors).length > 0
   const identityDraftWarning =
     variant === 'cockpit' ? cockpitIdentityDraftWarning(draft) : null
   const saveHint =
@@ -1203,16 +1201,12 @@ export function EventFormPage({
           ? variant === 'cockpit'
             ? 'השמירה נכשלה — נסו שוב'
             : needsMinimum
-              ? placesLocation
-                ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום.'
-                : 'יש למלא תאריך, סוג אירוע וכביש.'
+              ? eventMinimumHint(minimumErrors, false)
               : 'השמירה נכשלה — נסו שוב'
           : variant === 'cockpit'
             ? 'השינויים נשמרים אוטומטית.'
             : needsMinimum && !draft.id
-              ? placesLocation
-                ? 'יש למלא תאריך, סוג אירוע, כביש ומיקום כדי ליצור את האירוע.'
-                : 'יש למלא תאריך, סוג אירוע וכביש כדי ליצור את האירוע.'
+              ? eventMinimumHint(minimumErrors, true)
               : displayStatus === 'draft'
                 ? 'נשמר כאירוע בהזנה עד שישובץ מתנדב.'
                 : 'השינויים נשמרים אוטומטית.'

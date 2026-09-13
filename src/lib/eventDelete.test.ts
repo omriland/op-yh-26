@@ -141,3 +141,29 @@ describe('events delete RLS owns the creator', () => {
     expect(sql).toContain("has_role(auth.uid(), 'admin')")
   })
 })
+
+describe('super_admin may delete any event', () => {
+  const sql = readFileSync(
+    resolve(migrationsDir, '20260913083000_super_admin_delete_any_event.sql'),
+    'utf8',
+  )
+
+  it('lets super_admin delete events created by other leads or admins', () => {
+    expect(sql).toContain('create or replace function public.delete_event')
+    expect(sql).toContain("has_role(auth.uid(), 'super_admin')")
+    expect(sql).toContain('delete from public.events where id = p_event_id')
+    expect(sql).toContain('security definer')
+  })
+
+  it('keeps the other-lead error for non-super-admin callers', () => {
+    expect(sql).toContain('אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.')
+  })
+
+  it('sends web delete through the RPC so child RLS cannot block cascade', () => {
+    const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), './events.ts'), 'utf8')
+    const fn = src.slice(src.indexOf('export async function deleteEvent'))
+    const body = fn.slice(0, fn.indexOf('export async function approveEventFreeze'))
+    expect(body).toContain(".rpc('delete_event'")
+    expect(body).toContain('p_event_id')
+  })
+})

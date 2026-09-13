@@ -53,6 +53,44 @@ function event(partial: Partial<EventListItem> = {}): EventListItem {
   }
 }
 
+describe('KM is not required from a responder with no vehicle', () => {
+  const noVehicle = responder({
+    responder_id: 'u2',
+    total_km: null,
+    profile: { full_name: 'ללא רכב', callsign: 'B2', vehicles: [] },
+  })
+
+  it('does not flag ק״מ when the only empty KM belongs to a ללא-רכב volunteer', () => {
+    expect(missingEventFields(event({ responders: [noVehicle] }))).toEqual(new Set())
+    expect(eventHasMissingResponderKm(event({ responders: [noVehicle] }))).toBe(false)
+  })
+
+  it('still flags ק״מ for a teammate who does have a vehicle', () => {
+    const withVehicle = responder({
+      total_km: null,
+      profile: { full_name: 'כונן', callsign: 'A1', vehicles: [{ archived: false }] },
+    })
+    expect(missingEventFields(event({ responders: [noVehicle, withVehicle] }))).toEqual(
+      new Set(['responder_km']),
+    )
+  })
+
+  it('treats an archived-only vehicle list as no vehicle', () => {
+    const archivedOnly = responder({
+      total_km: null,
+      profile: { full_name: 'כונן', callsign: 'A1', vehicles: [{ archived: true }] },
+    })
+    expect(missingEventFields(event({ responders: [archivedOnly] }))).toEqual(new Set())
+  })
+
+  it('keeps requiring KM when vehicle data was not selected at all', () => {
+    // Safe default: an older query shape must not silently clear real KM gaps.
+    expect(missingEventFields(event({ responders: [responder({ total_km: null })] }))).toEqual(
+      new Set(['responder_km']),
+    )
+  })
+})
+
 describe('missingEventFields', () => {
   it('returns nothing when every required field is filled', () => {
     expect(missingEventFields(event())).toEqual(new Set())
@@ -113,9 +151,14 @@ describe('missingEventFields', () => {
 })
 
 describe('missingFullyLoggedFieldLabels', () => {
+  const lead = 'lead-1'
+
   it('names a missing end time as שעת סיום', () => {
     expect(
-      missingFullyLoggedFieldLabels(event({ started_at: '2026-09-04T06:00:00', ended_at: null })),
+      missingFullyLoggedFieldLabels(
+        event({ shift_lead_id: lead, started_at: '2026-09-04T06:00:00', ended_at: null }),
+        lead,
+      ),
     ).toEqual(['שעת סיום'])
   })
 
@@ -123,19 +166,34 @@ describe('missingFullyLoggedFieldLabels', () => {
     expect(
       partialStampHoverText(
         event({
+          shift_lead_id: lead,
           started_at: '2026-09-04T06:00:00',
           ended_at: null,
           responders: [responder({ status: 'done' })],
         }),
+        lead,
       ),
     ).toBe('חסרים: שעת סיום')
     expect(
       partialStampHoverText(
         event({
+          shift_lead_id: lead,
           responders: [responder({ status: 'pending', profile: { full_name: 'דנה', callsign: 'D1' } })],
         }),
+        lead,
       ),
     ).toBe('ממתין לתיעוד: דנה')
+  })
+
+  it('hides ק״מ from a כונן, who cannot see a single KM value on the page', () => {
+    const partial = event({
+      shift_lead_id: lead,
+      started_at: '2026-09-04T06:00:00',
+      ended_at: null,
+      responders: [responder({ status: 'done', total_km: null })],
+    })
+    expect(partialStampHoverText(partial, lead)).toBe('חסרים: ק״מ · שעת סיום')
+    expect(partialStampHoverText(partial, 'u1')).toBe('חסרים: שעת סיום')
   })
 })
 

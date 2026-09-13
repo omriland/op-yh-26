@@ -14,6 +14,7 @@
 import type { EventListItem } from './events'
 import { mapSecondaryLeadRows, viewerIsEventLead } from './eventShiftLeads'
 import { resolvePatrolCallsign } from './patrolCallsign'
+import { responderKmMissing } from './responderVehicle'
 
 export type IncompleteField =
   | 'police_event_id'
@@ -73,8 +74,10 @@ export function missingEventFields(event: EventListItem): Set<IncompleteField> {
   }
 
   for (const responder of event.responders) {
-    if (responder.total_km == null) missing.add('responder_km')
-    if (missing.has('responder_km')) break
+    if (responderKmMissing(responder)) {
+      missing.add('responder_km')
+      break
+    }
   }
 
   return missing
@@ -95,9 +98,17 @@ const END_TIME_LABEL = 'שעת סיום'
 /**
  * Field names that still block a fully-logged event, with start/end split
  * so a hover on תועד חלקית can say שעת סיום instead of the generic שעות.
+ *
+ * Viewer-scoped like every other gap surface: ק״מ is the אחמ״ש's field, and a
+ * כונן who is shown it reads about a value that is hidden everywhere else on
+ * the page. Pass the viewer even where they are always a lead — an explicit
+ * argument is what keeps the three call sites in step.
  */
-export function missingFullyLoggedFieldLabels(event: EventListItem): string[] {
-  const missing = missingEventFields(event)
+export function missingFullyLoggedFieldLabels(
+  event: EventListItem,
+  viewerId: string | null | undefined,
+): string[] {
+  const missing = missingEventFieldsForViewer(event, viewerId)
   const labels: string[] = []
   for (const field of FIELD_ORDER) {
     if (!missing.has(field)) continue
@@ -121,8 +132,11 @@ export function pendingResponderNames(event: EventListItem): string[] {
 }
 
 /** Hover / spoken copy for a תועד חלקית stamp: missing lead fields + open fills. */
-export function partialStampHoverText(event: EventListItem): string | null {
-  const fields = missingFullyLoggedFieldLabels(event)
+export function partialStampHoverText(
+  event: EventListItem,
+  viewerId: string | null | undefined,
+): string | null {
+  const fields = missingFullyLoggedFieldLabels(event, viewerId)
   const pending = pendingResponderNames(event)
   const parts: string[] = []
   if (fields.length > 0) parts.push(`חסרים: ${fields.join(' · ')}`)

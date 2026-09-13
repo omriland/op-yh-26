@@ -72,6 +72,34 @@ describe('deriveEventStatus', () => {
     ).toBe('partial')
   })
 
+  it('reaches done when the only empty KM belongs to a responder with no vehicle', () => {
+    // The lead cannot type a KM for a ללא-רכב volunteer — the input is disabled.
+    // Requiring one anyway left the event permanently partial.
+    expect(
+      deriveEventStatus(
+        draft({
+          responders: [
+            responder({ key: 'a', total_km: '10' }),
+            responder({ key: 'b', responder_id: 'r2', total_km: '', hasVehicle: false }),
+          ],
+        }),
+      ),
+    ).toBe('done')
+  })
+
+  it('still blocks done when a responder who does have a vehicle is missing KM', () => {
+    expect(
+      deriveEventStatus(
+        draft({
+          responders: [
+            responder({ key: 'a', total_km: '', hasVehicle: true }),
+            responder({ key: 'b', responder_id: 'r2', total_km: '', hasVehicle: false }),
+          ],
+        }),
+      ),
+    ).toBe('partial')
+  })
+
   it('stays in_progress when nobody has completed, even with end and KM', () => {
     expect(
       deriveEventStatus(

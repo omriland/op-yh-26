@@ -31,18 +31,20 @@ export const EVENT_FILTERS: { value: EventStatus | 'all'; label: string; tip?: s
   {
     value: 'in_progress',
     label: 'ממתין לתיעוד',
-    tip: 'הוזן ע"י אחמש וטרם תועד ע"י מתנדב',
+    tip: 'הוזן ע״י אחמ״ש וטרם תועד ע״י מתנדב',
   },
   {
     value: 'partial',
     label: 'תועד חלקית',
-    tip: 'מתנדב החל בתיעוד אך לא השלים אותו',
+    // Not only a half-finished volunteer: an event where everyone documented
+    // and the אחמ״ש still owes שעת סיום or ק״מ also lands here.
+    tip: 'חלק מהתיעוד הושלם. ממתין למתנדבים נוספים או לשעת סיום וק״מ מהאחמ״ש',
   },
   { value: 'done', label: 'הושלם', tip: 'אירוע סגור שתועד במלואו' },
   {
     value: 'draft',
     label: 'אירוע בהזנה',
-    tip: 'טיוטה נשמרה ע"י אחמ"ש. טרם זמין למתנדב לתיעוד',
+    tip: 'טיוטה נשמרה ע״י אחמ״ש. טרם זמין למתנדב לתיעוד',
   },
 ]
 
@@ -134,7 +136,7 @@ export const FILL_DONE_AWAITING_KM_LABEL = 'סיימת לתעד'
 export const LEAD_KM_PENDING_NOTE = 'אחמ״ש טרם הזין ק״מ'
 
 /** Responder-facing: they finished; the lead still owes end time (or other done-gate fields). */
-export const AWAITING_LEAD_DETAILS_NOTE = 'ממתין לפרטים נוספים מאחמש'
+export const AWAITING_LEAD_DETAILS_NOTE = 'ממתין לפרטים נוספים מאחמ״ש'
 
 export function leadKmPendingNote(
   participation: ParticipationStatus | null | undefined,

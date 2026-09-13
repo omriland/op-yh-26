@@ -4,6 +4,7 @@ import {
   NO_VEHICLE_KM_PLACEHOLDER,
   PATROL_CALLSIGN_MAX_LENGTH,
   hasActiveVehicle,
+  leadKmApplies,
   leadKmForInput,
   leadKmForSave,
   patrolCallsignForInput,
@@ -45,6 +46,23 @@ describe('leadKmForSave', () => {
   it('stores a typed 0 as 0, not as an empty field', () => {
     expect(leadKmForSave(true, '0')).toBe(0)
     expect(leadKmForSave(true, ' 0 ')).toBe(0)
+  })
+})
+
+describe('leadKmApplies', () => {
+  it('is true whenever the responder has an active vehicle', () => {
+    expect(leadKmApplies(true, null)).toBe(true)
+    expect(leadKmApplies(true, 42)).toBe(true)
+  })
+
+  it('is false for a volunteer with no vehicle and nothing stored', () => {
+    expect(leadKmApplies(false, null)).toBe(false)
+  })
+
+  it('stays true when KM is already stored but the car was archived later', () => {
+    // Otherwise the next save by the lead silently wipes a real refund value.
+    expect(leadKmApplies(false, 42)).toBe(true)
+    expect(leadKmApplies(false, 0)).toBe(true)
   })
 })
 

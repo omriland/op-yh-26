@@ -12,6 +12,8 @@ on:
       - "supabase/migrations/20260905120000_partner_webhook_events.sql"
       - "supabase/migrations/20260908040000_partner_webhook_cron_auth.sql"
       - "supabase/migrations/20260910140000_responder_level_event_freeze.sql"
+      - "supabase/migrations/20260913080000_count_events_missing_lead_km_for_event_lead.sql"
+      - "supabase/migrations/20260913090000_lead_km_not_required_without_vehicle.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -46,6 +48,12 @@ jobs:
             -f supabase/migrations/20260908040000_partner_webhook_cron_auth.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260910140000_responder_level_event_freeze.sql
+          # Must land before the frontend: the client now derives הושלם for a
+          # ללא-רכב volunteer, which the old guard rejects.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20260913080000_count_events_missing_lead_km_for_event_lead.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20260913090000_lead_km_not_required_without_vehicle.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
