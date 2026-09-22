@@ -20,6 +20,7 @@
   for = "/android/version.json"
   [headers.values]
     Cache-Control = "no-store"
+    Netlify-CDN-Cache-Control = "no-store"
 
 [[headers]]
   for = "/android/yahpaz.apk"
@@ -31,6 +32,7 @@
   for = "/ios/version.json"
   [headers.values]
     Cache-Control = "no-store"
+    Netlify-CDN-Cache-Control = "no-store"
 
 [[headers]]
   for = "/ios/manifest.plist"
