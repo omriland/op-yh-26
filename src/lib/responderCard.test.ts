@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+  LEAD_KM_VIEW_LABEL,
   responderCardShowsLeadKm,
   responderCardShowsOdometers,
   responderCardStartsOpen,
@@ -47,44 +51,27 @@ describe('viewerManagesEvent', () => {
 })
 
 describe('responderCardShowsLeadKm', () => {
-  it('shows lead KM to a מנהל even when they are assigned as a כונן', () => {
-    // Being assigned to an event must not strip the audit role of refund data.
-    expect(
-      responderCardShowsLeadKm({
-        managesEvent: true,
-        hasLeadRole: true,
-        assignedAsResponder: true,
-      }),
-    ).toBe(true)
-  })
-
-  it('hides lead KM from a אחמ״ש participating in an event they do not lead', () => {
-    expect(
-      responderCardShowsLeadKm({
-        managesEvent: false,
-        hasLeadRole: true,
-        assignedAsResponder: true,
-      }),
-    ).toBe(false)
-  })
-
-  it('still shows lead KM to a non-participating אחמ״ש', () => {
-    expect(
-      responderCardShowsLeadKm({
-        managesEvent: false,
-        hasLeadRole: true,
-        assignedAsResponder: false,
-      }),
-    ).toBe(true)
+  it('shows lead KM to any אחמ״ש / מנהל role, including when they are also assigned', () => {
+    expect(responderCardShowsLeadKm({ hasLeadRole: true })).toBe(true)
   })
 
   it('never shows lead KM to a plain כונן', () => {
-    expect(
-      responderCardShowsLeadKm({
-        managesEvent: false,
-        hasLeadRole: false,
-        assignedAsResponder: true,
-      }),
-    ).toBe(false)
+    expect(responderCardShowsLeadKm({ hasLeadRole: false })).toBe(false)
+  })
+
+  it('labels the view-only field ק״מ (אחמ״ש)', () => {
+    expect(LEAD_KM_VIEW_LABEL).toBe('ק״מ (אחמ״ש)')
+  })
+
+  it('uses that label on event detail and hides the row unless the viewer has a lead role', () => {
+    const source = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), '../pages/EventDetailPage.tsx'),
+      'utf8',
+    )
+    expect(source).toContain('label={LEAD_KM_VIEW_LABEL}')
+    expect(source).not.toContain('label="קילומטרים"')
+    expect(source).toContain('responderCardShowsLeadKm({ hasLeadRole: canSeeLeadKm })')
+    expect(source).toContain("label='מד אוץ התחלה'")
+    expect(source).toContain("label='מד אוץ סיום'")
   })
 })

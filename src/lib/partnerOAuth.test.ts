@@ -184,6 +184,7 @@ describe('isOpenStandaloneParticipation', () => {
         origin: 'manual',
         isCancelled: false,
         participationStatus: 'pending',
+        policeEventId: '12345',
       }),
     ).toBe(true)
     expect(
@@ -191,6 +192,7 @@ describe('isOpenStandaloneParticipation', () => {
         origin: 'manual',
         isCancelled: false,
         participationStatus: 'in_progress',
+        policeEventId: '12345',
       }),
     ).toBe(true)
     expect(
@@ -205,6 +207,7 @@ describe('isOpenStandaloneParticipation', () => {
         origin: 'manual',
         isCancelled: true,
         participationStatus: 'pending',
+        policeEventId: '12345',
       }),
     ).toBe(false)
     expect(
@@ -212,6 +215,26 @@ describe('isOpenStandaloneParticipation', () => {
         origin: 'manual',
         isCancelled: false,
         participationStatus: 'done',
+        policeEventId: '12345',
+      }),
+    ).toBe(false)
+  })
+
+  it('does not send a manual event to the responder until מספר אירוע is entered', () => {
+    expect(
+      isOpenStandaloneParticipation({
+        origin: 'manual',
+        isCancelled: false,
+        participationStatus: 'pending',
+        policeEventId: null,
+      }),
+    ).toBe(false)
+    expect(
+      isOpenStandaloneParticipation({
+        origin: 'manual',
+        isCancelled: false,
+        participationStatus: 'pending',
+        policeEventId: '  ',
       }),
     ).toBe(false)
   })

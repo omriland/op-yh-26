@@ -2,6 +2,7 @@ import type { ParticipationStatus, ShiftStatus } from './status'
 import { isShiftPendingLog, jerusalemToday } from './shifts'
 import { supabase } from './supabase'
 import { hasOpenUserFeedback } from './userFeedback'
+import { eventReleasedToResponders } from './eventResponderRelease'
 
 export type NavAttention = {
   mineEvents: boolean
@@ -9,7 +10,11 @@ export type NavAttention = {
   openFeedback: boolean
 }
 
-type ParticipationRow = { status: ParticipationStatus }
+type ParticipationRow = {
+  status: ParticipationStatus
+  origin?: string | null
+  policeEventId?: string | null
+}
 
 type ShiftAttentionRow = {
   shift_date: string
@@ -20,7 +25,11 @@ type ShiftAttentionRow = {
 
 /** True when the viewer still has event participations to complete. */
 export function hasOpenMineEvents(participations: ParticipationRow[]): boolean {
-  return participations.some((row) => row.status !== 'done')
+  return participations.some(
+    (row) =>
+      row.status !== 'done' &&
+      eventReleasedToResponders({ origin: row.origin, policeEventId: row.policeEventId }),
+  )
 }
 
 /** True when an assigned, editable shift is not fully logged. */
@@ -42,7 +51,10 @@ export async function fetchNavAttention(
   options: { feedbackInbox?: boolean } = {},
 ): Promise<NavAttention> {
   const [eventsResult, shiftsResult, openFeedback] = await Promise.all([
-    supabase.from('event_responders').select('status').eq('responder_id', userId),
+    supabase
+      .from('event_responders')
+      .select('status, event:events!inner(police_event_id, origin)')
+      .eq('responder_id', userId),
     supabase
       .from('shift_responders')
       .select('shift:shifts(shift_date, status, odometer_start, odometer_end)')
@@ -53,7 +65,15 @@ export async function fetchNavAttention(
   if (eventsResult.error) throw new Error(eventsResult.error.message)
   if (shiftsResult.error) throw new Error(shiftsResult.error.message)
 
-  const participations = (eventsResult.data ?? []) as ParticipationRow[]
+  const participations = (eventsResult.data ?? []).map((row) => {
+    const eventRaw = (row as { event?: { police_event_id?: string | null; origin?: string | null } | { police_event_id?: string | null; origin?: string | null }[] }).event
+    const event = Array.isArray(eventRaw) ? eventRaw[0] : eventRaw
+    return {
+      status: (row as ParticipationRow).status,
+      origin: event?.origin ?? null,
+      policeEventId: event?.police_event_id ?? null,
+    }
+  })
   const shifts = (shiftsResult.data ?? [])
     .map((row) => {
       const shift = row.shift as ShiftAttentionRow | ShiftAttentionRow[] | null

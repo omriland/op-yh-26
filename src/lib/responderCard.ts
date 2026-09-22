@@ -21,16 +21,15 @@ export function viewerManagesEvent(input: {
   return input.isEventLead || input.isAdmin
 }
 
+/** View-only lead KM on event detail — hidden from responder-only viewers. */
+export const LEAD_KM_VIEW_LABEL = 'ק״מ (אחמ״ש)'
+
 /**
- * Lead KM is refund data, so a כונן never sees a teammate's. A lead-role viewer
- * who is participating in an event they do not lead reads it as a participant.
+ * Lead KM is refund data. A כונן-only viewer never sees it. Any other role
+ * (אחמ״ש / מנהל / מנהל־על) always does, including when they are also assigned.
  */
-export function responderCardShowsLeadKm(input: {
-  managesEvent: boolean
-  hasLeadRole: boolean
-  assignedAsResponder: boolean
-}): boolean {
-  return input.managesEvent || (input.hasLeadRole && !input.assignedAsResponder)
+export function responderCardShowsLeadKm(input: { hasLeadRole: boolean }): boolean {
+  return input.hasLeadRole
 }
 
 /** מד אוץ on someone else's card is lead/admin only. Own card stays visible. */

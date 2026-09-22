@@ -1,5 +1,7 @@
 /** Partner OAuth + responder-api helpers (URL parse, Telegram redirect, grant rules). */
 
+import { eventReleasedToResponders } from './eventResponderRelease'
+
 export const OAUTH_AUTHORIZE_PATH = '/oauth/authorize'
 export const PARTNER_SCOPE = 'responder:fill'
 export const AUTHORIZATION_CODE_TTL_MS = 5 * 60 * 1000
@@ -155,8 +157,12 @@ export function isOpenStandaloneParticipation(row: {
   origin: string
   isCancelled: boolean
   participationStatus: string
+  policeEventId?: string | null
 }): boolean {
   if (row.origin !== 'manual') return false
   if (row.isCancelled) return false
+  if (!eventReleasedToResponders({ origin: row.origin, policeEventId: row.policeEventId })) {
+    return false
+  }
   return row.participationStatus === 'pending' || row.participationStatus === 'in_progress'
 }

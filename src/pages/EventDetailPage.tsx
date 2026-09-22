@@ -12,6 +12,7 @@ import {
 } from '../lib/events'
 import { isOtherEventTypeName } from '../lib/eventForm'
 import {
+  LEAD_KM_VIEW_LABEL,
   responderCardShowsLeadKm,
   responderCardShowsOdometers,
   responderCardStartsOpen,
@@ -37,7 +38,9 @@ import {
   eventHasMissingResponderKm,
   missingEventFields,
   partialStampHoverText,
+  RESPONDERS_HELD_FOR_POLICE_ID_NOTE,
 } from '../lib/eventIncomplete'
+import { eventReleasedToResponders } from '../lib/eventResponderRelease'
 import { shiftBornFillStamp } from '../lib/shiftBornEvents'
 import { StampChip } from '../components/ui/StampChip'
 import { StampWithNote } from '../components/ui/StampWithNote'
@@ -248,13 +251,8 @@ export function EventDetailPage({
     shiftLeadId: event.shift_lead_id,
     secondaryLeadIds,
   })
-  const assignedAsResponder = event.responders.some((row) => row.responder_id === user?.id)
   const managesEvent = viewerManagesEvent({ isEventLead: eventLead, isAdmin })
-  const showLeadKm = responderCardShowsLeadKm({
-    managesEvent,
-    hasLeadRole: canSeeLeadKm,
-    assignedAsResponder,
-  })
+  const showLeadKm = responderCardShowsLeadKm({ hasLeadRole: canSeeLeadKm })
   const missingLeadFields = missingEventFields(event)
   const missingLeadStart = !event.started_at?.trim()
   const missingLeadEnd = !event.ended_at?.trim()
@@ -531,43 +529,60 @@ export function EventDetailPage({
           {event.responders.length === 0 ? (
             <p className="card t-body text-secondary">לא שובצו מתנדבים לאירוע זה.</p>
           ) : (
-            event.responders.map((responder) => {
-              const isViewer = responder.responder_id === user?.id
-              return (
-                <ResponderCard
-                  key={responder.id}
-                  responder={responder}
-                  isViewer={isViewer}
-                  defaultOpen={responderCardStartsOpen({
-                    isViewer,
-                    manages: eventLead,
-                  })}
-                  onFillOwn={
-                    isViewer && responder.status !== 'done' && onFillOwn
-                      ? onFillOwn
-                      : undefined
-                  }
-                  fillLabel={
-                    isViewer ? (mineFillCtaLabel(responder.status) ?? undefined) : undefined
-                  }
-                  onEditLeadFields={
-                    onEditLeadFields
-                      ? () => requestLeadFieldsEdit(responder.responder_id)
-                      : undefined
-                  }
-                  showLeadKm={showLeadKm}
-                  leadKmMissing={eventLead && responderKmMissing(responder)}
-                  showOdometers={responderCardShowsOdometers({
-                    isViewer,
-                    manages: managesEvent,
-                  })}
-                  showTreatedPlates={event.origin !== 'shift'}
-                  origin={event.origin}
-                  freezeViewer={freezeViewer}
-                  missingLeadDetails={missingLeadDetails}
-                />
-              )
-            })
+            <div className="stack-4">
+              {eventLead &&
+              !eventReleasedToResponders({
+                origin: event.origin,
+                policeEventId: event.police_event_id,
+              }) ? (
+                <p className="t-caption text-muted" role="note">
+                  {RESPONDERS_HELD_FOR_POLICE_ID_NOTE}
+                </p>
+              ) : null}
+              {event.responders.map((responder) => {
+                const isViewer = responder.responder_id === user?.id
+                return (
+                  <ResponderCard
+                    key={responder.id}
+                    responder={responder}
+                    isViewer={isViewer}
+                    defaultOpen={responderCardStartsOpen({
+                      isViewer,
+                      manages: eventLead,
+                    })}
+                    onFillOwn={
+                      isViewer &&
+                      responder.status !== 'done' &&
+                      onFillOwn &&
+                      eventReleasedToResponders({
+                        origin: event.origin,
+                        policeEventId: event.police_event_id,
+                      })
+                        ? onFillOwn
+                        : undefined
+                    }
+                    fillLabel={
+                      isViewer ? (mineFillCtaLabel(responder.status) ?? undefined) : undefined
+                    }
+                    onEditLeadFields={
+                      onEditLeadFields
+                        ? () => requestLeadFieldsEdit(responder.responder_id)
+                        : undefined
+                    }
+                    showLeadKm={showLeadKm}
+                    leadKmMissing={eventLead && responderKmMissing(responder)}
+                    showOdometers={responderCardShowsOdometers({
+                      isViewer,
+                      manages: managesEvent,
+                    })}
+                    showTreatedPlates={event.origin !== 'shift'}
+                    origin={event.origin}
+                    freezeViewer={freezeViewer}
+                    missingLeadDetails={missingLeadDetails}
+                  />
+                )
+              })}
+            </div>
           )}
         </section>
       </div>
@@ -692,7 +707,7 @@ function ResponderCard({
           <Ledger>
             {showLeadKm ? (
               <LedgerRow
-                label="קילומטרים"
+                label={LEAD_KM_VIEW_LABEL}
                 value={
                   responder.total_km != null ? (
                     <>

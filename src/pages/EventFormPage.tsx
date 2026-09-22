@@ -25,10 +25,8 @@ import {
   EVENT_TYPE_DETAIL_MAX_LENGTH,
   LEAD_KM_MAX_DIGITS,
   PATROL_CALLSIGN_NUMBER_LABEL,
-  PATROL_CALLSIGN_NUMBER_PLACEHOLDER,
   PATROL_CALLSIGN_PREFIX_LABEL,
   PATROL_CALLSIGN_PREFIX_MAX_LENGTH,
-  PATROL_CALLSIGN_PREFIX_PLACEHOLDER,
   PATROL_CALLSIGN_NUMBER_MAX_LENGTH,
   STATION_MAX_LENGTH,
   formatPatrolCallsign,
@@ -52,6 +50,11 @@ import {
   type ResponderDraft,
 } from '../lib/eventForm'
 import { deleteEvent } from '../lib/events'
+import { eventReleasedToResponders } from '../lib/eventResponderRelease'
+import {
+  RESPONDER_ADDED_HELD_TOAST,
+  RESPONDERS_HELD_FOR_POLICE_ID_NOTE,
+} from '../lib/eventIncomplete'
 import { viewerStamp } from '../lib/status'
 import { monoClass, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
@@ -886,7 +889,17 @@ export function EventFormPage({
     setPickerOpen(false)
     if (phoneLayout) setSheetResponderKey(next.responders[next.responders.length - 1]?.key ?? null)
     void persistLatest({ revealErrors: true }).then((ok) => {
-      if (ok) show('המתנדב נוסף לאירוע', 'done')
+      if (!ok) return
+      if (
+        !eventReleasedToResponders({
+          origin: 'manual',
+          policeEventId: next.police_event_id,
+        })
+      ) {
+        show(RESPONDER_ADDED_HELD_TOAST, 'done')
+        return
+      }
+      show('המתנדב נוסף לאירוע', 'done')
     })
   }
 
@@ -1403,7 +1416,6 @@ export function EventFormPage({
                         <FieldNote field="patrol_callsign_prefix" />
                         <TextField
                           label={PATROL_CALLSIGN_PREFIX_LABEL}
-                          placeholder={PATROL_CALLSIGN_PREFIX_PLACEHOLDER}
                           maxLength={PATROL_CALLSIGN_PREFIX_MAX_LENGTH}
                           value={draft.patrol_callsign_prefix}
                           onChange={(event) =>
@@ -1424,7 +1436,6 @@ export function EventFormPage({
                         <FieldNote field="patrol_callsign_number" />
                         <TextField
                           label={PATROL_CALLSIGN_NUMBER_LABEL}
-                          placeholder={PATROL_CALLSIGN_NUMBER_PLACEHOLDER}
                           numeric
                           isolate
                           inputMode="numeric"
@@ -1567,7 +1578,7 @@ export function EventFormPage({
                           required={placesLocation}
                           allowJunctions
                           error={errors.location}
-                          placeholder={placesLocation ? undefined : 'למשל: מחלף שורק'}
+                          placeholder=""
                           roadName={selectedRoadName}
                           value={{
                             location: draft.location,
@@ -1679,6 +1690,15 @@ export function EventFormPage({
                     {pickerOpen ? 'סגירת הקצאה' : 'מתנדבים'}
                   </Button>
                 </div>
+                {draft.responders.length > 0 &&
+                !eventReleasedToResponders({
+                  origin: 'manual',
+                  policeEventId: draft.police_event_id,
+                }) ? (
+                  <p className="t-caption text-muted" role="note">
+                    {RESPONDERS_HELD_FOR_POLICE_ID_NOTE}
+                  </p>
+                ) : null}
 
                 {pickerOpen ? (
                   <div className="responder-picker__panel" role="listbox" aria-label="בחירת מתנדבים">

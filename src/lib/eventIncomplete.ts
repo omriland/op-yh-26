@@ -152,6 +152,26 @@ export function incompleteNoticeLabel(fields: Set<IncompleteField>): string {
   return `חסרים: ${incompleteFieldLabels(fields).join(' · ')}`
 }
 
+export const HELD_FROM_RESPONDERS_LABEL = 'לא נשלח למתנדבים'
+
+export const RESPONDERS_HELD_FOR_POLICE_ID_NOTE =
+  'המתנדבים יקבלו את האירוע רק אחרי הזנת מספר אירוע.'
+
+export const RESPONDER_ADDED_HELD_TOAST = 'המתנדב נוסף. יישלח אחרי הזנת מספר אירוע.'
+
+/** Lead list chips: missing fields, plus a send-hold mark when volunteers are already assigned. */
+export function incompleteLeadNoticeLabels(
+  event: EventListItem,
+  viewerId?: string | null,
+): string[] {
+  const missing = missingEventFieldsForViewer(event, viewerId)
+  const labels = incompleteFieldLabels(missing)
+  if (missing.has('police_event_id') && event.responders.length > 0) {
+    return [...labels, HELD_FROM_RESPONDERS_LABEL]
+  }
+  return labels
+}
+
 export function isEventIncomplete(event: EventListItem): boolean {
   return missingEventFields(event).size > 0
 }

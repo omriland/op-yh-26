@@ -9,14 +9,16 @@ describe('hasOpenMineEvents', () => {
   it('is true when any own participation is not done', () => {
     expect(
       hasOpenMineEvents([
-        { status: 'done' },
-        { status: 'pending' },
+        { status: 'done', origin: 'manual', policeEventId: '1' },
+        { status: 'pending', origin: 'manual', policeEventId: '2' },
       ]),
     ).toBe(true)
   })
 
   it('is true for in_progress', () => {
-    expect(hasOpenMineEvents([{ status: 'in_progress' }])).toBe(true)
+    expect(
+      hasOpenMineEvents([{ status: 'in_progress', origin: 'manual', policeEventId: '12345' }]),
+    ).toBe(true)
   })
 
   it('is false when every participation is done', () => {
@@ -25,6 +27,24 @@ describe('hasOpenMineEvents', () => {
 
   it('is false when there are no participations', () => {
     expect(hasOpenMineEvents([])).toBe(false)
+  })
+
+  it('ignores a manual assignment that is still waiting for מספר אירוע', () => {
+    expect(
+      hasOpenMineEvents([
+        { status: 'pending', origin: 'manual', policeEventId: null },
+      ]),
+    ).toBe(false)
+    expect(
+      hasOpenMineEvents([
+        { status: 'pending', origin: 'manual', policeEventId: '12345' },
+      ]),
+    ).toBe(true)
+    expect(
+      hasOpenMineEvents([
+        { status: 'pending', origin: 'shift', policeEventId: null },
+      ]),
+    ).toBe(true)
   })
 })
 

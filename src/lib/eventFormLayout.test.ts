@@ -73,6 +73,13 @@ describe('event form standalone layout', () => {
     expect(timeField).toMatch(/className="time-field__now"[\s\S]*tabIndex=\{-1\}/)
   })
 
+  it('does not put example placeholders on create-event fields', () => {
+    expect(eventFormSource).not.toContain('placeholder={PATROL_CALLSIGN_PREFIX_PLACEHOLDER}')
+    expect(eventFormSource).not.toContain('placeholder={PATROL_CALLSIGN_NUMBER_PLACEHOLDER}')
+    expect(eventFormSource).not.toContain('למשל: מחלף שורק')
+    expect(eventFormSource).toContain('RESPONDERS_HELD_FOR_POLICE_ID_NOTE')
+  })
+
   it('wires FieldNote from the event-form field-notes registry', () => {
     expect(eventFormSource).toContain('<FieldNote field="event_times"')
     expect(eventFormSource).toContain('<FieldNote field="started_at"')

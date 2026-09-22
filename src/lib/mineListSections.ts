@@ -12,7 +12,7 @@ export function loggedWindowStart(today: string, windowsLoaded: number): string 
   return addCalendarDays(today, -(windows * MINE_LOGGED_WINDOW_DAYS))
 }
 
-export type MineListBucket = 'pending' | 'future' | 'logged'
+export type MineListBucket = 'pending' | 'future' | 'logged' | 'hidden'
 
 export type MineListSections<T> = {
   pending: T[]
@@ -38,6 +38,7 @@ export function partitionMineList<T>(
 
   for (const item of items) {
     const bucket = opts.bucket(item)
+    if (bucket === 'hidden') continue
     if (bucket === 'pending') {
       pending.push(item)
       continue

@@ -106,9 +106,11 @@ function isOpenStandalone(row: {
   origin: string;
   isCancelled: boolean;
   participationStatus: string;
+  policeEventId?: string | null;
 }): boolean {
   if (row.origin !== "manual") return false;
   if (row.isCancelled) return false;
+  if (!String(row.policeEventId ?? "").trim()) return false;
   return row.participationStatus === "pending" || row.participationStatus === "in_progress";
 }
 
@@ -454,6 +456,7 @@ async function handleListOpen(admin: SupabaseClient, userId: string): Promise<Re
         origin: event.origin,
         isCancelled: Boolean(event.is_cancelled),
         participationStatus: String(row.status),
+        policeEventId: event.police_event_id,
       })
     ) {
       return [];

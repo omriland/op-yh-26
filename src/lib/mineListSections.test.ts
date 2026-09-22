@@ -136,4 +136,20 @@ describe('partitionMineList', () => {
   it('uses a 30-day window size', () => {
     expect(MINE_LOGGED_WINDOW_DAYS).toBe(30)
   })
+
+  it('drops hidden items from every bucket', () => {
+    const items = [
+      { id: 'held', date: '2026-08-16', bucket: 'hidden' as const },
+      { id: 'open', date: '2026-08-16', bucket: 'pending' as const },
+    ]
+    const result = partitionMineList(items, {
+      dateOf: (item) => item.date,
+      bucket: (item) => item.bucket,
+      today,
+      windowsLoaded: 1,
+    })
+    expect(result.pending.map((item) => item.id)).toEqual(['open'])
+    expect(result.logged).toEqual([])
+    expect(result.hasMoreLogged).toBe(false)
+  })
 })

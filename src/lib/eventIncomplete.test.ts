@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { EventListItem, EventResponderSummary } from './events'
 import {
   incompleteFieldLabels,
+  incompleteLeadNoticeLabels,
   incompleteNoticeLabel,
   isEventIncomplete,
   eventHasMissingResponderKm,
@@ -206,6 +207,19 @@ describe('incompleteNoticeLabel', () => {
     expect(incompleteNoticeLabel(new Set(['responder_km', 'police_event_id']))).toBe(
       'חסרים: מספר אירוע · ק״מ',
     )
+  })
+})
+
+describe('incomplete lead notice when responders are held', () => {
+  it('adds לא נשלח למתנדבים once a volunteer is assigned without מספר אירוע', () => {
+    expect(incompleteLeadNoticeLabels(event({ police_event_id: null }), 'lead')).toEqual([
+      'מספר אירוע',
+      'לא נשלח למתנדבים',
+    ])
+    expect(incompleteLeadNoticeLabels(event({ police_event_id: null, responders: [] }), 'lead')).toEqual(
+      ['מספר אירוע'],
+    )
+    expect(incompleteLeadNoticeLabels(event(), 'lead')).toEqual([])
   })
 })
 

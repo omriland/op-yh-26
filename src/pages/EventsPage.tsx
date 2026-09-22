@@ -82,13 +82,12 @@ import {
   writeShowOthersCreatedEvents,
 } from '../lib/unitEventsScope'
 import {
-  incompleteFieldLabels,
-  incompleteNoticeLabel,
+  incompleteLeadNoticeLabels,
   leadFacingMissingKm,
-  missingEventFieldsForViewer,
   partitionIncompleteEventsForViewer,
   partialStampHoverText,
 } from '../lib/eventIncomplete'
+import { eventReleasedToResponders } from '../lib/eventResponderRelease'
 import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
 import {
   canSeeMissingKmAlert,
@@ -322,6 +321,9 @@ export function EventsPage({
   )
 
   function mineEventIsOpen(event: EventListItem): boolean {
+    if (!eventReleasedToResponders({ origin: event.origin, policeEventId: event.police_event_id })) {
+      return false
+    }
     if (event.origin === 'shift') return mineShiftBornIsOpen(event)
     return mineInboxIsOpen(ownParticipation(event, user?.id), ownResponderKm(event, user?.id))
   }
@@ -370,7 +372,17 @@ export function EventsPage({
     if (scope !== 'mine' || !events) return null
     return partitionMineList(events, {
       dateOf: (event) => event.event_date,
-      bucket: (event) => (mineEventIsOpen(event) ? 'pending' : 'logged'),
+      bucket: (event) => {
+        if (
+          !eventReleasedToResponders({
+            origin: event.origin,
+            policeEventId: event.police_event_id,
+          })
+        ) {
+          return 'hidden'
+        }
+        return mineEventIsOpen(event) ? 'pending' : 'logged'
+      },
       today: jerusalemToday(),
       windowsLoaded: loggedWindows,
     })
@@ -959,10 +971,10 @@ function UnitTableList({
           viewerId={viewerId}
           onContextDelete={onContextDelete}
           incompleteNoticeFor={(event) => {
-            const fields = missingEventFieldsForViewer(event, viewerId)
+            const labels = incompleteLeadNoticeLabels(event, viewerId)
             return {
-              fields: incompleteFieldLabels(fields),
-              spoken: incompleteNoticeLabel(fields),
+              fields: labels,
+              spoken: labels.length > 0 ? `חסרים: ${labels.join(' · ')}` : '',
             }
           }}
         />
@@ -1024,7 +1036,7 @@ function UnitCardList({
           <h2 className="events-incomplete-heading">דורשים השלמת פרטים</h2>
           <ul className="stack-3">
             {incompleteEvents.map((event) => {
-              const fields = missingEventFieldsForViewer(event, viewerId)
+              const labels = incompleteLeadNoticeLabels(event, viewerId)
               return (
                 <EventCard
                   key={event.id}
@@ -1034,8 +1046,8 @@ function UnitCardList({
                   stampTip={unitPartialStampTip(event, stampFor(event), viewerId)}
                   onOpen={onOpen}
                   onContextDelete={onContextDelete}
-                  incompleteFields={incompleteFieldLabels(fields)}
-                  incompleteSpoken={incompleteNoticeLabel(fields)}
+                  incompleteFields={labels}
+                  incompleteSpoken={labels.length > 0 ? `חסרים: ${labels.join(' · ')}` : ''}
                 />
               )
             })}

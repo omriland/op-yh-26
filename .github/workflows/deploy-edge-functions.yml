@@ -14,6 +14,7 @@ on:
       - "supabase/migrations/20260910140000_responder_level_event_freeze.sql"
       - "supabase/migrations/20260913080000_count_events_missing_lead_km_for_event_lead.sql"
       - "supabase/migrations/20260913090000_lead_km_not_required_without_vehicle.sql"
+      - "supabase/migrations/20260922143000_hold_assignment_webhook_until_police_event_id.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -54,6 +55,8 @@ jobs:
             -f supabase/migrations/20260913080000_count_events_missing_lead_km_for_event_lead.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260913090000_lead_km_not_required_without_vehicle.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20260922143000_hold_assignment_webhook_until_police_event_id.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
