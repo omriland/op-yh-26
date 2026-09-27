@@ -4,7 +4,9 @@ import { useAuth } from '../lib/auth'
 import {
   completeResponderFill,
   fetchResponderFillContext,
+  fetchResponderVehicleChoices,
   fillHeaderStatus,
+  mergeFillVehicleChoices,
   odometerRangeError,
   saveResponderFillDraft,
   type ResponderFillContext,
@@ -243,6 +245,46 @@ export function ResponderFillPage({
       if (stashTimer.current) clearTimeout(stashTimer.current)
     }
   }, [ctx, draft, readOnly])
+
+  // A vehicle added after this assignment has to appear in בחירת רכב when the
+  // responder comes back to the fill, even if the screen never remounted.
+  useEffect(() => {
+    if (loadState !== 'ready' || !userId || fillToken || readOnly) return
+    const responderId = userId
+    let active = true
+
+    async function refreshVehicles() {
+      const plateAtFetch = draftRef.current?.vehicle_plate ?? ''
+      try {
+        const choices = await fetchResponderVehicleChoices(responderId, plateAtFetch)
+        if (!active) return
+        const plateNow = draftRef.current?.vehicle_plate ?? plateAtFetch
+        const nextPlate = mergeFillVehicleChoices(plateNow, choices.options, choices.selectedPlate)
+        setCtx((current) => {
+          if (!current) return current
+          if (JSON.stringify(current.vehicles) === JSON.stringify(choices.options)) return current
+          return { ...current, vehicles: choices.options }
+        })
+        setDraft((current) => {
+          if (!current || current.vehicle_plate === nextPlate) return current
+          return { ...current, vehicle_plate: nextPlate }
+        })
+      } catch {
+        // Keep the cars already listed.
+      }
+    }
+
+    function onVisible() {
+      if (document.visibilityState === 'visible') void refreshVehicles()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      active = false
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [fillToken, loadState, readOnly, userId])
 
   // A backgrounded WebView may never run another timer, so flush immediately.
   useEffect(() => {

@@ -152,6 +152,107 @@ export function leadKmApplies(hasActiveVehicle: boolean, storedKm: number | null
   return hasActiveVehicle || storedKm != null
 }
 
+export type LiveResponderProfile = {
+  id: string
+  full_name: string
+  callsign: string
+  /** True when the profile currently has an active vehicle — not the KM gate. */
+  hasVehicle: boolean
+}
+
+function typedKm(totalKm: string): number | null {
+  const trimmed = totalKm.trim()
+  if (!trimmed) return null
+  const value = Number(trimmed)
+  return Number.isFinite(value) ? value : null
+}
+
+/**
+ * Copy name, callsign, and the KM gate from the profiles as they are now.
+ *
+ * Assignment used to freeze `hasVehicle` on the draft. A car added afterwards
+ * left the lead on `מתנדב ללא רכב` and the fill list one vehicle short.
+ * Typed km, times, and treated counts stay as the lead left them.
+ */
+export function applyLiveResponderProfiles(
+  responders: ResponderDraft[],
+  profiles: LiveResponderProfile[],
+): ResponderDraft[] {
+  if (responders.length === 0 || profiles.length === 0) return responders
+  const byId = new Map(profiles.map((person) => [person.id, person]))
+  let changed = false
+  const next = responders.map((row) => {
+    const person = byId.get(row.responder_id)
+    if (!person) return row
+    const hasVehicle = leadKmApplies(person.hasVehicle, typedKm(row.total_km))
+    if (
+      row.full_name === person.full_name &&
+      row.callsign === person.callsign &&
+      row.hasVehicle === hasVehicle
+    ) {
+      return row
+    }
+    changed = true
+    return {
+      ...row,
+      full_name: person.full_name,
+      callsign: person.callsign,
+      hasVehicle,
+    }
+  })
+  return changed ? next : responders
+}
+
+/**
+ * A restored draft keeps what the lead typed, but name / callsign / vehicle
+ * come from the event just loaded — not from the copy taken at assignment.
+ */
+export function keepLiveResponderIdentity(
+  stashed: ResponderDraft[],
+  live: ResponderDraft[],
+): ResponderDraft[] {
+  if (stashed.length === 0 || live.length === 0) return stashed
+  const byId = new Map(live.map((row) => [row.responder_id, row]))
+  let changed = false
+  const next = stashed.map((row) => {
+    const fresh = byId.get(row.responder_id)
+    if (!fresh) return row
+    if (
+      row.full_name === fresh.full_name &&
+      row.callsign === fresh.callsign &&
+      row.hasVehicle === fresh.hasVehicle
+    ) {
+      return row
+    }
+    changed = true
+    return {
+      ...row,
+      full_name: fresh.full_name,
+      callsign: fresh.callsign,
+      hasVehicle: fresh.hasVehicle,
+    }
+  })
+  return changed ? next : stashed
+}
+
+/**
+ * When the only change is a profile refresh and it does not make a typed km
+ * newly saveable, the open form should not autosave.
+ */
+export function baselineAfterProfileRefresh(
+  baselineJson: string,
+  before: EventFormDraft,
+  after: EventFormDraft,
+): string | null {
+  const kmBecameSaveable = after.responders.some((row) => {
+    const prev = before.responders.find((item) => item.responder_id === row.responder_id)
+    return Boolean(row.hasVehicle && !prev?.hasVehicle && row.total_km.trim())
+  })
+  if (kmBecameSaveable) return null
+  if (JSON.stringify(before) !== baselineJson) return null
+  return JSON.stringify(after)
+}
+
 /** Lead `total_km` is never stored for a responder the KM field does not apply to. */
 export function leadKmForSave(hasVehicle: boolean, totalKm: string): number | null {
   if (!hasVehicle) return null

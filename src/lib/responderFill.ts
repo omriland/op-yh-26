@@ -51,6 +51,67 @@ export type ResponderVehicleOption = {
   model: string
 }
 
+export type VehicleRowForFill = {
+  plate_number?: string | null
+  model?: string | null
+  archived?: boolean | null
+  is_default?: boolean | null
+}
+
+/**
+ * Active cars the responder can pick, plus a saved plate that was archived
+ * after the assignment. `selectedPlate` is the saved plate, the starred car,
+ * or the only car — the same rule as a fresh fill.
+ */
+export function responderVehicleChoices(
+  vehicles: VehicleRowForFill[],
+  existingPlate?: string | null,
+): { options: ResponderVehicleOption[]; selectedPlate: string } {
+  const existing = existingPlate ? plateDigits(existingPlate) : ''
+  const mapped = vehicles
+    .map((vehicle) => ({
+      plate: plateDigits(String(vehicle.plate_number ?? '')),
+      model: String(vehicle.model ?? '').trim(),
+      archived: Boolean(vehicle.archived),
+      isDefault: Boolean(vehicle.is_default) && !vehicle.archived,
+    }))
+    .filter((vehicle) => vehicle.plate)
+    .filter((vehicle) => !vehicle.archived || vehicle.plate === existing)
+
+  return {
+    options: mapped.map(({ plate, model }) => ({ plate, model })),
+    selectedPlate: pickDefaultVehiclePlate(
+      mapped.map(({ plate, isDefault }) => ({ plate, isDefault })),
+      existing,
+    ),
+  }
+}
+
+/** Keep a plate the responder already chose; otherwise take the new default. */
+export function mergeFillVehicleChoices(
+  currentPlate: string,
+  options: ResponderVehicleOption[],
+  selectedPlate: string,
+): string {
+  const current = plateDigits(currentPlate)
+  if (current && options.some((vehicle) => vehicle.plate === current)) return current
+  return selectedPlate
+}
+
+export async function fetchResponderVehicleChoices(
+  userId: string,
+  existingPlate?: string | null,
+): Promise<{ options: ResponderVehicleOption[]; selectedPlate: string }> {
+  const vehicles = await queryVehiclesWithDefaultFallback<VehicleRowForFill>(
+    'plate_number, model, archived, is_default',
+    async (select) => {
+      const { data, error } = await supabase.from('vehicles').select(select).eq('user_id', userId)
+      return { data, error }
+    },
+  )
+  return responderVehicleChoices(vehicles, existingPlate)
+}
+
 export type ResponderFillContext = {
   eventId: string
   assignmentId: string
@@ -417,31 +478,15 @@ function buildResponderFillContext(
   }[],
   treatedPlates: TreatedPlate[],
 ): ResponderFillContext {
-  const existingPlate = mine.vehicle_plate ? plateDigits(mine.vehicle_plate) : ''
   const totalKm = mine.total_km
   const odometerStart =
     mine.odometer_start != null ? String(mine.odometer_start) : ''
   const odometerEnd =
     mine.odometer_end != null ? String(mine.odometer_end) : ''
 
-  // Active vehicles only for new assignment; keep a currently saved plate even if archived.
-  const mapped = vehicles
-    .map((vehicle) => ({
-      plate: plateDigits(String(vehicle.plate_number ?? '')),
-      model: String(vehicle.model ?? '').trim(),
-      archived: Boolean(vehicle.archived),
-      isDefault: Boolean(vehicle.is_default) && !vehicle.archived,
-    }))
-    .filter((vehicle) => vehicle.plate)
-    .filter((vehicle) => !vehicle.archived || vehicle.plate === existingPlate)
-
-  const vehicleOptions: ResponderVehicleOption[] = mapped.map(({ plate, model }) => ({
-    plate,
-    model,
-  }))
-  const selectedPlate = pickDefaultVehiclePlate(
-    mapped.map(({ plate, isDefault }) => ({ plate, isDefault })),
-    existingPlate,
+  const { options: vehicleOptions, selectedPlate } = responderVehicleChoices(
+    vehicles,
+    mine.vehicle_plate,
   )
 
   return {

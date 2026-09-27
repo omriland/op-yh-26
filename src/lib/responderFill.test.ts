@@ -5,7 +5,9 @@ import {
   emptyResponderFillDraft,
   fillHeaderStatus,
   gateResponderFillWrite,
+  mergeFillVehicleChoices,
   odometerRangeError,
+  responderVehicleChoices,
   validateResponderFillDraft,
   type ResponderFillDraft,
 } from './responderFill'
@@ -14,6 +16,45 @@ import { ODOMETER_ORDER_ERROR } from './odometer'
 function draft(patch: Partial<ResponderFillDraft> = {}): ResponderFillDraft {
   return { ...emptyResponderFillDraft(), ...patch }
 }
+
+describe('responderVehicleChoices', () => {
+  it('includes a vehicle added after the responder was assigned', () => {
+    const choices = responderVehicleChoices(
+      [
+        { plate_number: '12-345-67', model: 'ישן', archived: false, is_default: true },
+        { plate_number: '99-888-77', model: 'חדש', archived: false, is_default: false },
+      ],
+      '',
+    )
+    expect(choices.options.map((vehicle) => vehicle.plate)).toEqual(['1234567', '9988877'])
+    expect(choices.selectedPlate).toBe('1234567')
+  })
+
+  it('hides an archived car unless that plate is already saved on the event', () => {
+    const choices = responderVehicleChoices(
+      [{ plate_number: '11-111-11', model: 'ארכיון', archived: true, is_default: false }],
+      '1111111',
+    )
+    expect(choices.options).toEqual([{ plate: '1111111', model: 'ארכיון' }])
+    expect(
+      responderVehicleChoices(
+        [{ plate_number: '11-111-11', model: 'ארכיון', archived: true }],
+        '',
+      ).options,
+    ).toEqual([])
+  })
+})
+
+describe('mergeFillVehicleChoices', () => {
+  it('keeps a plate the responder already chose and fills an empty one', () => {
+    const options = [
+      { plate: '1234567', model: 'א' },
+      { plate: '9988877', model: 'ב' },
+    ]
+    expect(mergeFillVehicleChoices('9988877', options, '1234567')).toBe('9988877')
+    expect(mergeFillVehicleChoices('', options, '1234567')).toBe('1234567')
+  })
+})
 
 describe('deriveEventStatusAfterParticipation', () => {
   it('keeps draft-only progress as in_progress, not partial', () => {

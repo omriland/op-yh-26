@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { emptyEventDraft, type EventFormDraft } from './eventForm'
+import { emptyEventDraft, type EventFormDraft, type ResponderDraft } from './eventForm'
 import {
   applyStashedEventDraft,
   clearEventFormStash,
@@ -69,6 +69,37 @@ describe('eventFormStash', () => {
     })
     expect(transferred?.shift_lead_id).toBe('dana')
     expect(transferred?.shift_lead).toEqual({ full_name: 'דנה', callsign: 'D1' })
+  })
+
+  it('restores typed km but not a stale no-vehicle flag', () => {
+    const liveResponder: ResponderDraft = {
+      key: 'row-1',
+      assignmentId: 'a1',
+      responder_id: 'dana',
+      full_name: 'דנה לוי',
+      callsign: 'D1',
+      start_time: '',
+      end_time: '',
+      total_km: '',
+      emergency_means: true,
+      treated: [],
+      status: 'pending',
+      hasOwnedData: false,
+      expanded: false,
+      hasVehicle: true,
+    }
+    const base = draft({ responders: [liveResponder] })
+    const restored = applyStashedEventDraft(base, {
+      ...draft({
+        police_event_id: '77',
+        responders: [{ ...liveResponder, hasVehicle: false, total_km: '15', full_name: 'ישן' }],
+      }),
+    })
+    expect(restored?.police_event_id).toBe('77')
+    expect(restored?.responders[0]?.hasVehicle).toBe(true)
+    expect(restored?.responders[0]?.full_name).toBe('דנה לוי')
+    expect(restored?.responders[0]?.callsign).toBe('D1')
+    expect(restored?.responders[0]?.total_km).toBe('15')
   })
 
   it('rejects a stash that is not an event draft', () => {

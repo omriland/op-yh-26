@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import {
   applyCancelledChange,
+  applyLiveResponderProfiles,
+  baselineAfterProfileRefresh,
   canClearEventCancelled,
   CANCELLED_CLEAR_ADMIN_ONLY,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
@@ -395,6 +397,61 @@ export function EventFormPage({
     // loadState intentionally omitted — only boot / switch eventId
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage, eventId, userId, leadName, leadCallsign, focusResponderId, variant, roles])
+
+  const assignedResponderIds = draft?.responders.map((row) => row.responder_id).join(',') ?? ''
+
+  // A car (or a renamed callsign) added after assignment has to reach this form
+  // without waiting for a full reload. The device stash must not freeze the old flag.
+  useEffect(() => {
+    if (loadState !== 'ready' || !assignedResponderIds) return
+    let active = true
+
+    async function refreshAssignedProfiles() {
+      try {
+        const people = await fetchAssignableUsers()
+        if (!active) return
+        setRoster(people)
+        const current = draftRef.current
+        if (!current) return
+        const responders = applyLiveResponderProfiles(current.responders, people)
+        if (responders === current.responders) return
+        if (draftRef.current !== current) {
+          setDraft((latest) => {
+            if (!latest) return latest
+            const merged = applyLiveResponderProfiles(latest.responders, people)
+            if (merged === latest.responders) return latest
+            const mergedDraft = { ...latest, responders: merged }
+            draftRef.current = mergedDraft
+            return mergedDraft
+          })
+          return
+        }
+        const next = { ...current, responders }
+        draftRef.current = next
+        const nextBaseline = baselineAfterProfileRefresh(baselineRef.current, current, next)
+        if (nextBaseline) {
+          baselineRef.current = nextBaseline
+          setBaseline(nextBaseline)
+        }
+        setDraft(next)
+      } catch {
+        // Keep the names and vehicle flags already on the form.
+      }
+    }
+
+    void refreshAssignedProfiles()
+
+    function onVisible() {
+      if (document.visibilityState === 'visible') void refreshAssignedProfiles()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      active = false
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [assignedResponderIds, loadState])
 
   useEffect(() => {
     if (loadState !== 'ready' || !focusResponderId) return

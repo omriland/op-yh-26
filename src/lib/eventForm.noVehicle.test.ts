@@ -3,12 +3,38 @@ import {
   LEAD_KM_MAX_DIGITS,
   NO_VEHICLE_KM_PLACEHOLDER,
   PATROL_CALLSIGN_MAX_LENGTH,
+  applyLiveResponderProfiles,
+  baselineAfterProfileRefresh,
+  emptyEventDraft,
   hasActiveVehicle,
+  keepLiveResponderIdentity,
   leadKmApplies,
   leadKmForInput,
   leadKmForSave,
   patrolCallsignForInput,
+  type EventFormDraft,
+  type ResponderDraft,
 } from './eventForm'
+
+function responder(overrides: Partial<ResponderDraft> = {}): ResponderDraft {
+  return {
+    key: 'r1',
+    assignmentId: 'a1',
+    responder_id: 'dana',
+    full_name: 'דנה',
+    callsign: '12',
+    start_time: '08:00',
+    end_time: '',
+    total_km: '',
+    emergency_means: true,
+    treated: [{ vehicle_kind_id: 'k1', quantity: 2 }],
+    status: 'pending',
+    hasOwnedData: false,
+    expanded: true,
+    hasVehicle: false,
+    ...overrides,
+  }
+}
 
 describe('hasActiveVehicle', () => {
   it('is false when the profile has no vehicles', () => {
@@ -69,6 +95,88 @@ describe('leadKmApplies', () => {
 describe('NO_VEHICLE_KM_PLACEHOLDER', () => {
   it('is the locked field copy', () => {
     expect(NO_VEHICLE_KM_PLACEHOLDER).toBe('מתנדב ללא רכב')
+  })
+})
+
+describe('applyLiveResponderProfiles', () => {
+  it('unlocks km when a vehicle is added after assignment', () => {
+    const row = responder()
+    const [next] = applyLiveResponderProfiles(
+      [row],
+      [{ id: 'dana', full_name: 'דנה לוי', callsign: 'D1', hasVehicle: true }],
+    )
+    expect(next?.hasVehicle).toBe(true)
+    expect(next?.full_name).toBe('דנה לוי')
+    expect(next?.callsign).toBe('D1')
+    expect(next?.total_km).toBe('')
+    expect(next?.treated).toEqual(row.treated)
+    expect(next?.start_time).toBe('08:00')
+  })
+
+  it('keeps a typed km editable after the car is archived', () => {
+    const [next] = applyLiveResponderProfiles(
+      [responder({ hasVehicle: true, total_km: '18' })],
+      [{ id: 'dana', full_name: 'דנה', callsign: '12', hasVehicle: false }],
+    )
+    expect(next?.hasVehicle).toBe(true)
+    expect(next?.total_km).toBe('18')
+  })
+
+  it('leaves the row untouched when the profile did not change', () => {
+    const rows = [responder()]
+    expect(
+      applyLiveResponderProfiles(rows, [
+        { id: 'dana', full_name: 'דנה', callsign: '12', hasVehicle: false },
+      ]),
+    ).toBe(rows)
+  })
+})
+
+describe('keepLiveResponderIdentity', () => {
+  it('keeps typed fields and takes the vehicle flag from the loaded event', () => {
+    const stashed = responder({ hasVehicle: false, total_km: '4', full_name: 'ישן' })
+    const live = responder({ hasVehicle: true, total_km: '', full_name: 'דנה', callsign: 'D1' })
+    const [next] = keepLiveResponderIdentity([stashed], [live])
+    expect(next?.hasVehicle).toBe(true)
+    expect(next?.full_name).toBe('דנה')
+    expect(next?.callsign).toBe('D1')
+    expect(next?.total_km).toBe('4')
+    expect(next?.emergency_means).toBe(true)
+  })
+})
+
+describe('baselineAfterProfileRefresh', () => {
+  it('adopts the refreshed draft when nothing else was dirty', () => {
+    const before: EventFormDraft = {
+      ...emptyEventDraft({ full_name: 'א', callsign: '1' }),
+      responders: [responder()],
+    }
+    const after: EventFormDraft = {
+      ...before,
+      responders: [responder({ hasVehicle: true, full_name: 'דנה לוי' })],
+    }
+    expect(baselineAfterProfileRefresh(JSON.stringify(before), before, after)).toBe(
+      JSON.stringify(after),
+    )
+  })
+
+  it('does not mark a dirty form as saved, and saves when typed km just became applicable', () => {
+    const before: EventFormDraft = {
+      ...emptyEventDraft({ full_name: 'א', callsign: '1' }),
+      responders: [responder({ total_km: '9' })],
+    }
+    const after: EventFormDraft = {
+      ...before,
+      responders: [responder({ hasVehicle: true, total_km: '9' })],
+    }
+    expect(baselineAfterProfileRefresh(JSON.stringify(before), before, after)).toBeNull()
+    const dirty = { ...before, police_event_id: '123' }
+    expect(
+      baselineAfterProfileRefresh(JSON.stringify(before), dirty, {
+        ...dirty,
+        responders: after.responders,
+      }),
+    ).toBeNull()
   })
 })
 

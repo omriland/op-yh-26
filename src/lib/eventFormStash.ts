@@ -3,7 +3,12 @@ import {
   readFillDraft,
   stashFillDraft,
 } from './fillDraftStash'
-import { isAbandonedEmptyEventDraft, type EventFormDraft } from './eventForm'
+import {
+  isAbandonedEmptyEventDraft,
+  keepLiveResponderIdentity,
+  type EventFormDraft,
+  type ResponderDraft,
+} from './eventForm'
 import { formatPatrolCallsign, resolvePatrolCallsign } from './patrolCallsign'
 
 export const EVENT_FORM_STASH_SCOPE = 'eventForm'
@@ -59,7 +64,9 @@ export function applyStashedEventDraft(
     secondary_leads: Array.isArray(draft.secondary_leads)
       ? draft.secondary_leads
       : base.secondary_leads,
-    responders: Array.isArray(draft.responders) ? draft.responders : base.responders,
+    responders: Array.isArray(draft.responders)
+      ? keepLiveResponderIdentity(draft.responders as ResponderDraft[], base.responders)
+      : base.responders,
   }
 }
 
