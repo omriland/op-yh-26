@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-09-12 (prod tip `75636a0` / deploy `6aa5829430dd9b0008b48736`; fuel-report freeze snowflake + save confirm)
+Last updated: 2026-09-27 (early crew: add a מתנדב before מספר אירוע / או״ק / כביש; prod tip note still 2026-09-12 `75636a0`)
 
 ## What this is
 
@@ -104,6 +104,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Default vehicle (2026-09-01):** `vehicles.is_default` (רכב ראשי). Profile star when 2+ active cars; `set_default_vehicle` RPC; new `event_responders` insert copies that plate; fill + personal-shift preselect it. Spec: `2026-09-01-yahpaz-default-vehicle-design.md`. **Not yet applied on prod** — UI fallback retries without `is_default` so the vehicle list still loads.
 - **24-hour time (2026-09-03):** Event time inputs are digit-masked `HH:mm` (not native `type="time"`, which followed device 12/24). Display formatters use `hour12: false` + `hourCycle: 'h23'`. Same pattern as Android `TimeField`.
 - **Form field limits (2026-09-05):** Event `מספר אירוע` max 7 digits (`maxLength` + `policeEventIdForInput`). Lead `קילומטרים` max 3 digits. Create-event `או״ק ניידת` max 16 characters. Treated plates accept **5–8** digits (was 7–8); format 5=`XX-XXX`, 6=`XXX-XXX`. Error copy: `יש להזין 5 עד 8 ספרות.`
+- **Early crew (2026-09-27):** Full event form can add a מתנדב, and phone `שמירה כטיוטה` can save, with only תאריך. מספר אירוע, או״ק, and כביש may stay empty; the crew stays held until מספר אירוע is filled. `יצירת אירוע` / `שמירת אירוע` still require the finish minimum (date, type, road, אוק - מס, and מיקום on the system שלוחה). A field blur still does not create a row before that minimum; once the early draft exists, later edits keep saving. Cockpit autosave was already date-only.
 - **Latest `infra/bootstrap` tip (2026-09-10):** `d1a33a0` Record prod deploy; prior `4ebf78f` useRef build fix; `76b3440` vehicles admin-only / KM alerts / shift-born UX.
 
 ## Email (Resend)

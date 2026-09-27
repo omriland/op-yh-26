@@ -1142,6 +1142,29 @@ export function hasEventMinimum(
   return Object.keys(validateEventMinimum(draft, districts, roads)).length === 0
 }
 
+/**
+ * Whether this save may omit מספר אירוע, או״ק, and כביש.
+ *
+ * Cockpit autosave always may. A full-form finish (`יצירת אירוע` / `שמירת אירוע`)
+ * passes `requested: false`. Assigning a כונן and `שמירה כטיוטה` pass `requested: true`.
+ * Once that early row exists, later field blurs keep saving it until the finish
+ * minimum is met — otherwise the crew and the notes typed after them never land.
+ */
+export function eventSaveAllowsPartial(input: {
+  requested?: boolean
+  variant: 'cockpit' | 'page'
+  draft: EventFormDraft
+  districts?: LookupOption[]
+  roads?: LookupOption[]
+}): boolean {
+  if (input.requested != null) return input.requested
+  if (input.variant === 'cockpit') return true
+  return (
+    Boolean(input.draft.id) &&
+    !hasEventMinimum(input.draft, input.districts ?? [], input.roads ?? [])
+  )
+}
+
 export function canPersistEventDraft(
   draft: EventFormDraft,
   districts: LookupOption[] = [],
