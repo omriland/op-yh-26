@@ -50,13 +50,16 @@ Form section with counter `חלק א׳`. Fields (types per `06-components.md`; H
 - **Status derivation** (not a separate “open” action):
   - no responders assigned → `draft` (אירוע בהזנה) — not shown on responders’ “האירועים שלי”
   - ≥1 responder assigned → `in_progress` (or keep `partial` / `done` if already there)
-- **Minimum to create:** תאריך + סוג אירוע + כביש. Autosave does not create a row until those three are set; explicit save / assign shows field errors if missing. Other fields may stay empty.
+- **Minimum to finish:** תאריך + סוג אירוע + כביש + אוק - מס (+ מיקום on the system שלוחה). `יצירת אירוע` / `שמירת אירוע` shows those field errors. מספר אירוע may stay empty.
+- **Early crew:** assigning a מתנדב, and phone `שמירה כטיוטה` on a new event, persist with only תאריך. מספר אירוע, או״ק, and כביש may still be empty. Assigned volunteers stay held until מספר אירוע is filled. A field blur does not create a row until the finish minimum is set; once that early draft exists, later edits keep saving without those three fields.
 - **Back with no input:** if the lead opens `אירוע חדש` and leaves (חזרה or another nav item) without typing or changing any field, the empty row is deleted. A date-only cockpit insert is treated the same. Changing the date, a lookup, location, notes, a pin, assigning a כונן, picking another main אחמ״ש, or adding a secondary keeps the event.
 
 ## Footer actions (sticky on mobile, above tab bar)
 
-- Primary only: `שמירת אירוע` — flushes latest state, toast `האירוע נשמר`, navigate to event detail.
-- No secondary “open” action.
+- Primary: `שמירת אירוע` (phone create: `יצירת אירוע`) — finish minimum, toast `האירוע נשמר`, navigate to event detail.
+- Phone create secondary: `שמירה כטיוטה` — date only, stays on the form, includes any מתנדבים already added.
+- Desktop secondary: `שמירת אירוע ויצירת חדש` — finish minimum, then opens a new form.
+- No separate “open” action.
 
 ## States & feedback
 

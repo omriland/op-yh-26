@@ -97,6 +97,20 @@ describe('event form standalone layout', () => {
     expect(eventFormSource).toContain('שמירה כטיוטה')
   })
 
+  it('assigns a responder before מספר אירוע, או״ק, and כביש', () => {
+    const assign = eventFormSource.slice(
+      eventFormSource.indexOf('function assignResponder'),
+      eventFormSource.indexOf('function requestRemove'),
+    )
+    const draftSave = eventFormSource.slice(
+      eventFormSource.indexOf('async function persistDraftStay'),
+      eventFormSource.indexOf('async function persistAndCreateNew'),
+    )
+    expect(assign).not.toContain('!hasEventMinimum')
+    expect(assign).toContain('allowPartial: true')
+    expect(draftSave).toContain('allowPartial: true')
+  })
+
   it('orders identity rows: type+id, callsign, date, times, district+place+road', () => {
     const typeRow = eventFormSource.indexOf('event-form__f-type-id')
     const typeField = eventFormSource.indexOf('label="סוג אירוע"')

@@ -5,6 +5,7 @@ import {
   policeEventIdSaveAction,
   canPersistEventDraft,
   cockpitIdentityDraftWarning,
+  eventSaveAllowsPartial,
   eventCreateBlockedMessage,
   eventMinimumHint,
   blockingMinimumFieldNames,
@@ -53,6 +54,71 @@ describe('canPersistEventDraft', () => {
     expect(
       canPersistEventDraft(draft({ event_date: '' }), districts, { allowPartial: true }),
     ).toEqual({ event_date: 'יש לבחור תאריך.' })
+  })
+})
+
+describe('eventSaveAllowsPartial', () => {
+  const early = draft({
+    police_event_id: '',
+    patrol_callsign_number: '',
+    road_id: '',
+    event_type_id: '',
+  })
+
+  it('saves a כונן before מספר אירוע, או״ק, and כביש when the lead asks for a draft', () => {
+    expect(
+      eventSaveAllowsPartial({ requested: true, variant: 'page', draft: early, districts }),
+    ).toBe(true)
+    expect(canPersistEventDraft(early, districts, { allowPartial: true })).toEqual({})
+    expect(canPersistEventDraft(early, districts)).toMatchObject({
+      road_id: 'יש לבחור כביש.',
+      patrol_callsign_number: 'יש למלא אוק - מס.',
+      event_type_id: 'יש לבחור סוג אירוע.',
+    })
+  })
+
+  it('does not create a full-form row from a field blur before the finish minimum', () => {
+    expect(eventSaveAllowsPartial({ variant: 'page', draft: early, districts })).toBe(false)
+  })
+
+  it('keeps saving an early draft that already has an id', () => {
+    expect(
+      eventSaveAllowsPartial({
+        variant: 'page',
+        draft: { ...early, id: 'evt-1' },
+        districts,
+      }),
+    ).toBe(true)
+  })
+
+  it('finishes a complete event on the full form', () => {
+    const ready = draft({
+      id: 'evt-1',
+      event_type_id: 't1',
+      road_id: 'r1',
+      patrol_callsign_number: '411',
+    })
+    expect(eventSaveAllowsPartial({ variant: 'page', draft: ready, districts })).toBe(false)
+    expect(
+      eventSaveAllowsPartial({
+        requested: false,
+        variant: 'page',
+        draft: { ...early, id: 'evt-1' },
+        districts,
+      }),
+    ).toBe(false)
+  })
+
+  it('keeps cockpit autosave partial unless a finish save opts out', () => {
+    expect(eventSaveAllowsPartial({ variant: 'cockpit', draft: early, districts })).toBe(true)
+    expect(
+      eventSaveAllowsPartial({
+        requested: false,
+        variant: 'cockpit',
+        draft: early,
+        districts,
+      }),
+    ).toBe(false)
   })
 })
 

@@ -18,8 +18,8 @@ import {
   fetchAssignableUsers,
   fetchShiftLeadUsers,
   fetchEventForEdit,
+  eventSaveAllowsPartial,
   fetchEventLookups,
-  hasEventMinimum,
   validateEventMinimum,
   isOtherEventTypeId,
   EVENT_TYPE_DETAIL_MAX_LENGTH,
@@ -161,6 +161,8 @@ type PersistOptions = {
   revealErrors?: boolean
   overnightOk?: boolean
   futureDateOk?: boolean
+  /** Date-only save: מספר אירוע, או״ק, and כביש may still be empty. */
+  allowPartial?: boolean
 }
 
 export function EventFormPage({
@@ -533,7 +535,13 @@ export function EventFormPage({
         return true
       }
 
-      const allowPartial = variant === 'cockpit'
+      const allowPartial = eventSaveAllowsPartial({
+        requested: options?.allowPartial,
+        variant,
+        draft: current,
+        districts: currentLookups.districts,
+        roads: currentLookups.roads,
+      })
       const rules = evaluateEventFormSaveRules({
         draft: current,
         districts: currentLookups.districts,
@@ -550,7 +558,7 @@ export function EventFormPage({
       })
       if (rules.blocks.length > 0) {
         const persistErrors = mergeFieldErrors(rules.blocks)
-        // Don't create a row until date + type + road are set; stay quiet on background autosave.
+        // A field blur does not create a row until the finish minimum is set.
         if (!current.id && !options?.navigate && !options?.createNew && !options?.revealErrors) {
           setSavePulse('idle')
           return false
@@ -579,7 +587,7 @@ export function EventFormPage({
             policeEventId: current.police_event_id,
           })
           const action = policeEventIdSaveAction({
-            variant: allowPartial ? 'cockpit' : 'full',
+            variant: variant === 'cockpit' ? 'cockpit' : 'full',
             eventDate: current.event_date,
             policeEventId: current.police_event_id,
             currentEventId: current.id,
@@ -854,10 +862,6 @@ export function EventFormPage({
   function assignResponder(person: AssignableUser) {
     if (!lookups || !draft) return
     if (isSelfAssignDisabledInPicker(blockSelfAssign, user?.id, person.id)) return
-    if (variant !== 'cockpit' && !hasEventMinimum(draft, lookups.districts, lookups.roads)) {
-      void persistLatest({ revealErrors: true })
-      return
-    }
     const treated = lookups.vehicleKinds.map((kind) => ({
       vehicle_kind_id: kind.id,
       quantity: 0,
@@ -888,7 +892,7 @@ export function EventFormPage({
     setPickerQuery('')
     setPickerOpen(false)
     if (phoneLayout) setSheetResponderKey(next.responders[next.responders.length - 1]?.key ?? null)
-    void persistLatest({ revealErrors: true }).then((ok) => {
+    void persistLatest({ revealErrors: true, allowPartial: true }).then((ok) => {
       if (!ok) return
       if (
         !eventReleasedToResponders({
@@ -930,7 +934,7 @@ export function EventFormPage({
     if (!draft || !user || !lookups) return
     setSaving(true)
     setErrors({})
-    await persistLatest({ navigate: true, revealErrors: true })
+    await persistLatest({ navigate: true, revealErrors: true, allowPartial: false })
     setSaving(false)
   }
 
@@ -938,7 +942,7 @@ export function EventFormPage({
     if (!draft || !user || !lookups) return
     setSaving(true)
     setErrors({})
-    await persistLatest({ revealErrors: true })
+    await persistLatest({ revealErrors: true, allowPartial: true })
     setSaving(false)
   }
 
@@ -946,7 +950,7 @@ export function EventFormPage({
     if (!draft || !user || !lookups) return
     setSaving(true)
     setErrors({})
-    await persistLatest({ createNew: true, revealErrors: true })
+    await persistLatest({ createNew: true, revealErrors: true, allowPartial: false })
     setSaving(false)
   }
 
