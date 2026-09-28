@@ -32,7 +32,6 @@ import { deriveStoredEventStatus } from './eventStatus'
 import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocked } from './assignedVolunteerEventEdit'
 import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from './eventEditLock'
 import {
-  PATROL_CALLSIGN_NUMBER_ERROR,
   PATROL_CALLSIGN_NUMBER_LABEL,
   formatPatrolCallsign,
   patrolCallsignNumberForInput,
