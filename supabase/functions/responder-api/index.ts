@@ -107,11 +107,36 @@ function isOpenStandalone(row: {
   isCancelled: boolean;
   participationStatus: string;
   policeEventId?: string | null;
+  patrolCallsignNumber?: string | null;
+  patrolCallsign?: string | null;
+  hasRoad?: boolean;
 }): boolean {
   if (row.origin !== "manual") return false;
   if (row.isCancelled) return false;
-  if (!String(row.policeEventId ?? "").trim()) return false;
+  if (!manualEventReleased(row)) return false;
   return row.participationStatus === "pending" || row.participationStatus === "in_progress";
+}
+
+function manualEventReleased(row: {
+  origin?: string | null;
+  policeEventId?: string | null;
+  police_event_id?: string | null;
+  patrolCallsignNumber?: string | null;
+  patrol_callsign_number?: string | null;
+  patrolCallsign?: string | null;
+  patrol_callsign?: string | null;
+  hasRoad?: boolean;
+  road?: unknown;
+}): boolean {
+  if (row.origin === "shift") return true;
+  const policeId = String(row.policeEventId ?? row.police_event_id ?? "").trim();
+  if (!policeId) return false;
+  const road = row.road;
+  const hasRoad = row.hasRoad ?? (Array.isArray(road) ? road.length > 0 : Boolean(road));
+  if (!hasRoad) return false;
+  const number = String(row.patrolCallsignNumber ?? row.patrol_callsign_number ?? "").replace(/\D/g, "");
+  if (number) return true;
+  return /\d/.test(String(row.patrolCallsign ?? row.patrol_callsign ?? ""));
 }
 
 type Draft = {
@@ -194,6 +219,8 @@ type Assignment = {
     is_cancelled: boolean;
     event_date: string;
     police_event_id: string | null;
+    patrol_callsign: string | null;
+    patrol_callsign_number: string | null;
     location: string | null;
     event_type: { name: string } | null;
     road: { name: string } | null;
@@ -213,7 +240,8 @@ async function loadAssignment(
       id, event_id, responder_id, status, vehicle_plate, odometer_start, odometer_end,
       route, treatment_detail, treatment_notes, total_km, ended_at,
       event:events!inner(
-        id, origin, status, is_cancelled, event_date, police_event_id, location,
+        id, origin, status, is_cancelled, event_date, police_event_id,
+        patrol_callsign, patrol_callsign_number, location,
         event_type:event_types(name),
         road:roads(name),
         shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign)
@@ -227,6 +255,17 @@ async function loadAssignment(
   const eventRaw = data.event as Assignment["event"] | Assignment["event"][] | null;
   const event = Array.isArray(eventRaw) ? eventRaw[0] : eventRaw;
   if (!event) return null;
+  if (
+    !manualEventReleased({
+      origin: event.origin,
+      police_event_id: event.police_event_id,
+      patrol_callsign: event.patrol_callsign,
+      patrol_callsign_number: event.patrol_callsign_number,
+      road: event.road,
+    })
+  ) {
+    return null;
+  }
   return { ...(data as Omit<Assignment, "event">), event };
 }
 
@@ -410,7 +449,8 @@ async function handleListOpen(admin: SupabaseClient, userId: string): Promise<Re
       `
       id, status, ended_at,
       event:events!inner(
-        id, origin, is_cancelled, event_date, police_event_id, location, status,
+        id, origin, is_cancelled, event_date, police_event_id,
+        patrol_callsign, patrol_callsign_number, location, status,
         event_type:event_types(name),
         road:roads(name),
         shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign)
@@ -430,6 +470,8 @@ async function handleListOpen(admin: SupabaseClient, userId: string): Promise<Re
           is_cancelled: boolean;
           event_date: string;
           police_event_id: string | null;
+          patrol_callsign: string | null;
+          patrol_callsign_number: string | null;
           location: string | null;
           status: string;
           event_type: { name: string } | null;
@@ -442,6 +484,8 @@ async function handleListOpen(admin: SupabaseClient, userId: string): Promise<Re
           is_cancelled: boolean;
           event_date: string;
           police_event_id: string | null;
+          patrol_callsign: string | null;
+          patrol_callsign_number: string | null;
           location: string | null;
           status: string;
           event_type: { name: string } | null;
@@ -457,6 +501,9 @@ async function handleListOpen(admin: SupabaseClient, userId: string): Promise<Re
         isCancelled: Boolean(event.is_cancelled),
         participationStatus: String(row.status),
         policeEventId: event.police_event_id,
+        patrolCallsign: event.patrol_callsign,
+        patrolCallsignNumber: event.patrol_callsign_number,
+        hasRoad: Boolean(event.road),
       })
     ) {
       return [];

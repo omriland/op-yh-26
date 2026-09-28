@@ -40,7 +40,7 @@ import {
   partialStampHoverText,
   RESPONDERS_HELD_FOR_POLICE_ID_NOTE,
 } from '../lib/eventIncomplete'
-import { eventReleasedToResponders } from '../lib/eventResponderRelease'
+import { eventReleasedFromEvent } from '../lib/eventResponderRelease'
 import { shiftBornFillStamp } from '../lib/shiftBornEvents'
 import { StampChip } from '../components/ui/StampChip'
 import { StampWithNote } from '../components/ui/StampWithNote'
@@ -526,19 +526,15 @@ export function EventDetailPage({
             </p>
           </div>
 
+          {eventLead && !eventReleasedFromEvent(event) ? (
+            <p className="t-caption text-muted" role="note">
+              {RESPONDERS_HELD_FOR_POLICE_ID_NOTE}
+            </p>
+          ) : null}
           {event.responders.length === 0 ? (
             <p className="card t-body text-secondary">לא שובצו מתנדבים לאירוע זה.</p>
           ) : (
             <div className="stack-4">
-              {eventLead &&
-              !eventReleasedToResponders({
-                origin: event.origin,
-                policeEventId: event.police_event_id,
-              }) ? (
-                <p className="t-caption text-muted" role="note">
-                  {RESPONDERS_HELD_FOR_POLICE_ID_NOTE}
-                </p>
-              ) : null}
               {event.responders.map((responder) => {
                 const isViewer = responder.responder_id === user?.id
                 return (
@@ -554,10 +550,7 @@ export function EventDetailPage({
                       isViewer &&
                       responder.status !== 'done' &&
                       onFillOwn &&
-                      eventReleasedToResponders({
-                        origin: event.origin,
-                        policeEventId: event.police_event_id,
-                      })
+                      eventReleasedFromEvent(event)
                         ? onFillOwn
                         : undefined
                     }

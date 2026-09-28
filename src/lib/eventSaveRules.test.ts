@@ -10,7 +10,6 @@ import {
 } from './eventSaveRules'
 import { VEHICLE_PHOTOS_TITLE } from './eventVehiclePhotos'
 import { EVENT_EDIT_LOCKED_TOOLTIP } from './eventEditLock'
-import { PATROL_CALLSIGN_NUMBER_ERROR } from './patrolCallsign'
 
 const districts = [{ id: 'd1', name: 'צפון' }]
 const roads = [{ id: 'r1', name: '20' }]
@@ -27,9 +26,14 @@ function fullDraft() {
 }
 
 describe('evaluateEventFormSaveRules', () => {
-  it('blocks a full save missing אוק - מס', () => {
+  it('allows a full save without או״ק, כביש, or מספר אירוע', () => {
     const result = evaluateEventFormSaveRules({
-      draft: { ...fullDraft(), patrol_callsign_number: '' },
+      draft: {
+        ...fullDraft(),
+        patrol_callsign_number: '',
+        road_id: '',
+        police_event_id: '',
+      },
       districts,
       roads,
       canClearCancelled: true,
@@ -37,13 +41,7 @@ describe('evaluateEventFormSaveRules', () => {
       treatedTotal: 0,
       lastSavedDate: fullDraft().event_date,
     })
-    expect(mergeFieldErrors(result.blocks).patrol_callsign_number).toBe(
-      PATROL_CALLSIGN_NUMBER_ERROR,
-    )
-    expect(mergeFieldErrors(result.blocks).patrol_callsign_number).toBe(
-      PATROL_CALLSIGN_NUMBER_ERROR,
-    )
-    expect(result.notifies).toEqual([])
+    expect(result.blocks).toEqual([])
   })
 
   it('allows a cockpit partial without אוק - מס', () => {

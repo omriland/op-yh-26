@@ -12,7 +12,6 @@ import {
 } from './eventForm'
 import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR } from './assignedVolunteerEventEdit'
 import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from './eventEditLock'
-import { PATROL_CALLSIGN_NUMBER_ERROR } from './patrolCallsign'
 import {
   validateResponderFillDraft,
   type ResponderFillDraft,
@@ -104,21 +103,6 @@ export function evaluateEventFormSaveRules(input: {
       message: eventCreateBlockedMessage(persistErrors),
       fieldErrors: persistErrors,
     })
-  }
-
-  if (!input.allowPartial && !input.draft.patrol_callsign_number.trim()) {
-    const already = persistErrors.patrol_callsign_number
-    if (!already) {
-      const fieldErrors = { patrol_callsign_number: PATROL_CALLSIGN_NUMBER_ERROR }
-      blocks.push({
-        id: 'callsign_number',
-        severity: 'block',
-        title: PATROL_CALLSIGN_NUMBER_ERROR,
-        message: PATROL_CALLSIGN_NUMBER_ERROR,
-        field: 'patrol_callsign_number',
-        fieldErrors,
-      })
-    }
   }
 
   const cancelled = validateCancelledSave({

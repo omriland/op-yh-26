@@ -158,10 +158,25 @@ export function isOpenStandaloneParticipation(row: {
   isCancelled: boolean
   participationStatus: string
   policeEventId?: string | null
+  patrolCallsignNumber?: string | null
+  patrolCallsignPrefix?: string | null
+  patrolCallsign?: string | null
+  roadId?: string | null
+  hasRoad?: boolean
 }): boolean {
   if (row.origin !== 'manual') return false
   if (row.isCancelled) return false
-  if (!eventReleasedToResponders({ origin: row.origin, policeEventId: row.policeEventId })) {
+  if (
+    !eventReleasedToResponders({
+      origin: row.origin,
+      policeEventId: row.policeEventId,
+      patrolCallsignNumber: row.patrolCallsignNumber,
+      patrolCallsignPrefix: row.patrolCallsignPrefix,
+      patrolCallsign: row.patrolCallsign,
+      roadId: row.roadId,
+      hasRoad: row.hasRoad,
+    })
+  ) {
     return false
   }
   return row.participationStatus === 'pending' || row.participationStatus === 'in_progress'

@@ -211,7 +211,7 @@ describe('incompleteNoticeLabel', () => {
 })
 
 describe('incomplete lead notice when responders are held', () => {
-  it('adds לא נשלח למתנדבים once a volunteer is assigned without מספר אירוע', () => {
+  it('adds לא נשלח למתנדבים once a volunteer is assigned before the event is released', () => {
     expect(incompleteLeadNoticeLabels(event({ police_event_id: null }), 'lead')).toEqual([
       'מספר אירוע',
       'לא נשלח למתנדבים',
@@ -219,7 +219,20 @@ describe('incomplete lead notice when responders are held', () => {
     expect(incompleteLeadNoticeLabels(event({ police_event_id: null, responders: [] }), 'lead')).toEqual(
       ['מספר אירוע'],
     )
+    expect(incompleteLeadNoticeLabels(event({ road: null }), 'lead')).toEqual([
+      'כביש',
+      'לא נשלח למתנדבים',
+    ])
+    expect(
+      incompleteLeadNoticeLabels(
+        event({ patrol_callsign: null, patrol_callsign_number: null, patrol_callsign_prefix: null }),
+        'lead',
+      ),
+    ).toEqual(['אוק - מס', 'לא נשלח למתנדבים'])
     expect(incompleteLeadNoticeLabels(event(), 'lead')).toEqual([])
+    expect(
+      incompleteLeadNoticeLabels(event({ origin: 'shift', police_event_id: null }), 'lead'),
+    ).toEqual(['מספר אירוע'])
   })
 })
 

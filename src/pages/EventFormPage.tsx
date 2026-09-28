@@ -951,6 +951,10 @@ export function EventFormPage({
         !eventReleasedToResponders({
           origin: 'manual',
           policeEventId: next.police_event_id,
+          patrolCallsignNumber: next.patrol_callsign_number,
+          patrolCallsignPrefix: next.patrol_callsign_prefix,
+          patrolCallsign: next.patrol_callsign,
+          roadId: next.road_id,
         })
       ) {
         show(RESPONDER_ADDED_HELD_TOAST, 'done')
@@ -1747,10 +1751,13 @@ export function EventFormPage({
                     {pickerOpen ? 'סגירת הקצאה' : 'מתנדבים'}
                   </Button>
                 </div>
-                {draft.responders.length > 0 &&
-                !eventReleasedToResponders({
+                {!eventReleasedToResponders({
                   origin: 'manual',
                   policeEventId: draft.police_event_id,
+                  patrolCallsignNumber: draft.patrol_callsign_number,
+                  patrolCallsignPrefix: draft.patrol_callsign_prefix,
+                  patrolCallsign: draft.patrol_callsign,
+                  roadId: draft.road_id,
                 }) ? (
                   <p className="t-caption text-muted" role="note">
                     {RESPONDERS_HELD_FOR_POLICE_ID_NOTE}

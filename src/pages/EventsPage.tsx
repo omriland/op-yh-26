@@ -87,7 +87,7 @@ import {
   partitionIncompleteEventsForViewer,
   partialStampHoverText,
 } from '../lib/eventIncomplete'
-import { eventReleasedToResponders } from '../lib/eventResponderRelease'
+import { eventReleasedFromEvent } from '../lib/eventResponderRelease'
 import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
 import {
   canSeeMissingKmAlert,
@@ -321,7 +321,7 @@ export function EventsPage({
   )
 
   function mineEventIsOpen(event: EventListItem): boolean {
-    if (!eventReleasedToResponders({ origin: event.origin, policeEventId: event.police_event_id })) {
+    if (!eventReleasedFromEvent(event)) {
       return false
     }
     if (event.origin === 'shift') return mineShiftBornIsOpen(event)
@@ -373,12 +373,7 @@ export function EventsPage({
     return partitionMineList(events, {
       dateOf: (event) => event.event_date,
       bucket: (event) => {
-        if (
-          !eventReleasedToResponders({
-            origin: event.origin,
-            policeEventId: event.police_event_id,
-          })
-        ) {
+        if (!eventReleasedFromEvent(event)) {
           return 'hidden'
         }
         return mineEventIsOpen(event) ? 'pending' : 'logged'

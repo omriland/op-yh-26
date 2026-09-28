@@ -5,20 +5,25 @@ import {
   navAttentionAriaSuffix,
 } from './navAttention'
 
+const openManual = {
+  origin: 'manual' as const,
+  policeEventId: '12345',
+  patrolCallsignNumber: '411',
+  roadId: 'road-1',
+}
+
 describe('hasOpenMineEvents', () => {
   it('is true when any own participation is not done', () => {
     expect(
       hasOpenMineEvents([
-        { status: 'done', origin: 'manual', policeEventId: '1' },
-        { status: 'pending', origin: 'manual', policeEventId: '2' },
+        { status: 'done', ...openManual, policeEventId: '1' },
+        { status: 'pending', ...openManual, policeEventId: '2' },
       ]),
     ).toBe(true)
   })
 
   it('is true for in_progress', () => {
-    expect(
-      hasOpenMineEvents([{ status: 'in_progress', origin: 'manual', policeEventId: '12345' }]),
-    ).toBe(true)
+    expect(hasOpenMineEvents([{ status: 'in_progress', ...openManual }])).toBe(true)
   })
 
   it('is false when every participation is done', () => {
@@ -29,15 +34,25 @@ describe('hasOpenMineEvents', () => {
     expect(hasOpenMineEvents([])).toBe(false)
   })
 
-  it('ignores a manual assignment that is still waiting for מספר אירוע', () => {
+  it('ignores a manual assignment until או״ק, כביש, and מספר אירוע are filled', () => {
     expect(
       hasOpenMineEvents([
-        { status: 'pending', origin: 'manual', policeEventId: null },
+        { status: 'pending', origin: 'manual', policeEventId: null, patrolCallsignNumber: '411', roadId: 'r' },
       ]),
     ).toBe(false)
     expect(
       hasOpenMineEvents([
-        { status: 'pending', origin: 'manual', policeEventId: '12345' },
+        { status: 'pending', ...openManual, patrolCallsignNumber: '' },
+      ]),
+    ).toBe(false)
+    expect(
+      hasOpenMineEvents([
+        { status: 'pending', ...openManual, roadId: '' },
+      ]),
+    ).toBe(false)
+    expect(
+      hasOpenMineEvents([
+        { status: 'pending', ...openManual },
       ]),
     ).toBe(true)
     expect(

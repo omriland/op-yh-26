@@ -14,6 +14,10 @@ type ParticipationRow = {
   status: ParticipationStatus
   origin?: string | null
   policeEventId?: string | null
+  patrolCallsignNumber?: string | null
+  patrolCallsignPrefix?: string | null
+  patrolCallsign?: string | null
+  roadId?: string | null
 }
 
 type ShiftAttentionRow = {
@@ -28,7 +32,14 @@ export function hasOpenMineEvents(participations: ParticipationRow[]): boolean {
   return participations.some(
     (row) =>
       row.status !== 'done' &&
-      eventReleasedToResponders({ origin: row.origin, policeEventId: row.policeEventId }),
+      eventReleasedToResponders({
+        origin: row.origin,
+        policeEventId: row.policeEventId,
+        patrolCallsignNumber: row.patrolCallsignNumber,
+        patrolCallsignPrefix: row.patrolCallsignPrefix,
+        patrolCallsign: row.patrolCallsign,
+        roadId: row.roadId,
+      }),
   )
 }
 
@@ -53,7 +64,9 @@ export async function fetchNavAttention(
   const [eventsResult, shiftsResult, openFeedback] = await Promise.all([
     supabase
       .from('event_responders')
-      .select('status, event:events!inner(police_event_id, origin)')
+      .select(
+        'status, event:events!inner(police_event_id, origin, patrol_callsign, patrol_callsign_prefix, patrol_callsign_number, road_id)',
+      )
       .eq('responder_id', userId),
     supabase
       .from('shift_responders')
@@ -66,12 +79,32 @@ export async function fetchNavAttention(
   if (shiftsResult.error) throw new Error(shiftsResult.error.message)
 
   const participations = (eventsResult.data ?? []).map((row) => {
-    const eventRaw = (row as { event?: { police_event_id?: string | null; origin?: string | null } | { police_event_id?: string | null; origin?: string | null }[] }).event
+    const eventRaw = (row as {
+      event?: {
+        police_event_id?: string | null
+        origin?: string | null
+        patrol_callsign?: string | null
+        patrol_callsign_prefix?: string | null
+        patrol_callsign_number?: string | null
+        road_id?: string | null
+      } | {
+        police_event_id?: string | null
+        origin?: string | null
+        patrol_callsign?: string | null
+        patrol_callsign_prefix?: string | null
+        patrol_callsign_number?: string | null
+        road_id?: string | null
+      }[]
+    }).event
     const event = Array.isArray(eventRaw) ? eventRaw[0] : eventRaw
     return {
       status: (row as ParticipationRow).status,
       origin: event?.origin ?? null,
       policeEventId: event?.police_event_id ?? null,
+      patrolCallsign: event?.patrol_callsign ?? null,
+      patrolCallsignPrefix: event?.patrol_callsign_prefix ?? null,
+      patrolCallsignNumber: event?.patrol_callsign_number ?? null,
+      roadId: event?.road_id ?? null,
     }
   })
   const shifts = (shiftsResult.data ?? [])

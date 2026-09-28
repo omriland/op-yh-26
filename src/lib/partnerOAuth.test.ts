@@ -178,19 +178,24 @@ describe('token shapes and grant expiry', () => {
 })
 
 describe('isOpenStandaloneParticipation', () => {
+  const ready = {
+    origin: 'manual' as const,
+    isCancelled: false,
+    patrolCallsignNumber: '411',
+    hasRoad: true,
+  }
+
   it('keeps open manual events and drops shift-born, cancelled, and done', () => {
     expect(
       isOpenStandaloneParticipation({
-        origin: 'manual',
-        isCancelled: false,
+        ...ready,
         participationStatus: 'pending',
         policeEventId: '12345',
       }),
     ).toBe(true)
     expect(
       isOpenStandaloneParticipation({
-        origin: 'manual',
-        isCancelled: false,
+        ...ready,
         participationStatus: 'in_progress',
         policeEventId: '12345',
       }),
@@ -204,7 +209,7 @@ describe('isOpenStandaloneParticipation', () => {
     ).toBe(false)
     expect(
       isOpenStandaloneParticipation({
-        origin: 'manual',
+        ...ready,
         isCancelled: true,
         participationStatus: 'pending',
         policeEventId: '12345',
@@ -212,29 +217,42 @@ describe('isOpenStandaloneParticipation', () => {
     ).toBe(false)
     expect(
       isOpenStandaloneParticipation({
-        origin: 'manual',
-        isCancelled: false,
+        ...ready,
         participationStatus: 'done',
         policeEventId: '12345',
       }),
     ).toBe(false)
   })
 
-  it('does not send a manual event to the responder until מספר אירוע is entered', () => {
+  it('does not send a manual event until או״ק, כביש, and מספר אירוע are entered', () => {
     expect(
       isOpenStandaloneParticipation({
-        origin: 'manual',
-        isCancelled: false,
+        ...ready,
         participationStatus: 'pending',
         policeEventId: null,
       }),
     ).toBe(false)
     expect(
       isOpenStandaloneParticipation({
-        origin: 'manual',
-        isCancelled: false,
+        ...ready,
         participationStatus: 'pending',
         policeEventId: '  ',
+      }),
+    ).toBe(false)
+    expect(
+      isOpenStandaloneParticipation({
+        ...ready,
+        participationStatus: 'pending',
+        policeEventId: '12345',
+        patrolCallsignNumber: '',
+      }),
+    ).toBe(false)
+    expect(
+      isOpenStandaloneParticipation({
+        ...ready,
+        participationStatus: 'pending',
+        policeEventId: '12345',
+        hasRoad: false,
       }),
     ).toBe(false)
   })

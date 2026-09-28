@@ -1213,7 +1213,8 @@ export async function cockpitPoliceEventIdCollides(
   return sameDayPoliceEventIdCollides({ ...input, existing })
 }
 
-/** Minimum to create/keep an event: date + event type + road (+ location for Places). */
+/** Minimum to create/keep an event: date + event type (+ location for Places).
+ *  או״ק, כביש, and מספר אירוע may be empty; the event stays hidden from responders until they are filled. */
 export function validateEventMinimum(
   draft: EventFormDraft,
   districts: LookupOption[] = [],
@@ -1222,10 +1223,6 @@ export function validateEventMinimum(
   const errors: EventFormErrors = {}
   if (!draft.event_date) errors.event_date = 'יש לבחור תאריך.'
   if (!draft.event_type_id) errors.event_type_id = 'יש לבחור סוג אירוע.'
-  if (!draft.road_id) errors.road_id = 'יש לבחור כביש.'
-  if (!draft.patrol_callsign_number.trim()) {
-    errors.patrol_callsign_number = PATROL_CALLSIGN_NUMBER_ERROR
-  }
   if (
     needsPlacesLocation(districts, draft.district_id, roads, draft.road_id) &&
     !draft.location.trim()
@@ -1265,7 +1262,8 @@ export function eventForeignIds(
   const allowPartial = Boolean(options?.allowPartial)
   return {
     event_type_id: draft.event_type_id || (allowPartial ? null : draft.event_type_id),
-    road_id: draft.road_id || (allowPartial ? null : draft.road_id),
+    // Blank כביש must be null. An empty string is not a uuid and the insert 400s.
+    road_id: draft.road_id.trim() || null,
     district_id: draft.district_id || null,
   }
 }

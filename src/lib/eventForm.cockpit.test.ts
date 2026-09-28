@@ -43,8 +43,6 @@ describe('canPersistEventDraft', () => {
     const empty = draft()
     expect(canPersistEventDraft(empty, districts)).toMatchObject({
       event_type_id: 'יש לבחור סוג אירוע.',
-      road_id: 'יש לבחור כביש.',
-      patrol_callsign_number: 'יש למלא אוק - מס.',
     })
     expect(canPersistEventDraft(empty, districts, { allowPartial: true })).toEqual({})
   })
@@ -60,6 +58,14 @@ describe('eventForeignIds', () => {
   it('sends null type/road for a partial cockpit draft', () => {
     expect(eventForeignIds(draft(), { allowPartial: true })).toEqual({
       event_type_id: null,
+      road_id: null,
+      district_id: null,
+    })
+  })
+
+  it('sends null road on a full save when כביש is empty', () => {
+    expect(eventForeignIds(draft({ event_type_id: 't1', road_id: '' }))).toEqual({
+      event_type_id: 't1',
       road_id: null,
       district_id: null,
     })
@@ -301,13 +307,7 @@ describe('eventMinimumHint', () => {
       [],
     )
     const keys = Object.keys(blocked)
-    expect(keys.sort()).toEqual([
-      'event_date',
-      'event_type_id',
-      'location',
-      'patrol_callsign_number',
-      'road_id',
-    ])
+    expect(keys.sort()).toEqual(['event_date', 'event_type_id', 'location'])
     expect(blockingMinimumFieldNames(blocked)).toHaveLength(keys.length)
   })
 })
