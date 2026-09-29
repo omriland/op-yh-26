@@ -377,7 +377,6 @@ export function EventDetailPage({
             <span title={ageLocked && !assignedEditBlocked ? EVENT_EDIT_LOCKED_TOOLTIP : undefined}>
               <Button
                 variant="secondary"
-                disabled={ageLocked && !assignedEditBlocked}
                 title={ageLocked && !assignedEditBlocked ? EVENT_EDIT_LOCKED_TOOLTIP : undefined}
                 onClick={requestEventEdit}
               >

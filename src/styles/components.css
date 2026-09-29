@@ -5800,6 +5800,10 @@ html[data-keyboard-open] .event-form__footer {
   background: var(--surface-raised);
 }
 
+.event-form__panel--locked-km {
+  padding-block-end: var(--space-5);
+}
+
 /* Create/edit event (not shift, fill, or cockpit): 30% past --form-max,
    centered in .shell__main — the pane after the sidebar, not the viewport. */
 .shell__main > .event-form--standalone {

@@ -3,7 +3,11 @@ import {
   EVENT_DONE_NEEDS_KM_ERROR,
   eventDoneGateError,
 } from './eventStatus'
-import { fetchEventLookups, type LookupOption } from './eventForm'
+import {
+  fetchEventLookups,
+  POLICE_EVENT_ID_DUPLICATE_ERROR,
+  type LookupOption,
+} from './eventForm'
 import { fetchEventDetail, type EventDetail } from './events'
 import { policeEventIdForInput } from './format'
 import { responderKmApplicable, type KmBearingResponder } from './responderVehicle'
@@ -182,6 +186,7 @@ function mapFillError(message: string | undefined): string {
   if (message?.includes('אין הרשאה')) return 'אין הרשאה'
   if (message?.includes(EVENT_DONE_NEEDS_END_ERROR)) return EVENT_DONE_NEEDS_END_ERROR
   if (message?.includes(EVENT_DONE_NEEDS_KM_ERROR)) return EVENT_DONE_NEEDS_KM_ERROR
+  if (message?.includes(POLICE_EVENT_ID_DUPLICATE_ERROR)) return POLICE_EVENT_ID_DUPLICATE_ERROR
   return 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
 }
 

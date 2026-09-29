@@ -21,6 +21,7 @@ import {
   fetchShiftLeadUsers,
   fetchEventForEdit,
   fetchEventLookups,
+  saveLockedEventLeadKm,
   hasEventMinimum,
   validateEventMinimum,
   isOtherEventTypeId,
@@ -123,7 +124,12 @@ import {
 } from '../lib/assignedVolunteerEventEdit'
 import { AssignedVolunteerEditBlockedDialog } from '../components/events/AssignedVolunteerEditBlockedDialog'
 import { EventSaveRulesDialog } from '../components/events/EventSaveRulesDialog'
-import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from '../lib/eventEditLock'
+import {
+  EVENT_EDIT_LOCKED_TOOLTIP,
+  isEventEditAgeLocked,
+  lockedLeadKmFillable,
+  lockedLeadKmWrites,
+} from '../lib/eventEditLock'
 import {
   evaluateEventFormSaveRules,
   mergeFieldErrors,
@@ -325,9 +331,22 @@ export function EventFormPage({
         }
         const ageLocked = Boolean(
           existing &&
+            !blocked &&
             isEventEditAgeLocked({ createdAt: existing.created_at, roles }),
         )
-        if (ageLocked && variant !== 'cockpit') {
+        if (existing && ageLocked) {
+          setLookups(nextLookups)
+          setRoster(nextRoster)
+          setShiftLeadUsers(nextLeads)
+          draftRef.current = existing
+          initialDateRef.current = existing.event_date
+          overnightConfirmed.current.clear()
+          lastPersistedPoliceIdRef.current = existing.police_event_id
+          setDraft(existing)
+          setPreviousIsCancelled(existing.is_cancelled)
+          const snapshot = JSON.stringify(existing)
+          baselineRef.current = snapshot
+          setBaseline(snapshot)
           setLoadState('age_locked')
           return
         }
@@ -548,6 +567,60 @@ export function EventFormPage({
     }
   }
 
+  function presentLockedKmScreen(stored: EventFormDraft, dirty: EventFormDraft) {
+    const next: EventFormDraft = {
+      ...stored,
+      responders: stored.responders.map((row) => {
+        if (!lockedLeadKmFillable({ hasVehicle: row.hasVehicle, totalKm: row.total_km })) return row
+        const typed = dirty.responders.find(
+          (item) => item.assignmentId && item.assignmentId === row.assignmentId,
+        )
+        if (!typed) return row
+        return { ...row, total_km: typed.total_km }
+      }),
+    }
+    draftRef.current = next
+    setDraft(next)
+    const snapshot = JSON.stringify(stored)
+    baselineRef.current = snapshot
+    setBaseline(snapshot)
+    setErrors({})
+    setSavePulse('idle')
+    setLoadState('age_locked')
+  }
+
+  async function persistLockedKm() {
+    const current = draftRef.current
+    if (!current || !user) return
+    const stored = parseStoredDraft(baselineRef.current, current)
+    const writes = lockedLeadKmWrites({
+      stored: stored.responders.map(toLockedKmRow),
+      responders: current.responders.map(toLockedKmRow),
+    })
+    if (writes.length === 0) return
+    setSaving(true)
+    const result = await saveLockedEventLeadKm(writes, { cancelled: stored.is_cancelled })
+    setSaving(false)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    const written = new Map(writes.map((row) => [row.assignmentId, String(row.totalKm)]))
+    const applyWritten = (rows: EventFormDraft['responders']) =>
+      rows.map((row) => {
+        const nextKm = row.assignmentId ? written.get(row.assignmentId) : undefined
+        return nextKm == null ? row : { ...row, total_km: nextKm }
+      })
+    const nextStored: EventFormDraft = { ...stored, responders: applyWritten(stored.responders) }
+    const nextDraft: EventFormDraft = { ...current, responders: applyWritten(current.responders) }
+    const snapshot = JSON.stringify(nextStored)
+    baselineRef.current = snapshot
+    setBaseline(snapshot)
+    draftRef.current = nextDraft
+    setDraft(nextDraft)
+    show('האירוע נשמר', 'done')
+  }
+
   function persistLatest(options?: PersistOptions): Promise<boolean> {
     if (!user) return Promise.resolve(false)
 
@@ -558,6 +631,10 @@ export function EventFormPage({
       if (cockpitPreviewingRef.current) return false
       if (assignedVolunteerBlockedRef.current) {
         show(ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, 'alert')
+        return false
+      }
+      if (current.id && isEventEditAgeLocked({ createdAt: current.created_at, roles })) {
+        presentLockedKmScreen(parseStoredDraft(baselineRef.current, current), current)
         return false
       }
       if (
@@ -690,6 +767,10 @@ export function EventFormPage({
       })
 
       if (!result.ok) {
+        if (result.error === EVENT_EDIT_LOCKED_TOOLTIP && current.id) {
+          presentLockedKmScreen(parseStoredDraft(baselineRef.current, current), draftRef.current ?? current)
+          return false
+        }
         const recovered = attachEventIdAfterFailedSave(
           draftRef.current ?? current,
           result.eventId ?? draftToSave.id,
@@ -1219,16 +1300,38 @@ export function EventFormPage({
   }
 
   if (loadState === 'age_locked') {
+    const stored = draft ? parseStoredDraft(baseline, draft) : null
     return (
-      <EmptyState
-        icon={<UserRound size={40} strokeWidth={1.75} />}
-        title={EVENT_EDIT_LOCKED_TOOLTIP}
-        action={
-          <Button variant="secondary" onClick={() => onCancel()}>
-            חזרה
-          </Button>
-        }
-      />
+      <div
+        className={[
+          'event-form',
+          variant === 'page' ? 'event-form--standalone' : '',
+          phoneLayout ? 'event-form--phone' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <div className={variant === 'cockpit' ? 'event-form__lock stack-4' : 'event-form__frame stack-4'}>
+          <EmptyState
+            icon={<UserRound size={40} strokeWidth={1.75} />}
+            title={EVENT_EDIT_LOCKED_TOOLTIP}
+            action={
+              <Button variant="secondary" onClick={() => onCancel()}>
+                חזרה
+              </Button>
+            }
+          />
+          {draft && stored ? (
+            <LockedEventKmFields
+              draft={draft}
+              stored={stored}
+              saving={saving}
+              onChangeKm={(key, total_km) => updateResponder(key, { total_km })}
+              onSave={() => void persistLockedKm()}
+            />
+          ) : null}
+        </div>
+      </div>
     )
   }
 
@@ -2270,6 +2373,93 @@ function EventTimes({
           />
         </div>
       </div>
+    </div>
+  )
+}
+
+function parseStoredDraft(raw: string, fallback: EventFormDraft): EventFormDraft {
+  if (!raw) return fallback
+  try {
+    const parsed = JSON.parse(raw) as EventFormDraft
+    if (!parsed || !Array.isArray(parsed.responders)) return fallback
+    return parsed
+  } catch {
+    return fallback
+  }
+}
+
+function toLockedKmRow(row: ResponderDraft) {
+  return {
+    assignmentId: row.assignmentId,
+    hasVehicle: row.hasVehicle,
+    totalKm: row.total_km,
+  }
+}
+
+function LockedEventKmFields({
+  draft,
+  stored,
+  saving,
+  onChangeKm,
+  onSave,
+}: {
+  draft: EventFormDraft
+  stored: EventFormDraft
+  saving: boolean
+  onChangeKm: (key: string, totalKm: string) => void
+  onSave: () => void
+}) {
+  if (stored.responders.length === 0) return null
+  const anyFillable = stored.responders.some((row) =>
+    lockedLeadKmFillable({ hasVehicle: row.hasVehicle, totalKm: row.total_km }),
+  )
+  return (
+    <div className="event-form__panel event-form__panel--locked-km stack-4">
+      {stored.responders.map((storedRow) => {
+        const current =
+          draft.responders.find(
+            (row) => row.assignmentId && row.assignmentId === storedRow.assignmentId,
+          ) ?? storedRow
+        const fillable = lockedLeadKmFillable({
+          hasVehicle: storedRow.hasVehicle,
+          totalKm: storedRow.total_km,
+        })
+        const value = fillable
+          ? current.total_km
+          : storedRow.hasVehicle
+            ? storedRow.total_km
+            : NO_VEHICLE_KM_PLACEHOLDER
+        return (
+          <div key={storedRow.key} className="stack-3">
+            <p className="t-body-strong">
+              {storedRow.full_name}{' '}
+              <span className="t-caption text-muted">
+                או״ק <span className={monoClass(storedRow.callsign)}>{storedRow.callsign}</span>
+              </span>
+            </p>
+            <TextField
+              label="קילומטרים"
+              numeric={storedRow.hasVehicle}
+              inputMode={fillable ? 'numeric' : undefined}
+              pattern={fillable ? '[0-9]*' : undefined}
+              maxLength={fillable ? LEAD_KM_MAX_DIGITS : undefined}
+              hint={storedRow.hasVehicle ? over60kmHint(fillable ? current.total_km : storedRow.total_km) : undefined}
+              value={value}
+              disabled={!fillable}
+              readOnly={!fillable}
+              onChange={(event) => {
+                if (!fillable) return
+                onChangeKm(current.key, leadKmForInput(event.target.value))
+              }}
+            />
+          </div>
+        )
+      })}
+      {anyFillable ? (
+        <Button block loading={saving} loadingLabel="שומר…" onClick={onSave}>
+          שמירה
+        </Button>
+      ) : null}
     </div>
   )
 }

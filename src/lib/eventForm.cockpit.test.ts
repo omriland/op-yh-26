@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   COCKPIT_IDENTITY_DRAFT_WARNING,
@@ -7,6 +10,8 @@ import {
   cockpitIdentityDraftWarning,
   eventCreateBlockedMessage,
   eventMinimumHint,
+  eventPersistFailure,
+  isPoliceEventIdDuplicatePersistError,
   blockingMinimumFieldNames,
   validateEventMinimum,
   cockpitPoliceEventIdCollides,
@@ -590,5 +595,44 @@ describe('policeEventIdSaveAction', () => {
     expect(
       policeEventIdSaveAction({ ...base, variant: 'full', policeEventId: '  ' }),
     ).toEqual({ kind: 'proceed' })
+  })
+})
+
+describe('eventPersistFailure', () => {
+  it('maps a same-day unique reject to the Hebrew field error', () => {
+    expect(isPoliceEventIdDuplicatePersistError({ code: '23505' })).toBe(true)
+    expect(
+      isPoliceEventIdDuplicatePersistError({
+        message: POLICE_EVENT_ID_DUPLICATE_ERROR,
+      }),
+    ).toBe(true)
+    expect(isPoliceEventIdDuplicatePersistError({ code: '42501' })).toBe(false)
+    expect(eventPersistFailure({ code: '23505' })).toEqual({
+      error: POLICE_EVENT_ID_DUPLICATE_ERROR,
+      fieldErrors: { police_event_id: POLICE_EVENT_ID_DUPLICATE_ERROR },
+    })
+    expect(eventPersistFailure({ message: 'permission denied' }).error).toBe(
+      'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
+    )
+  })
+})
+
+describe('events same-day police_event_id trigger', () => {
+  it('rejects a new same-day number and leaves cancelled and blank free', () => {
+    const sql = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../supabase/migrations/20260929082322_events_same_day_police_event_id.sql',
+      ),
+      'utf8',
+    )
+    expect(sql).toContain('events_reject_same_day_police_event_id')
+    expect(sql).toContain(POLICE_EVENT_ID_DUPLICATE_ERROR)
+    expect(sql).toContain("errcode = '23505'")
+    expect(sql).toContain('if new.is_cancelled then')
+    expect(sql).toContain("nullif(btrim(coalesce(new.police_event_id, '')), '')")
+    expect(sql).toContain('pg_advisory_xact_lock')
+    expect(sql).toContain('old.event_date is not distinct from new.event_date')
+    expect(sql).not.toContain('create unique index')
   })
 })

@@ -98,6 +98,27 @@ describe('evaluateEventFormSaveRules', () => {
       true,
     )
   })
+
+  it('still lets admin and super_admin save after 7 days', () => {
+    const draft = {
+      ...fullDraft(),
+      id: 'evt-old',
+      created_at: '2026-01-01T00:00:00.000Z',
+    }
+    for (const roles of [['admin'], ['super_admin', 'shift_lead']] as const) {
+      const result = evaluateEventFormSaveRules({
+        draft,
+        districts,
+        roads,
+        roles,
+        canClearCancelled: true,
+        previousIsCancelled: false,
+        treatedTotal: 0,
+        lastSavedDate: fullDraft().event_date,
+      })
+      expect(result.blocks.some((issue) => issue.id === 'edit_age_lock')).toBe(false)
+    }
+  })
 })
 
 describe('evaluateResponderFillSaveRules', () => {

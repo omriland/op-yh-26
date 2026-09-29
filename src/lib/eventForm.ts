@@ -30,7 +30,11 @@ import {
 } from './eventShiftLeads'
 import { deriveStoredEventStatus } from './eventStatus'
 import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocked } from './assignedVolunteerEventEdit'
-import { EVENT_EDIT_LOCKED_TOOLTIP, isEventEditAgeLocked } from './eventEditLock'
+import {
+  EVENT_EDIT_LOCKED_TOOLTIP,
+  isEventEditAgeLocked,
+  type LockedLeadKmWrite,
+} from './eventEditLock'
 import {
   PATROL_CALLSIGN_NUMBER_LABEL,
   formatPatrolCallsign,
@@ -946,6 +950,32 @@ export const COCKPIT_IDENTITY_DRAFT_WARNING = 'האירוע בטיוטה'
 export const POLICE_EVENT_ID_DUPLICATE_ERROR =
   'כבר קיים אירוע עם המספר הזה באותו תאריך.'
 
+const EVENT_PERSIST_FAILED = 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
+
+export function isPoliceEventIdDuplicatePersistError(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false
+  const message = error.message ?? ''
+  if (message.includes(POLICE_EVENT_ID_DUPLICATE_ERROR)) return true
+  // The same-day trigger raises unique_violation (23505). events has no
+  // other unique constraint besides the primary key.
+  return error.code === '23505'
+}
+
+export function eventPersistFailure(error: {
+  code?: string
+  message?: string
+} | null | undefined): { error: string; fieldErrors?: EventFormErrors } {
+  if (isPoliceEventIdDuplicatePersistError(error)) {
+    return {
+      error: POLICE_EVENT_ID_DUPLICATE_ERROR,
+      fieldErrors: { police_event_id: POLICE_EVENT_ID_DUPLICATE_ERROR },
+    }
+  }
+  return { error: EVENT_PERSIST_FAILED }
+}
+
 type EventIdentityGap = 'date' | 'type' | 'road' | 'location'
 
 const IDENTITY_CAPTION: Record<Exclude<EventIdentityGap, 'location'>, string> = {
@@ -1367,6 +1397,32 @@ export function mergeAssignmentIds(
   })
 }
 
+const LOCKED_KM_SAVE_ERROR = 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
+
+/**
+ * Age-locked screen only. Writes null `total_km` values and nothing else.
+ * Callers must pass `lockedLeadKmWrites` so a filled number, a volunteer
+ * without a car, and every other field never reach the database.
+ */
+export async function saveLockedEventLeadKm(
+  writes: readonly LockedLeadKmWrite[],
+  options?: { cancelled?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  for (const write of writes) {
+    const { error } = await supabase.rpc('set_locked_event_lead_km', {
+      p_event_responder_id: write.assignmentId,
+      p_total_km: write.totalKm,
+    })
+    if (error) return { ok: false, error: LOCKED_KM_SAVE_ERROR }
+  }
+  if (writes.length > 0 && !options?.cancelled) {
+    void notifyFillReady({
+      eventResponderIds: writes.map((write) => write.assignmentId),
+    }).catch(() => {})
+  }
+  return { ok: true }
+}
+
 export async function saveEventForm(input: {
   draft: EventFormDraft
   shiftLeadId: string
@@ -1537,7 +1593,8 @@ export async function saveEventForm(input: {
       error = retry.error
     }
     if (error) {
-      return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.', eventId }
+      const persist = eventPersistFailure(error)
+      return { ok: false, ...persist, eventId }
     }
   } else {
     let { data, error } = await supabase
@@ -1564,7 +1621,8 @@ export async function saveEventForm(input: {
             })
           : null
       if (!recovered) {
-        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+        const persist = eventPersistFailure(error)
+        return { ok: false, ...persist }
       }
       eventId = recovered
       let retryError = (
@@ -1576,7 +1634,8 @@ export async function saveEventForm(input: {
         ).error
       }
       if (retryError) {
-        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.', eventId }
+        const persist = eventPersistFailure(retryError)
+        return { ok: false, ...persist, eventId }
       }
     } else {
       eventId = data.id as string
