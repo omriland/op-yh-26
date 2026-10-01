@@ -11,6 +11,7 @@ import {
   eventCreateBlockedMessage,
   eventMinimumHint,
   eventPersistFailure,
+  eventStatusForRowWriteBeforeResponders,
   isPoliceEventIdDuplicatePersistError,
   blockingMinimumFieldNames,
   validateEventMinimum,
@@ -31,6 +32,7 @@ import {
   type EventFormDraft,
   type LookupOption,
 } from './eventForm'
+import { EVENT_DONE_NEEDS_END_ERROR, EVENT_DONE_NEEDS_KM_ERROR } from './eventStatus'
 
 function draft(partial: Partial<EventFormDraft> = {}): EventFormDraft {
   return {
@@ -614,6 +616,35 @@ describe('eventPersistFailure', () => {
     expect(eventPersistFailure({ message: 'permission denied' }).error).toBe(
       'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
     )
+    expect(
+      eventPersistFailure({
+        message: `P0001: ${EVENT_DONE_NEEDS_KM_ERROR}`,
+      }),
+    ).toEqual({ error: EVENT_DONE_NEEDS_KM_ERROR })
+    expect(
+      eventPersistFailure({
+        message: EVENT_DONE_NEEDS_END_ERROR,
+      }),
+    ).toEqual({ error: EVENT_DONE_NEEDS_END_ERROR })
+  })
+})
+
+describe('eventStatusForRowWriteBeforeResponders', () => {
+  it('keeps done off the event row until assigned KM is written', () => {
+    expect(eventStatusForRowWriteBeforeResponders('done')).toBe('partial')
+    expect(eventStatusForRowWriteBeforeResponders('partial')).toBe('partial')
+    expect(eventStatusForRowWriteBeforeResponders('in_progress')).toBe('in_progress')
+    expect(eventStatusForRowWriteBeforeResponders('draft')).toBe('draft')
+  })
+
+  it('saveEventForm writes that deferred status, then promotes after responders', () => {
+    const form = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), 'eventForm.ts'),
+      'utf8',
+    )
+    expect(form).toContain('eventStatusForRowWriteBeforeResponders(nextStatus)')
+    expect(form).toContain("status: 'done'")
+    expect(form.indexOf('syncResponders')).toBeLessThan(form.lastIndexOf("status: 'done'"))
   })
 })
 

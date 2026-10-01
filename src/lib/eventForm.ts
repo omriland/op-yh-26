@@ -28,7 +28,11 @@ import {
   mapSecondaryLeadRows,
   type SecondaryLead,
 } from './eventShiftLeads'
-import { deriveStoredEventStatus } from './eventStatus'
+import {
+  deriveStoredEventStatus,
+  EVENT_DONE_NEEDS_END_ERROR,
+  EVENT_DONE_NEEDS_KM_ERROR,
+} from './eventStatus'
 import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocked } from './assignedVolunteerEventEdit'
 import {
   EVENT_EDIT_LOCKED_TOOLTIP,
@@ -973,7 +977,26 @@ export function eventPersistFailure(error: {
       fieldErrors: { police_event_id: POLICE_EVENT_ID_DUPLICATE_ERROR },
     }
   }
+  const message = error?.message ?? ''
+  if (message.includes(EVENT_DONE_NEEDS_KM_ERROR)) {
+    return { error: EVENT_DONE_NEEDS_KM_ERROR }
+  }
+  if (message.includes(EVENT_DONE_NEEDS_END_ERROR)) {
+    return { error: EVENT_DONE_NEEDS_END_ERROR }
+  }
   return { error: EVENT_PERSIST_FAILED }
+}
+
+/**
+ * `guard_event_done_requirements` reads assigned `total_km` already in the
+ * database. The event row is written before `syncResponders`, so a derived
+ * `done` must wait — otherwise filling the last KM 400s and the generic
+ * toast pretends it was a network error.
+ */
+export function eventStatusForRowWriteBeforeResponders(
+  derived: EventStatus,
+): EventStatus {
+  return derived === 'done' ? 'partial' : derived
 }
 
 type EventIdentityGap = 'date' | 'type' | 'road' | 'location'
@@ -1505,6 +1528,7 @@ export async function saveEventForm(input: {
   }
 
   const nextStatus = deriveEventStatus(draft)
+  const rowStatus = eventStatusForRowWriteBeforeResponders(nextStatus)
 
   let locationPayload = buildLocationPayload(draft)
   const roadName = input.roads?.find((row) => row.id === draft.road_id)?.name ?? null
@@ -1567,7 +1591,7 @@ export async function saveEventForm(input: {
     }),
     is_cancelled: draft.is_cancelled,
     bus_lane: draft.bus_lane,
-    status: nextStatus,
+    status: rowStatus,
     updated_at: new Date().toISOString(),
     ...(draft.shift_lead_id ? { shift_lead_id: mainLeadId } : {}),
   }
@@ -1652,6 +1676,17 @@ export async function saveEventForm(input: {
     isCancelled: draft.is_cancelled,
   })
   if (!sync.ok) return { ...sync, eventId }
+
+  if (nextStatus === 'done') {
+    const { error } = await supabase
+      .from('events')
+      .update({ status: 'done', updated_at: new Date().toISOString() })
+      .eq('id', eventId)
+    if (error) {
+      const persist = eventPersistFailure(error)
+      return { ok: false, ...persist, eventId }
+    }
+  }
 
   const creatorSecondary = wasCreate
     ? createTimeCreatorSecondary({ creatorId: shiftLeadId, mainLeadId })
@@ -1743,7 +1778,7 @@ async function syncSecondaryLeads(input: {
         .eq('user_id', row.user_id)
         .eq('locked', false)
       if (error) {
-        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+        return { ok: false, error: eventPersistFailure(error).error }
       }
     }
   }
@@ -1757,7 +1792,7 @@ async function syncSecondaryLeads(input: {
         locked: row.locked,
       })
       if (error) {
-        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+        return { ok: false, error: eventPersistFailure(error).error }
       }
     } else if (row.locked && !found.locked) {
       const { error } = await supabase
@@ -1766,7 +1801,7 @@ async function syncSecondaryLeads(input: {
         .eq('event_id', input.eventId)
         .eq('user_id', userId)
       if (error) {
-        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+        return { ok: false, error: eventPersistFailure(error).error }
       }
     }
   }
@@ -1802,7 +1837,7 @@ async function syncResponders(input: {
     .eq('event_id', eventId)
 
   if (existingError) {
-    return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+    return { ok: false, error: eventPersistFailure(existingError).error }
   }
 
   const previousAssignments = (existing ?? []).map((row) => ({
@@ -1827,7 +1862,7 @@ async function syncResponders(input: {
     if (!stopped.ok) trackingStopFailed = true
     const { error } = await supabase.from('event_responders').delete().in('id', removedIds)
     if (error) {
-      return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      return { ok: false, error: eventPersistFailure(error).error }
     }
   }
 
@@ -1860,7 +1895,7 @@ async function syncResponders(input: {
         })
         .eq('id', assignmentId)
       if (error) {
-        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+        return { ok: false, error: eventPersistFailure(error).error }
       }
     } else {
       const { data, error } = await supabase
@@ -1877,7 +1912,7 @@ async function syncResponders(input: {
         .select('id')
         .single()
       if (error || !data) {
-        return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+        return { ok: false, error: eventPersistFailure(error).error }
       }
       assignmentId = data.id as string
       existingByResponder.set(responder.responder_id, assignmentId)
@@ -1891,7 +1926,7 @@ async function syncResponders(input: {
       .delete()
       .eq('event_responder_id', assignmentId)
     if (clearError) {
-      return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+      return { ok: false, error: eventPersistFailure(clearError).error }
     }
 
     if (!isCancelled) {
@@ -1915,7 +1950,7 @@ async function syncResponders(input: {
       if (treatedRows.length > 0) {
         const { error } = await supabase.from('event_treated_vehicles').insert(treatedRows)
         if (error) {
-          return { ok: false, error: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.' }
+          return { ok: false, error: eventPersistFailure(error).error }
         }
       }
     }
