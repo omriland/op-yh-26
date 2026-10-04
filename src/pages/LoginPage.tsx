@@ -37,6 +37,8 @@ type LoginPageProps = {
 const PLATFORM_NAME = 'אבן דרך'
 const UNIT_LINE_1 = 'היחידה הארצית'
 const UNIT_LINE_2 = 'לפינוי צירים'
+const PUBLIC_DESCRIPTION =
+  'מערכת סגורה לתיעוד פעילות המתנדבים ביחידה הארצית לפינוי צירים. הכניסה מיועדת לאנשי יחידה מורשים בלבד.'
 
 export function LoginPage({
   forceSetPassword = false,
@@ -199,6 +201,7 @@ export function LoginPage({
               <span className="login__unit-line">{UNIT_LINE_2}</span>
             </p>
           </div>
+          <p className="login__public t-body text-secondary">{PUBLIC_DESCRIPTION}</p>
         </header>
 
         <div

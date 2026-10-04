@@ -3943,9 +3943,10 @@ html[data-keyboard-open] .event-form__footer {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 100%;
-  min-height: var(--app-height, 100dvh);
+  justify-content: flex-start;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
   padding: var(--space-6) var(--space-4);
   padding-block-start: calc(var(--space-8) + env(safe-area-inset-top, 0px));
   padding-block-end: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
@@ -3957,6 +3958,7 @@ html[data-keyboard-open] .event-form__footer {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  margin-block: auto;
   gap: var(--space-8);
   width: min(100%, 400px);
 }
@@ -4007,6 +4009,12 @@ html[data-keyboard-open] .event-form__footer {
 
 .login__unit-line {
   white-space: nowrap;
+}
+
+.login__public {
+  margin: 0;
+  max-width: 36em;
+  text-align: center;
 }
 
 .login__card {

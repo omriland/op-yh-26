@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /android/
+Disallow: /ios/
+Disallow: /data/
+Disallow: /partner-api/
+
+Sitemap: https://yahpz.com/sitemap.xml

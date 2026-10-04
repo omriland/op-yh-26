@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-01 (Android 0.3.42 force-update live; deploy `6abdf1ab7dea690009573d77` / `40d81d5`)
+Last updated: 2026-10-04 (public homepage SEO on yahpz.com)
 
 ## What this is
 
@@ -78,6 +78,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 
 ## Current app state
 
+- **Public SEO (2026-10-04):** Only `https://yahpz.com/` is indexable. Title `אבן דרך | היחידה הארצית לפינוי צירים`. Description states a closed volunteer system and names no operational detail. Visible line on the login masthead. `robots.txt` disallows `/android/`, `/ios/`, `/data/`, `/partner-api/`. Those paths plus `/delete-data` send `X-Robots-Tag: noindex`. Every other path sets `noindex` in the shared shell. Sitemap lists the homepage only. `/privacy` stays behind its access check.
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
 - **Latest Netlify prod (2026-10-01):** APK + version.json Git CD deploy `6abdf1ab7dea690009573d77` **ready** at 2026-10-01T05:38:36Z (commit `40d81d5`). https://yahpz.com `/android/version.json` 200 with 0.3.42 / minVersionCode 53 (`cache-status` fwd=miss). APK https://yahpz.com/android/yahpaz-0.3.42.apk 200, 64,724,829 bytes, sha256 `abcd1b5354a110ca16c3f0efad0f1465028900dbba3b72b052c3506b73f18709`, upload cert SHA-256 `b35ec91aca13ab524f0382e548f1a3d4ef66076271c77c6d8e1135e4bb373045`. **Git CD is the live path.** Do not use `npx netlify deploy --prod`.
 - **Latest Netlify prod (2026-09-29):** Feature Git CD deploy `6abb7a75fc5ddd0008eddc69` **ready** at 2026-09-29T08:45:34Z (commit `2a4bcba`). APK + version.json published by `6abb7ace3c70b60008641c0b` **ready** at 2026-09-29T08:46:49Z (commit `6f817ed`). Memory follow-up `fb7f0cf` published as deploy `6abb7b62b59a3f0008beb62d` at 2026-09-29T08:49:21Z. https://yahpz.com `/` 200 HE/RTL, bundle `assets/index-B5PF_HMh.js` / `assets/index-Cutx9iLd.css`. `/android/version.json` 200 with 0.3.41 / minVersionCode 52 (`cache-status` fwd=miss). APK https://yahpz.com/android/yahpaz-0.3.41.apk 200, 64,724,829 bytes, sha256 `724b371c44b159a31dd734ac32fe577db07581c5beb8624a853331af5902b9a2`. **Git CD is the live path.** Do not use `npx netlify deploy --prod`.

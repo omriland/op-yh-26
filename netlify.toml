@@ -16,6 +16,32 @@
     Permissions-Policy = "camera=(), microphone=(self), geolocation=(self), payment=()"
     Feature-Policy = "geolocation 'self'"
 
+# Installers, operational map data, and the partner API are not public pages.
+[[headers]]
+  for = "/android/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/ios/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/partner-api/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/delete-data"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
 [[headers]]
   for = "/android/version.json"
   [headers.values]

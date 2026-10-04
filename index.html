@@ -9,7 +9,52 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <title>אבן דרך</title>
+    <title>אבן דרך | היחידה הארצית לפינוי צירים</title>
+    <meta
+      name="description"
+      content="מערכת סגורה לתיעוד פעילות המתנדבים ביחידה הארצית לפינוי צירים. הכניסה מיועדת לאנשי יחידה מורשים בלבד."
+    />
+    <link rel="canonical" href="https://yahpz.com/" />
+    <meta name="robots" content="index, follow" id="yahpaz-robots" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="he_IL" />
+    <meta property="og:site_name" content="אבן דרך" />
+    <meta property="og:url" content="https://yahpz.com/" />
+    <meta property="og:title" content="אבן דרך | היחידה הארצית לפינוי צירים" />
+    <meta
+      property="og:description"
+      content="מערכת סגורה לתיעוד פעילות המתנדבים ביחידה הארצית לפינוי צירים. הכניסה מיועדת לאנשי יחידה מורשים בלבד."
+    />
+    <meta property="og:image" content="https://yahpz.com/apple-touch-icon.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="אבן דרך | היחידה הארצית לפינוי צירים" />
+    <meta
+      name="twitter:description"
+      content="מערכת סגורה לתיעוד פעילות המתנדבים ביחידה הארצית לפינוי צירים. הכניסה מיועדת לאנשי יחידה מורשים בלבד."
+    />
+    <meta name="twitter:image" content="https://yahpz.com/apple-touch-icon.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "אבן דרך",
+        "alternateName": "יחפ״צ",
+        "url": "https://yahpz.com/",
+        "inLanguage": "he",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, Android",
+        "description": "מערכת סגורה לתיעוד פעילות המתנדבים ביחידה הארצית לפינוי צירים. הכניסה מיועדת לאנשי יחידה מורשים בלבד."
+      }
+    </script>
+    <script>
+      /* Only the public homepage is indexable. Every other route shares this shell. */
+      (function () {
+        var path = location.pathname
+        if (path === '/' || path === '') return
+        var robots = document.getElementById('yahpaz-robots')
+        if (robots) robots.setAttribute('content', 'noindex, nofollow')
+      })()
+    </script>
     <script>
       /* Early visual-viewport lock before modules load (iOS Safari chrome gap). */
       (function () {
@@ -39,6 +84,12 @@
     />
   </head>
   <body>
+    <noscript>
+      <p>
+        מערכת סגורה לתיעוד פעילות המתנדבים ביחידה הארצית לפינוי צירים. הכניסה
+        מיועדת לאנשי יחידה מורשים בלבד.
+      </p>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
