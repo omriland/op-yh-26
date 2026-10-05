@@ -6,6 +6,7 @@ import {
   runWithCors,
 } from "../_shared/cors.ts";
 import { ctaButtonHtml, sendTransactionalEmail } from "../_shared/email.ts";
+import { fillTokenExpiresAt } from "../_shared/fillTokenTtl.ts";
 
 type LoadBody = { action: "load_by_token"; fill_token: string };
 type TreatedPlateDraft = {
@@ -40,8 +41,6 @@ type NotifyBody = {
 type NotifyOverdueBody = { action: "notify_overdue_fills" };
 
 type RequestBody = LoadBody | SaveBody | NotifyBody | NotifyOverdueBody;
-
-const FILL_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const ALLOW_HEADERS = "authorization, x-client-info, apikey, content-type";
 
@@ -759,7 +758,7 @@ async function handleNotifyFillReady(
     if (!assignment.fill_token_hash || tokenExpired) {
       rawToken = randomFillToken();
       const hash = await sha256Hex(rawToken);
-      const expiresAt = new Date(Date.now() + FILL_TOKEN_TTL_MS).toISOString();
+      const expiresAt = fillTokenExpiresAt();
       const { error: mintError } = await adminClient
         .from("event_responders")
         .update({
@@ -776,7 +775,7 @@ async function handleNotifyFillReady(
       // Re-mint so the email link works.
       rawToken = randomFillToken();
       const hash = await sha256Hex(rawToken);
-      const expiresAt = new Date(Date.now() + FILL_TOKEN_TTL_MS).toISOString();
+      const expiresAt = fillTokenExpiresAt();
       const { error: mintError } = await adminClient
         .from("event_responders")
         .update({
@@ -890,7 +889,7 @@ async function mintFillToken(
 ): Promise<string | null> {
   const rawToken = randomFillToken();
   const hash = await sha256Hex(rawToken);
-  const expiresAt = new Date(Date.now() + FILL_TOKEN_TTL_MS).toISOString();
+  const expiresAt = fillTokenExpiresAt();
   const { error } = await adminClient
     .from("event_responders")
     .update({

@@ -17,6 +17,7 @@ on:
       - "supabase/migrations/20260922143000_hold_assignment_webhook_until_police_event_id.sql"
       - "supabase/migrations/20260929120000_set_locked_event_lead_km.sql"
       - "supabase/migrations/20260929082322_events_same_day_police_event_id.sql"
+      - "supabase/migrations/20261005160000_fill_token_ttl_180d.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -63,6 +64,8 @@ jobs:
             -f supabase/migrations/20260929120000_set_locked_event_lead_km.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260929082322_events_same_day_police_event_id.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261005160000_fill_token_ttl_180d.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
