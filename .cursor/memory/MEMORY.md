@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-05 (fill-email token TTL 180 days)
+Last updated: 2026-10-05 (fill-email 180-day reusable tokens live)
 
 ## What this is
 
@@ -78,8 +78,9 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 
 ## Current app state
 
-- **Privacy policy security copy (2026-10-05):** **Live** on https://yahpz.com. Git CD of `infra/bootstrap` `6bcc9dd` (PR #54, fast-forward). Bundle `assets/index-a_GAV88J.js`. Prod homepage 200; JS contains `שרשרת אישורים`, `חברת צד שלישי`, `HSTS`, `הצפנת תעבורה`, `05.10.2026`. Snyk appears only in the existing footer badge, not in the policy text. Preview was `6ac3beea528e0b0007ed1dbe`. `/privacy` stays behind its access check. Do not list Snyk/Cloudflare/Supabase/Netlify in the policy text.
-- **Latest Netlify prod (2026-10-05):** Git CD published commit `6bcc9dd` on `infra/bootstrap` (PR #54). https://yahpz.com `/` 200 HE/RTL, bundle `assets/index-a_GAV88J.js` (etag `ae37254bcff52007e63937af09c7a34a-ssl`, verified 2026-10-05T15:18Z). **Git CD is the live path.** Do not use `npx netlify deploy --prod`.
+- **Fill-email TTL + reuse (2026-10-05):** **Live.** PR #56 fast-forwarded to `infra/bootstrap` `857142f`. Deploy Edge Functions run `37337897572` **success** at 2026-10-05T16:05:46Z: applied `20261005160000_fill_token_ttl_180d.sql` and deployed `responder-fill` on `rtvizpsfvtjowbimugns`. Tokens last 180 days, stay reusable across devices, and are not reminted while valid. Netlify Git CD: https://yahpz.com `/` 200, bundle `assets/index-C1l1ilBb.js` (etag `f48a319cc55663f676f094e2aae81e53-ssl`, verified 2026-10-05T16:06Z). Privacy copy still in the bundle.
+- **Privacy policy security copy (2026-10-05):** **Live** on https://yahpz.com (same day’s earlier ship, PR #54 `6bcc9dd`). Do not list Snyk/Cloudflare/Supabase/Netlify in the policy text. `/privacy` stays behind its access check.
+- **Latest Netlify prod (2026-10-05):** Git CD published commit `857142f` on `infra/bootstrap` (PR #56). https://yahpz.com `/` 200 HE/RTL, bundle `assets/index-C1l1ilBb.js`. **Git CD is the live path.** Do not use `npx netlify deploy --prod`.
 - **Public SEO (2026-10-04):** Live. Git CD deploy `6ac1ebc4f081bb0008788ebf` **ready**, published 2026-10-04T06:02:58Z, commit `2804d33` on `infra/bootstrap`. Only `https://yahpz.com/` is indexable. Title `אבן דרך | היחידה הארצית לפינוי צירים`. Description states a closed volunteer system and names no operational detail. Visible line on the login masthead. `robots.txt` disallows `/android/`, `/ios/`, `/data/`, `/partner-api/`. Those paths plus `/delete-data` send `X-Robots-Tag: noindex`. Every other path sets `noindex` in the shared shell. Sitemap lists the homepage only. `/privacy` stays behind its access check. Prod smoke: `/` 200 with the new title and description; `/robots.txt` and `/sitemap.xml` 200; `/data/mile-posts.json` and `/android/version.json` 200 with `x-robots-tag: noindex` (version.json still 0.3.42 / min 53).
 - App live on Netlify / yahpz.com; UI follows **רשומה** (`design-system-design-instructions/`)
 - **Latest Netlify prod (2026-10-01):** APK + version.json Git CD deploy `6abdf1ab7dea690009573d77` **ready** at 2026-10-01T05:38:36Z (commit `40d81d5`). https://yahpz.com `/android/version.json` 200 with 0.3.42 / minVersionCode 53 (`cache-status` fwd=miss). APK https://yahpz.com/android/yahpaz-0.3.42.apk 200, 64,724,829 bytes, sha256 `abcd1b5354a110ca16c3f0efad0f1465028900dbba3b72b052c3506b73f18709`, upload cert SHA-256 `b35ec91aca13ab524f0382e548f1a3d4ef66076271c77c6d8e1135e4bb373045`. **Git CD is the live path.** Do not use `npx netlify deploy --prod`.
