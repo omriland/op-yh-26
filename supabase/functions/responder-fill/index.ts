@@ -6,7 +6,13 @@ import {
   runWithCors,
 } from "../_shared/cors.ts";
 import { ctaButtonHtml, sendTransactionalEmail } from "../_shared/email.ts";
-import { fillTokenExpiresAt } from "../_shared/fillTokenTtl.ts";
+import {
+  deterministicFillToken,
+  fillTokenExpiresAt,
+  fillTokenMintDecision,
+  isFillTokenExpired,
+  sha256Hex,
+} from "../_shared/fillTokenTtl.ts";
 
 type LoadBody = { action: "load_by_token"; fill_token: string };
 type TreatedPlateDraft = {
@@ -49,19 +55,8 @@ function trim(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-async function sha256Hex(value: string): Promise<string> {
-  const data = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function randomFillToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+function fillTokenSecret(): string {
+  return Deno.env.get("FILL_TOKEN_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 }
 
 function plateDigits(raw: string): string {
@@ -105,6 +100,12 @@ function buildFillLink(token: string): string {
   const base = appOrigin();
   const url = new URL(base);
   url.searchParams.set("fill_token", token);
+  return url.toString();
+}
+
+function buildFillEventLink(eventId: string): string {
+  const url = new URL(appOrigin());
+  url.searchParams.set("fill_event", eventId);
   return url.toString();
 }
 
@@ -297,9 +298,9 @@ async function handleLoadByToken(adminClient: SupabaseClient, body: LoadBody) {
     return json(400, { error: "קישור הדיווח אינו תקין או שפג תוקפו.", code: "invalid" });
   }
 
-  const expired =
-    !assignment.fill_token_expires_at ||
-    new Date(assignment.fill_token_expires_at).getTime() <= Date.now();
+  // Opening or refreshing the same email link must keep working — do not
+  // consume or remint the token here.
+  const expired = isFillTokenExpired(assignment.fill_token_expires_at);
 
   if (expired) {
     return json(400, {
@@ -449,9 +450,9 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
     return json(400, { error: "קישור הדיווח אינו תקין או שפג תוקפו.", code: "invalid" });
   }
 
-  const expired =
-    !assignment.fill_token_expires_at ||
-    new Date(assignment.fill_token_expires_at).getTime() <= Date.now();
+  // Draft save must not burn the link — the volunteer may reopen it later
+  // on another device from the same email.
+  const expired = isFillTokenExpired(assignment.fill_token_expires_at);
   if (expired) {
     return json(400, {
       error: "קישור הדיווח אינו תקין או שפג תוקפו.",
@@ -750,46 +751,13 @@ async function handleNotifyFillReady(
       continue;
     }
 
-    const tokenExpired =
-      !assignment.fill_token_expires_at ||
-      new Date(assignment.fill_token_expires_at).getTime() <= Date.now();
-    let rawToken: string | null = null;
-
-    if (!assignment.fill_token_hash || tokenExpired) {
-      rawToken = randomFillToken();
-      const hash = await sha256Hex(rawToken);
-      const expiresAt = fillTokenExpiresAt();
-      const { error: mintError } = await adminClient
-        .from("event_responders")
-        .update({
-          fill_token_hash: hash,
-          fill_token_expires_at: expiresAt,
-        })
-        .eq("id", assignment.id);
-      if (mintError) {
-        skipped.push({ id: assignment.id, reason: "mint_failed" });
-        continue;
-      }
-    } else {
-      // Token still valid but we never emailed — cannot recover raw token from hash.
-      // Re-mint so the email link works.
-      rawToken = randomFillToken();
-      const hash = await sha256Hex(rawToken);
-      const expiresAt = fillTokenExpiresAt();
-      const { error: mintError } = await adminClient
-        .from("event_responders")
-        .update({
-          fill_token_hash: hash,
-          fill_token_expires_at: expiresAt,
-        })
-        .eq("id", assignment.id);
-      if (mintError) {
-        skipped.push({ id: assignment.id, reason: "mint_failed" });
-        continue;
-      }
+    const ensured = await ensureFillToken(adminClient, assignment, { replaceLegacy: true });
+    if (!ensured.raw) {
+      skipped.push({ id: assignment.id, reason: "mint_failed" });
+      continue;
     }
 
-    const link = buildFillLink(rawToken!);
+    const link = buildFillLink(ensured.raw);
     const fullName = assignment.profile.full_name || "";
     const eventDate = assignment.event.event_date ?? "";
     const typeName = assignment.event.event_type?.name ?? "";
@@ -883,22 +851,39 @@ function overdueDurationLabel(kind: OverdueMailKind): string {
   return kind === "48h" ? "48 שעות" : "7 ימים";
 }
 
-async function mintFillToken(
+async function ensureFillToken(
   adminClient: SupabaseClient,
-  assignmentId: string,
-): Promise<string | null> {
-  const rawToken = randomFillToken();
-  const hash = await sha256Hex(rawToken);
-  const expiresAt = fillTokenExpiresAt();
+  assignment: {
+    id: string;
+    fill_token_hash: string | null;
+    fill_token_expires_at: string | null;
+  },
+  opts: { replaceLegacy: boolean },
+): Promise<{ raw: string | null; decision: ReturnType<typeof fillTokenMintDecision> }> {
+  const secret = fillTokenSecret();
+  if (!secret) return { raw: null, decision: "mint" };
+
+  const raw = await deterministicFillToken(assignment.id, secret);
+  const deterministicHash = await sha256Hex(raw);
+  const decision = fillTokenMintDecision({
+    storedHash: assignment.fill_token_hash,
+    expiresAt: assignment.fill_token_expires_at,
+    deterministicHash,
+    replaceLegacy: opts.replaceLegacy,
+  });
+
+  if (decision === "keep-legacy") return { raw: null, decision };
+  if (decision === "reuse") return { raw, decision };
+
   const { error } = await adminClient
     .from("event_responders")
     .update({
-      fill_token_hash: hash,
-      fill_token_expires_at: expiresAt,
+      fill_token_hash: deterministicHash,
+      fill_token_expires_at: fillTokenExpiresAt(),
     })
-    .eq("id", assignmentId);
-  if (error) return null;
-  return rawToken;
+    .eq("id", assignment.id);
+  if (error) return { raw: null, decision };
+  return { raw, decision };
 }
 
 async function handleNotifyOverdueFills(
@@ -949,6 +934,7 @@ async function handleNotifyOverdueFills(
       fill_token_hash: string | null;
       fill_token_expires_at: string | null;
       event: {
+        id: string;
         is_cancelled: boolean;
         event_date: string;
         event_type: { name: string } | null;
@@ -989,13 +975,17 @@ async function handleNotifyOverdueFills(
       continue;
     }
 
-    const rawToken = await mintFillToken(adminClient, assignment.id);
-    if (!rawToken) {
+    const ensured = await ensureFillToken(adminClient, assignment, { replaceLegacy: false });
+    const eventId = assignment.event?.id;
+    const link = ensured.raw
+      ? buildFillLink(ensured.raw)
+      : eventId
+        ? buildFillEventLink(eventId)
+        : null;
+    if (!link) {
       skipped.push({ id: assignment.id, reason: "mint_failed" });
       continue;
     }
-
-    const link = buildFillLink(rawToken);
     const fullName = assignment.profile.full_name || "";
     const eventDate = assignment.event.event_date ?? "";
     const typeName = assignment.event.event_type?.name ?? "";
