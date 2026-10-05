@@ -36,18 +36,28 @@ describe('PRIVACY_POLICY', () => {
     expect(text).not.toMatch(/בגד|חולצה|נשק|רישיון נשק/)
   })
 
-  it('describes first-tier providers without naming each vendor', () => {
+  it('describes first-tier providers and unnamed cyber monitoring', () => {
     const text = privacyPolicyPlainText()
     expect(text).toMatch(/ספקי שירות מהשורה הראשונה/)
     expect(text).toMatch(/נהלי אבטחה מחמירים/)
     expect(text).toMatch(/פעילות הבסיסית של המערכת/)
-    expect(text).toMatch(/פגיעות סייבר/)
-    expect(text).not.toMatch(/Supabase|Netlify|Resend|Soprano|PostHog|Google Analytics/)
+    expect(text).toMatch(/חברת צד שלישי/)
+    expect(text).toMatch(/הגנת סייבר/)
+    expect(text).toMatch(/פגיעויות/)
+    expect(text).not.toMatch(
+      /Supabase|Netlify|Resend|Soprano|PostHog|Google Analytics|Snyk|Cloudflare|Twilio/,
+    )
   })
 
-  it('states reasonable safeguards without promising absolute security', () => {
+  it('describes layered transport and access safeguards without promising absolute security', () => {
     const text = privacyPolicyPlainText()
-    expect(text).not.toMatch(/TLS|AES-256/)
+    expect(text).toMatch(/Row Level Security/)
+    expect(text).toMatch(/HTTPS \/ SSL/)
+    expect(text).toMatch(/שרשרת אישורים/)
+    expect(text).toMatch(/HSTS/)
+    expect(text).toMatch(/כותרות אבטחה/)
+    expect(text).toMatch(/סיסמת המשתמש אינה נשמרת/)
+    expect(text).not.toMatch(/AES-256/)
     expect(text).toMatch(/אנו נוקטים את כל האמצעים המקובלים והסבירים/)
     expect(text).toMatch(/אין אמצעי אבטחה המבטיח הגנה מוחלטת/)
   })
