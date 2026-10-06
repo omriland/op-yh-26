@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-05 (fill-email 180-day reusable tokens live)
+Last updated: 2026-10-06 (date fields always DD.MM.YYYY)
 
 ## What this is
 
@@ -78,6 +78,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 
 ## Current app state
 
+- **Date fields always DD.MM.YYYY (2026-10-06):** Native `type="date"` followed the device locale (US phones showed `10/05/2026`). Shared `DateField` is digit-masked `DD.MM.YYYY` (רשומה) and stores ISO `YYYY-MM-DD`. Used on event form, shift form, fuel refund, reports, and availability. Calendar icon still opens a picker; the visible text is day-first.
 - **Fill-email TTL + reuse (2026-10-05):** **Live.** PR #56 fast-forwarded to `infra/bootstrap` `857142f`. Deploy Edge Functions run `37337897572` **success** at 2026-10-05T16:05:46Z: applied `20261005160000_fill_token_ttl_180d.sql` and deployed `responder-fill` on `rtvizpsfvtjowbimugns`. Tokens last 180 days, stay reusable across devices, and are not reminted while valid. Netlify Git CD: https://yahpz.com `/` 200, bundle `assets/index-C1l1ilBb.js` (etag `f48a319cc55663f676f094e2aae81e53-ssl`, verified 2026-10-05T16:06Z). Privacy copy still in the bundle.
 - **Privacy policy security copy (2026-10-05):** **Live** on https://yahpz.com (same day’s earlier ship, PR #54 `6bcc9dd`). Do not list Snyk/Cloudflare/Supabase/Netlify in the policy text. `/privacy` stays behind its access check.
 - **Latest Netlify prod (2026-10-05):** Git CD published commit `857142f` on `infra/bootstrap` (PR #56). https://yahpz.com `/` 200 HE/RTL, bundle `assets/index-C1l1ilBb.js`. **Git CD is the live path.** Do not use `npx netlify deploy --prod`.

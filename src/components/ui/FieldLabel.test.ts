@@ -19,7 +19,13 @@ describe('FieldLabel required mark', () => {
   })
 
   it('is the shared label on every form field', () => {
-    for (const file of ['TextField.tsx', 'TextAreaField.tsx', 'SelectField.tsx', 'TimeField.tsx']) {
+    for (const file of [
+      'TextField.tsx',
+      'TextAreaField.tsx',
+      'SelectField.tsx',
+      'TimeField.tsx',
+      'DateField.tsx',
+    ]) {
       expect(read(file)).toContain("from './FieldLabel'")
       expect(read(file)).toContain('<FieldLabel')
     }

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, ChevronRight, Download, Search, BarChart3 } from 'lucide-react'
+import { ChevronRight, Download, Search, BarChart3 } from 'lucide-react'
 import { PeriodPicker } from '../admin/PeriodPicker'
 import { Button } from '../ui/Button'
 import { AlertDialog } from '../ui/AlertDialog'
 import { EmptyState } from '../ui/EmptyState'
 import { HoverTip } from '../ui/HoverTip'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
-import { TextField } from '../ui/TextField'
+import { DateField } from '../ui/DateField'
 import { useToast } from '../ui/Toast'
 import { downloadCsv, toCsv } from '../../lib/reports/csv'
 import { filterReportRows } from '../../lib/reports/search'
@@ -175,30 +175,18 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
                 gap: 'var(--space-3)',
               }}
             >
-              <TextField
+              <DateField
                 label="מתאריך"
-                type="date"
                 required
                 value={from}
                 error={rangeError}
-                onChange={(event) => setFrom(event.target.value)}
-                affix={
-                  <span className="field__affix" aria-hidden="true">
-                    <Calendar size={20} strokeWidth={1.75} />
-                  </span>
-                }
+                onChange={setFrom}
               />
-              <TextField
+              <DateField
                 label="עד תאריך"
-                type="date"
                 required
                 value={to}
-                onChange={(event) => setTo(event.target.value)}
-                affix={
-                  <span className="field__affix" aria-hidden="true">
-                    <Calendar size={20} strokeWidth={1.75} />
-                  </span>
-                }
+                onChange={setTo}
               />
             </div>
           ) : null}

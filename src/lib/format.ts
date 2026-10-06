@@ -117,6 +117,60 @@ export function isCompleteTimeInput(value: string): boolean {
   return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
 }
 
+/** ISO `YYYY-MM-DD` → typed display `DD.MM.YYYY`. Empty stays empty. */
+export function isoDateToDisplay(iso: string): string {
+  const match = iso.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return ''
+  return `${match[3]}.${match[2]}.${match[1]}`
+}
+
+/** Digits → `DD.MM.YYYY` as the user types (dots after day and month). */
+export function formatDateInput(digits: string): string {
+  const cleaned = digitsOnly(digits).slice(0, 8)
+  const day = cleaned.slice(0, 2)
+  const month = cleaned.slice(2, 4)
+  const year = cleaned.slice(4)
+  return [day, month, year].filter((part) => part.length > 0).join('.')
+}
+
+/**
+ * Same backspace semantics as the time field: deleting over `.` removes a digit.
+ * Always day-first `D` / `DD` / `DD.M` / `DD.MM` / `DD.MM.Y…` — never month-first.
+ */
+export function applyDateKeystroke(previous: string, incoming: string): string {
+  const previousDigits = digitsOnly(previous)
+  let nextDigits = digitsOnly(incoming).slice(0, 8)
+  if (
+    nextDigits === previousDigits &&
+    incoming.length < previous.length &&
+    previousDigits.length > 0
+  ) {
+    nextDigits = previousDigits.slice(0, -1)
+  }
+  return formatDateInput(nextDigits)
+}
+
+function isValidCalendarYmd(year: number, month: number, day: number): boolean {
+  if (year < 1900 || year > 2100) return false
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false
+  const date = new Date(year, month - 1, day)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+}
+
+/** Complete valid `DD.MM.YYYY` → ISO `YYYY-MM-DD`, else null. */
+export function displayDateToIso(display: string): string | null {
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(display)) return null
+  const day = Number(display.slice(0, 2))
+  const month = Number(display.slice(3, 5))
+  const year = Number(display.slice(6, 10))
+  if (!isValidCalendarYmd(year, month, day)) return null
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+export function isCompleteDateInput(value: string): boolean {
+  return displayDateToIso(value) != null
+}
+
 /** YYYY-MM-DD prefix from a wall `timestamp` / ISO string. */
 function wallDateYmd(value: string): string | null {
   const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})/)

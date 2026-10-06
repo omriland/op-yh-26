@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Calendar, ShieldAlert, Table2 } from 'lucide-react'
+import { ShieldAlert, Table2 } from 'lucide-react'
 import {
   FuelRefundSegmentBar,
   type FuelRefundSegment,
@@ -19,7 +19,7 @@ import { useIsDesktop } from '../lib/useMediaQuery'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
-import { TextField } from '../components/ui/TextField'
+import { DateField } from '../components/ui/DateField'
 
 export function FuelRefundPage() {
   const isDesktop = useIsDesktop()
@@ -99,30 +99,18 @@ export function FuelRefundPage() {
           marginBlockEnd: 'var(--space-4)',
         }}
       >
-        <TextField
+        <DateField
           label="מתאריך"
-          type="date"
           required
           value={from}
           error={rangeError}
-          onChange={(event) => setFrom(event.target.value)}
-          affix={
-            <span className="field__affix" aria-hidden="true">
-              <Calendar size={20} strokeWidth={1.75} />
-            </span>
-          }
+          onChange={setFrom}
         />
-        <TextField
+        <DateField
           label="עד תאריך"
-          type="date"
           required
           value={to}
-          onChange={(event) => setTo(event.target.value)}
-          affix={
-            <span className="field__affix" aria-hidden="true">
-              <Calendar size={20} strokeWidth={1.75} />
-            </span>
-          }
+          onChange={setTo}
         />
       </div>
 

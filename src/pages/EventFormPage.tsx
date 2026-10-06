@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Calendar, ChevronDown, ChevronRight, Plus, Search, Trash2, UserRound } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import {
@@ -72,6 +72,7 @@ import { FormStickyFooter } from '../components/ui/FormStickyFooter'
 import { SelectField } from '../components/ui/SelectField'
 import { StampChip } from '../components/ui/StampChip'
 import { TextAreaField } from '../components/ui/TextAreaField'
+import { DateField } from '../components/ui/DateField'
 import { TextField } from '../components/ui/TextField'
 import { TimeField } from '../components/ui/TimeField'
 import { Toggle } from '../components/ui/Toggle'
@@ -1628,22 +1629,16 @@ export function EventFormPage({
 
                 <div className="event-form__f-date">
                   <FieldNote field="event_date" />
-                  <TextField
+                  <DateField
                     label="תאריך"
-                    type="date"
                     required
                     value={draft.event_date}
                     error={errors.event_date}
-                    onChange={(event) => {
-                      updateDraft({ event_date: event.target.value })
+                    onChange={(eventDate) => {
+                      updateDraft({ event_date: eventDate })
                       setErrors((current) => ({ ...current, event_date: undefined }))
                     }}
                     onBlur={() => void persistLatest()}
-                    affix={
-                      <span className="field__affix" aria-hidden="true">
-                        <Calendar size={20} strokeWidth={1.75} />
-                      </span>
-                    }
                   />
                 </div>
 

@@ -52,6 +52,7 @@ import {
 import { shouldKeepLiveFormBoot } from '../lib/formDraftSurvival'
 import { SelectField } from '../components/ui/SelectField'
 import { TextAreaField } from '../components/ui/TextAreaField'
+import { DateField } from '../components/ui/DateField'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
@@ -669,22 +670,16 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
             </h2>
             <div className="form-section__fields">
               <div className="event-form__grid">
-                <TextField
+                <DateField
                   label="תאריך"
-                  type="date"
                   required
                   disabled={!canManageLead}
                   value={draft.shift_date}
                   error={errors.shift_date}
-                  onChange={(event) => {
-                    updateDraft({ shift_date: event.target.value })
+                  onChange={(shiftDate) => {
+                    updateDraft({ shift_date: shiftDate })
                     setErrors((current) => ({ ...current, shift_date: undefined }))
                   }}
-                  affix={
-                    <span className="field__affix" aria-hidden="true">
-                      <Calendar size={20} strokeWidth={1.75} />
-                    </span>
-                  }
                 />
 
                 <SelectField

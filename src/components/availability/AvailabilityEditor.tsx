@@ -10,7 +10,7 @@ import {
   type AvailabilityStatus,
   type AvailabilityWrite,
 } from '../../lib/availability'
-import { TextField } from '../ui/TextField'
+import { DateField } from '../ui/DateField'
 import { AvailabilityDot } from './AvailabilityDot'
 
 export function AvailabilityEditor({
@@ -119,17 +119,14 @@ export function AvailabilityEditor({
         })}
       </div>
       {status === 'unavailable' ? (
-        <TextField
+        <DateField
           label="תאריך חזרה"
-          type="date"
-          isolate
           min={tomorrowJerusalem(today)}
           value={availableFrom}
           hint="ללא תאריך — השאירו ריק."
           error={error}
           disabled={disabled || saving}
-          onChange={(event) => {
-            const next = event.target.value
+          onChange={(next) => {
             setAvailableFrom(next)
             commit({ status: 'unavailable', availableFrom: next })
           }}

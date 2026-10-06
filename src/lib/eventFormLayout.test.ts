@@ -90,6 +90,8 @@ describe('event form standalone layout', () => {
     expect(eventFormSource).toContain('event-form__f-type-id')
     expect(eventFormSource).toContain('event-form__f-callsign')
     expect(eventFormSource).toContain('event-form__f-date')
+    expect(eventFormSource).toContain('<DateField')
+    expect(eventFormSource).not.toMatch(/label="תאריך"[\s\S]{0,80}type="date"/)
     expect(eventFormSource).toContain('event-form__f-times-note')
     expect(eventFormSource).toContain('event-form__f-times')
     expect(eventFormSource).toContain('event-form__f-district-place')

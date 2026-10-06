@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  applyDateKeystroke,
   applyTimeKeystroke,
   digitsOnly,
+  displayDateToIso,
   formatDateWithWeekday,
   formatLastLogin,
   formatPlate,
   formatTimeInput,
+  isoDateToDisplay,
+  isCompleteDateInput,
   policeEventIdForInput,
   POLICE_EVENT_ID_MAX_LENGTH,
   hebrewWeekdayLetter,
@@ -183,6 +187,29 @@ describe('shouldAdvanceAfterTimeEntry', () => {
     expect(shouldAdvanceAfterTimeEntry('08:30', '08:31')).toBe(false)
     expect(shouldAdvanceAfterTimeEntry('08:30', '08:3')).toBe(false)
     expect(shouldAdvanceAfterTimeEntry('08', '08:3')).toBe(false)
+  })
+})
+
+describe('date input (always day-first)', () => {
+  it('shows ISO dates as DD.MM.YYYY, not month-first', () => {
+    expect(isoDateToDisplay('2026-10-05')).toBe('05.10.2026')
+    expect(isoDateToDisplay('2026-01-31')).toBe('31.01.2026')
+    expect(isoDateToDisplay('')).toBe('')
+  })
+
+  it('parses a typed day-first date back to ISO', () => {
+    expect(displayDateToIso('05.10.2026')).toBe('2026-10-05')
+    expect(displayDateToIso('10.05.2026')).toBe('2026-05-10')
+    expect(isCompleteDateInput('31.02.2026')).toBe(false)
+    expect(displayDateToIso('10/05/2026')).toBeNull()
+  })
+
+  it('inserts dots while typing and backspaces a digit over the dot', () => {
+    expect(applyDateKeystroke('', '05')).toBe('05')
+    expect(applyDateKeystroke('05', '0510')).toBe('05.10')
+    expect(applyDateKeystroke('05.10', '05102026')).toBe('05.10.2026')
+    expect(applyDateKeystroke('05.10.2026', '05.10.202')).toBe('05.10.202')
+    expect(applyDateKeystroke('05.10', '05.1')).toBe('05.1')
   })
 })
 
