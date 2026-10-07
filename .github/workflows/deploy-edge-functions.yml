@@ -41,7 +41,9 @@ jobs:
       - uses: supabase/setup-cli@v1
         if: steps.creds.outputs.present == 'true'
         with:
-          version: latest
+          # Pin so Actions does not hit GitHub's /releases/latest rate limit
+          # ("Failed to resolve latest Supabase CLI release").
+          version: 2.120.0
       - name: Apply idempotent migrations
         if: steps.creds.outputs.present == 'true'
         env:
