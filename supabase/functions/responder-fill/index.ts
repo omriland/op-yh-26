@@ -231,6 +231,9 @@ Deno.serve(async (req: Request) => {
     return json(400, { error: "גוף הבקשה אינו תקין." });
   }
 
+  // load_by_token / save_by_token authenticate with the fill token itself.
+  // Deploy this function with --no-verify-jwt so a stale user session JWT
+  // cannot make a still-valid email link look expired.
   if (body.action === "load_by_token") {
     return handleLoadByToken(adminClient, body);
   }

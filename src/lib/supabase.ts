@@ -34,3 +34,17 @@ export const supabase = createClient(url ?? '', anon ?? '', {
     },
   },
 })
+
+/**
+ * Fill-email links authenticate with `fill_token`, not a user session.
+ * A stored access token is often already expired when the volunteer reopens
+ * the mail, and the Edge gateway then answers "jwt expired" — the app shows
+ * that as an expired fill link. This client never sends a user JWT.
+ */
+export const supabaseAnon = createClient(url ?? '', anon ?? '', {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+})

@@ -21,6 +21,14 @@ describe('fill token TTL', () => {
     expect(expiresAt).toBe(issuedAt + 180 * DAY)
     expect(expiresAt).toBeGreaterThan(issuedAt + 21 * DAY)
   })
+
+  it('is still valid months later so the same email can be reopened', () => {
+    const issuedAt = Date.parse('2026-10-05T12:00:00.000Z')
+    const expiresAt = fillTokenExpiresAt(issuedAt)
+    const fiveMonthsLater = issuedAt + 150 * DAY
+    expect(isFillTokenExpired(expiresAt, fiveMonthsLater)).toBe(false)
+    expect(isFillTokenExpired(expiresAt, issuedAt + 180 * DAY)).toBe(true)
+  })
 })
 
 describe('fillTokenMintDecision', () => {

@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabase, supabaseAnon } from './supabase'
 import { settleTreatedPlatePending } from './treatedPlates'
 import type { ResponderFillContext, ResponderFillDraft, ResponderFillErrors } from './responderFill'
 
@@ -11,7 +11,7 @@ export type SaveByTokenResult =
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors; code?: string; eventId?: string }
 
 export async function loadFillByToken(fillToken: string): Promise<LoadByTokenResult> {
-  const { data, error } = await supabase.functions.invoke('responder-fill', {
+  const { data, error } = await supabaseAnon.functions.invoke('responder-fill', {
     body: { action: 'load_by_token', fill_token: fillToken },
   })
 
@@ -64,7 +64,7 @@ export async function saveFillByToken(input: {
       treated_plate_pending: '',
     }
   }
-  const { data, error } = await supabase.functions.invoke('responder-fill', {
+  const { data, error } = await supabaseAnon.functions.invoke('responder-fill', {
     body: {
       action: 'save_by_token',
       fill_token: input.fillToken,
