@@ -642,9 +642,13 @@ describe('eventStatusForRowWriteBeforeResponders', () => {
       resolve(dirname(fileURLToPath(import.meta.url)), 'eventForm.ts'),
       'utf8',
     )
-    expect(form).toContain('eventStatusForRowWriteBeforeResponders(nextStatus)')
+    expect(form).toContain('eventStatusForRowWriteBeforeResponders(')
     expect(form).toContain("status: 'done'")
-    expect(form.indexOf('syncResponders')).toBeLessThan(form.lastIndexOf("status: 'done'"))
+    const writeAt = form.indexOf('await writeEventColumns')
+    const syncAt = form.indexOf('await syncResponders')
+    expect(writeAt).toBeGreaterThan(-1)
+    expect(syncAt).toBeGreaterThan(writeAt)
+    expect(form.lastIndexOf("status: 'done'")).toBeGreaterThan(syncAt)
   })
 })
 

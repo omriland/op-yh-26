@@ -361,6 +361,13 @@ export function EventFormPage({
             full_name: leadName,
             callsign: leadCallsign,
           })
+        if (blockSelfAssign && userId) {
+          nextDraft = {
+            ...nextDraft,
+            responders: nextDraft.responders.filter((row) => row.responder_id !== userId),
+          }
+        }
+        const serverSnapshot = JSON.stringify(nextDraft)
         const stashed = applyStashedEventDraft(
           nextDraft,
           eventFormStashForRoute(
@@ -401,7 +408,9 @@ export function EventFormPage({
         lastPersistedPoliceIdRef.current = nextDraft.police_event_id
         setDraft(nextDraft)
         setPreviousIsCancelled(nextDraft.is_cancelled)
-        setBaseline(JSON.stringify(nextDraft))
+        // A restored device copy is not saved yet. Baseline stays the server
+        // row so the debounce writes those details instead of pretending it did.
+        setBaseline(serverSnapshot)
         setLoadState('ready')
       })
       .catch(() => {
@@ -668,7 +677,10 @@ export function EventFormPage({
         return true
       }
 
-      const allowPartial = variant === 'cockpit'
+      const explicitSave = Boolean(options?.navigate || options?.createNew || options?.revealErrors)
+      // Background saves persist whatever is already typed. The explicit
+      // buttons still require the full minimum.
+      const allowPartial = variant === 'cockpit' || !explicitSave
       const rules = evaluateEventFormSaveRules({
         draft: current,
         districts: currentLookups.districts,
@@ -765,6 +777,9 @@ export function EventFormPage({
         previousIsCancelled,
         allowPartial,
         blockSelfAssign,
+        previous: baselineRef.current
+          ? parseStoredDraft(baselineRef.current, current)
+          : null,
       })
 
       if (!result.ok) {
@@ -816,7 +831,7 @@ export function EventFormPage({
         location_lat: result.location_lat,
         location_lng: result.location_lng,
         location_pin_source: result.location_pin_source,
-        secondary_leads: result.secondary_leads,
+        secondary_leads: current.secondary_leads ?? [],
         responders: mergeAssignmentIds(current.responders, result.assignmentIds),
       }
       const nextDraft: EventFormDraft = {
@@ -832,7 +847,7 @@ export function EventFormPage({
         location_pin_source:
           latest.location_pin_source ??
           (latest.location === current.location ? result.location_pin_source : null),
-        secondary_leads: result.secondary_leads,
+        secondary_leads: latest.secondary_leads ?? [],
         responders: mergeAssignmentIds(latest.responders, result.assignmentIds),
       }
 
@@ -842,7 +857,7 @@ export function EventFormPage({
           draftRef.current = nextDraft
           setDraft(nextDraft)
           if (!current.id) skipReloadForId.current = result.eventId
-          markSavedPulse()
+          setSavePulse('saving')
           const followUp = { ...options, overnightOk: true as const }
           queueMicrotask(() => {
             void persistLatest(followUp)
@@ -862,9 +877,9 @@ export function EventFormPage({
 
       const stillDirty = JSON.stringify(nextDraft) !== JSON.stringify(savedWithIds)
       if (stillDirty) {
-        markSavedPulse()
-        // Queue a follow-up save (do not call persistLatest from inside this run —
-        // that deadlocks the saveChain promise). Keep navigate/reveal flags.
+        // The row exists, but this snapshot is behind the form. Do not say
+        // "saved" or drop the local copy until the follow-up write matches.
+        setSavePulse('saving')
         const followUp = { ...options, overnightOk: true as const }
         queueMicrotask(() => {
           void persistLatest(followUp)
@@ -1123,14 +1138,14 @@ export function EventFormPage({
   })
 
   useEffect(() => {
-    if (variant !== 'cockpit' || !draft || loadState !== 'ready') return
+    if (!draft || loadState !== 'ready') return
     if (cockpitPreviewing || foreignEditPending) return
     if (JSON.stringify(draft) === baseline) return
     const timer = window.setTimeout(() => {
       void persistLatest()
     }, COCKPIT_AUTOSAVE_MS)
     return () => window.clearTimeout(timer)
-  }, [variant, draft, baseline, loadState, cockpitPreviewing, foreignEditPending])
+  }, [draft, baseline, loadState, cockpitPreviewing, foreignEditPending])
 
   useEffect(() => {
     if (!user || !draft || loadState !== 'ready' || variant === 'cockpit') return
@@ -1197,7 +1212,6 @@ export function EventFormPage({
 
   useEffect(() => {
     return () => {
-      if (variant !== 'cockpit') return
       const current = draftRef.current
       if (
         current &&
@@ -1206,7 +1220,7 @@ export function EventFormPage({
         void persistLatest()
       }
     }
-  }, [variant])
+  }, [])
 
   async function leaveForm() {
     if (await discardIfAbandonedEmpty()) {
@@ -1368,23 +1382,22 @@ export function EventFormPage({
   const needsMinimum = Object.keys(minimumErrors).length > 0
   const identityDraftWarning =
     variant === 'cockpit' ? cockpitIdentityDraftWarning(draft) : null
+  const heldForMinimum = needsMinimum && !draft.id && variant !== 'cockpit'
   const saveHint =
     cockpitPreviewing
       ? ''
-      : savePulse === 'saving'
-      ? 'שומר…'
-      : savePulse === 'saved'
-        ? 'נשמר'
-        : savePulse === 'error'
-          ? variant === 'cockpit'
-            ? 'השמירה נכשלה — נסו שוב'
-            : needsMinimum
-              ? eventMinimumHint(minimumErrors, false)
-              : 'השמירה נכשלה — נסו שוב'
-          : variant === 'cockpit'
-            ? 'השינויים נשמרים אוטומטית.'
-            : needsMinimum && !draft.id
-              ? eventMinimumHint(minimumErrors, true)
+      : savePulse === 'error'
+        ? variant === 'cockpit'
+          ? 'השמירה נכשלה — נסו שוב'
+          : needsMinimum
+            ? eventMinimumHint(minimumErrors, false)
+            : 'השמירה נכשלה — נסו שוב'
+        : heldForMinimum
+          ? eventMinimumHint(minimumErrors, true)
+          : savePulse === 'saving' || dirty
+            ? 'שומר…'
+            : savePulse === 'saved'
+              ? 'נשמר'
               : displayStatus === 'draft'
                 ? 'נשמר כאירוע בהזנה עד שישובץ מתנדב.'
                 : 'השינויים נשמרים אוטומטית.'

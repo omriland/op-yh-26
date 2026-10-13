@@ -1420,6 +1420,149 @@ export function mergeAssignmentIds(
   })
 }
 
+export type PersistColumnValue = string | number | boolean | null
+
+/**
+ * Columns a save is allowed to write. Compared against the last confirmed
+ * draft so a kilometer edit cannot null location, notes, or any other
+ * column the form did not change — including columns this screen never loaded.
+ */
+export function eventPersistColumns(input: {
+  draft: EventFormDraft
+  shiftLeadId: string
+  districts: LookupOption[]
+  roads?: LookupOption[]
+  eventTypes?: LookupOption[]
+  allowPartial?: boolean
+  locationPayload?: ReturnType<typeof buildLocationPayload>
+}): Record<string, PersistColumnValue> {
+  const draft = input.draft
+  const allowPartial = Boolean(input.allowPartial)
+  const locationPayload = input.locationPayload ?? buildLocationPayload(draft)
+  const foreignIds = eventForeignIds(draft, { allowPartial })
+  const mainLeadId = draft.shift_lead_id?.trim() || input.shiftLeadId
+  const startTime = draft.start_time ?? ''
+  const endTime = draft.end_time ?? ''
+  const overnight = isOvernightEnd(startTime, endTime)
+  const callsignPrefix =
+    patrolCallsignPrefixForInput(draft.patrol_callsign_prefix ?? '').trim() || null
+  const callsignNumber = patrolCallsignNumberForInput(draft.patrol_callsign_number ?? '') || null
+  const columns: Record<string, PersistColumnValue> = {
+    event_date: draft.event_date,
+    police_event_id: policeEventIdForInput(draft.police_event_id ?? '') || null,
+    district_id: foreignIds.district_id,
+    patrol_callsign: formatPatrolCallsign(callsignPrefix ?? '', callsignNumber ?? '') || null,
+    patrol_callsign_prefix: callsignPrefix,
+    patrol_callsign_number: callsignNumber,
+    started_at: wallTimestamp(draft.event_date, startTime, 0),
+    ended_at: wallTimestamp(draft.event_date, endTime, overnight ? 1 : 0),
+    event_type_id: foreignIds.event_type_id,
+    road_id: foreignIds.road_id,
+    location: locationPayload.location,
+    location_place_id: locationPayload.location_place_id,
+    location_lat: locationPayload.location_lat,
+    location_lng: locationPayload.location_lng,
+    location_pin_source: locationPayload.location_pin_source,
+    location_pinned_at: locationPayload.location_pinned_at,
+    location_pinned_by: locationPayload.location_pinned_by,
+    notes: (draft.notes ?? '').trim() || null,
+    event_type_detail: eventTypeDetailForSave({
+      eventTypeId: draft.event_type_id,
+      eventTypes: input.eventTypes ?? [],
+      detail: draft.event_type_detail ?? '',
+    }),
+    station: stationForSave({
+      districtId: draft.district_id,
+      districts: input.districts,
+      station: draft.station ?? '',
+    }),
+    is_cancelled: Boolean(draft.is_cancelled),
+    bus_lane: Boolean(draft.bus_lane),
+    status: eventStatusForRowWriteBeforeResponders(deriveEventStatus(draft)),
+  }
+  if (draft.shift_lead_id) columns.shift_lead_id = mainLeadId
+  return columns
+}
+
+/** Keys whose stored value changed. Equal blanks stay omitted so they cannot null the row. */
+export function changedPersistColumns(
+  previous: Record<string, PersistColumnValue>,
+  next: Record<string, PersistColumnValue>,
+): Record<string, PersistColumnValue> {
+  const patch: Record<string, PersistColumnValue> = {}
+  const keys = new Set([...Object.keys(previous), ...Object.keys(next)])
+  for (const key of keys) {
+    const before = previous[key] ?? null
+    const after = next[key] ?? null
+    if (Object.is(before, after)) continue
+    patch[key] = after
+  }
+  return patch
+}
+
+function treatedVehicleKey(rows: TreatedDraft[]): string {
+  return rows
+    .filter((row) => row.quantity > 0)
+    .map((row) => `${row.vehicle_kind_id}:${row.quantity}`)
+    .sort()
+    .join('|')
+}
+
+/** False when the form did not change counts — do not delete the stored rows. */
+export function shouldRewriteTreatedVehicles(
+  previous: TreatedDraft[] | null,
+  next: TreatedDraft[],
+): boolean {
+  const nextKey = treatedVehicleKey(next)
+  if (!previous) return nextKey.length > 0
+  return treatedVehicleKey(previous) !== nextKey
+}
+
+export function responderLeadPatch(input: {
+  previous: ResponderDraft | null
+  next: ResponderDraft
+  startedAt: string | null
+  endedAt: string | null
+  previousStartedAt: string | null
+  previousEndedAt: string | null
+}): Record<string, PersistColumnValue> {
+  const km = leadKmForSave(input.next.hasVehicle, input.next.total_km)
+  const safeKm = km != null && Number.isNaN(km) ? null : km
+  if (!input.previous) {
+    return {
+      started_at: input.startedAt,
+      ...(input.endedAt ? { ended_at: input.endedAt } : {}),
+      total_km: safeKm,
+      emergency_means: input.next.emergency_means,
+    }
+  }
+  const previousKm = leadKmForSave(input.previous.hasVehicle, input.previous.total_km)
+  const safePreviousKm = previousKm != null && Number.isNaN(previousKm) ? null : previousKm
+  const patch: Record<string, PersistColumnValue> = {}
+  if (!Object.is(safePreviousKm, safeKm)) patch.total_km = safeKm
+  if (input.previous.emergency_means !== input.next.emergency_means) {
+    patch.emergency_means = input.next.emergency_means
+  }
+  if (!Object.is(input.previousStartedAt, input.startedAt)) patch.started_at = input.startedAt
+  if (input.endedAt && !Object.is(input.previousEndedAt, input.endedAt)) {
+    patch.ended_at = input.endedAt
+  }
+  return patch
+}
+
+export function secondaryLeadsUnchanged(
+  previous: SecondaryLead[] | null | undefined,
+  next: SecondaryLead[],
+): boolean {
+  const key = (rows: SecondaryLead[]) =>
+    rows
+      .map((row) => `${row.user_id}:${row.locked ? 1 : 0}`)
+      .sort()
+      .join('|')
+  if (!previous) return next.length === 0
+  return key(previous) === key(next)
+}
+
 const LOCKED_KM_SAVE_ERROR = 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
 
 /**
@@ -1461,6 +1604,8 @@ export async function saveEventForm(input: {
   allowPartial?: boolean
   /** Create session (including cockpit). Rejects a tampered self-assign. */
   blockSelfAssign?: boolean
+  /** Last confirmed draft. An update writes only the columns that differ from it. */
+  previous?: EventFormDraft | null
 }): Promise<
   | {
       ok: true
@@ -1528,7 +1673,6 @@ export async function saveEventForm(input: {
   }
 
   const nextStatus = deriveEventStatus(draft)
-  const rowStatus = eventStatusForRowWriteBeforeResponders(nextStatus)
 
   let locationPayload = buildLocationPayload(draft)
   const roadName = input.roads?.find((row) => row.id === draft.road_id)?.name ?? null
@@ -1552,54 +1696,46 @@ export async function saveEventForm(input: {
     const coords = query ? await geocodePlaceQuery(query) : null
     locationPayload = applyAutoGeocodeToLocationPayload(locationPayload, coords)
   }
-  const foreignIds = eventForeignIds(draft, { allowPartial })
   const mainLeadId = draft.shift_lead_id?.trim() || shiftLeadId
   const wasCreate = !draft.id
   const overnight = isOvernightEnd(draft.start_time, draft.end_time)
   const eventStartedAt = wallTimestamp(draft.event_date, draft.start_time, 0)
   const eventEndedAt = wallTimestamp(draft.event_date, draft.end_time, overnight ? 1 : 0)
-  const callsignPrefix = patrolCallsignPrefixForInput(draft.patrol_callsign_prefix).trim() || null
-  const callsignNumber = patrolCallsignNumberForInput(draft.patrol_callsign_number) || null
-  const eventPayload = {
-    event_date: draft.event_date,
-    police_event_id: policeEventIdForInput(draft.police_event_id) || null,
-    district_id: foreignIds.district_id,
-    patrol_callsign: formatPatrolCallsign(callsignPrefix, callsignNumber) || null,
-    patrol_callsign_prefix: callsignPrefix,
-    patrol_callsign_number: callsignNumber,
-    started_at: eventStartedAt,
-    ended_at: eventEndedAt,
-    event_type_id: foreignIds.event_type_id,
-    road_id: foreignIds.road_id,
-    location: locationPayload.location,
-    location_place_id: locationPayload.location_place_id,
-    location_lat: locationPayload.location_lat,
-    location_lng: locationPayload.location_lng,
-    location_pin_source: locationPayload.location_pin_source,
-    location_pinned_at: locationPayload.location_pinned_at,
-    location_pinned_by: locationPayload.location_pinned_by,
-    notes: draft.notes.trim() || null,
-    event_type_detail: eventTypeDetailForSave({
-      eventTypeId: draft.event_type_id,
-      eventTypes: input.eventTypes ?? [],
-      detail: draft.event_type_detail,
-    }),
-    station: stationForSave({
-      districtId: draft.district_id,
-      districts,
-      station: draft.station,
-    }),
-    is_cancelled: draft.is_cancelled,
-    bus_lane: draft.bus_lane,
-    status: rowStatus,
-    updated_at: new Date().toISOString(),
-    ...(draft.shift_lead_id ? { shift_lead_id: mainLeadId } : {}),
-  }
+  const nextColumns = eventPersistColumns({
+    draft,
+    shiftLeadId,
+    districts,
+    roads: input.roads,
+    eventTypes: input.eventTypes,
+    allowPartial,
+    locationPayload,
+  })
+  const previousColumns = input.previous
+    ? eventPersistColumns({
+        draft: input.previous,
+        shiftLeadId,
+        districts,
+        roads: input.roads,
+        eventTypes: input.eventTypes,
+        allowPartial,
+      })
+    : null
+  // A normal edit patches the diff. A brand-new insert, and a recovered row
+  // we are claiming, still write the full draft.
+  const eventPatch = previousColumns
+    ? changedPersistColumns(previousColumns, nextColumns)
+    : nextColumns
 
   let eventId = draft.id
-  const policeEventId = eventPayload.police_event_id
+  const policeEventId =
+    typeof nextColumns.police_event_id === 'string' ? nextColumns.police_event_id : null
 
-  const payloadWithoutOptional = stripOptionalEventColumnsFromPayload(eventPayload)
+  const insertPayload = {
+    ...nextColumns,
+    shift_lead_id: mainLeadId,
+    updated_at: new Date().toISOString(),
+  }
+  const payloadWithoutOptional = stripOptionalEventColumnsFromPayload(insertPayload)
 
   if (!eventId && policeEventId) {
     eventId =
@@ -1611,11 +1747,7 @@ export async function saveEventForm(input: {
   }
 
   if (eventId) {
-    let { error } = await supabase.from('events').update(eventPayload).eq('id', eventId)
-    if (error && isMissingOptionalEventColumn(error)) {
-      const retry = await supabase.from('events').update(payloadWithoutOptional).eq('id', eventId)
-      error = retry.error
-    }
+    const error = await writeEventColumns(eventId, eventPatch)
     if (error) {
       const persist = eventPersistFailure(error)
       return { ok: false, ...persist, eventId }
@@ -1623,7 +1755,7 @@ export async function saveEventForm(input: {
   } else {
     let { data, error } = await supabase
       .from('events')
-      .insert({ ...eventPayload, shift_lead_id: mainLeadId })
+      .insert(insertPayload)
       .select('id')
       .single()
     if (error && isMissingOptionalEventColumn(error)) {
@@ -1649,14 +1781,10 @@ export async function saveEventForm(input: {
         return { ok: false, ...persist }
       }
       eventId = recovered
-      let retryError = (
-        await supabase.from('events').update(eventPayload).eq('id', eventId)
-      ).error
-      if (retryError && isMissingOptionalEventColumn(retryError)) {
-        retryError = (
-          await supabase.from('events').update(payloadWithoutOptional).eq('id', eventId)
-        ).error
-      }
+      const retryError = await writeEventColumns(
+        eventId,
+        previousColumns ? eventPatch : nextColumns,
+      )
       if (retryError) {
         const persist = eventPersistFailure(retryError)
         return { ok: false, ...persist, eventId }
@@ -1666,12 +1794,29 @@ export async function saveEventForm(input: {
     }
   }
 
+  const previousStartedAt = input.previous
+    ? wallTimestamp(input.previous.event_date, input.previous.start_time ?? '', 0)
+    : null
+  const previousOvernight = input.previous
+    ? isOvernightEnd(input.previous.start_time ?? '', input.previous.end_time ?? '')
+    : false
+  const previousEndedAt = input.previous
+    ? wallTimestamp(
+        input.previous.event_date,
+        input.previous.end_time ?? '',
+        previousOvernight ? 1 : 0,
+      )
+    : null
+
   const sync = await syncResponders({
     eventId,
     eventDate: draft.event_date,
     startedAt: eventStartedAt,
     endedAt: eventEndedAt,
+    previousStartedAt,
+    previousEndedAt,
     responders: draft.responders,
+    previousResponders: input.previous?.responders ?? null,
     vehicleKinds,
     isCancelled: draft.is_cancelled,
   })
@@ -1691,11 +1836,17 @@ export async function saveEventForm(input: {
   const creatorSecondary = wasCreate
     ? createTimeCreatorSecondary({ creatorId: shiftLeadId, mainLeadId })
     : null
-  const secondarySync = await syncSecondaryLeads({
-    eventId,
-    desired: draft.secondary_leads ?? [],
-    creatorSecondary,
-  })
+  const skipSecondary =
+    !wasCreate &&
+    Boolean(input.previous) &&
+    secondaryLeadsUnchanged(input.previous?.secondary_leads, draft.secondary_leads ?? [])
+  const secondarySync = skipSecondary
+    ? { ok: true as const, secondaries: draft.secondary_leads ?? [] }
+    : await syncSecondaryLeads({
+        eventId,
+        desired: draft.secondary_leads ?? [],
+        creatorSecondary,
+      })
   if (!secondarySync.ok) return { ...secondarySync, eventId }
 
   const notifyIds = fillReadyNotifyIds(sync.previousKm, sync.nextKmRows)
@@ -1809,12 +1960,32 @@ async function syncSecondaryLeads(input: {
   return { ok: true, secondaries: await fetchSecondaryLeads(input.eventId) }
 }
 
+async function writeEventColumns(
+  eventId: string,
+  columns: Record<string, PersistColumnValue>,
+): Promise<{ code?: string; message?: string } | null> {
+  if (Object.keys(columns).length === 0) return null
+  const payload = { ...columns, updated_at: new Date().toISOString() }
+  let { error } = await supabase.from('events').update(payload).eq('id', eventId)
+  if (error && isMissingOptionalEventColumn(error)) {
+    const retry = await supabase
+      .from('events')
+      .update(stripOptionalEventColumnsFromPayload(payload))
+      .eq('id', eventId)
+    error = retry.error
+  }
+  return error
+}
+
 async function syncResponders(input: {
   eventId: string
   eventDate: string
   startedAt: string | null
   endedAt: string | null
+  previousStartedAt: string | null
+  previousEndedAt: string | null
   responders: ResponderDraft[]
+  previousResponders: ResponderDraft[] | null
   vehicleKinds: LookupOption[]
   isCancelled: boolean
 }): Promise<
@@ -1880,22 +2051,30 @@ async function syncResponders(input: {
     const responderStartedAt = startedAt
     const responderEndedAt = endedAt
 
+    const previousRow =
+      input.previousResponders?.find((row) => row.responder_id === responder.responder_id) ??
+      null
+    const leadPatch = responderLeadPatch({
+      previous: previousRow,
+      next: responder,
+      startedAt: responderStartedAt,
+      endedAt: responderEndedAt,
+      previousStartedAt: input.previousStartedAt,
+      previousEndedAt: input.previousEndedAt,
+    })
+
     // Draft may lack assignmentId after the first insert in this session — reuse DB row.
     let assignmentId =
       responder.assignmentId ?? existingByResponder.get(responder.responder_id) ?? undefined
     if (assignmentId) {
-      const { error } = await supabase
-        .from('event_responders')
-        .update({
-          started_at: responderStartedAt,
-          ...(responderEndedAt ? { ended_at: responderEndedAt } : {}),
-          total_km: km,
-          emergency_means: responder.emergency_means,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', assignmentId)
-      if (error) {
-        return { ok: false, error: eventPersistFailure(error).error }
+      if (Object.keys(leadPatch).length > 0) {
+        const { error } = await supabase
+          .from('event_responders')
+          .update({ ...leadPatch, updated_at: new Date().toISOString() })
+          .eq('id', assignmentId)
+        if (error) {
+          return { ok: false, error: eventPersistFailure(error).error }
+        }
       }
     } else {
       const { data, error } = await supabase
@@ -1920,6 +2099,10 @@ async function syncResponders(input: {
 
     assignmentIds[responder.responder_id] = assignmentId
     nextKmRows.push({ assignmentId, totalKm: km })
+
+    const rewriteTreated =
+      isCancelled || shouldRewriteTreatedVehicles(previousRow?.treated ?? null, responder.treated)
+    if (!rewriteTreated) continue
 
     const { error: clearError } = await supabase
       .from('event_treated_vehicles')

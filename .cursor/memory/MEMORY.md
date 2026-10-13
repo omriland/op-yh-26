@@ -1,6 +1,14 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-07 (fill-email stale-JWT fix live)
+Last updated: 2026-10-13 (event autosave patch + Android 0.3.43 force-update)
+
+## Event autosave (2026-10-13)
+
+- A save used to UPDATE every event column and rewrite every participation from the form in memory. An empty field became SQL null, so a kilometer edit (or a form that had not loaded a column) deleted location, notes, and the rest. Web also showed "השינויים נשמרים אוטומטית" while those keystrokes were only local.
+- Web `saveEventForm` and Android `updateUnitEvent` now PATCH only columns that differ from the last confirmed draft. Equal blanks are omitted. Clearing a field still writes null. Treated-vehicle rows are replaced only when quantities change. Secondary leads are left alone when the list did not change.
+- Web page and cockpit both debounce (`COCKPIT_AUTOSAVE_MS`, 800). Background saves persist a partial draft; the explicit save buttons still require the minimum. A restored device copy is dirty against the server snapshot, so it is written. Hint is "שומר…" while dirty.
+- Android debounces the same way and flushes the latest draft on leaving the screen, on a write the screen's coroutine cannot cancel. A kilometer-only edit does not rewrite the event row.
+- **Android force-update (2026-10-13):** **0.3.43 / versionCode 54 / minVersionCode 54** (previous min **53** / 0.3.42). Signed with the existing upload key (cert SHA-256 `b35ec91aca13ab524f0382e548f1a3d4ef66076271c77c6d8e1135e4bb373045`). APK `yahpaz-0.3.43.apk` 64,741,213 bytes, sha256 `0d5ccb2d1c1c3e3587ea392414f85304bc51786aa201b9d5946ce673af80e942`. Git CD publishes it; confirm live `version.json` after the deploy is ready.
 
 ## What this is
 
