@@ -1,11 +1,11 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-15 (missing-KM reminder skips events still on the cockpit)
+Last updated: 2026-10-15 (missing-KM reminder live; cockpit events excluded)
 
 ## Missing-KM reminder vs the cockpit (2026-10-15)
 
 - The login popup and the Events-page banner (`count_events_missing_lead_km`) no longer count an event that is still on the cockpit. The cockpit window is 5 hours from `created_at` (`COCKPIT_WINDOW_MS`). While it is there the shift is in progress. After it leaves, a missing lead KM still counts toward the threshold of 2.
-- Completing an event is unchanged: `event_missing_lead_km` and `guard_event_done_requirements` still require KM. Migration `supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql`. Listed last in Deploy Edge Functions so the older replace of the same function does not wipe it. **Not applied on prod** until that workflow runs.
+- Completing an event is unchanged: `event_missing_lead_km` and `guard_event_done_requirements` still require KM. Migration `supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql`. Listed last in Deploy Edge Functions so the older replace of the same function does not wipe it. **Live on prod** (workflow run `38681919836`, success 2026-10-15T04:32Z). `pg_get_functiondef` includes `created_at < now() - interval '5 hours'`. Web Git CD deploy `6ad057254488a26ef8729a5f` **ready**, commit `e993315`, published 2026-10-15T04:32:25Z.
 
 ## Event autosave (2026-10-13)
 
