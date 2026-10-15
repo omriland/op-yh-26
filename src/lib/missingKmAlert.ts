@@ -50,6 +50,8 @@ export function writeMissingKmPopupDismissed(
 
 /**
  * Count of events this viewer leads that still need lead-entered ק״מ.
+ * Events still on the cockpit (created within the last 5 hours) are left out:
+ * they are still in progress.
  *
  * This runs on every login and on every Events-page mount. It used to be three
  * client queries that pulled every event the lead had ever run, with all their

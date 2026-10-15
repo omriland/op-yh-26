@@ -1,6 +1,11 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-13 (event autosave patch + Android 0.3.43 force-update)
+Last updated: 2026-10-15 (missing-KM reminder skips events still on the cockpit)
+
+## Missing-KM reminder vs the cockpit (2026-10-15)
+
+- The login popup and the Events-page banner (`count_events_missing_lead_km`) no longer count an event that is still on the cockpit. The cockpit window is 5 hours from `created_at` (`COCKPIT_WINDOW_MS`). While it is there the shift is in progress. After it leaves, a missing lead KM still counts toward the threshold of 2.
+- Completing an event is unchanged: `event_missing_lead_km` and `guard_event_done_requirements` still require KM. Migration `supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql`. Listed last in Deploy Edge Functions so the older replace of the same function does not wipe it. **Not applied on prod** until that workflow runs.
 
 ## Event autosave (2026-10-13)
 
@@ -9,6 +14,12 @@ Last updated: 2026-10-13 (event autosave patch + Android 0.3.43 force-update)
 - Web page and cockpit both debounce (`COCKPIT_AUTOSAVE_MS`, 800). Background saves persist a partial draft; the explicit save buttons still require the minimum. A restored device copy is dirty against the server snapshot, so it is written. Hint is "שומר…" while dirty.
 - Android debounces the same way and flushes the latest draft on leaving the screen, on a write the screen's coroutine cannot cancel. A kilometer-only edit does not rewrite the event row.
 - **Android force-update (2026-10-13):** **Live.** **0.3.43 / versionCode 54 / minVersionCode 54** (previous min **53** / 0.3.42). Signed with the existing upload key (cert SHA-256 `b35ec91aca13ab524f0382e548f1a3d4ef66076271c77c6d8e1135e4bb373045`). APK `yahpaz-0.3.43.apk` 64,741,213 bytes, sha256 `0d5ccb2d1c1c3e3587ea392414f85304bc51786aa201b9d5946ce673af80e942`. Confirmed on https://yahpz.com/android/version.json (`minVersionCode` 54, `cache-status` fwd=miss) and https://yahpz.com/android/yahpaz-0.3.43.apk (same size and sha256). https://yahpz.com/ 200. Web `3442143` on `infra/bootstrap`. Android source `60c78dd` on `main`. GitHub fallback `site/android/version.json` matches.
+
+## Event delete vs the 7-day edit lock (2026-10-13)
+
+- The 7-day rule still blocks **editing** for a shift lead (`isEventEditAgeLocked`). Admin and super_admin are not age-locked. Filling an empty lead kilometer on a locked event is unchanged.
+- **Delete is no longer time-limited.** `public.delete_event` lets the owning shift lead delete at any age, including after the edit lock, and still refuses another lead's event. `events_delete_cockpit_draft_lead` is the same ownership check with no `created_at` window. Migration `supabase/migrations/20261013190000_shift_lead_delete_event_any_age.sql`. **Live on prod** (applied 2026-10-13 with `supabase db query --linked`; `pg_get_functiondef` has no 2-hour interval). `supabase db push` still cannot be used: remote migration history has versions that are not in the local folder.
+- The existing web event page already calls `delete_event` and shows delete independently of the edit lock, so that button works without a web deploy. The locked event form's delete button, and Android (RPC delete, delete with responders, delete on the locked screen), are local and not in 0.3.43.
 
 ## What this is
 

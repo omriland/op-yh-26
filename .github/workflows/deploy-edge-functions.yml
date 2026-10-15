@@ -19,6 +19,7 @@ on:
       - "supabase/migrations/20260929082322_events_same_day_police_event_id.sql"
       - "supabase/migrations/20261005160000_fill_token_ttl_180d.sql"
       - "supabase/migrations/20261007120000_fill_token_stretch_remaining.sql"
+      - "supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -71,6 +72,10 @@ jobs:
             -f supabase/migrations/20261005160000_fill_token_ttl_180d.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261007120000_fill_token_stretch_remaining.sql
+          # After 20260913080000: that file still replaces this function, so
+          # the cockpit exclusion has to be applied last.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

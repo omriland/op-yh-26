@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { rpc } = vi.hoisted(() => ({ rpc: vi.fn() }))
 vi.mock('./supabase', () => ({ supabase: { rpc } }))
 
+import { COCKPIT_WINDOW_MS } from './cockpit'
 import {
   MISSING_KM_ALERT_THRESHOLD,
   MISSING_KM_POPUP_DISMISS_KEY,
@@ -72,6 +73,23 @@ describe('missingKmAlert', () => {
     expect(sql).toContain('event_secondary_leads')
     expect(sql).toContain('er.total_km is null')
     // A ללא-רכב volunteer must not be counted as a missing KM.
+    expect(sql).toContain('not v.archived')
+  })
+
+  it('does not count events that are still on the cockpit', () => {
+    const hours = COCKPIT_WINDOW_MS / (60 * 60 * 1000)
+    expect(hours).toBe(5)
+    const sql = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql',
+      ),
+      'utf8',
+    )
+    expect(sql).toContain(`e.created_at < now() - interval '${hours} hours'`)
+    expect(sql).toContain('e.shift_lead_id = auth.uid()')
+    expect(sql).toContain('event_secondary_leads')
+    expect(sql).toContain('er.total_km is null')
     expect(sql).toContain('not v.archived')
   })
 
