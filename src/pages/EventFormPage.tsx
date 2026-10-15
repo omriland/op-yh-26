@@ -52,7 +52,12 @@ import {
   type EventLookups,
   type ResponderDraft,
 } from '../lib/eventForm'
-import { deleteEvent } from '../lib/events'
+import {
+  canViewerDeleteEvent,
+  deleteEvent,
+  eventDeleteConfirmBody,
+  eventDeleteConfirmTitle,
+} from '../lib/events'
 import { eventReleasedToResponders } from '../lib/eventResponderRelease'
 import {
   RESPONDER_ADDED_HELD_TOAST,
@@ -217,6 +222,7 @@ export function EventFormPage({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerQuery, setPickerQuery] = useState('')
   const [leaveConfirm, setLeaveConfirm] = useState(false)
+  const [confirmLockedDelete, setConfirmLockedDelete] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<ResponderDraft | null>(null)
   const [notifyPrompt, setNotifyPrompt] = useState<{
     issues: SaveRuleIssue[]
@@ -535,6 +541,22 @@ export function EventFormPage({
     baselineRef.current = snapshot
     setBaseline(snapshot)
     setSavePulse('idle')
+  }
+
+  async function confirmAgeLockedDelete() {
+    const eventId = draft?.id
+    if (!eventId || saving) return
+    setSaving(true)
+    const result = await deleteEvent(eventId)
+    setSaving(false)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    if (user) clearEventFormStash(user.id, eventId)
+    show('האירוע נמחק', 'done')
+    setConfirmLockedDelete(false)
+    onCancel()
   }
 
   async function discardIfAbandonedEmpty(): Promise<boolean> {
@@ -1316,6 +1338,11 @@ export function EventFormPage({
 
   if (loadState === 'age_locked') {
     const stored = draft ? parseStoredDraft(baseline, draft) : null
+    const mayDelete = canViewerDeleteEvent({
+      roles,
+      userId: user?.id,
+      shiftLeadId: draft?.shift_lead_id,
+    })
     return (
       <div
         className={[
@@ -1336,6 +1363,11 @@ export function EventFormPage({
               </Button>
             }
           />
+          {mayDelete ? (
+            <Button variant="destructive" onClick={() => setConfirmLockedDelete(true)}>
+              מחיקה
+            </Button>
+          ) : null}
           {draft && stored ? (
             <LockedEventKmFields
               draft={draft}
@@ -1346,6 +1378,30 @@ export function EventFormPage({
             />
           ) : null}
         </div>
+        <AlertDialog
+          open={confirmLockedDelete}
+          status="danger"
+          title={eventDeleteConfirmTitle(draft?.police_event_id)}
+          busy={saving}
+          onClose={() => !saving && setConfirmLockedDelete(false)}
+          footer={
+            <>
+              <Button
+                variant="destructive"
+                loading={saving}
+                loadingLabel="מוחק…"
+                onClick={() => void confirmAgeLockedDelete()}
+              >
+                מחיקה
+              </Button>
+              <Button variant="secondary" onClick={() => setConfirmLockedDelete(false)} disabled={saving}>
+                ביטול
+              </Button>
+            </>
+          }
+        >
+          {eventDeleteConfirmBody(draft?.responders.length ?? 0)}
+        </AlertDialog>
       </div>
     )
   }

@@ -1,6 +1,11 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-15 (missing-KM reminder live; cockpit events excluded)
+Last updated: 2026-10-15 (volunteer fill no longer locks אחמ״ש משני)
+
+## Volunteer fill vs אחמ״ש משני (2026-10-15)
+
+- Documenting a participation calls `apply_event_status_from_participations`, which updates `events.status`. The after-update trigger treated that as an אחמ״ש edit and locked the caller as אחמ״ש משני when they also had `shift_lead`. A responder without that role was never added.
+- The RPC now sets `yahpaz.skip_auto_secondary` for that transaction. A real event edit still locks. Migration `20261015130000_skip_auto_secondary_on_participation_status.sql`, **live on prod** (applied 2026-10-15 with `supabase db query --linked`). Removed **49** locked rows whose insert audit was a status-only event update by that same volunteer. **5** locked rows where the same person is also a responder stayed: their insert was a location pin write (`location_lat` / `location_lng`), not the fill status refresh. 30 secondary rows remain. Listed in Deploy Edge Functions after the cockpit KM migration.
 
 ## Missing-KM reminder vs the cockpit (2026-10-15)
 

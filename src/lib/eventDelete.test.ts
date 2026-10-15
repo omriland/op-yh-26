@@ -135,6 +135,18 @@ describe('events delete RLS owns the creator', () => {
     expect(latestLeadDeletePolicy()).not.toMatch(/not\s+exists[\s\S]*event_responders/)
   })
 
+  it('lets the owning shift lead delete after the 7-day edit lock', () => {
+    const policy = latestLeadDeletePolicy()
+    expect(policy).not.toMatch(/interval '2 hours'/)
+    expect(policy).not.toMatch(/interval '7 days'/)
+    const fnStart = allSql.lastIndexOf('create or replace function public.delete_event')
+    const fn = allSql.slice(fnStart, allSql.indexOf('revoke all on function public.delete_event', fnStart))
+    expect(fn).toContain("has_role(auth.uid(), 'shift_lead')")
+    expect(fn).toContain('v_lead is not distinct from auth.uid()')
+    expect(fn).not.toContain("interval '2 hours'")
+    expect(fn).not.toContain("interval '7 days'")
+  })
+
   it('blocks a shift_lead from dropping another lead\'s shift-born stubs', () => {
     expect(sql).toContain('אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.')
     expect(sql).toContain('v_shift.shift_lead_id is distinct from auth.uid()')

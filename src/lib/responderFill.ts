@@ -525,26 +525,7 @@ async function refreshEventStatus(eventId: string): Promise<EventStatus | null> 
   const { data, error } = await supabase.rpc('apply_event_status_from_participations', {
     p_event_id: eventId,
   })
-  if (error) {
-    // Fallback: derive from rows if RPC missing (local/dev drift) — may fail RLS for responders.
-    const [{ data: eventRow }, { data: rows, error: listError }] = await Promise.all([
-      supabase.from('events').select('ended_at').eq('id', eventId).maybeSingle(),
-      supabase.from('event_responders').select('status, total_km').eq('event_id', eventId),
-    ])
-    if (listError) return null
-    const next = deriveEventStatusAfterParticipation(
-      (rows ?? []).map((row) => row.status as ParticipationStatus),
-      {
-        endedAt: (eventRow?.ended_at as string | null) ?? null,
-        totalKms: (rows ?? []).map((row) => (row.total_km as number | null) ?? null),
-      },
-    )
-    await supabase
-      .from('events')
-      .update({ status: next, updated_at: new Date().toISOString() })
-      .eq('id', eventId)
-    return next
-  }
+  if (error) return null
   return data as EventStatus
 }
 

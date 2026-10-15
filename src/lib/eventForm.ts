@@ -15,6 +15,7 @@ import { digitsOnly, isCompleteTimeInput, policeEventIdForInput } from './format
 import {
   LOCATION_REQUIRED_ERROR,
   districtNeedsStation,
+  districtsWithSystemFirst,
   needsPlacesLocation,
 } from './systemDistricts'
 import {
@@ -627,7 +628,7 @@ async function fetchDistrictLookup(): Promise<LookupOption[]> {
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
   if (error) throw new Error(error.message)
-  return (data ?? []) as LookupOption[]
+  return districtsWithSystemFirst((data ?? []) as LookupOption[])
 }
 
 export async function fetchEventLookups(): Promise<EventLookups> {

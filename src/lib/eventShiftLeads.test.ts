@@ -441,6 +441,22 @@ describe('lead copy', () => {
   })
 })
 
+describe('participation status does not lock a secondary lead', () => {
+  const sql = readFileSync(
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      '../../supabase/migrations/20261015130000_skip_auto_secondary_on_participation_status.sql',
+    ),
+    'utf8',
+  )
+
+  it('skips auto-secondary inside the participation status refresh', () => {
+    expect(sql).toContain("set_config('yahpaz.skip_auto_secondary', '1', true)")
+    expect(sql).toContain("current_setting('yahpaz.skip_auto_secondary', true)")
+    expect(sql).toContain('disable trigger event_secondary_leads_enforce')
+  })
+})
+
 describe('event_secondary_leads migration', () => {
   const sql = readFileSync(
     resolve(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260903140000_event_secondary_leads.sql'),

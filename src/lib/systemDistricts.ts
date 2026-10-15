@@ -18,6 +18,14 @@ export function isSystemDistrictCode(code: string | null | undefined): code is S
   return code != null && (SYSTEM_DISTRICT_CODES as readonly string[]).includes(code)
 }
 
+/** Event-form שלוחה list: תחנה / אחר / משוכפל first; the rest keep their order. */
+export function districtsWithSystemFirst<T extends { code?: string | null }>(districts: T[]): T[] {
+  const systemIndex = districts.findIndex((row) => isSystemDistrictCode(row.code))
+  if (systemIndex <= 0) return districts
+  const system = districts[systemIndex]
+  return [system, ...districts.slice(0, systemIndex), ...districts.slice(systemIndex + 1)]
+}
+
 export function emptyLocationPlaceFields(): LocationPlaceFields {
   return {
     location: '',

@@ -4,6 +4,7 @@ import {
   applyDistrictChangeRoad,
   defaultRoadIdForSystemDistrict,
   districtNeedsPlacesLocation,
+  districtsWithSystemFirst,
   emptyLocationPlaceFields,
   isSystemClosedListItem,
   isSystemDistrictCode,
@@ -23,6 +24,25 @@ describe('isSystemDistrictCode', () => {
     expect(isSystemDistrictCode('duplicated')).toBe(false)
     expect(isSystemDistrictCode(null)).toBe(false)
     expect(isSystemDistrictCode('north')).toBe(false)
+  })
+})
+
+describe('districtsWithSystemFirst', () => {
+  it('puts תחנה / אחר / משוכפל first and keeps the rest in order', () => {
+    const rows = [
+      { id: 'north', code: null },
+      { id: 'south', code: 'south' },
+      { id: 'sys', code: 'station_other_duplicated' },
+    ]
+    expect(districtsWithSystemFirst(rows).map((row) => row.id)).toEqual(['sys', 'north', 'south'])
+  })
+
+  it('leaves a list that already starts with the system שלוחה unchanged', () => {
+    const rows = [
+      { id: 'sys', code: 'station_other_duplicated' },
+      { id: 'north', code: null },
+    ]
+    expect(districtsWithSystemFirst(rows)).toBe(rows)
   })
 })
 

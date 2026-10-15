@@ -20,6 +20,7 @@ on:
       - "supabase/migrations/20261005160000_fill_token_ttl_180d.sql"
       - "supabase/migrations/20261007120000_fill_token_stretch_remaining.sql"
       - "supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql"
+      - "supabase/migrations/20261015130000_skip_auto_secondary_on_participation_status.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -76,6 +77,8 @@ jobs:
           # the cockpit exclusion has to be applied last.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261015130000_skip_auto_secondary_on_participation_status.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
