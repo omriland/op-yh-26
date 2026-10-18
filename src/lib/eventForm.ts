@@ -244,6 +244,40 @@ export function keepLiveResponderIdentity(
 }
 
 /**
+ * Normalize UI-only flags (like responder accordion `expanded`) and transient
+ * server-time baseline fields so toggling a responder row open/closed never
+ * triggers a bogus dirty state or autosave write.
+ */
+export function stripStoredTimeBaseline(draft: EventFormDraft): EventFormDraft {
+  const { stored_start_time: _storedStart, stored_end_time: _storedEnd, ...rest } = draft
+  return rest
+}
+
+export function eventDraftBaselineSnapshot(draft: EventFormDraft): string {
+  const clean = stripStoredTimeBaseline(draft)
+  return JSON.stringify({
+    ...clean,
+    responders: clean.responders.map((row) =>
+      row.expanded ? { ...row, expanded: false } : row,
+    ),
+  })
+}
+
+/**
+ * Snapshot of what is actually persisted on the `events` row. When `events.ended_at`
+ * (or `events.started_at`) is NULL in the DB and `fetchEventForEdit` pre-filled
+ * the input from a responder's timestamp, the baseline stays at the stored DB
+ * value (`""`) so saving/autosaving persists the pre-filled time to `events`.
+ */
+export function eventServerBaselineSnapshot(draft: EventFormDraft): string {
+  return eventDraftBaselineSnapshot({
+    ...draft,
+    start_time: draft.stored_start_time ?? draft.start_time,
+    end_time: draft.stored_end_time ?? draft.end_time,
+  })
+}
+
+/**
  * When the only change is a profile refresh and it does not make a typed km
  * newly saveable, the open form should not autosave.
  */
@@ -257,8 +291,13 @@ export function baselineAfterProfileRefresh(
     return Boolean(row.hasVehicle && !prev?.hasVehicle && row.total_km.trim())
   })
   if (kmBecameSaveable) return null
-  if (JSON.stringify(before) !== baselineJson) return null
-  return JSON.stringify(after)
+  if (eventDraftBaselineSnapshot(before) === baselineJson) {
+    return eventDraftBaselineSnapshot(after)
+  }
+  if (JSON.stringify(before) === baselineJson) {
+    return JSON.stringify(after)
+  }
+  return null
 }
 
 /** Lead `total_km` is never stored for a responder the KM field does not apply to. */
@@ -368,6 +407,10 @@ export type EventFormDraft = {
   start_time: string
   /** HH:MM UI — stored as events.ended_at on event_date, or next day if end < start */
   end_time: string
+  /** Actual stored `events.started_at` HH:MM when `start_time` fell back to responder time. */
+  stored_start_time?: string
+  /** Actual stored `events.ended_at` HH:MM when `end_time` fell back to responder time. */
+  stored_end_time?: string
   event_type_id: string
   road_id: string
   location: string
@@ -883,6 +926,11 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     .filter(Boolean)
     .sort()
 
+  const storedStartTime = toTimeInput(row.started_at)
+  const storedEndTime = toTimeInput(row.ended_at)
+  const startTime = storedStartTime || responderStarts[0] || nowTimeJerusalem()
+  const endTime = storedEndTime || responderEnds[responderEnds.length - 1] || ''
+
   return {
     id: row.id,
     created_at: row.created_at ?? undefined,
@@ -893,8 +941,10 @@ export async function fetchEventForEdit(eventId: string): Promise<EventFormDraft
     patrol_callsign: formatPatrolCallsign(callsign.prefix, callsign.number) || row.patrol_callsign || '',
     patrol_callsign_prefix: callsign.prefix,
     patrol_callsign_number: callsign.number,
-    start_time: toTimeInput(row.started_at) || responderStarts[0] || nowTimeJerusalem(),
-    end_time: toTimeInput(row.ended_at) || responderEnds[responderEnds.length - 1] || '',
+    start_time: startTime,
+    end_time: endTime,
+    ...(storedStartTime === '' && responderStarts[0] ? { stored_start_time: '' } : {}),
+    ...(storedEndTime !== endTime ? { stored_end_time: storedEndTime } : {}),
     event_type_id: row.event_type_id ?? '',
     road_id: row.road_id ?? '',
     location: row.location ?? '',

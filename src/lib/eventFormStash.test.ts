@@ -137,6 +137,79 @@ describe('eventFormStash', () => {
     expect(readEventFormStash('u1', 'evt-9', NOW)).toBeNull()
     expect(readEventFormStash('u1', null, NOW)).toBeNull()
   })
+
+  it('never lets a stale blank stash wipe saved end_time, notes, km, treated vehicles, or responders', () => {
+    const serverResponder: ResponderDraft = {
+      key: 'row-1',
+      assignmentId: 'a1',
+      responder_id: 'ilan',
+      full_name: 'אילן לוין',
+      callsign: '402',
+      start_time: '19:24',
+      end_time: '21:04',
+      total_km: '92',
+      emergency_means: true,
+      treated: [{ vehicle_kind_id: 'private', quantity: 2 }],
+      status: 'in_progress',
+      hasOwnedData: false,
+      expanded: false,
+      hasVehicle: true,
+    }
+    const serverBase = draft({
+      id: 'evt-7907',
+      police_event_id: '7907',
+      start_time: '19:24',
+      end_time: '21:04',
+      notes: 'משיכה ארוכה באישור ראש משמרת',
+      location: 'מחלף יבנה לדרום',
+      responders: [serverResponder],
+    })
+    const staleCreateSnapshot = draft({
+      id: 'evt-7907',
+      police_event_id: '7907',
+      start_time: '19:24',
+      end_time: '',
+      notes: '',
+      location: 'מחלף יבנה לדרום',
+      responders: [
+        {
+          ...serverResponder,
+          end_time: '',
+          total_km: '',
+          treated: [],
+        },
+      ],
+    })
+    const merged = applyStashedEventDraft(serverBase, staleCreateSnapshot)
+    expect(merged?.end_time).toBe('21:04')
+    expect(merged?.notes).toBe('משיכה ארוכה באישור ראש משמרת')
+    expect(merged?.responders).toHaveLength(1)
+    expect(merged?.responders[0]?.total_km).toBe('92')
+    expect(merged?.responders[0]?.end_time).toBe('21:04')
+    expect(merged?.responders[0]?.treated).toEqual([{ vehicle_kind_id: 'private', quantity: 2 }])
+
+    const staleWithoutResponder = draft({
+      id: 'evt-7907',
+      police_event_id: '7907',
+      responders: [],
+    })
+    const mergedWithResponderKept = applyStashedEventDraft(serverBase, staleWithoutResponder)
+    expect(mergedWithResponderKept?.responders).toHaveLength(1)
+    expect(mergedWithResponderKept?.responders[0]?.responder_id).toBe('ilan')
+  })
+
+  it('purges legacy pre-v2 eventForm stashes on read', () => {
+    const map = installStorage()
+    map.set(
+      'yahpaz.fillDraft.eventForm.u1:evt-8005',
+      JSON.stringify({
+        savedAt: NOW,
+        draft: draft({ id: 'evt-8005', police_event_id: '8005', end_time: '', notes: '' }),
+      }),
+    )
+    expect(readEventFormStash('u1', 'evt-8005', NOW)).toBeNull()
+    expect(map.has('yahpaz.fillDraft.eventForm.u1:evt-8005')).toBe(false)
+  })
 })
 
 describe('shouldKeepLiveCreateDraft', () => {

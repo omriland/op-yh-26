@@ -1,6 +1,11 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-15 (volunteer fill no longer locks אחמ״ש משני)
+Last updated: 2026-10-18 (fix stale event-form stash wiping fields + responder time fallback baseline)
+
+## Event-form stash & responder-time baseline fix (2026-10-18)
+
+- **Tablet stale-stash wipe fix:** `EventFormPage` (`variant="page"`) previously wrote `yahpaz.fillDraft.eventForm.<userId>:<eventId>` on every open without clearing on background autosave, and `applyStashedEventDraft` later overwrote fresh server fields with that old blank snapshot (which the 800ms autosave then persisted to Supabase, wiping `ended_at`, `notes`, `total_km`, `event_treated_vehicles`, and `event_responders`). Fixed by purging legacy pre-v2 `eventForm` stashes, clearing the stash whenever the draft matches `baselineRef.current` or finishes `persistLatest`, ignoring UI-only `responder.expanded` toggles in `eventDraftBaselineSnapshot`, and making `applyStashedEventDraft` non-destructive over existing server events.
+- **Missing `events.ended_at` vs responder fallback (`פרטים חסרים: שעות`):** When `events.ended_at` (or `started_at`) is `null` in the DB and the form pre-fills `end_time` from `responderEnds`, Web `eventServerBaselineSnapshot` and Android `persistedEventDraftForRow` / `EventFormDetail.toPersistedDraft` keep the baseline at the stored DB value (`""`) so saving/autosaving persists `ended_at` to `public.events`. Restored wiped `notes` on events `7907` and `6577` and `ended_at` on `2806` in prod.
 
 ## Volunteer fill vs אחמ״ש משני (2026-10-15)
 
@@ -18,7 +23,7 @@ Last updated: 2026-10-15 (volunteer fill no longer locks אחמ״ש משני)
 - A save used to UPDATE every event column and rewrite every participation from the form in memory. An empty field became SQL null, so a kilometer edit (or a form that had not loaded a column) deleted location, notes, and the rest. Web also showed "השינויים נשמרים אוטומטית" while those keystrokes were only local.
 - Web `saveEventForm` and Android `updateUnitEvent` now PATCH only columns that differ from the last confirmed draft. Equal blanks are omitted. Clearing a field still writes null. Treated-vehicle rows are replaced only when quantities change. Secondary leads are left alone when the list did not change.
 - Web page and cockpit both debounce (`COCKPIT_AUTOSAVE_MS`, 800). Background saves persist a partial draft; the explicit save buttons still require the minimum. A restored device copy is dirty against the server snapshot, so it is written. Hint is "שומר…" while dirty.
-- **Android force-update (2026-10-18):** **0.3.46 / versionCode 60 / minVersionCode 60** (previous min **54** / 0.3.43). Target SDK 36. Signed with the existing upload key. APK `yahpaz-0.3.46.apk` 64,773,981 bytes, sha256 `36413a15adab6867fa38420ae7c657931e10460443df461f7c02542dc8a8b9d5`. Published via git CD to yahpz.com/android/version.json.
+- **Android force-update (2026-10-18):** **0.3.47 / versionCode 61 / minVersionCode 61** (previous min **60** / 0.3.46). Target SDK 36. Signed with the existing upload key. APK `yahpaz-0.3.47.apk` 64,773,985 bytes, sha256 `d628d5f36adf300ef2168e33a074b1a031ee26f74f6178fa0ca5987ae5c8f9f2`. Published via git CD to yahpz.com/android/version.json.
 
 ## Event delete vs the 7-day edit lock (2026-10-13)
 

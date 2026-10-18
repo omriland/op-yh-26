@@ -6,6 +6,8 @@ import {
   applyLiveResponderProfiles,
   baselineAfterProfileRefresh,
   emptyEventDraft,
+  eventDraftBaselineSnapshot,
+  eventServerBaselineSnapshot,
   hasActiveVehicle,
   keepLiveResponderIdentity,
   leadKmApplies,
@@ -198,5 +200,35 @@ describe('patrolCallsignForInput', () => {
     expect(PATROL_CALLSIGN_MAX_LENGTH).toBe(16)
     expect(patrolCallsignForInput('12345678901234567')).toBe('1234567890123456')
     expect(patrolCallsignForInput('ניידת 12')).toBe('ניידת 12')
+  })
+})
+
+describe('eventDraftBaselineSnapshot & eventServerBaselineSnapshot', () => {
+  it('ignores responder expanded UI state when comparing snapshots', () => {
+    const collapsed: EventFormDraft = {
+      ...emptyEventDraft({ full_name: 'א', callsign: '1' }),
+      responders: [responder({ expanded: false })],
+    }
+    const expanded: EventFormDraft = {
+      ...collapsed,
+      responders: [responder({ expanded: true })],
+    }
+    expect(eventDraftBaselineSnapshot(collapsed)).toBe(eventDraftBaselineSnapshot(expanded))
+  })
+
+  it('keeps stored_end_time in server baseline so responder-prefilled end_time saves to events.ended_at', () => {
+    const loadedFromDb: EventFormDraft = {
+      ...emptyEventDraft({ full_name: 'הילה', callsign: '100' }),
+      id: 'evt-8005',
+      start_time: '18:53',
+      end_time: '19:37',
+      stored_end_time: '',
+      responders: [responder({ start_time: '18:53', end_time: '19:37', total_km: '15' })],
+    }
+    const serverBaseline = eventServerBaselineSnapshot(loadedFromDb)
+    const draftBaseline = eventDraftBaselineSnapshot(loadedFromDb)
+    expect(serverBaseline).not.toBe(draftBaseline)
+    expect(JSON.parse(serverBaseline).end_time).toBe('')
+    expect(JSON.parse(draftBaseline).end_time).toBe('19:37')
   })
 })

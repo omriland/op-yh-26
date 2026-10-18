@@ -16,12 +16,15 @@ import {
   deriveEventStatus,
   emptyEventDraft,
   eventCreateBlockedMessage,
+  eventDraftBaselineSnapshot,
   eventMinimumHint,
+  eventServerBaselineSnapshot,
   fetchAssignableUsers,
   fetchShiftLeadUsers,
   fetchEventForEdit,
   fetchEventLookups,
   saveLockedEventLeadKm,
+  stripStoredTimeBaseline,
   hasEventMinimum,
   validateEventMinimum,
   isOtherEventTypeId,
@@ -342,16 +345,17 @@ export function EventFormPage({
             isEventEditAgeLocked({ createdAt: existing.created_at, roles }),
         )
         if (existing && ageLocked) {
+          const cleanExisting = stripStoredTimeBaseline(existing)
           setLookups(nextLookups)
           setRoster(nextRoster)
           setShiftLeadUsers(nextLeads)
-          draftRef.current = existing
-          initialDateRef.current = existing.event_date
+          draftRef.current = cleanExisting
+          initialDateRef.current = cleanExisting.event_date
           overnightConfirmed.current.clear()
-          lastPersistedPoliceIdRef.current = existing.police_event_id
-          setDraft(existing)
-          setPreviousIsCancelled(existing.is_cancelled)
-          const snapshot = JSON.stringify(existing)
+          lastPersistedPoliceIdRef.current = cleanExisting.police_event_id
+          setDraft(cleanExisting)
+          setPreviousIsCancelled(cleanExisting.is_cancelled)
+          const snapshot = eventDraftBaselineSnapshot(cleanExisting)
           baselineRef.current = snapshot
           setBaseline(snapshot)
           setLoadState('age_locked')
@@ -373,7 +377,10 @@ export function EventFormPage({
             responders: nextDraft.responders.filter((row) => row.responder_id !== userId),
           }
         }
-        const serverSnapshot = JSON.stringify(nextDraft)
+        const serverSnapshot = existing
+          ? eventServerBaselineSnapshot(nextDraft)
+          : eventDraftBaselineSnapshot(nextDraft)
+        nextDraft = stripStoredTimeBaseline(nextDraft)
         const stashed = applyStashedEventDraft(
           nextDraft,
           eventFormStashForRoute(
@@ -383,10 +390,10 @@ export function EventFormPage({
         )
         if (
           stashed &&
-          JSON.stringify(stashed) !== JSON.stringify(nextDraft) &&
+          eventDraftBaselineSnapshot(stashed) !== eventDraftBaselineSnapshot(nextDraft) &&
           !isAbandonedEmptyEventDraft(stashed, nextDraft.event_date, userId)
         ) {
-          nextDraft = stashed
+          nextDraft = stripStoredTimeBaseline(stashed)
         }
         if (blockSelfAssign && userId) {
           nextDraft = {
@@ -416,6 +423,7 @@ export function EventFormPage({
         setPreviousIsCancelled(nextDraft.is_cancelled)
         // A restored device copy is not saved yet. Baseline stays the server
         // row so the debounce writes those details instead of pretending it did.
+        baselineRef.current = serverSnapshot
         setBaseline(serverSnapshot)
         setLoadState('ready')
       })
@@ -503,7 +511,7 @@ export function EventFormPage({
     node?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [loadState, focusResponderId, phoneLayout])
 
-  const dirty = draft ? JSON.stringify(draft) !== baseline : false
+  const dirty = draft ? eventDraftBaselineSnapshot(draft) !== baseline : false
 
   const pickerOptions = useMemo(() => {
     if (!draft) return []
@@ -537,7 +545,7 @@ export function EventFormPage({
     setDraft(fresh)
     setPreviousIsCancelled(false)
     setErrors({})
-    const snapshot = JSON.stringify(fresh)
+    const snapshot = eventDraftBaselineSnapshot(fresh)
     baselineRef.current = snapshot
     setBaseline(snapshot)
     setSavePulse('idle')
@@ -613,7 +621,7 @@ export function EventFormPage({
     }
     draftRef.current = next
     setDraft(next)
-    const snapshot = JSON.stringify(stored)
+    const snapshot = eventDraftBaselineSnapshot(stored)
     baselineRef.current = snapshot
     setBaseline(snapshot)
     setErrors({})
@@ -645,7 +653,7 @@ export function EventFormPage({
       })
     const nextStored: EventFormDraft = { ...stored, responders: applyWritten(stored.responders) }
     const nextDraft: EventFormDraft = { ...current, responders: applyWritten(current.responders) }
-    const snapshot = JSON.stringify(nextStored)
+    const snapshot = eventDraftBaselineSnapshot(nextStored)
     baselineRef.current = snapshot
     setBaseline(snapshot)
     draftRef.current = nextDraft
@@ -679,7 +687,7 @@ export function EventFormPage({
         return false
       }
 
-      const snapshot = JSON.stringify(current)
+      const snapshot = eventDraftBaselineSnapshot(current)
       if (
         isAbandonedEmptyEventDraft(current, initialDateRef.current, user.id) &&
         !options?.navigate &&
@@ -692,6 +700,7 @@ export function EventFormPage({
       // Autosave often already flushed (e.g. after הקצאת מתנדב). Explicit
       // שמירת אירוע must still confirm + leave the form.
       if (snapshot === baselineRef.current && current.id) {
+        clearEventFormStash(user.id, current.id)
         if (options?.navigate || options?.createNew) {
           markSavedPulse()
           finishAfterSave(current.id, options)
@@ -873,8 +882,12 @@ export function EventFormPage({
         responders: mergeAssignmentIds(latest.responders, result.assignmentIds),
       }
 
+      const savedSnapshot = eventDraftBaselineSnapshot(savedWithIds)
+      baselineRef.current = savedSnapshot
+      setBaseline(savedSnapshot)
+
       if (options?.createNew) {
-        const stillDirty = JSON.stringify(nextDraft) !== JSON.stringify(savedWithIds)
+        const stillDirty = eventDraftBaselineSnapshot(nextDraft) !== savedSnapshot
         if (stillDirty) {
           draftRef.current = nextDraft
           setDraft(nextDraft)
@@ -897,7 +910,7 @@ export function EventFormPage({
       onEventId?.(result.eventId)
       onPersisted?.(result.eventId)
 
-      const stillDirty = JSON.stringify(nextDraft) !== JSON.stringify(savedWithIds)
+      const stillDirty = eventDraftBaselineSnapshot(nextDraft) !== savedSnapshot
       if (stillDirty) {
         // The row exists, but this snapshot is behind the form. Do not say
         // "saved" or drop the local copy until the follow-up write matches.
@@ -909,9 +922,10 @@ export function EventFormPage({
         return true
       }
 
-      const nextSnapshot = JSON.stringify(nextDraft)
+      const nextSnapshot = eventDraftBaselineSnapshot(nextDraft)
       baselineRef.current = nextSnapshot
       setBaseline(nextSnapshot)
+      clearEventFormStash(user.id, result.eventId)
       markSavedPulse()
 
       if (options?.navigate) {
@@ -1162,7 +1176,7 @@ export function EventFormPage({
   useEffect(() => {
     if (!draft || loadState !== 'ready') return
     if (cockpitPreviewing || foreignEditPending) return
-    if (JSON.stringify(draft) === baseline) return
+    if (eventDraftBaselineSnapshot(draft) === baseline) return
     const timer = window.setTimeout(() => {
       void persistLatest()
     }, COCKPIT_AUTOSAVE_MS)
@@ -1175,7 +1189,10 @@ export function EventFormPage({
     const flush = () => {
       const current = draftRef.current
       if (!current) return
-      if (isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) {
+      if (
+        isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id) ||
+        eventDraftBaselineSnapshot(current) === baselineRef.current
+      ) {
         clearEventFormStash(user.id, current.id)
         return
       }
