@@ -118,7 +118,6 @@ type AppShellProps = {
   showSecurityBadge?: boolean
   onOpenPrivacy?: () => void
   onOpenAndroid?: () => void
-  onOpenIos?: () => void
   view: AppView
   onNavigate: (view: AppView) => void
   /** Wordmark → role home (unit events / mine / profile). */
@@ -139,7 +138,6 @@ export function AppShell({
   showSecurityBadge = false,
   onOpenPrivacy,
   onOpenAndroid,
-  onOpenIos,
   view,
   onNavigate,
   onHome,
@@ -186,7 +184,6 @@ export function AppShell({
             <SnykBadge
               onOpenPrivacy={onOpenPrivacy}
               onOpenAndroid={onOpenAndroid}
-              onOpenIos={onOpenIos}
               onHome={onHome}
             />
           ) : null}

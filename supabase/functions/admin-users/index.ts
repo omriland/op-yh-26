@@ -806,7 +806,7 @@ async function mintFreshAuthOtp(
 ) {
   // `type: "invite"` reuses the confirmation token from user creation.
   // Auth then treats that original OTP as expired (often within an hour),
-  // so a still-valid 24h durable link looks dead. Magiclink/recovery mint
+  // so a still-valid 7-day durable link looks dead. Magiclink/recovery mint
   // a new one-time token on every click.
   for (const type of ["magiclink", "recovery"] as const) {
     const attempt = await adminClient.auth.admin.generateLink({
@@ -983,7 +983,7 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
     "",
     `או להעתיק את הכתובת: ${actionLink}`,
     "",
-    "הקישור בתוקף ל־24 שעות.",
+    "הקישור בתוקף ל־7 ימים.",
     "",
     "אחרי השלמת הרישום אפשר להוריד את האפליקציה לטלפון:",
     `${ANDROID_APP_DOWNLOAD_LABEL}: ${ANDROID_APP_DOWNLOAD_URL}`,
@@ -1025,7 +1025,7 @@ async function sendInviteEmail(to: string, fullName: string, actionLink: string)
                       <p style="margin:0 0 16px;font-size:13px;color:#5B6F86;word-break:break-all;">
                         או להעתיק את הכתובת: ${actionLink}
                       </p>
-                      <p style="margin:0 0 20px;font-size:14px;color:#5B6F86;">הקישור בתוקף ל־24 שעות.</p>
+                      <p style="margin:0 0 20px;font-size:14px;color:#5B6F86;">הקישור בתוקף ל־7 ימים.</p>
                       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
                         <tr>
                           <td style="border-top:1px solid #DDE4EB;font-size:0;line-height:0;height:1px;">&nbsp;</td>

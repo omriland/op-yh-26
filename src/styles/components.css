@@ -2415,9 +2415,19 @@ p.alert--info {
   padding-block-end: var(--space-6);
 }
 
-/* Extra end inset only while the משוב control is actually on screen. */
+/* Extra end inset only while the משוב control is actually on screen.
+   When the document footer is in the scrollport, that inset would leave an
+   empty band under the footer — the footer itself clears the button instead. */
 .shell:has(.feedback-fab):not(:has(.event-form__footer)) .shell__main {
   padding-block-end: calc(var(--space-6) + 44px + var(--space-4));
+}
+
+.shell:has(.feedback-fab):has(.app-footer):not(:has(.event-form__footer)) .shell__main {
+  padding-block-end: 0;
+}
+
+.shell:has(.feedback-fab) .app-footer {
+  padding-inline-end: calc(44px + var(--space-4));
 }
 
 .shell__main > * {
@@ -2618,6 +2628,14 @@ div.app-footer__brand {
     text-decoration: underline;
   }
 
+  .app-footer__link:has(.app-footer__link-label):hover {
+    text-decoration: none;
+  }
+
+  .app-footer__link:hover > .app-footer__link-label {
+    text-decoration: underline;
+  }
+
   .app-footer__link--legal:hover {
     color: var(--text-secondary);
   }
@@ -2665,6 +2683,22 @@ div.app-footer__brand {
 .ios-download__header {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
+}
+
+.android-download__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.login__footer-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+.login__footer-link,
+.app-footer__link {
   gap: var(--space-2);
 }
 
@@ -2737,6 +2771,19 @@ div.app-footer__brand {
   cursor: pointer;
   min-height: 44px;
   padding-inline: var(--space-2);
+}
+
+.login__footer-link:has(.stamp) {
+  text-decoration: none;
+}
+
+.login__footer-link:has(.stamp) > .login__footer-link-label {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.login__footer-link .stamp {
+  text-decoration: none;
 }
 
 .privacy {
@@ -3941,20 +3988,38 @@ html[data-keyboard-open] .event-form__footer {
 
 .login {
   box-sizing: border-box;
+  position: relative;
+  isolation: isolate;
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  align-items: flex-start;
+  justify-content: center;
   height: 100%;
   min-height: 0;
   overflow: auto;
   padding: var(--space-6) var(--space-4);
   padding-block-start: calc(var(--space-8) + env(safe-area-inset-top, 0px));
   padding-block-end: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
-  background: var(--surface-page);
+  background-color: var(--surface-page);
+  background-image: url("/login-highway.jpg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
   color: var(--text-primary);
 }
 
+.login::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--surface-page);
+  opacity: 0.78;
+  pointer-events: none;
+}
+
 .login__stage {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: stretch;

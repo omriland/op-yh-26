@@ -8,8 +8,8 @@ import {
 const HOUR = 60 * 60 * 1000
 
 describe('invite TTL', () => {
-  it('is 24 hours', () => {
-    expect(INVITE_TTL_MS).toBe(24 * HOUR)
+  it('is 7 days', () => {
+    expect(INVITE_TTL_MS).toBe(7 * 24 * HOUR)
   })
 
   it('treats a 30-minute-old invite as still valid', () => {
@@ -18,11 +18,12 @@ describe('invite TTL', () => {
     expect(isInviteExpired(expiresAt, issuedAt + 30 * 60 * 1000)).toBe(false)
   })
 
-  it('expires only after 24 hours', () => {
+  it('expires only after 7 days', () => {
     const issuedAt = Date.parse('2026-09-01T07:15:00.000Z')
     const expiresAt = inviteExpiresAt(issuedAt)
-    expect(isInviteExpired(expiresAt, issuedAt + 24 * HOUR - 1)).toBe(false)
-    expect(isInviteExpired(expiresAt, issuedAt + 24 * HOUR)).toBe(false)
-    expect(isInviteExpired(expiresAt, issuedAt + 24 * HOUR + 1)).toBe(true)
+    const ttl = 7 * 24 * HOUR
+    expect(isInviteExpired(expiresAt, issuedAt + ttl - 1)).toBe(false)
+    expect(isInviteExpired(expiresAt, issuedAt + ttl)).toBe(false)
+    expect(isInviteExpired(expiresAt, issuedAt + ttl + 1)).toBe(true)
   })
 })

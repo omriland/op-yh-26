@@ -8,6 +8,8 @@ export const ANDROID_FOOTER_LINK = {
   href: ANDROID_DOWNLOAD_PATH,
 } as const
 
+export const ANDROID_BETA_LABEL = 'בטא'
+
 export type AndroidVersionManifest = {
   minVersionCode: number
   latestVersionCode?: number

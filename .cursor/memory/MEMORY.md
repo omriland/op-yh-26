@@ -1,6 +1,12 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-18 (fix stale event-form stash wiping fields + responder time fallback baseline)
+Last updated: 2026-10-27 (invite links last 7 days; prod clean slate; iOS download hidden locally)
+
+## Prod clean slate (2026-10-27)
+
+- Production `rtvizpsfvtjowbimugns` operational data was erased for launch. Events, responders, shifts, fuel quarters, feedback, broadcasts, audit, OTP/device/iOS rows, partner tokens, and storage objects in `event-media` and `user-feedback` are **0**.
+- Users left: **סער מכטינגר**, **עמרי לנדמן**, **מוטי ניאגו** (each still admin + shift_lead + responder + super_admin, one vehicle, lifetime stats 0). Closed lists, highway junctions, and the Telegram `oauth_clients` row were kept.
+- Web (local, not deployed): iOS download links are hidden. Android download links and `/android` show a **בטא** stamp. Direct `/ios` still exists. Not on yahpz.com until this branch is shipped.
 
 ## Event-form stash & responder-time baseline fix (2026-10-18)
 
@@ -160,7 +166,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - Decision (2026-08-09): keep temporary sender domain until Resend plan allows apex `yahpz.com` fully (choice 3).
 - Invites via Edge Function `admin-users` + Resend HTTP API (not Supabase SMTP mailer).
 - Invite copy (approved 2026-08-10): subject `הזמנה למערכת אבן דרך - יחפ״צ`; brand **אבן דרך**; CTA `להשלמת הרישום`; sender display `אבן דרך - יחפ״צ`.
-- Invite link TTL: **24 hours** (`profiles.invite_token_expires_at`; Edge `admin-users` `INVITE_TTL_MS`). Email + create-user hint: `הקישור בתוקף ל־24 שעות.` Expired → `קישור ההזמנה פג תוקף. בקשו הזמנה חדשה.` Admin resend mints a fresh token. **Merged to `infra/bootstrap` (2026-09-01).** Live Edge still 7-day until `admin-users` is redeployed (`SUPABASE_ACCESS_TOKEN` GitHub secret still missing).
+- Invite link TTL: **7 days** (`profiles.invite_token_expires_at`; Edge `admin-users` `INVITE_TTL_MS`). Email + create-user hint: `הקישור בתוקף ל־7 ימים.` Expired → `קישור ההזמנה פג תוקף. בקשו הזמנה חדשה.` Admin resend mints a fresh 7-day token. Code updated 2026-10-27; live only after `admin-users` is redeployed.
 - **Generic transactional mail (2026-08-12):** Edge Function `send-email` + `_shared/email.ts` shell; admin JWT or service-role; recipients = active `profiles` only (`user_id`). Spec: `2026-08-12-yahpaz-generic-email-and-fill-link-design.md`.
 - **Fill-ready auto email:** when a volunteer is assigned, or lead `total_km` first set → `responder-fill` `notify_fill_ready` (idempotent via `fill_ready_emailed_at`). Scoped **180-day** `fill_token` for fill without Auth session (was 7 days; volunteers may log weeks later). Helper: `_shared/fillTokenTtl.ts`. The same email link is reusable across the six months: load/draft/complete do not consume it, and a still-valid token is not reminted (so they can log something, then reopen the same mail). New tokens are deterministic HMAC of the assignment id (`FILL_TOKEN_SECRET` or service-role key) so reminder mail repeats the same URL. Legacy random hashes that are still valid are left in place; overdue mail then uses `?fill_event=` instead of minting a new token. After 180 days → login + `yahpaz:post_login_fill` return. Client load/save use `supabaseAnon` so a stale user JWT cannot fake-expire the link; deploy `responder-fill` with `--no-verify-jwt`. Migrations `20261005160000_fill_token_ttl_180d.sql` + `20261007120000_fill_token_stretch_remaining.sql` stretch leftover short hashes to `now() + 180 days`. Listed in Deploy Edge Functions. Env: `RESEND_API_KEY`, optional `EMAIL_FROM` (default `alerts@send.yahpz.com`), `INVITE_REDIRECT_TO` for link base.
 - **Deployed (2026-08-12):** migration `20260812160000_event_fill_token.sql` applied; Edge Functions `send-email` + `responder-fill` ACTIVE on project `rtvizpsfvtjowbimugns`. Secrets: `RESEND_API_KEY`, `INVITE_REDIRECT_TO`, `EMAIL_FROM`.

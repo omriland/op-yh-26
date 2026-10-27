@@ -418,10 +418,6 @@ function Gate() {
     setLegalPage('android')
   }
 
-  function openIosDownload() {
-    setLegalPage('ios')
-  }
-
   function requestIosLogin() {
     setLegalPage(null)
   }
@@ -797,7 +793,6 @@ function Gate() {
         key={`setup-${passwordSetupReason}`}
         forceSetPassword
         onOpenAndroid={openAndroidDownload}
-        onOpenIos={openIosDownload}
         onOpenPrivacy={() => setLegalPage('privacy')}
       />
     )
@@ -881,7 +876,6 @@ function Gate() {
           <LoginPage
             key="signin"
             onOpenAndroid={openAndroidDownload}
-            onOpenIos={openIosDownload}
             onOpenPrivacy={() => setLegalPage('privacy')}
           />
         )}
@@ -981,7 +975,6 @@ function Gate() {
       showSecurityBadge={shouldShowSecurityBadge(immersiveSurface) && legalPage === null}
       onOpenPrivacy={() => setLegalPage('privacy')}
       onOpenAndroid={openAndroidDownload}
-      onOpenIos={openIosDownload}
       view={activeView}
       onNavigate={navigate}
       onHome={goHome}

@@ -17,11 +17,11 @@ import { StampChip } from '../components/ui/StampChip'
 import { PasswordField, TextField } from '../components/ui/TextField'
 import { captureEvent } from '../lib/posthog'
 import {
+  ANDROID_BETA_LABEL,
   ANDROID_FOOTER_LINK,
   fetchAndroidApkHref,
   isAndroidMobile,
 } from '../lib/androidDownload'
-import { IOS_FOOTER_LINK } from '../lib/iosDownload'
 import { PRIVACY_FOOTER_LINK } from '../lib/privacyPolicy'
 
 type Mode = 'signin' | 'reset' | 'reset-sent' | 'set-password' | 'password-set'
@@ -30,7 +30,6 @@ type LoginPageProps = {
   /** Force set-password UI (invite / recovery redirect). */
   forceSetPassword?: boolean
   onOpenAndroid?: () => void
-  onOpenIos?: () => void
   onOpenPrivacy?: () => void
 }
 
@@ -43,7 +42,6 @@ const PUBLIC_DESCRIPTION =
 export function LoginPage({
   forceSetPassword = false,
   onOpenAndroid,
-  onOpenIos,
   onOpenPrivacy,
 }: LoginPageProps) {
   const {
@@ -223,11 +221,13 @@ export function LoginPage({
                     onClick={onOpenAndroid}
                   >
                     הורדת האפליקציה
+                    <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
                   </Button>
                 ) : apkHref ? (
                   <a className="btn btn--primary btn--block" href={apkHref} download>
                     <Download size={20} strokeWidth={1.75} aria-hidden="true" />
                     הורדת האפליקציה
+                    <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
                   </a>
                 ) : (
                   <Button type="button" block disabled>
@@ -483,21 +483,13 @@ export function LoginPage({
         <footer className="login__footer">
           {onOpenAndroid ? (
             <button type="button" className="login__footer-link" onClick={onOpenAndroid}>
-              {ANDROID_FOOTER_LINK.label}
+              <span className="login__footer-link-label">{ANDROID_FOOTER_LINK.label}</span>
+              <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
             </button>
           ) : (
             <a className="login__footer-link" href={ANDROID_FOOTER_LINK.href}>
-              {ANDROID_FOOTER_LINK.label}
-            </a>
-          )}
-          <span className="login__footer-sep" aria-hidden="true" />
-          {onOpenIos ? (
-            <button type="button" className="login__footer-link" onClick={onOpenIos}>
-              {IOS_FOOTER_LINK.label}
-            </button>
-          ) : (
-            <a className="login__footer-link" href={IOS_FOOTER_LINK.href}>
-              {IOS_FOOTER_LINK.label}
+              <span className="login__footer-link-label">{ANDROID_FOOTER_LINK.label}</span>
+              <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
             </a>
           )}
           {onOpenPrivacy ? (

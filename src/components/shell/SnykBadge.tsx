@@ -1,6 +1,6 @@
 import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
-import { ANDROID_FOOTER_LINK } from '../../lib/androidDownload'
-import { IOS_FOOTER_LINK } from '../../lib/iosDownload'
+import { ANDROID_BETA_LABEL, ANDROID_FOOTER_LINK } from '../../lib/androidDownload'
+import { StampChip } from '../ui/StampChip'
 import { CLOUDFLARE_SECURITY_BADGE, SNYK_SECURITY_BADGE } from '../../lib/securityBadge'
 
 const BRAND_NAME = 'אבן דרך'
@@ -75,21 +75,16 @@ function BrandMark({ onHome }: { onHome?: () => void }) {
 export function SnykBadge({
   onOpenPrivacy,
   onOpenAndroid,
-  onOpenIos,
   onHome,
 }: {
   onOpenPrivacy: () => void
   onOpenAndroid?: () => void
-  onOpenIos?: () => void
   onHome?: () => void
 }) {
   const year = new Date().getFullYear()
-  const mainLinks: Array<{ label: string; onClick: () => void }> = []
+  const mainLinks: Array<{ label: string; onClick: () => void; beta?: boolean }> = []
   if (onOpenAndroid) {
-    mainLinks.push({ label: ANDROID_FOOTER_LINK.label, onClick: onOpenAndroid })
-  }
-  if (onOpenIos) {
-    mainLinks.push({ label: IOS_FOOTER_LINK.label, onClick: onOpenIos })
+    mainLinks.push({ label: ANDROID_FOOTER_LINK.label, onClick: onOpenAndroid, beta: true })
   }
 
   return (
@@ -140,7 +135,8 @@ export function SnykBadge({
               {mainLinks.map((link) => (
                 <li key={link.label}>
                   <button type="button" className="app-footer__link" onClick={link.onClick}>
-                    {link.label}
+                    <span className="app-footer__link-label">{link.label}</span>
+                    {link.beta ? <StampChip label={ANDROID_BETA_LABEL} tone="pending" /> : null}
                   </button>
                 </li>
               ))}

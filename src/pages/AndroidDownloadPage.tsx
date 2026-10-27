@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronRight, Download } from 'lucide-react'
 import { Button } from '../components/ui/Button'
+import { StampChip } from '../components/ui/StampChip'
 import {
+  ANDROID_BETA_LABEL,
   ANDROID_FOOTER_LINK,
   fetchAndroidApkHref,
   isAndroidMobile,
@@ -41,7 +43,10 @@ export function AndroidDownloadPage({ onBack }: AndroidDownloadPageProps) {
       </div>
 
       <header className="android-download__header">
-        <h1 className="t-title">אפליקציית אנדרואיד</h1>
+        <div className="android-download__title">
+          <h1 className="t-title">אפליקציית אנדרואיד</h1>
+          <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
+        </div>
         <p className="t-body text-secondary">
           מטעמי אבטחה - האפליקציה אינה חשופה לחנות האפליקציות.
           <br />
@@ -67,6 +72,7 @@ export function AndroidDownloadPage({ onBack }: AndroidDownloadPageProps) {
             <a className="btn btn--primary btn--block" href={apkHref} download>
               <Download size={20} strokeWidth={1.75} aria-hidden="true" />
               הורדת האפליקציה
+              <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
             </a>
           ) : (
             <Button type="button" block disabled>
