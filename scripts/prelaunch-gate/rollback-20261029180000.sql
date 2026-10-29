@@ -157,6 +157,8 @@ begin
 end
 $$;
 drop function if exists public.guard_prelaunch_write();
+-- From 20261029190000, when it was applied too.
+drop function if exists public.is_native_app_request();
 
 drop function if exists public.prelaunch_gate();
 drop function if exists public.is_prelaunch_blocked_caller();
