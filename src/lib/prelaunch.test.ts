@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import type { AppRole } from './auth'
 import {
+  PRELAUNCH_BODY_LINES,
   PRELAUNCH_LAUNCH_AT,
   PRELAUNCH_LAUNCH_AT_MS,
+  PRELAUNCH_TITLE,
   PRELAUNCH_OPEN_SLACK_MS,
   devPrelaunchOffsetMs,
   hasPrelaunchExemptRole,
@@ -55,6 +57,21 @@ describe('launch instant', () => {
     const match = sql.match(/select timestamptz '([^']+)';/)
     expect(match).not.toBeNull()
     expect(Date.parse(match![1].replace(' ', 'T').replace('+00', 'Z'))).toBe(PRELAUNCH_LAUNCH_AT_MS)
+  })
+})
+
+describe('gate copy', () => {
+  it('is the title plus two lines, the first being "החשבון שלך מוכן."', () => {
+    expect(PRELAUNCH_TITLE).toBe('המערכת תעלה לאוויר ב-1.11')
+    expect(PRELAUNCH_BODY_LINES).toEqual(['החשבון שלך מוכן.', 'הכניסה למערכת תיפתח ביום ראשון, 1 בנובמבר.'])
+  })
+
+  it('shows no hour anywhere (the launch moment itself stays 00:01)', () => {
+    const page = readFileSync('src/pages/PrelaunchGatePage.tsx', 'utf8')
+    for (const text of [PRELAUNCH_TITLE, ...PRELAUNCH_BODY_LINES, PRELAUNCH_BLOCKED_MESSAGE, page]) {
+      expect(text).not.toMatch(/\d{1,2}:\d{2}|בשעה/)
+    }
+    expect(page).toContain('<br />')
   })
 })
 

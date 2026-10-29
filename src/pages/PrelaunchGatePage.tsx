@@ -1,7 +1,7 @@
 import { CalendarClock } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { isImpersonating } from '../lib/impersonationStash'
-import { PRELAUNCH_TITLE } from '../lib/prelaunch'
+import { PRELAUNCH_BODY_LINES, PRELAUNCH_TITLE } from '../lib/prelaunch'
 import { Button } from '../components/ui/Button'
 import { ImpersonationBar } from '../components/shell/ImpersonationBar'
 import { PLATFORM_NAME, UNIT_LINE_1, UNIT_LINE_2 } from './LoginPage'
@@ -40,7 +40,9 @@ export function PrelaunchGatePage() {
                   <h2 className="t-section">{PRELAUNCH_TITLE}</h2>
                 </div>
                 <p className="t-body text-secondary">
-                  החשבון מוכן. הכניסה למערכת תיפתח ביום ראשון, 1 בנובמבר, בשעה 00:01.
+                  {PRELAUNCH_BODY_LINES[0]}
+                  <br />
+                  {PRELAUNCH_BODY_LINES[1]}
                 </p>
                 {who ? <p className="t-caption text-secondary">{who}</p> : null}
               </div>
