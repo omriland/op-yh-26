@@ -1,12 +1,47 @@
 /**
- * The initial-login invite email (Resend). Moved out of admin-users so tests
- * can see the request; `fetchImpl` is injectable for that.
+ * The initial-login invite: the email (Resend), then the SMS unless the caller
+ * turns it off. Moved out of admin-users so tests can see every request;
+ * `fetchImpl` is injectable for that.
  */
 import {
   ANDROID_APP_DOWNLOAD_LABEL,
   ANDROID_APP_DOWNLOAD_URL,
   androidDownloadButtonHtml,
 } from "./androidDownload.ts";
+import { type InviteSmsResult, sendInviteSms, type SopranoCredentials } from "./inviteSms.ts";
+
+export type InviteDeliveryResult =
+  | { error: string; detail?: string }
+  | { error: null; sms: InviteSmsResult | "off" };
+
+/**
+ * A failed email stops here, with no SMS. A failed SMS does not fail the
+ * invite. `sendSms: false` sends the email only and reports sms "off".
+ */
+export async function deliverInvite(
+  invite: {
+    to: string;
+    fullName: string;
+    actionLink: string;
+    phone: string | null;
+    sendSms: boolean;
+  },
+  env: { resendApiKey: string | undefined; soprano: SopranoCredentials },
+  fetchImpl: typeof fetch = fetch,
+): Promise<InviteDeliveryResult> {
+  const mail = await sendInviteEmail(
+    invite.to,
+    invite.fullName,
+    invite.actionLink,
+    env.resendApiKey,
+    fetchImpl,
+  );
+  if (mail.error !== null) return { error: mail.error, detail: mail.detail };
+  if (!invite.sendSms) return { error: null, sms: "off" };
+  const sms = await sendInviteSms(invite.phone, env.soprano, fetchImpl);
+  if (sms === "failed") console.error("admin-users: invite SMS was not sent");
+  return { error: null, sms };
+}
 
 export async function sendInviteEmail(
   to: string,

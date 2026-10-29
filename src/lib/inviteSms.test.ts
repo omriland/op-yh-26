@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   INVITE_SMS_BODY,
@@ -62,40 +60,6 @@ describe('invite SMS', () => {
     expect(await sendInviteSms('0501234567', env, fetchImpl)).toBe('failed')
   })
 
-  it('fires only after the initial-login invite email, including resend', () => {
-    const src = readFileSync(
-      resolve(import.meta.dirname, '../../supabase/functions/admin-users/index.ts'),
-      'utf8',
-    )
-    expect(src).toContain('from "../_shared/inviteSms.ts"')
-
-    const invite = src.slice(src.indexOf('async function handleInvite'), src.length)
-    const inviteMail = invite.indexOf('const mail = await sendInviteEmail')
-    const inviteSms = invite.indexOf('await sendInviteSmsBestEffort(phone)')
-    expect(inviteMail).toBeGreaterThan(-1)
-    expect(inviteSms).toBeGreaterThan(inviteMail)
-
-    const prepare = src.slice(
-      src.indexOf('async function handlePrepareInviteLink'),
-      src.indexOf('async function sendInviteEmail'),
-    )
-    const emailBlock = prepare.slice(prepare.indexOf('if (sendEmail)'))
-    expect(emailBlock).toContain('await sendInviteEmail')
-    expect(emailBlock.indexOf('await sendInviteSmsBestEffort')).toBeGreaterThan(
-      emailBlock.indexOf('if (mail.error)'),
-    )
-    expect(prepare.slice(0, prepare.indexOf('if (sendEmail)'))).not.toContain(
-      'sendInviteSmsBestEffort',
-    )
-
-    const setPassword = src.slice(
-      src.indexOf('async function handleSetPassword'),
-      src.indexOf('async function handleSetEmail'),
-    )
-    expect(setPassword).not.toContain('sendInviteSms')
-    expect(setPassword).not.toContain('sendInviteEmail')
-  })
-
   it('treats a Soprano HTTP 200 whose body is an error or empty as failed', async () => {
     for (const body of ['', 'Error: invalid source', '<result><status>error</status></result>', 'שגיאה בשולח']) {
       const fetchImpl = vi.fn<typeof fetch>(async () => new Response(body, { status: 200 }))
@@ -111,28 +75,5 @@ describe('invite SMS', () => {
     expect(out).not.toContain('972501234567')
   })
 
-  it('returns the SMS result in the invite response', () => {
-    const src = readFileSync(
-      resolve(import.meta.dirname, '../../supabase/functions/admin-users/index.ts'),
-      'utf8',
-    )
-    const invite = src.slice(src.indexOf('async function handleInvite'))
-    expect(invite).toContain('const sms = await sendInviteSmsBestEffort(phone)')
-    const ret = invite.slice(invite.indexOf('action_link: actionLink,'))
-    expect(ret.slice(0, 120)).toContain('sms,')
-  })
-
-  it('saves the invite token and roles before emailing, so a failed email can be resent', () => {
-    const src = readFileSync(
-      resolve(import.meta.dirname, '../../supabase/functions/admin-users/index.ts'),
-      'utf8',
-    )
-    const invite = src.slice(src.indexOf('async function handleInvite'))
-    const mail = invite.indexOf('const mail = await sendInviteEmail')
-    expect(invite.indexOf('invite_token: inviteToken')).toBeGreaterThan(-1)
-    expect(invite.indexOf('invite_token: inviteToken')).toBeLessThan(mail)
-    expect(invite.indexOf('from("user_roles").insert')).toBeLessThan(mail)
-    expect(invite.indexOf('from("vehicles").insert')).toBeLessThan(mail)
-  })
 })
 

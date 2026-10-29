@@ -5,8 +5,7 @@ import {
   jsonResponse as json,
   runWithCors,
 } from "../_shared/cors.ts";
-import { sendInviteEmail } from "../_shared/inviteDelivery.ts";
-import { sendInviteSms } from "../_shared/inviteSms.ts";
+import { deliverInvite } from "../_shared/inviteDelivery.ts";
 import { inviteExpiresAt, isInviteExpired } from "../_shared/inviteTtl.ts";
 
 type AppRole = "admin" | "shift_lead" | "responder";
@@ -39,6 +38,8 @@ type InviteBody = {
   volunteer_status?: VolunteerStatus;
   roles: AppRole[];
   vehicles?: VehicleInput[];
+  /** false = email only (bulk invite). Omitted = email and SMS, as the dialog sends. */
+  send_sms?: boolean;
 };
 
 type DeactivateBody = {
@@ -949,11 +950,19 @@ async function handlePrepareInviteLink(
   }
 
   if (sendEmail) {
-    const mail = await sendInviteEmail(email, fullName, actionLink, Deno.env.get("RESEND_API_KEY"));
-    if (mail.error) {
-      return json(400, { error: mail.error, detail: mail.detail });
+    const delivery = await deliverInvite(
+      {
+        to: email,
+        fullName,
+        actionLink,
+        phone: typeof profile.phone === "string" ? profile.phone : null,
+        sendSms: true,
+      },
+      inviteDeliveryEnv(),
+    );
+    if (delivery.error !== null) {
+      return json(400, { error: delivery.error, detail: delivery.detail });
     }
-    await sendInviteSmsBestEffort(typeof profile.phone === "string" ? profile.phone : null);
   }
 
   return json(200, {
@@ -963,23 +972,15 @@ async function handlePrepareInviteLink(
   });
 }
 
-function inviteSmsEnv() {
+function inviteDeliveryEnv() {
   return {
-    user: Deno.env.get("SOPRANO_USER"),
-    password: Deno.env.get("SOPRANO_PASSWORD"),
-    source: Deno.env.get("SOPRANO_SOURCE"),
+    resendApiKey: Deno.env.get("RESEND_API_KEY"),
+    soprano: {
+      user: Deno.env.get("SOPRANO_USER"),
+      password: Deno.env.get("SOPRANO_PASSWORD"),
+      source: Deno.env.get("SOPRANO_SOURCE"),
+    },
   };
-}
-
-/** Best-effort. A missing phone or a Soprano failure does not fail the invite. */
-async function sendInviteSmsBestEffort(
-  phone: string | null | undefined,
-): Promise<"sent" | "skipped" | "failed"> {
-  const result = await sendInviteSms(phone, inviteSmsEnv());
-  if (result === "failed") {
-    console.error("admin-users: invite SMS was not sent");
-  }
-  return result;
 }
 
 async function handleInvite(
@@ -1119,17 +1120,19 @@ async function handleInvite(
     }
   }
 
-  const mail = await sendInviteEmail(email, fullName, actionLink, Deno.env.get("RESEND_API_KEY"));
-  if (mail.error) {
-    return json(400, { error: mail.error, detail: mail.detail });
+  const delivery = await deliverInvite(
+    { to: email, fullName, actionLink, phone, sendSms: body.send_sms !== false },
+    inviteDeliveryEnv(),
+  );
+  if (delivery.error !== null) {
+    return json(400, { error: delivery.error, detail: delivery.detail });
   }
-  const sms = await sendInviteSmsBestEffort(phone);
 
   return json(200, {
     ok: true,
     user_id: userId,
     action_link: actionLink,
-    sms,
+    sms: delivery.sms,
     message: "משתמש נוצר בהצלחה",
   });
 }
