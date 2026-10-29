@@ -11,9 +11,9 @@ deployed or removed at launch.
 | Layer | Where | What it does |
 |---|---|---|
 | Launch instant | `public.prelaunch_launch_at()` and `PRELAUNCH_LAUNCH_AT` in `src/lib/prelaunch.ts` | One value. `prelaunch.test.ts` fails if the two disagree |
-| Database | `supabase/migrations/20261029180000_prelaunch_gate.sql` | A restrictive policy on every RLS table and on `storage.objects`. A gated member keeps their own `profiles` row (read and write), `user_roles` (read), `device_tokens` and `ios_devices`. `list_unit_contacts`, `list_unit_map_pins` and `list_shift_lead_profiles` return nothing to them. This is what holds the native iOS and Android apps |
-| Edge functions | `supabase/functions/_shared/prelaunch.ts` | `responder-fill` (fill-link load/save) and `responder-api` (partner bots) answer 403 with the gate text. Fails open if the check is missing |
-| Web | `src/lib/prelaunch.ts`, `src/lib/usePrelaunchGate.ts`, `src/pages/PrelaunchGatePage.tsx` | After the password step and the OTP step, before every route. Uses the server clock from `prelaunch_gate()` and falls back to the client clock only when the server cannot be reached. Opens without a reload 5 s after launch |
+| Database | `supabase/migrations/20261029180000_prelaunch_gate.sql` | A restrictive policy on every RLS table and on `storage.objects`. A gated member keeps their own `profiles` row (read and write), `user_roles` (read), `device_tokens` and `ios_devices`. `list_unit_contacts`, `list_unit_map_pins` and `list_shift_lead_profiles` return nothing to them. A row trigger (`<table>_prelaunch_guard`) on the 12 event and shift tables refuses writes whose caller is gated, which catches SECURITY DEFINER RPCs such as `delete_event`. This is what holds the native iOS and Android apps |
+| Edge functions | `supabase/functions/_shared/prelaunch.ts` | `responder-fill` (fill-link load/save, `notify_fill_ready`), `responder-api` (partner bots) and `responder-track` (`start`/`stop`) answer 403 with the gate text. Fails open if the check is missing |
+| Web | `src/lib/prelaunch.ts`, `src/lib/usePrelaunchGate.ts`, `src/pages/PrelaunchGatePage.tsx` | After the password step and the OTP step, before every route. Uses the server clock from `prelaunch_gate()` and falls back to the client clock only when the server cannot be reached. Opens without a reload 5 s after launch, and retries a failed check every 15 s |
 
 To exempt shift leads as well, add `'shift_lead'` in `public.is_prelaunch_exempt` and in
 `EXEMPT_ROLES` in `src/lib/prelaunch.ts`.

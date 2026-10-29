@@ -1,16 +1,22 @@
 import { CalendarClock } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { isImpersonating } from '../lib/impersonationStash'
 import { PRELAUNCH_TITLE } from '../lib/prelaunch'
 import { Button } from '../components/ui/Button'
+import { ImpersonationBar } from '../components/shell/ImpersonationBar'
 import { PLATFORM_NAME, UNIT_LINE_1, UNIT_LINE_2 } from './LoginPage'
 
 /** All a signed-in member sees before launch. The database withholds the rest. */
 export function PrelaunchGatePage() {
   const { profile, signOut } = useAuth()
   const who = [profile?.full_name, profile?.callsign].filter(Boolean).join(' · ')
+  // A super admin viewing as this member goes back through the bar: signing
+  // out here would end the member's own sessions.
+  const impersonating = isImpersonating()
 
   return (
     <div className="login" data-theme="command">
+      <ImpersonationBar onRestored={() => {}} />
       <div className="login__portal">
         <div className="login__stage">
           <header className="login__masthead" aria-label={PLATFORM_NAME}>
@@ -38,11 +44,13 @@ export function PrelaunchGatePage() {
                 </p>
                 {who ? <p className="t-caption text-secondary">{who}</p> : null}
               </div>
-              <div className="login__actions">
-                <Button type="button" variant="secondary" block onClick={() => void signOut()}>
-                  יציאה
-                </Button>
-              </div>
+              {impersonating ? null : (
+                <div className="login__actions">
+                  <Button type="button" variant="secondary" block onClick={() => void signOut()}>
+                    יציאה
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

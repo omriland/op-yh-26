@@ -5,6 +5,7 @@ import {
   jsonResponse as json,
   runWithCors,
 } from "../_shared/cors.ts";
+import { isPrelaunchBlocked, PRELAUNCH_BLOCKED_MESSAGE } from "../_shared/prelaunch.ts";
 
 type StartBody = { action: "start"; event_responder_ids: string[] };
 type StopBody = { action: "stop"; event_responder_ids: string[] };
@@ -162,6 +163,9 @@ async function requireLead(
   ]);
   if (!isAdmin && !isLead) {
     return { ok: false, status: 403, error: "אין לך הרשאה לפעולה זו." };
+  }
+  if (await isPrelaunchBlocked(adminClient, user.id)) {
+    return { ok: false, status: 403, error: PRELAUNCH_BLOCKED_MESSAGE };
   }
   return { ok: true, userId: user.id };
 }

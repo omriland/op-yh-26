@@ -8,6 +8,8 @@
 /** Header aliases, compared after dropping spaces, quotes and geresh marks. */
 const HEADERS = {
   full_name: ['full_name', 'name', 'שםמלא', 'שם'],
+  first_name: ['first_name', 'שםפרטי'],
+  last_name: ['last_name', 'שםמשפחה'],
   email: ['email', 'e-mail', 'mail', 'דואל', 'אימייל', 'מייל', 'דוארלקטרוני', 'כתובתמייל'],
   callsign: ['callsign', 'אוק', 'אותקריאה'],
   phone: ['phone', 'mobile', 'טלפון', 'נייד', 'טלפוןנייד'],
@@ -96,6 +98,8 @@ export function parseCsv(text) {
 function normalizePhone(raw) {
   let digits = String(raw ?? '').replace(/\D/g, '')
   if (digits.startsWith('972') && digits.length === 12) digits = `0${digits.slice(3)}`
+  // Excel stores 0501234567 as the number 501234567.
+  if (digits.startsWith('5') && digits.length === 9) digits = `0${digits}`
   return digits
 }
 
@@ -113,7 +117,13 @@ export function buildInvites(rows) {
     const index = header.findIndex((h) => aliases.includes(h))
     if (index >= 0) column[key] = index
   }
-  for (const key of ['full_name', 'email', 'callsign', 'phone']) {
+  // "שם" next to "שם משפחה" is a first name, not a full name.
+  if (column.last_name !== undefined) {
+    if (column.first_name === undefined) column.first_name = column.full_name
+    delete column.full_name
+    if (column.first_name === undefined) errors.push('חסרה עמודה: first_name')
+  }
+  for (const key of column.last_name !== undefined ? ['email', 'callsign', 'phone'] : ['full_name', 'email', 'callsign', 'phone']) {
     if (column[key] === undefined) errors.push(`חסרה עמודה: ${key}`)
   }
   if (errors.length) return { invites: [], errors }
@@ -124,7 +134,10 @@ export function buildInvites(rows) {
   rows.slice(1).forEach((cells, i) => {
     const line = i + 2
     const cell = (key) => (column[key] === undefined ? '' : String(cells[column[key]] ?? '').trim())
-    const fullName = cell('full_name')
+    const fullName =
+      column.last_name !== undefined
+        ? [cell('first_name'), cell('last_name')].filter(Boolean).join(' ')
+        : cell('full_name')
     const email = cell('email').toLowerCase()
     const callsign = cell('callsign')
     const phone = normalizePhone(cell('phone'))

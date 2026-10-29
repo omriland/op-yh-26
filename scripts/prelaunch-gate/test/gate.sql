@@ -166,6 +166,9 @@ select pg_temp.ok(exists (select 1 from pg_policies
     where schemaname = 'storage' and tablename = 'objects' and policyname = 'storage_prelaunch_gate'
       and permissive = 'RESTRICTIVE'),
   'storage.objects has the gate');
+select pg_temp.ok((select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+    where t.tgname = c.relname || '_prelaunch_guard') = 12,
+  'the 12 event and shift tables have the write guard trigger');
 
 select pg_temp.ok(not has_function_privilege('authenticated', 'public.is_prelaunch_blocked(uuid)', 'execute'),
   'members cannot probe another user with is_prelaunch_blocked');
@@ -297,8 +300,40 @@ select pg_temp.lives(
   $$update public.profiles set availability = 'available' where id = 'b0000000-0000-4000-8000-00000000000d'$$,
   'before/demo: can still edit its own profile');
 
--- Edge functions ask with the service role.
+-- SECURITY DEFINER RPCs bypass RLS; the write guard trigger refuses them.
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000002');
+select pg_temp.throws($$select public.delete_event('e0000000-0000-4000-8000-000000000001')$$,
+  '42501', 'before/shift lead: delete_event of own event is refused');
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000001');
+select pg_temp.throws(
+  $$select public.upsert_locked_secondary_lead('e0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000007')$$,
+  '42501', 'before/responder: upsert_locked_secondary_lead is refused');
 reset role;
+select pg_temp.ok((select count(*) from public.events where id = 'e0000000-0000-4000-8000-000000000001') = 1
+    and (select count(*) from public.event_secondary_leads where event_id = 'e0000000-0000-4000-8000-000000000001') = 0,
+  'before: the event and its leads are untouched');
+
+-- The same trigger, for definer code acting for each kind of caller.
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000001');
+select pg_temp.throws($$update public.events set notes = 'x' where id = 'e0000000-0000-4000-8000-000000000001'$$,
+  '42501', 'before/definer code for a responder: event write refused');
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000003');
+with u as (
+  update public.events set notes = 'מנהל' where id = 'e0000000-0000-4000-8000-000000000001' returning 1
+)
+select pg_temp.ok(count(*) = 1, 'before/definer code for an admin: event write allowed') from u;
+select pg_temp.act_as('b0000000-0000-4000-8000-00000000000d');
+with u as (
+  update public.events set notes = 'דמו - App Review' where id = 'e0000000-0000-4000-8000-000000000002' returning 1
+)
+select pg_temp.ok(count(*) = 1, 'before/definer code for the demo account: demo event write allowed') from u;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+with u as (
+  update public.events set notes = 'שרת' where id = 'e0000000-0000-4000-8000-000000000001' returning 1
+)
+select pg_temp.ok(count(*) = 1, 'before/service role and cron (no auth.uid): writes allowed') from u;
+
+-- Edge functions ask with the service role.
 set local role service_role;
 select pg_temp.ok(public.is_prelaunch_blocked('b0000000-0000-4000-8000-000000000001'),
   'before/server: is_prelaunch_blocked(responder) = true');
@@ -333,6 +368,9 @@ select pg_temp.ok((select count(*) from public.districts) > 0, 'after/responder:
 select pg_temp.lives(
   $$insert into public.user_feedback (user_id, kind, body) values ('b0000000-0000-4000-8000-000000000001', 'bug', 'x')$$,
   'after/responder: can write feedback');
+select pg_temp.lives(
+  $$select public.upsert_locked_secondary_lead('e0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000007')$$,
+  'after/responder: upsert_locked_secondary_lead works again');
 
 select pg_temp.act_as('b0000000-0000-4000-8000-000000000002');
 select pg_temp.ok((select count(*) from public.events where id = 'e0000000-0000-4000-8000-000000000001') = 1,

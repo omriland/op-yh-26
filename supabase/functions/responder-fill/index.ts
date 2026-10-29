@@ -680,6 +680,9 @@ async function handleNotifyFillReady(
     if (!isAdmin && !isLead) {
       return json(403, { error: "אין לך הרשאה לפעולה זו." });
     }
+    if (await isPrelaunchBlocked(adminClient, user.id)) {
+      return json(403, { error: PRELAUNCH_BLOCKED_MESSAGE, code: "prelaunch" });
+    }
   }
 
   const eventId = trim(body.event_id);

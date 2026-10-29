@@ -15,10 +15,10 @@ Hebrew or English, in any order:
 
 | Column | Headers accepted | Required |
 |---|---|---|
-| Full name | `שם מלא`, `שם`, `full_name`, `name` | yes |
+| Full name | `שם מלא`, `שם`, `full_name`, `name`, or `שם פרטי` / `שם` plus `שם משפחה` (joined) | yes |
 | Email | `דוא"ל`, `אימייל`, `מייל`, `email` | yes |
 | Callsign | `או"ק`, `אות קריאה`, `callsign` | yes |
-| Phone | `טלפון`, `נייד`, `phone`, `mobile` (10 digits, `+972` accepted) | yes |
+| Phone | `טלפון`, `נייד`, `phone`, `mobile` (10 digits; `+972` and Excel's dropped leading 0 are fixed) | yes |
 | Role | `תפקיד`, `role`: מתנדב / אחמ"ש / מנהל (empty = מתנדב). אחמ"ש includes מתנדב, and מנהל includes both, as in the dialog | no |
 | Status | `סטטוס`, `status`: the dialog's labels, for example `מתנדב פעיל` (empty = מתנדב פעיל) | no |
 

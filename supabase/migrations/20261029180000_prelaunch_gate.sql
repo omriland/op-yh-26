@@ -16,6 +16,11 @@
 --     ios_devices (their policies are already own-row only).
 --   * SECURITY DEFINER RPCs that list other members bypass RLS, so they check
 --     the gate themselves (bodies otherwise as in 20261029120000 / 20260903140000).
+--   * SECURITY DEFINER RPCs that write events and shifts (delete_event,
+--     save_shift_born_event_fill, apply_event_status_from_participations, ...)
+--     also bypass RLS. Rather than rewrite their bodies, a row trigger on the
+--     event and shift tables refuses any write whose caller is gated. Service
+--     role and cron have no auth.uid(), so they are never refused.
 --   * Edge functions that act for a member with the service role call
 --     public.is_prelaunch_blocked(uid) (supabase/functions/_shared/prelaunch.ts).
 --
@@ -145,6 +150,43 @@ create policy storage_prelaunch_gate on storage.objects
   as restrictive for all to authenticated
   using (not (select public.is_prelaunch_blocked_caller()))
   with check (not (select public.is_prelaunch_blocked_caller()));
+
+-- ---------------------------------------------------------------------------
+-- Writes through SECURITY DEFINER code: refused for a gated caller.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.guard_prelaunch_write()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if public.is_prelaunch_blocked_caller() then
+    raise exception 'המערכת תעלה לאוויר ב-1.11' using errcode = '42501';
+  end if;
+  return coalesce(new, old);
+end;
+$$;
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'events', 'event_responders', 'event_secondary_leads', 'event_treated_plates',
+    'event_treated_vehicles', 'event_media', 'event_media_plates', 'shifts',
+    'shift_responders', 'shift_events', 'shift_event_type_counts', 'shift_treated_vehicle_counts'
+  ]
+  loop
+    execute format('drop trigger if exists %I on public.%I', t || '_prelaunch_guard', t);
+    execute format(
+      'create trigger %I before insert or update or delete on public.%I '
+      || 'for each row execute function public.guard_prelaunch_write()',
+      t || '_prelaunch_guard', t
+    );
+  end loop;
+end
+$$;
 
 -- ---------------------------------------------------------------------------
 -- SECURITY DEFINER RPCs that list other members.

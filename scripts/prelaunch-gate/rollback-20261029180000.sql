@@ -1,8 +1,9 @@
 -- Rollback for supabase/migrations/20261029180000_prelaunch_gate.sql.
 --
 -- Removes the pre-launch gate everywhere at once:
---   * database: drops every *_prelaunch_gate policy and the helper functions,
---     and restores the three RPC bodies the migration changed;
+--   * database: drops every *_prelaunch_gate policy, every *_prelaunch_guard
+--     trigger and the helper functions, and restores the three RPC bodies the
+--     migration changed;
 --   * edge functions: _shared/prelaunch.ts treats a missing is_prelaunch_blocked
 --     as "not blocked", so no redeploy is needed;
 --   * web: src/lib/prelaunch.ts treats a missing prelaunch_gate RPC as "no gate",
@@ -139,6 +140,23 @@ begin
 end
 $$;
 drop policy if exists storage_prelaunch_gate on storage.objects;
+
+do $$
+declare
+  r record;
+begin
+  for r in
+    select c.relname as tbl, t.tgname
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and t.tgname = c.relname || '_prelaunch_guard'
+  loop
+    execute format('drop trigger if exists %I on public.%I', r.tgname, r.tbl);
+  end loop;
+end
+$$;
+drop function if exists public.guard_prelaunch_write();
 
 drop function if exists public.prelaunch_gate();
 drop function if exists public.is_prelaunch_blocked_caller();

@@ -39,6 +39,22 @@ describe('buildInvites', () => {
     expect(invites.map((i) => i.line)).toEqual([2, 3, 4])
   })
 
+  it('joins first and last name columns, and reads "שם" next to "שם משפחה" as a first name', () => {
+    for (const header of ['שם פרטי,שם משפחה', 'שם,שם משפחה']) {
+      const { invites, errors } = buildInvites(
+        parseCsv(`${header},אימייל,או"ק,נייד\nדנה,כהן,d@example.test,ד-1,0501111111`),
+      )
+      expect(errors).toEqual([])
+      expect(invites[0].body.full_name).toBe('דנה כהן')
+    }
+  })
+
+  it('restores the leading 0 Excel drops from a numeric phone', () => {
+    const { invites, errors } = buildInvites(parseCsv('שם מלא,דוא"ל,או"ק,טלפון\nא ב,a@example.test,T-1,501234567'))
+    expect(errors).toEqual([])
+    expect(invites[0].body.phone).toBe('0501234567')
+  })
+
   it('accepts English headers and defaults the role to responder', () => {
     const { invites, errors } = buildInvites(parseCsv('full_name,email,callsign,phone\nA B,a@example.test,T-1,0501111111'))
     expect(errors).toEqual([])
