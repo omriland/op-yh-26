@@ -264,3 +264,21 @@ describe('runInvites with vehicles', () => {
     expect(syncVehicles).not.toHaveBeenCalled()
   })
 })
+
+describe('buildVehicles shared cars', () => {
+  const H = 'דוא"ל,מספר רכב,דגם,סוג,שורה מקורית,משותף'
+  it('allows one plate under two people when every row is marked shared, in each person\'s own order', () => {
+    const rows = parseCsv([H, 'dana@example.test,1234567,A,ראשי,2,כן', 'dana@example.test,7654321,B,משני,2,כן', 'avi@example.test,7654321,B2,ראשי,3,כן', 'avi@example.test,1234567,A2,משני,3,כן'].join('\n'))
+    const { byEmail, errors } = buildVehicles(rows, twoInvites())
+    expect(errors).toEqual([])
+    expect(byEmail.get('dana@example.test').map((v) => v.plate_number)).toEqual(['1234567', '7654321'])
+    expect(byEmail.get('avi@example.test').map((v) => v.plate_number)).toEqual(['7654321', '1234567'])
+  })
+  it('still rejects a cross-person repeat when any row is not marked, and a per-person repeat even if marked', () => {
+    const rows = parseCsv([H, 'dana@example.test,1234567,A,ראשי,2,כן', 'avi@example.test,1234567,A,ראשי,3,', 'avi@example.test,7654321,B,ראשי,3,כן', 'avi@example.test,76-543-21,B,משני,3,כן'].join('\n'))
+    const { errors } = buildVehicles(rows, twoInvites())
+    expect(errors).toHaveLength(2)
+    expect(errors[0]).toContain('אותו רכב אצל שני אנשים')
+    expect(errors[1]).toContain('רכב כפול לאותו אדם')
+  })
+})

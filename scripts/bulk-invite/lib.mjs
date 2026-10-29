@@ -259,15 +259,18 @@ const VEHICLE_HEADERS = {
   email: HEADERS.email,
   plate: ['plate', 'plate_number', 'מספררכב', 'לוחיתרישוי', 'רכב'],
   model: ['model', 'דגם', 'יצרןודגם'],
+  shared: ['shared', 'משותף'],
 }
+const OPTIONAL_VEHICLE_COLUMNS = new Set(['shared'])
+const YES = new Set(['כן', 'yes', 'true', '1'])
 
 /**
  * Vehicles CSV (one car per row, keyed by email, in order: the first car of
  * a person becomes רכב ראשי). Every email must be in the invite list. Returns
  * every problem at once; the caller sends nothing unless `errors` is empty.
- * The same plate twice for one person, or under two people, is an error: the
- * clean-up script already merged and flagged those, so a repeat means the file
- * was edited by hand.
+ * The same plate twice for one person is always an error. The same plate under
+ * two people is an error unless every row of that plate is marked shared
+ * (`משותף` = כן): members who really share a car, approved one by one.
  */
 export function buildVehicles(rows, invites) {
   const errors = []
@@ -278,7 +281,7 @@ export function buildVehicles(rows, invites) {
   for (const [key, aliases] of Object.entries(VEHICLE_HEADERS)) {
     const index = header.findIndex((h) => aliases.includes(h))
     if (index >= 0) column[key] = index
-    else errors.push(`קובץ רכבים - חסרה עמודה: ${key}`)
+    else if (!OPTIONAL_VEHICLE_COLUMNS.has(key)) errors.push(`קובץ רכבים - חסרה עמודה: ${key}`)
   }
   if (errors.length) return { byEmail, errors }
   const invited = new Set(invites.map((i) => i.body.email))
@@ -288,15 +291,21 @@ export function buildVehicles(rows, invites) {
     const email = String(cells[column.email] ?? '').trim().toLowerCase()
     const plate = plateDigits(cells[column.plate])
     const model = String(cells[column.model] ?? '').replace(/\s+/g, ' ').trim()
+    const shared = column.shared !== undefined && YES.has(squash(cells[column.shared]))
     const problems = []
     if (!invited.has(email)) problems.push(`דוא״ל לא ברשימת ההזמנות: ${email}`)
     if (!/^\d{7,8}$/.test(plate)) problems.push(`מספר רכב חייב 7 או 8 ספרות: ${cells[column.plate] ?? ''}`)
     if (!model) problems.push('חסר דגם')
-    if (plate && owner.has(plate)) {
-      const first = owner.get(plate)
-      problems.push(first.email === email ? `רכב כפול לאותו אדם (שורה ${first.line})` : `אותו רכב אצל שני אנשים (שורה ${first.line})`)
+    const seen = plate ? owner.get(plate) : undefined
+    if (seen?.lines.has(email)) problems.push(`רכב כפול לאותו אדם (שורה ${seen.lines.get(email)})`)
+    else if (seen && !(seen.shared && shared)) {
+      problems.push(`אותו רכב אצל שני אנשים (שורה ${seen.lines.values().next().value}) - מותר רק אם כל השורות מסומנות משותף`)
     }
-    if (plate && !owner.has(plate)) owner.set(plate, { email, line })
+    if (plate && !seen) owner.set(plate, { lines: new Map([[email, line]]), shared })
+    else if (seen && !seen.lines.has(email)) {
+      seen.lines.set(email, line)
+      seen.shared = seen.shared && shared
+    }
     if (problems.length) {
       errors.push(`קובץ רכבים שורה ${line}: ${problems.join(', ')}`)
       return

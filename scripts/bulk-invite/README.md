@@ -36,8 +36,11 @@ row, keyed by email; the first car of a person becomes רכב ראשי.
 | Email | same as above; must be an email in the members file |
 | Plate | `מספר רכב`, `plate`, `plate_number` (7 or 8 digits; spaces, dashes and dots are ignored) |
 | Model | `דגם`, `יצרן ודגם`, `model` (required) |
+| Shared | `משותף`, `shared`: `כן` on every row of a plate that two members really share (optional) |
 
-Any repeated plate (for one person or two) is an error, like the member checks. The cars
+A plate repeated for one person is an error. A plate under two people is an error unless
+every row of it is marked `משותף` = `כן` (approved shared cars; the DB allows one plate
+for several users). The cars
 are plain inserts over the REST API as the signed-in admin (same RLS as the users
 screen): no edge function, no email, SMS or push. Before inserting, the script reads the
 member's cars and skips a plate they already have, so a re-run never duplicates. It also
