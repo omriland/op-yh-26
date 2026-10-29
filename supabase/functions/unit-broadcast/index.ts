@@ -284,7 +284,9 @@ async function loadRecipients(
     .from("profiles")
     .select("id, email, phone, full_name, active, invite_pending")
     .eq("active", true)
-    .eq("invite_pending", false);
+    .eq("invite_pending", false)
+    // App Review demo accounts never receive unit messages.
+    .eq("is_app_review_demo", false);
 
   if (error) {
     console.error("unit-broadcast: profiles", error);

@@ -692,7 +692,7 @@ async function handleNotifyFillReady(
          event_type:event_types(name),
          road:roads(name)
        ),
-       profile:profiles!responder_id(id, full_name, active)`,
+       profile:profiles!responder_id(id, full_name, active, is_app_review_demo)`,
     );
 
   if (ids.length > 0) {
@@ -727,7 +727,12 @@ async function handleNotifyFillReady(
         event_type: { name: string } | null;
         road: { name: string } | null;
       };
-      profile: { id: string; full_name: string; active: boolean } | null;
+      profile: {
+        id: string;
+        full_name: string;
+        active: boolean;
+        is_app_review_demo: boolean;
+      } | null;
     };
 
     if (assignment.fill_ready_emailed_at) {
@@ -744,6 +749,10 @@ async function handleNotifyFillReady(
     }
     if (!assignment.profile || assignment.profile.active !== true) {
       skipped.push({ id: assignment.id, reason: "inactive" });
+      continue;
+    }
+    if (assignment.profile.is_app_review_demo) {
+      skipped.push({ id: assignment.id, reason: "app_review_demo" });
       continue;
     }
 
@@ -913,7 +922,7 @@ async function handleNotifyOverdueFills(
          event_type:event_types(name),
          road:roads(name)
        ),
-       profile:profiles!responder_id(id, full_name, active)`,
+       profile:profiles!responder_id(id, full_name, active, is_app_review_demo)`,
     )
     .not("fill_completable_at", "is", null)
     .lte("fill_completable_at", cutoff)
@@ -943,7 +952,12 @@ async function handleNotifyOverdueFills(
         event_type: { name: string } | null;
         road: { name: string } | null;
       };
-      profile: { id: string; full_name: string; active: boolean } | null;
+      profile: {
+        id: string;
+        full_name: string;
+        active: boolean;
+        is_app_review_demo: boolean;
+      } | null;
     };
 
     if (!assignment.fill_completable_at) {
@@ -956,6 +970,10 @@ async function handleNotifyOverdueFills(
     }
     if (!assignment.profile || assignment.profile.active !== true) {
       skipped.push({ id: assignment.id, reason: "inactive" });
+      continue;
+    }
+    if (assignment.profile.is_app_review_demo) {
+      skipped.push({ id: assignment.id, reason: "app_review_demo" });
       continue;
     }
 
