@@ -59,6 +59,20 @@ create function pg_temp.act_as(p_user uuid) returns void language sql as $$
     json_build_object('sub', p_user, 'role', 'authenticated')::text, true);
 $$;
 
+-- X-Client-Info as PostgREST exposes it in request.headers. Values are exactly
+-- what the pinned SDKs send (see 20261029190000_prelaunch_native_block.sql).
+create function pg_temp.as_client(p_client text) returns void language sql as $$
+  select set_config('request.headers', case p_client
+    when 'swift' then json_build_object('x-client-info',
+      'supabase-swift/2.55.1; platform=iOS; platform-version=26.0; runtime=swift; runtime-version=6.1')::text
+    when 'kt' then json_build_object('x-client-info', 'supabase-kt/3.1.4')::text
+    when 'web' then json_build_object('x-client-info', 'supabase-js/2.112.2; runtime=web')::text
+    when 'no_header' then '{"accept":"application/json"}'
+    when 'garbage' then 'not json'
+    else ''
+  end, true);
+$$;
+
 create function pg_temp.gate_blocked(p_user uuid) returns boolean language plpgsql as $$
 begin
   perform pg_temp.act_as(p_user);
@@ -300,6 +314,54 @@ select pg_temp.lives(
   $$update public.profiles set availability = 'available' where id = 'b0000000-0000-4000-8000-00000000000d'$$,
   'before/demo: can still edit its own profile');
 
+-- Native apps (20261029190000): a gated member's own profile and roles are
+-- hidden from supabase-swift / supabase-kt, so the apps' sign-in fails.
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000001');
+select pg_temp.as_client('swift');
+select pg_temp.ok((select count(*) from public.profiles) = 0
+    and (select count(*) from public.user_roles) = 0,
+  'before/responder on iOS (supabase-swift): own profile and roles hidden, so sign-in fails');
+select pg_temp.as_client('kt');
+select pg_temp.ok((select count(*) from public.profiles) = 0
+    and (select count(*) from public.user_roles) = 0,
+  'before/responder on Android (supabase-kt): own profile and roles hidden, so sign-in fails');
+with u as (
+  update public.profiles set availability = 'available' where id = 'b0000000-0000-4000-8000-000000000001' returning 1
+)
+select pg_temp.ok(count(*) = 0, 'before/responder on Android: cannot write own profile either') from u;
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000002');
+select pg_temp.as_client('swift');
+select pg_temp.ok((select count(*) from public.profiles) = 0, 'before/shift lead on iOS: own profile hidden');
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000001');
+select pg_temp.as_client('web');
+select pg_temp.ok((select count(*) from public.profiles) = 1 and (select count(*) from public.user_roles) = 1,
+  'before/responder on the web (supabase-js): own profile and roles for the gate screen');
+select pg_temp.as_client('no_header');
+select pg_temp.ok((select count(*) from public.profiles) = 1, 'before/responder, no X-Client-Info: treated as web');
+select pg_temp.as_client('none');
+select pg_temp.ok((select count(*) from public.profiles) = 1, 'before/responder, no request.headers at all: treated as web');
+select pg_temp.as_client('garbage');
+select pg_temp.ok((select count(*) from public.profiles) = 1, 'before/responder, unreadable request.headers: treated as web, no error');
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000003');
+select pg_temp.as_client('swift');
+select pg_temp.ok((select count(*) from public.profiles) >= 8
+    and (select count(*) from public.user_roles where user_id = 'b0000000-0000-4000-8000-000000000003') = 1
+    and (select count(*) from public.events where id = 'e0000000-0000-4000-8000-000000000001') = 1,
+  'before/admin on iOS: unaffected');
+select pg_temp.as_client('kt');
+select pg_temp.ok((select count(*) from public.profiles) >= 8, 'before/admin on Android: unaffected');
+select pg_temp.act_as('b0000000-0000-4000-8000-00000000000d');
+select pg_temp.as_client('swift');
+select pg_temp.ok((select count(*) from public.profiles where id = 'b0000000-0000-4000-8000-00000000000d') = 1
+    and (select array_agg(role::text) from public.user_roles) = array['responder']
+    and (select array_agg(id) from public.events) = array['e0000000-0000-4000-8000-000000000002']::uuid[]
+    and (select array_agg(id) from public.list_unit_contacts()) = array['b0000000-0000-4000-8000-00000000000e']::uuid[],
+  'before/App Review demo on iOS: profile, roles, demo event and contacts as before');
+select pg_temp.as_client('kt');
+select pg_temp.ok((select count(*) from public.profiles where id = 'b0000000-0000-4000-8000-00000000000d') = 1,
+  'before/App Review demo on Android: profile readable');
+select pg_temp.as_client('none');
+
 -- SECURITY DEFINER RPCs bypass RLS; the write guard trigger refuses them.
 select pg_temp.act_as('b0000000-0000-4000-8000-000000000002');
 select pg_temp.throws($$select public.delete_event('e0000000-0000-4000-8000-000000000001')$$,
@@ -382,10 +444,59 @@ select pg_temp.act_as('b0000000-0000-4000-8000-00000000000d');
 select pg_temp.ok((select array_agg(id) from public.events) = array['e0000000-0000-4000-8000-000000000002']::uuid[],
   'after/demo: still only the demo event');
 
+-- Automatic unlock on the native apps: same clock, nothing to switch.
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000001');
+select pg_temp.as_client('swift');
+select pg_temp.ok((select count(*) from public.profiles where id = 'b0000000-0000-4000-8000-000000000001') = 1
+    and (select count(*) from public.user_roles) = 1
+    and (select count(*) from public.events where id = 'e0000000-0000-4000-8000-000000000001') = 1
+    and (select count(*) from public.vehicles) = 1,
+  'after/responder on iOS: own profile, roles, events and vehicle');
+select pg_temp.ok((select count(*) from public.list_unit_contacts()) > 0
+    and (select count(*) from public.list_unit_map_pins()) > 0,
+  'after/responder on iOS: contacts and map pins return rows');
+select pg_temp.as_client('kt');
+select pg_temp.ok((select count(*) from public.profiles where id = 'b0000000-0000-4000-8000-000000000001') = 1
+    and (select count(*) from public.list_unit_contacts()) > 0,
+  'after/responder on Android: own profile and contacts');
+select pg_temp.lives(
+  $$insert into public.user_feedback (user_id, kind, body) values ('b0000000-0000-4000-8000-000000000001', 'bug', 'מאנדרואיד')$$,
+  'after/responder on Android: can write');
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000002');
+select pg_temp.as_client('swift');
+select pg_temp.ok((select count(*) from public.profiles where id = 'b0000000-0000-4000-8000-000000000002') = 1
+    and (select count(*) from public.list_shift_lead_profiles()) > 0,
+  'after/shift lead on iOS: own profile and lead list');
+with u as (
+  update public.events set notes = 'אחרי ההשקה' where id = 'e0000000-0000-4000-8000-000000000001' returning 1
+)
+select pg_temp.ok(count(*) = 1, 'after/shift lead on iOS: can edit own event (write guard passes)') from u;
+select pg_temp.as_client('kt');
+select pg_temp.lives(
+  $$insert into public.event_responders (event_id, responder_id)
+    values ('e0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000007')$$,
+  'after/shift lead on Android: can assign a responder to own event (write guard passes)');
+select pg_temp.as_client('none');
+
 reset role;
 set local role service_role;
 select pg_temp.ok(not public.is_prelaunch_blocked('b0000000-0000-4000-8000-000000000001'),
   'after/server: is_prelaunch_blocked(responder) = false');
+reset role;
+
+-- Back to the shipped launch instant: the gate is in force again exactly while
+-- the database clock is before 2026-10-31T22:01:00Z.
+create or replace function public.prelaunch_launch_at()
+returns timestamptz language sql stable as $$ select timestamptz '2026-10-31 22:01:00+00' $$;
+set local role authenticated;
+select pg_temp.ok(pg_temp.gate_blocked('b0000000-0000-4000-8000-000000000001') = (now() < timestamptz '2026-10-31 22:01:00+00'),
+  'restored launch value: responder gated now iff the DB clock is before launch');
+select pg_temp.act_as('b0000000-0000-4000-8000-000000000001');
+select pg_temp.as_client('swift');
+select pg_temp.ok(((select count(*) from public.profiles where id = 'b0000000-0000-4000-8000-000000000001') = 0)
+    = (now() < timestamptz '2026-10-31 22:01:00+00'),
+  'restored launch value: iOS sign-in refused again iff before launch');
+select pg_temp.as_client('none');
 reset role;
 
 do $$

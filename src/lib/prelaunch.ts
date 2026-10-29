@@ -12,6 +12,8 @@ export const PRELAUNCH_LAUNCH_AT = '2026-10-31T22:01:00Z'
 export const PRELAUNCH_LAUNCH_AT_MS = Date.parse(PRELAUNCH_LAUNCH_AT)
 
 export const PRELAUNCH_TITLE = 'המערכת תעלה לאוויר ב-1.11'
+/** Shown as two lines. No hour on purpose: the date is what members need. */
+export const PRELAUNCH_BODY_LINES = ['החשבון שלך מוכן.', 'הכניסה למערכת תיפתח ביום ראשון, 1 בנובמבר.'] as const
 
 /**
  * Open the app this long after launch, so the database (which lifts RLS at

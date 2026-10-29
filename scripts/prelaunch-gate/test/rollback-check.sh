@@ -1,6 +1,7 @@
 #!/bin/bash
-# Checks on a throwaway LOCAL Postgres that the pre-launch gate migration is
-# re-runnable and that its rollback restores the exact schema. Never connects
+# Checks on a throwaway LOCAL Postgres that the pre-launch gate migrations
+# (20261029180000, 20261029190000) are re-runnable and that each rollback
+# restores the exact schema. Never connects
 # to a hosted database. Needs postgresql@17 (`brew install postgresql@17`).
 #
 #   scripts/prelaunch-gate/test/rollback-check.sh
@@ -10,7 +11,9 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 PG_BIN="${PG_BIN:-/opt/homebrew/opt/postgresql@17/bin}"
 PORT="${PORT:-54398}"
 MINE=20261029180000_prelaunch_gate.sql
+NATIVE=20261029190000_prelaunch_native_block.sql
 ROLLBACK="$ROOT/scripts/prelaunch-gate/rollback-20261029180000.sql"
+ROLLBACK_NATIVE="$ROOT/scripts/prelaunch-gate/rollback-20261029190000.sql"
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/prelaunch-rollback.XXXXXX")"
 DATA="$WORK/pg"
@@ -30,32 +33,48 @@ apply() {
 dump() { "$PG_BIN/pg_dump" -s "$URL" | grep -Ev '^.(un)?restrict ' > "$1"; }
 run_test() { "${PSQL[@]}" -f "$1" 2>&1 | grep -E 'checks passed|not ok|ERROR'; }
 
-# Same replay order as run-local-db.sh, without the gate.
+# Same replay order as run-local-db.sh, without the two gate migrations.
 LATE=20260819101714_event_media_plates.sql
 AFTER=20260819120000_event_media.sql
 for f in $(ls "$ROOT/supabase/migrations" | sort); do
-  [ "$f" = "$LATE" ] || [ "$f" = "$MINE" ] && continue
+  [ "$f" = "$LATE" ] || [ "$f" = "$MINE" ] || [ "$f" = "$NATIVE" ] && continue
   apply "$ROOT/supabase/migrations/$f"
   if [ "$f" = "$AFTER" ]; then apply "$ROOT/supabase/migrations/$LATE"; fi
 done
 dump "$WORK/before.sql"
 
+same() { cmp -s "$1" "$2" || { echo "FAIL: $3"; diff "$1" "$2" | head -40; exit 1; }; echo "ok - $3"; }
+
+# 20261029180000 alone.
 apply "$ROOT/supabase/migrations/$MINE"
 dump "$WORK/gate-1.sql"
 apply "$ROOT/supabase/migrations/$MINE"
 dump "$WORK/gate-2.sql"
-cmp -s "$WORK/gate-1.sql" "$WORK/gate-2.sql" || { echo "FAIL: a second run changed the schema"; exit 1; }
-echo "ok - migration re-runs without changing the schema"
-run_test "$ROOT/scripts/prelaunch-gate/test/gate.sql"
-
+same "$WORK/gate-1.sql" "$WORK/gate-2.sql" "20261029180000 re-runs without changing the schema"
 "${PSQL[@]}" -f "$ROLLBACK" >/dev/null
 dump "$WORK/after-rollback.sql"
-cmp -s "$WORK/before.sql" "$WORK/after-rollback.sql" || {
-  echo "FAIL: schema after rollback differs"; diff "$WORK/before.sql" "$WORK/after-rollback.sql" | head -40; exit 1;
-}
-echo "ok - schema after rollback is identical to before the migration"
+same "$WORK/before.sql" "$WORK/after-rollback.sql" "rollback-20261029180000 restores the schema from before"
+
+# Then 20261029190000 on top.
+apply "$ROOT/supabase/migrations/$MINE"
+dump "$WORK/gate-only.sql"
+apply "$ROOT/supabase/migrations/$NATIVE"
+dump "$WORK/native-1.sql"
+apply "$ROOT/supabase/migrations/$MINE"
+apply "$ROOT/supabase/migrations/$NATIVE"
+dump "$WORK/native-2.sql"
+same "$WORK/native-1.sql" "$WORK/native-2.sql" "the workflow order (180000 then 190000) re-runs without changing the schema"
+run_test "$ROOT/scripts/prelaunch-gate/test/gate.sql"
+"${PSQL[@]}" -f "$ROLLBACK_NATIVE" >/dev/null
+dump "$WORK/after-native-rollback.sql"
+same "$WORK/gate-only.sql" "$WORK/after-native-rollback.sql" "rollback-20261029190000 restores the schema of 20261029180000 alone"
+apply "$ROOT/supabase/migrations/$NATIVE"
+"${PSQL[@]}" -f "$ROLLBACK" >/dev/null
+dump "$WORK/after-full-rollback.sql"
+same "$WORK/before.sql" "$WORK/after-full-rollback.sql" "rollback-20261029180000 after both restores the schema from before"
 
 apply "$ROOT/supabase/migrations/$MINE"
-echo "ok - migration applies again after rollback"
+apply "$ROOT/supabase/migrations/$NATIVE"
+echo "ok - both migrations apply again after rollback"
 run_test "$ROOT/scripts/prelaunch-gate/test/gate.sql"
 run_test "$ROOT/scripts/app-review-demo/test/isolation.sql"

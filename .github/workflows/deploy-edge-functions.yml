@@ -23,6 +23,7 @@ on:
       - "supabase/migrations/20261015130000_skip_auto_secondary_on_participation_status.sql"
       - "supabase/migrations/20261029120000_app_review_demo_isolation.sql"
       - "supabase/migrations/20261029180000_prelaunch_gate.sql"
+      - "supabase/migrations/20261029190000_prelaunch_native_block.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -92,6 +93,11 @@ jobs:
           # before responder-fill / responder-api call is_prelaunch_blocked.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261029180000_prelaunch_gate.sql
+          # Right after 20261029180000, which recreates the profiles and
+          # user_roles gate policies in their web-only form: this file withdraws
+          # the own-row exception from the iOS and Android apps. Inert after launch.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261029190000_prelaunch_native_block.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
