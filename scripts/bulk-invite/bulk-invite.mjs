@@ -7,13 +7,15 @@
  *   node scripts/bulk-invite/bulk-invite.mjs members.csv
  *   BULK_INVITE_ALLOW=1 YAHPZ_ADMIN_EMAIL=… YAHPZ_ADMIN_PASSWORD=… SUPABASE_ANON_KEY=… \
  *     node scripts/bulk-invite/bulk-invite.mjs members.csv --send --confirm-production [--limit 3]
+ *   add --vehicles cars.csv to also add each member's cars (no extra email/SMS)
  *
  * --send sends a real invite email and SMS to every row.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { buildInvites, parseCsv, resultsCsv, runInvites } from './lib.mjs'
+import { buildInvites, buildVehicles, parseCsv, resultsCsv, runInvites, syncUserVehicles } from './lib.mjs'
+import { postgrestVehicleApi } from './vehicles-api.mjs'
 
 const PRODUCTION_URL = 'https://rtvizpsfvtjowbimugns.supabase.co'
 
@@ -37,13 +39,19 @@ try {
       'confirm-production': { type: 'boolean', default: false },
       limit: { type: 'string' },
       'delay-ms': { type: 'string', default: '1500' },
+      vehicles: { type: 'string' },
     },
     strict: true,
   })
   const file = positionals[0]
   if (!file) throw new Error('Usage: node scripts/bulk-invite/bulk-invite.mjs <file.csv> [--send --confirm-production] [--limit N]')
 
-  const { invites, errors } = buildInvites(parseCsv(readFileSync(file, 'utf8')))
+  const { invites, errors: inviteErrors } = buildInvites(parseCsv(readFileSync(file, 'utf8')))
+  const vehicleFile = values.vehicles
+  const { byEmail: vehiclesByEmail, errors: vehicleErrors } = vehicleFile
+    ? buildVehicles(parseCsv(readFileSync(vehicleFile, 'utf8')), invites)
+    : { byEmail: new Map(), errors: [] }
+  const errors = [...inviteErrors, ...vehicleErrors]
   if (errors.length) {
     console.error(`${errors.length} problems, nothing was sent:`)
     for (const e of errors) console.error(`  ${e}`)
@@ -54,7 +62,15 @@ try {
   const planned = limit === undefined ? invites : invites.slice(0, limit)
   console.log(`${invites.length} rows valid. Plan (${planned.length}):`)
   for (const { line, body } of planned) {
-    console.log(`  ${line}. ${body.full_name} · ${body.callsign} · ${body.email} · ${body.roles[0]}`)
+    const cars = vehiclesByEmail.get(body.email)?.length ?? 0
+    console.log(`  ${line}. ${body.full_name} · ${body.callsign} · ${body.email} · ${body.roles[0]}${cars ? ` · ${cars} רכבים` : ''}`)
+  }
+  if (vehicleFile) {
+    const counts = planned.map(({ body }) => vehiclesByEmail.get(body.email)?.length ?? 0)
+    console.log(
+      `Vehicles: ${counts.filter((n) => n > 0).length} members with cars, ${counts.reduce((a, b) => a + b, 0)} cars, ` +
+        `${counts.filter((n) => n > 1).length} with 2+, ${counts.filter((n) => n === 0).length} without.`,
+    )
   }
 
   if (!values.send) {
@@ -77,6 +93,14 @@ try {
     limit,
     delayMs: Number(values['delay-ms']),
     log: console.log,
+    vehiclesByEmail,
+    syncVehicles: vehicleFile
+      ? (args) =>
+          syncUserVehicles({
+            ...args,
+            api: postgrestVehicleApi({ url: PRODUCTION_URL, apiKey: anonKey, accessToken }),
+          })
+      : undefined,
     invoke: async (body) => {
       const res = await fetch(`${PRODUCTION_URL}/functions/v1/admin-users`, {
         method: 'POST',

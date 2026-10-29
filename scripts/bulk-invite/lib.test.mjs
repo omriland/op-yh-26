@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildInvites, parseCsv, resultsCsv, runInvites } from './lib.mjs'
+import { buildInvites, buildVehicles, parseCsv, plateDigits, resultsCsv, runInvites, syncUserVehicles } from './lib.mjs'
 
 const HEADER_HE = 'שם מלא,דוא"ל,או"ק,טלפון,תפקיד,סטטוס'
 
@@ -138,7 +138,129 @@ describe('runInvites', () => {
 
   it('writes a results file Excel opens in Hebrew', () => {
     expect(resultsCsv([{ line: 2, email: 'a@example.test', outcome: 'failed', status: 409, message: 'או״ק "x"' }])).toBe(
-      '﻿line,email,outcome,status,message\r\n2,"a@example.test",failed,409,"או״ק ""x"""\r\n',
+      '﻿line,email,outcome,status,message,vehicles_added,vehicles_skipped\r\n2,"a@example.test",failed,409,"או״ק ""x""",,\r\n',
     )
+  })
+})
+
+const VEH_HEADER = 'דוא"ל,מספר רכב,דגם,סוג,שורה מקורית'
+const twoInvites = () =>
+  buildInvites(
+    parseCsv([HEADER_HE, 'דנה כהן,dana@example.test,דמו-21,0501234567,,', 'אבי לוי,avi@example.test,דמו-22,0521234567,,'].join('\n')),
+  ).invites
+
+describe('buildVehicles', () => {
+  it('groups cars by email in file order and normalizes plates', () => {
+    const rows = parseCsv(
+      [VEH_HEADER, 'Dana@Example.test,12-345-67,GMC AT4,ראשי,2', 'dana@example.test,123.45.678 ,  טויוטה   היילקס ,משני,2', 'avi@example.test,7654321,ג׳יפ,ראשי,3'].join('\n'),
+    )
+    const { byEmail, errors } = buildVehicles(rows, twoInvites())
+    expect(errors).toEqual([])
+    expect(byEmail.get('dana@example.test')).toEqual([
+      { plate_number: '1234567', model: 'GMC AT4' },
+      { plate_number: '12345678', model: 'טויוטה היילקס' },
+    ])
+    expect(byEmail.get('avi@example.test')).toEqual([{ plate_number: '7654321', model: 'ג׳יפ' }])
+  })
+
+  it('rejects bad plates, missing models, unknown emails and any repeated plate', () => {
+    const rows = parseCsv(
+      [
+        VEH_HEADER,
+        'dana@example.test,1234567,GMC,ראשי,2',
+        'dana@example.test,12-345-67,GMC,משני,2',
+        'avi@example.test,1234567,GMC,ראשי,3',
+        'avi@example.test,321115,ג׳יפ,משני,3',
+        'avi@example.test,7654321,,משני,3',
+        'nobody@example.test,7777777,GMC,ראשי,4',
+      ].join('\n'),
+    )
+    const { errors } = buildVehicles(rows, twoInvites())
+    expect(errors).toHaveLength(5)
+    expect(errors[0]).toContain('רכב כפול לאותו אדם')
+    expect(errors[1]).toContain('אותו רכב אצל שני אנשים')
+    expect(errors[2]).toContain('7 או 8 ספרות')
+    expect(errors[3]).toContain('חסר דגם')
+    expect(errors[4]).toContain('לא ברשימת ההזמנות')
+  })
+})
+
+describe('syncUserVehicles', () => {
+  const fakeApi = (existing = []) => {
+    const plates = [...existing]
+    return {
+      plates,
+      findUserId: vi.fn(async () => 'u1'),
+      listPlates: vi.fn(async () => [...plates]),
+      insert: vi.fn(async (_id, v) => {
+        plates.push(v.plate_number)
+        return 'inserted'
+      }),
+    }
+  }
+  const cars = [
+    { plate_number: '1234567', model: 'A' },
+    { plate_number: '12345678', model: 'B' },
+  ]
+
+  it('inserts every car in order for a new user, without a lookup', async () => {
+    const api = fakeApi()
+    expect(await syncUserVehicles({ email: 'x', userId: 'new', vehicles: cars, api })).toEqual({ added: 2, skipped: 0 })
+    expect(api.findUserId).not.toHaveBeenCalled()
+    expect(api.insert.mock.calls.map((c) => c[1].plate_number)).toEqual(['1234567', '12345678'])
+  })
+
+  it('skips plates the user already has, whatever their format, so a re-run adds nothing twice', async () => {
+    const api = fakeApi(['12-345-67'])
+    expect(await syncUserVehicles({ email: 'x', userId: null, vehicles: cars, api })).toEqual({ added: 1, skipped: 1 })
+    expect(await syncUserVehicles({ email: 'x', userId: null, vehicles: cars, api })).toEqual({ added: 0, skipped: 2 })
+    expect(api.insert).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws when the user cannot be found', async () => {
+    const api = { ...fakeApi(), findUserId: async () => null }
+    await expect(syncUserVehicles({ email: 'x', userId: null, vehicles: cars, api })).rejects.toThrow('לא נמצא')
+  })
+
+  it('plateDigits strips spaces, dashes and dots only', () => {
+    expect(plateDigits(' 12-345.67 ')).toBe('1234567')
+  })
+})
+
+describe('runInvites with vehicles', () => {
+  const invites = twoInvites()
+  const byEmail = new Map([['dana@example.test', [{ plate_number: '1234567', model: 'A' }]]])
+
+  it('adds cars after invited and exists, passes the new user id, and skips members without cars', async () => {
+    const syncVehicles = vi.fn(async () => ({ added: 1, skipped: 0 }))
+    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'new-id' } }))
+    const results = await runInvites({ invites, invoke, delayMs: 0, sleep: async () => {}, vehiclesByEmail: byEmail, syncVehicles })
+    expect(syncVehicles).toHaveBeenCalledTimes(1)
+    expect(syncVehicles.mock.calls[0][0]).toMatchObject({ email: 'dana@example.test', userId: 'new-id' })
+    expect(results[0]).toMatchObject({ outcome: 'invited', vehicles_added: 1, vehicles_skipped: 0 })
+    expect(results[1].vehicles_added).toBeUndefined()
+
+    const exists = vi.fn(async () => ({ status: 409, body: { error: 'המשתמש כבר קיים במערכת.' } }))
+    await runInvites({ invites, invoke: exists, delayMs: 0, sleep: async () => {}, vehiclesByEmail: byEmail, syncVehicles })
+    expect(syncVehicles.mock.calls[1][0]).toMatchObject({ email: 'dana@example.test', userId: null })
+  })
+
+  it('stops the run when the car step fails', async () => {
+    const syncVehicles = vi.fn(async () => {
+      throw new Error('הוספת רכב נכשל (403 42501)')
+    })
+    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id' } }))
+    const results = await runInvites({ invites, invoke, delayMs: 0, sleep: async () => {}, vehiclesByEmail: byEmail, syncVehicles })
+    expect(results).toHaveLength(1)
+    expect(results[0].outcome).toBe('stopped')
+    expect(results[0].message).toContain('רכבים')
+    expect(invoke).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not touch cars for a failed row', async () => {
+    const syncVehicles = vi.fn()
+    const invoke = vi.fn(async () => ({ status: 409, body: { error: 'או״ק זה כבר בשימוש.' } }))
+    await runInvites({ invites, invoke, delayMs: 0, sleep: async () => {}, vehiclesByEmail: byEmail, syncVehicles })
+    expect(syncVehicles).not.toHaveBeenCalled()
   })
 })

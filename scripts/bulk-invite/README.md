@@ -26,11 +26,29 @@ The script checks every row first: required fields, email format, phone length, 
 role and status, and duplicate emails or callsigns inside the file. If any row has a
 problem it sends nothing and lists every problem.
 
+## Vehicles (optional)
+
+`--vehicles cars.csv` adds each member's cars right after their invite. One car per
+row, keyed by email; the first car of a person becomes רכב ראשי.
+
+| Column | Headers accepted |
+|---|---|
+| Email | same as above; must be an email in the members file |
+| Plate | `מספר רכב`, `plate`, `plate_number` (7 or 8 digits; spaces, dashes and dots are ignored) |
+| Model | `דגם`, `יצרן ודגם`, `model` (required) |
+
+Any repeated plate (for one person or two) is an error, like the member checks. The cars
+are plain inserts over the REST API as the signed-in admin (same RLS as the users
+screen): no edge function, no email, SMS or push. Before inserting, the script reads the
+member's cars and skips a plate they already have, so a re-run never duplicates. It also
+runs for `exists`, so a re-run fills in cars a stopped run missed. A failed car insert
+stops the run (`stopped`, message starting `רכבים:`); fix and re-run.
+
 ## Running
 
 ```bash
 # 1. Dry run: no network, prints the plan or the problems.
-node scripts/bulk-invite/bulk-invite.mjs ~/Downloads/members.csv
+node scripts/bulk-invite/bulk-invite.mjs ~/Downloads/members.csv [--vehicles ~/Downloads/cars.csv]
 
 # 2. Send. The admin account is yours; nothing is printed.
 BULK_INVITE_ALLOW=1 SUPABASE_ANON_KEY=… YAHPZ_ADMIN_EMAIL=… YAHPZ_ADMIN_PASSWORD=… \
@@ -43,12 +61,13 @@ delete it when you are done.
 
 | Outcome | Meaning |
 |---|---|
-| `invited` | Created, emailed, texted |
+| `invited` | Created, emailed, texted (and cars added, see `vehicles_added`) |
 | `exists` | Already a user: skipped, so re-running the same file is safe |
 | `failed` | This row only (callsign already taken, invalid email): fix it and re-run |
 | `stopped` | Something that could hit every row: sign-in or permission, rate limit (429), email or SMS provider, server error, network. The run stops there. If it stopped on an email error, that user was created but not emailed, and a re-run will skip them, so use "שליחת הזמנה מחדש" for them in the users screen |
 
 ## Tests
 
-`npm test` runs `lib.test.mjs` (parsing, validation, run order, stop rules) against a
-fake `invoke`. The script itself has only been run as a dry run.
+`npm test` runs `lib.test.mjs` (parsing, validation, run order, stop rules, vehicles) against a
+fake `invoke`. `scripts/vehicles-lock/test/local-check.sh` runs the vehicles step with real
+JWTs against a local `supabase start` stack. The script itself has only been run as a dry run.
