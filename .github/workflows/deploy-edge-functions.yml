@@ -24,6 +24,7 @@ on:
       - "supabase/migrations/20261029120000_app_review_demo_isolation.sql"
       - "supabase/migrations/20261029180000_prelaunch_gate.sql"
       - "supabase/migrations/20261029190000_prelaunch_native_block.sql"
+      - "supabase/migrations/20261029200000_vehicles_member_write_error.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -98,6 +99,10 @@ jobs:
           # the own-row exception from the iOS and Android apps. Inert after launch.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261029190000_prelaunch_native_block.sql
+          # Independent of the gate. Members' own-vehicle edits and deletes now
+          # fail with 42501 instead of a silent no-op (admins unaffected).
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261029200000_vehicles_member_write_error.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
