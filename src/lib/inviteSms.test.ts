@@ -137,5 +137,18 @@ describe('invite SMS', () => {
     const ret = invite.slice(invite.indexOf('action_link: actionLink,'))
     expect(ret.slice(0, 120)).toContain('sms,')
   })
+
+  it('saves the invite token and roles before emailing, so a failed email can be resent', () => {
+    const src = readFileSync(
+      resolve(import.meta.dirname, '../../supabase/functions/admin-users/index.ts'),
+      'utf8',
+    )
+    const invite = src.slice(src.indexOf('async function handleInvite'))
+    const mail = invite.indexOf('const mail = await sendInviteEmail')
+    expect(invite.indexOf('invite_token: inviteToken')).toBeGreaterThan(-1)
+    expect(invite.indexOf('invite_token: inviteToken')).toBeLessThan(mail)
+    expect(invite.indexOf('from("user_roles").insert')).toBeLessThan(mail)
+    expect(invite.indexOf('from("vehicles").insert')).toBeLessThan(mail)
+  })
 })
 

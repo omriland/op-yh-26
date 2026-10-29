@@ -1172,12 +1172,8 @@ async function handleInvite(
   const { inviteToken, expiresAt } = newInviteTokenRow();
   const actionLink = buildDurableInviteLink(inviteToken, redirectBase);
 
-  const mail = await sendInviteEmail(email, fullName, actionLink);
-  if (mail.error) {
-    return json(400, { error: mail.error, detail: mail.detail });
-  }
-  const sms = await sendInviteSmsBestEffort(phone);
-
+  // Save the token, roles and cars before emailing: if the email then fails,
+  // the user is invite_pending with a valid token, so "resend_invite" works.
   const { error: profileError } = await adminClient
     .from("profiles")
     .update({
@@ -1221,6 +1217,12 @@ async function handleInvite(
       return json(500, { error: "שמירת הרכבים נכשלה." });
     }
   }
+
+  const mail = await sendInviteEmail(email, fullName, actionLink);
+  if (mail.error) {
+    return json(400, { error: mail.error, detail: mail.detail });
+  }
+  const sms = await sendInviteSmsBestEffort(phone);
 
   return json(200, {
     ok: true,
