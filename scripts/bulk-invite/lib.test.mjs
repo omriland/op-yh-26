@@ -1,4 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { buildInvites, buildVehicles, parseCsv, plateDigits, resultsCsv, runInvites, syncUserVehicles } from './lib.mjs'
 
 const HEADER_HE = 'שם מלא,דוא"ל,או"ק,טלפון,תפקיד,סטטוס'
@@ -97,10 +102,10 @@ describe('runInvites', () => {
 
   it('sends one at a time, skips existing users, records row problems, and keeps going', async () => {
     const replies = [
-      { status: 200, body: { ok: true } },
+      { status: 200, body: { ok: true, sms: 'off' } },
       { status: 409, body: { error: 'המשתמש כבר קיים במערכת.' } },
       { status: 409, body: { error: 'או״ק זה כבר בשימוש.' } },
-      { status: 200, body: { ok: true } },
+      { status: 200, body: { ok: true, sms: 'off' } },
     ]
     const invoke = vi.fn(async () => replies.shift())
     const results = await runInvites({ invites, invoke, sleep, delayMs: 10 })
@@ -117,7 +122,7 @@ describe('runInvites', () => {
   ])('stops the run on %i', async (status, body) => {
     const invoke = vi
       .fn()
-      .mockResolvedValueOnce({ status: 200, body: { ok: true } })
+      .mockResolvedValueOnce({ status: 200, body: { ok: true, sms: 'off' } })
       .mockResolvedValueOnce({ status, body })
     const results = await runInvites({ invites, invoke, sleep })
     expect(results.map((r) => r.outcome)).toEqual(['invited', 'stopped'])
@@ -131,7 +136,7 @@ describe('runInvites', () => {
   })
 
   it('honours --limit', async () => {
-    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true } }))
+    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, sms: 'off' } }))
     await runInvites({ invites, invoke, sleep, limit: 2 })
     expect(invoke).toHaveBeenCalledTimes(2)
   })
@@ -233,7 +238,7 @@ describe('runInvites with vehicles', () => {
 
   it('adds cars after invited and exists, passes the new user id, and skips members without cars', async () => {
     const syncVehicles = vi.fn(async () => ({ added: 1, skipped: 0 }))
-    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'new-id' } }))
+    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'new-id', sms: 'off' } }))
     const results = await runInvites({ invites, invoke, delayMs: 0, sleep: async () => {}, vehiclesByEmail: byEmail, syncVehicles })
     expect(syncVehicles).toHaveBeenCalledTimes(1)
     expect(syncVehicles.mock.calls[0][0]).toMatchObject({ email: 'dana@example.test', userId: 'new-id' })
@@ -249,7 +254,7 @@ describe('runInvites with vehicles', () => {
     const syncVehicles = vi.fn(async () => {
       throw new Error('הוספת רכב נכשל (403 42501)')
     })
-    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id' } }))
+    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id', sms: 'off' } }))
     const results = await runInvites({ invites, invoke, delayMs: 0, sleep: async () => {}, vehiclesByEmail: byEmail, syncVehicles })
     expect(results).toHaveLength(1)
     expect(results[0].outcome).toBe('stopped')
@@ -283,20 +288,79 @@ describe('buildVehicles shared cars', () => {
   })
 })
 
-describe('runInvites SMS status', () => {
+describe('runInvites with SMS turned on (--sms)', () => {
   const invites = twoInvites()
   it('records the SMS result and stops on the first SMS failure', async () => {
     const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id', sms: 'failed' } }))
-    const results = await runInvites({ invites, invoke, delayMs: 0, sleep: async () => {} })
+    const results = await runInvites({ invites, invoke, delayMs: 0, sleep: async () => {}, sendSms: true })
     expect(results).toHaveLength(1)
     expect(results[0]).toMatchObject({ outcome: 'stopped', sms: 'failed' })
     expect(results[0].message).toContain('SMS נכשל')
   })
   it('goes on when SMS is sent, or when told to ignore SMS failures', async () => {
     const sent = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id', sms: 'sent' } }))
-    expect((await runInvites({ invites, invoke: sent, delayMs: 0, sleep: async () => {} })).map((r) => r.outcome)).toEqual(['invited', 'invited'])
+    expect((await runInvites({ invites, invoke: sent, delayMs: 0, sleep: async () => {}, sendSms: true })).map((r) => r.outcome)).toEqual(['invited', 'invited'])
+    expect(sent.mock.calls.map(([body]) => body.send_sms)).toEqual([true, true])
     const failed = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id', sms: 'failed' } }))
-    const r = await runInvites({ invites, invoke: failed, delayMs: 0, sleep: async () => {}, stopOnSmsFailure: false })
+    const r = await runInvites({ invites, invoke: failed, delayMs: 0, sleep: async () => {}, sendSms: true, stopOnSmsFailure: false })
     expect(r.map((x) => x.outcome)).toEqual(['invited', 'invited'])
+  })
+})
+
+describe('runInvites is email-only unless sendSms is set', () => {
+  const invites = twoInvites()
+  const quiet = { delayMs: 0, sleep: async () => {} }
+
+  it('asks admin-users for no SMS, records sms off, and keeps going', async () => {
+    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id', sms: 'off' } }))
+    const results = await runInvites({ invites, invoke, ...quiet })
+    expect(invoke.mock.calls.map(([body]) => body.send_sms)).toEqual([false, false])
+    expect(results.map((r) => [r.outcome, r.sms])).toEqual([['invited', 'off'], ['invited', 'off']])
+    expect(resultsCsv(results)).toContain(',off\r\n')
+  })
+
+  it('stops after the first row when admin-users ignores send_sms (not deployed yet)', async () => {
+    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id' } }))
+    const results = await runInvites({ invites, invoke, ...quiet })
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(results).toHaveLength(1)
+    expect(results[0].outcome).toBe('stopped')
+    expect(results[0].message).toContain('send_sms')
+  })
+
+  it('does not apply that check to existing users (no invite, nothing sent)', async () => {
+    const invoke = vi.fn(async () => ({ status: 409, body: { error: 'המשתמש כבר קיים במערכת.' } }))
+    const results = await runInvites({ invites, invoke, ...quiet })
+    expect(results.map((r) => r.outcome)).toEqual(['exists', 'exists'])
+  })
+})
+
+describe('bulk-invite.mjs dry run (no network: it exits before signing in)', () => {
+  const script = fileURLToPath(new URL('./bulk-invite.mjs', import.meta.url))
+  const dir = mkdtempSync(join(tmpdir(), 'bulk-invite-test-'))
+  const csv = join(dir, 'members.csv')
+  writeFileSync(csv, `${HEADER_HE}\nדנה כהן,dana@example.test,101,0501234567,מתנדב,\n`)
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+  const run = (...args) =>
+    spawnSync(process.execPath, [script, csv, ...args], { encoding: 'utf8', env: { PATH: process.env.PATH } })
+
+  it('says SMS is off by default', () => {
+    const out = run()
+    expect(out.status).toBe(0)
+    expect(out.stdout).toContain('SMS: off')
+    expect(out.stdout).toContain('Dry run: nothing sent.')
+  })
+
+  it('says SMS is on with --sms', () => {
+    const out = run('--sms')
+    expect(out.status).toBe(0)
+    expect(out.stdout).toContain('SMS: ON')
+  })
+
+  it('accepts --no-sms and refuses --sms with --no-sms', () => {
+    expect(run('--no-sms').stdout).toContain('SMS: off')
+    const both = run('--sms', '--no-sms')
+    expect(both.status).toBe(1)
+    expect(both.stderr).toContain('--sms')
   })
 })

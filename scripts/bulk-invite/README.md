@@ -1,11 +1,17 @@
 # Bulk invite from Excel
 
 Invites the members listed in a spreadsheet. Each row becomes one call to the existing
-`admin-users` `invite` action, which is exactly what the "משתמש חדש" dialog sends: the
-same server checks, the same invite email (7-day link) and the same SMS. Before 1.11
-00:01 the invitees will see the pre-launch gate after they set a password.
+`admin-users` `invite` action, which is what the "משתמש חדש" dialog sends: the same
+server checks and the same invite email (7-day link). Before 1.11 00:01 the invitees
+will see the pre-launch gate after they set a password.
 
-**`--send` emails and texts real people.** Dry run first, then send to yourself with
+**No SMS unless `--sms`.** Each request carries `send_sms: false`, so admin-users sends
+the email only and answers `sms: "off"` (the phone is still saved). If an invite comes
+back without `sms: "off"`, that admin-users predates the flag and may have texted: the
+run stops at that row. `--sms` asks for the invite SMS as the dialog does; with it, the
+first SMS failure stops the run (`--allow-sms-failure` to go on).
+
+**`--send` emails real people.** Dry run first, then send to yourself with
 `--limit 1`, and only then send the full list.
 
 ## File
@@ -59,18 +65,19 @@ BULK_INVITE_ALLOW=1 SUPABASE_ANON_KEY=… YAHPZ_ADMIN_EMAIL=… YAHPZ_ADMIN_PASS
 ```
 
 The script sends one invite every 1.5 s (`--delay-ms`), so 100 rows take about 2.5
-minutes. It writes `<file>.results.csv` next to the input. That file holds emails, so
-delete it when you are done.
+minutes. It writes `<file>.results.csv` next to the input, with an `sms` column (`off`,
+or with `--sms`: `sent` / `skipped` / `failed`). That file holds emails, so delete it
+when you are done.
 
 | Outcome | Meaning |
 |---|---|
-| `invited` | Created, emailed, texted (and cars added, see `vehicles_added`) |
+| `invited` | Created and emailed (texted only with `--sms`), and cars added, see `vehicles_added` |
 | `exists` | Already a user: skipped, so re-running the same file is safe |
 | `failed` | This row only (callsign already taken, invalid email): fix it and re-run |
-| `stopped` | Something that could hit every row: sign-in or permission, rate limit (429), email or SMS provider, server error, network. The run stops there. If it stopped on an email error, that user was created but not emailed, and a re-run will skip them, so use "שליחת הזמנה מחדש" for them in the users screen |
+| `stopped` | Something that could hit every row: sign-in or permission, rate limit (429), email or SMS provider, server error, network, or admin-users ignoring `send_sms`. The run stops there. If it stopped on an email error, that user was created but not emailed, and a re-run will skip them, so use "שליחת הזמנה מחדש" for them in the users screen (that resend also sends the invite SMS) |
 
 ## Tests
 
-`npm test` runs `lib.test.mjs` (parsing, validation, run order, stop rules, vehicles) against a
-fake `invoke`. `scripts/vehicles-lock/test/local-check.sh` runs the vehicles step with real
+`npm test` runs `lib.test.mjs` (parsing, validation, run order, stop rules, vehicles, SMS
+off by default, the dry-run CLI) against a fake `invoke`. `scripts/vehicles-lock/test/local-check.sh` runs the vehicles step with real
 JWTs against a local `supabase start` stack. The script itself has only been run as a dry run.

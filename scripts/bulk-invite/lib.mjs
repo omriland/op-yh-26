@@ -192,6 +192,10 @@ const ROW_PROBLEMS = new Set(['או״ק זה כבר בשימוש.', 'כתובת 
  * email or SMS provider, server error, network) stops the run at that row:
  * a failed email leaves the user created but not emailed, and a re-run would
  * then skip them, so they need "שליחת הזמנה מחדש" in the users screen.
+ *
+ * Email only unless `sendSms`: each request carries `send_sms`, and an invite
+ * that does not come back with sms "off" stops the run, because that
+ * admin-users ignored the flag (not deployed yet) and may have texted.
  */
 export async function runInvites({
   invites,
@@ -202,6 +206,7 @@ export async function runInvites({
   sleep,
   vehiclesByEmail,
   syncVehicles,
+  sendSms = false,
   stopOnSmsFailure = true,
 }) {
   const wait = sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
@@ -211,7 +216,7 @@ export async function runInvites({
     if (index > 0) await wait(delayMs)
     let response
     try {
-      response = await invoke(invite.body)
+      response = await invoke({ ...invite.body, send_sms: sendSms })
     } catch (error) {
       response = { status: 0, body: { error: error instanceof Error ? error.message : String(error) } }
     }
@@ -242,6 +247,10 @@ export async function runInvites({
     if (stopOnSmsFailure && result.outcome === 'invited' && result.sms === 'failed') {
       result.outcome = 'stopped'
       result.message = `${result.message ? `${result.message}; ` : ''}SMS נכשל (המייל נשלח)`
+    }
+    if (!sendSms && result.outcome === 'invited' && result.sms !== 'off') {
+      result.outcome = 'stopped'
+      result.message = `${result.message ? `${result.message}; ` : ''}השרת התעלם מ-send_sms: false (admin-users לא פרוס?), ייתכן שנשלח SMS`
     }
     results.push(result)
     const cars = result.vehicles_added === undefined ? '' : ` רכבים +${result.vehicles_added} (קיימים ${result.vehicles_skipped})`
