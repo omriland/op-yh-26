@@ -93,5 +93,5 @@ export async function sendInviteSms(
 ): Promise<InviteSmsResult> {
   const destination = inviteSmsDestination(phone);
   if (!destination) return "skipped";
-  return sendViaSoprano(destination, env, fetchImpl);
+  return await sendViaSoprano(destination, env, fetchImpl);
 }
