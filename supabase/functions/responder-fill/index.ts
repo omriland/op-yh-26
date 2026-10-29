@@ -13,6 +13,7 @@ import {
   isFillTokenExpired,
   sha256Hex,
 } from "../_shared/fillTokenTtl.ts";
+import { isPrelaunchBlocked, PRELAUNCH_BLOCKED_MESSAGE } from "../_shared/prelaunch.ts";
 
 type LoadBody = { action: "load_by_token"; fill_token: string };
 type TreatedPlateDraft = {
@@ -300,6 +301,9 @@ async function handleLoadByToken(adminClient: SupabaseClient, body: LoadBody) {
   if (!assignment) {
     return json(400, { error: "קישור הדיווח אינו תקין או שפג תוקפו.", code: "invalid" });
   }
+  if (await isPrelaunchBlocked(adminClient, assignment.responder_id)) {
+    return json(403, { error: PRELAUNCH_BLOCKED_MESSAGE, code: "prelaunch" });
+  }
 
   // Opening or refreshing the same email link must keep working — do not
   // consume or remint the token here.
@@ -451,6 +455,9 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
   const assignment = await findAssignmentByToken(adminClient, fillToken);
   if (!assignment) {
     return json(400, { error: "קישור הדיווח אינו תקין או שפג תוקפו.", code: "invalid" });
+  }
+  if (await isPrelaunchBlocked(adminClient, assignment.responder_id)) {
+    return json(403, { error: PRELAUNCH_BLOCKED_MESSAGE, code: "prelaunch" });
   }
 
   // Draft save must not burn the link — the volunteer may reopen it later

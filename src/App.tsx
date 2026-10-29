@@ -56,6 +56,8 @@ import { canAccessSuperAdminNav } from './lib/superAdminAccess'
 import { IMPERSONATION_CHANGE_EVENT, isImpersonating } from './lib/impersonationStash'
 import { ROLE_PREVIEW_CHANGE_EVENT, isRolePreviewing } from './lib/rolePreviewStash'
 import { usePresenceHeartbeat } from './lib/usePresenceHeartbeat'
+import { usePrelaunchGate } from './lib/usePrelaunchGate'
+import { PrelaunchGatePage } from './pages/PrelaunchGatePage'
 import { fetchOtpStatus } from './lib/phoneOtp'
 import {
   clearPostLoginFill,
@@ -566,6 +568,10 @@ function Gate() {
   }, [session, passwordSetupReason, user?.id, profile?.otp_login_enabled])
 
   usePresenceHeartbeat(Boolean(session && !passwordSetupReason && loginOtp.state === 'ok'))
+  const prelaunch = usePrelaunchGate(
+    session && !passwordSetupReason ? (user?.id ?? null) : null,
+    roles,
+  )
 
   const entries = useMemo(() => {
     const list: NavEntry[] = []
@@ -919,6 +925,22 @@ function Gate() {
         onVerified={() => setLoginOtp({ state: 'ok' })}
       />
     )
+  }
+
+  // Before launch every route, deep links included, stops here for members
+  // who are not admins or super admins.
+  if (prelaunch === 'checking') {
+    return (
+      <div className="shell" data-theme="field">
+        <main className="shell__main">
+          <EventListSkeleton count={3} />
+        </main>
+      </div>
+    )
+  }
+
+  if (prelaunch === 'blocked') {
+    return <PrelaunchGatePage />
   }
 
   if (isOAuthAuthorizePath(window.location.pathname)) {

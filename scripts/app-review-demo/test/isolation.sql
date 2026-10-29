@@ -8,6 +8,12 @@
 set client_min_messages = notice;
 begin;
 
+-- Run as after launch: until then the pre-launch gate (20261029180000) blocks
+-- the real responders and leads below. scripts/prelaunch-gate/test/gate.sql
+-- covers the demo account before launch.
+create or replace function public.prelaunch_launch_at()
+returns timestamptz language sql stable as $$ select timestamptz '2000-01-01 00:00:00+00' $$;
+
 create function pg_temp.ok(p_ok boolean, p_label text) returns void language plpgsql as $$
 declare
   n int := coalesce(nullif(current_setting('test.n', true), ''), '0')::int + 1;
