@@ -6,6 +6,7 @@ import {
   runWithCors,
 } from "../_shared/cors.ts";
 import { sha256Hex, randomTrackToken } from "../_shared/partnerCrypto.ts";
+import { isPrelaunchBlocked, PRELAUNCH_BLOCKED_MESSAGE } from "../_shared/prelaunch.ts";
 
 const ALLOW_HEADERS =
   "authorization, x-client-info, apikey, content-type, x-yahpaz-partner-token";
@@ -376,6 +377,9 @@ Deno.serve(async (req: Request) => {
     const session = await resolveToken(admin, token);
     if (!session) {
       return json(401, { error: "החיבור פג או בוטל. יש לקשר מחדש.", code: "invalid_token" });
+    }
+    if (await isPrelaunchBlocked(admin, session.userId)) {
+      return json(403, { error: PRELAUNCH_BLOCKED_MESSAGE, code: "prelaunch" });
     }
 
     let body: JsonBody;

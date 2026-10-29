@@ -5,6 +5,7 @@
 #   scripts/app-review-demo/test/run-local-db.sh            # Homebrew Postgres, temp cluster
 #   DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres \
 #     scripts/app-review-demo/test/run-local-db.sh          # a running `supabase start` stack
+#   scripts/app-review-demo/test/run-local-db.sh a.sql b.sql   # run these test files instead
 #
 # Needs postgresql@17 (`brew install postgresql@17`) for the first form.
 set -euo pipefail
@@ -53,4 +54,6 @@ if [ -z "${SKIP_MIGRATIONS:-}" ]; then
   echo "Applied $count migrations."
 fi
 
-"${PSQL[@]}" -f "$HERE/isolation.sql"
+for test in "${@:-$HERE/isolation.sql}"; do
+  "${PSQL[@]}" -f "$test"
+done

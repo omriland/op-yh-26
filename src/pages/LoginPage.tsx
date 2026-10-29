@@ -28,9 +28,9 @@ type LoginPageProps = {
   onOpenPrivacy?: () => void
 }
 
-const PLATFORM_NAME = 'אבן דרך'
-const UNIT_LINE_1 = 'היחידה הארצית'
-const UNIT_LINE_2 = 'לפינוי צירים'
+export const PLATFORM_NAME = 'אבן דרך'
+export const UNIT_LINE_1 = 'היחידה הארצית'
+export const UNIT_LINE_2 = 'לפינוי צירים'
 const PUBLIC_DESCRIPTION =
   'מערכת סגורה לתיעוד פעילות המתנדבים ביחידה הארצית לפינוי צירים. הכניסה מיועדת לאנשי יחידה מורשים בלבד.'
 

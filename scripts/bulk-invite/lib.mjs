@@ -1,0 +1,227 @@
+/**
+ * Bulk invite from a CSV exported from Excel. Each row becomes one call to the
+ * existing admin-users `invite` action, exactly what the "משתמש חדש" dialog
+ * sends, so the server-side checks, the invite email and the SMS are the same.
+ * No network here: the caller passes `invoke`, so tests use a fake.
+ */
+
+/** Header aliases, compared after dropping spaces, quotes and geresh marks. */
+const HEADERS = {
+  full_name: ['full_name', 'name', 'שםמלא', 'שם'],
+  first_name: ['first_name', 'שםפרטי'],
+  last_name: ['last_name', 'שםמשפחה'],
+  email: ['email', 'e-mail', 'mail', 'דואל', 'אימייל', 'מייל', 'דוארלקטרוני', 'כתובתמייל'],
+  callsign: ['callsign', 'אוק', 'אותקריאה'],
+  phone: ['phone', 'mobile', 'טלפון', 'נייד', 'טלפוןנייד'],
+  role: ['role', 'roles', 'תפקיד'],
+  volunteer_status: ['volunteer_status', 'status', 'סטטוס'],
+}
+
+/** Same as the dialog: a higher role includes the ones below it. */
+const ROLES = {
+  responder: ['responder'],
+  shift_lead: ['shift_lead', 'responder'],
+  admin: ['admin', 'shift_lead', 'responder'],
+}
+const ROLE_ALIASES = {
+  '': 'responder',
+  responder: 'responder',
+  מתנדב: 'responder',
+  מתנדבת: 'responder',
+  shift_lead: 'shift_lead',
+  אחמש: 'shift_lead',
+  admin: 'admin',
+  מנהל: 'admin',
+  מנהלת: 'admin',
+}
+/** src/lib/volunteerStatus.ts VOLUNTEER_STATUS_LABELS. Empty = server default (מתנדב פעיל). */
+const STATUS_ALIASES = {
+  administration: 'administration',
+  מנהלה: 'administration',
+  basic_training: 'basic_training',
+  חניכהבסיסית: 'basic_training',
+  phone_training: 'phone_training',
+  חניכהטלפונית: 'phone_training',
+  personal_vehicle_training: 'personal_vehicle_training',
+  חניכהברכבפרטי: 'personal_vehicle_training',
+  shifts_only: 'shifts_only',
+  משמרותבלבד: 'shifts_only',
+  active_volunteer: 'active_volunteer',
+  מתנדבפעיל: 'active_volunteer',
+}
+
+const squash = (value) => String(value ?? '').toLowerCase().replace(/[\s"'״׳`]/g, '')
+
+/** RFC 4180 CSV. Strips a UTF-8 BOM, accepts CRLF, picks `,` `;` or tab from the header line. */
+export function parseCsv(text) {
+  const src = String(text).replace(/^﻿/, '')
+  const firstLine = src.split(/\r?\n/, 1)[0] ?? ''
+  const counts = [',', ';', '\t'].map((d) => [d, firstLine.split(d).length])
+  const delimiter = counts.sort((a, b) => b[1] - a[1])[0][0]
+  const rows = []
+  let row = []
+  let field = ''
+  let quoted = false
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i]
+    if (quoted) {
+      if (ch === '"' && src[i + 1] === '"') {
+        field += '"'
+        i += 1
+      } else if (ch === '"') {
+        quoted = false
+      } else {
+        field += ch
+      }
+    } else if (ch === '"' && field === '') {
+      quoted = true
+    } else if (ch === delimiter) {
+      row.push(field)
+      field = ''
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i += 1
+      row.push(field)
+      rows.push(row)
+      row = []
+      field = ''
+    } else {
+      field += ch
+    }
+  }
+  if (field !== '' || row.length > 0) {
+    row.push(field)
+    rows.push(row)
+  }
+  return rows.filter((r) => r.some((cell) => cell.trim() !== ''))
+}
+
+function normalizePhone(raw) {
+  let digits = String(raw ?? '').replace(/\D/g, '')
+  if (digits.startsWith('972') && digits.length === 12) digits = `0${digits.slice(3)}`
+  // Excel stores 0501234567 as the number 501234567.
+  if (digits.startsWith('5') && digits.length === 9) digits = `0${digits}`
+  return digits
+}
+
+/**
+ * Turns CSV rows into invite bodies. Returns every problem at once; the caller
+ * sends nothing unless `errors` is empty.
+ */
+export function buildInvites(rows) {
+  const errors = []
+  if (rows.length < 2) return { invites: [], errors: ['הקובץ ריק או שחסרה שורת כותרות.'] }
+
+  const header = rows[0].map(squash)
+  const column = {}
+  for (const [key, aliases] of Object.entries(HEADERS)) {
+    const index = header.findIndex((h) => aliases.includes(h))
+    if (index >= 0) column[key] = index
+  }
+  // "שם" next to "שם משפחה" is a first name, not a full name.
+  if (column.last_name !== undefined) {
+    if (column.first_name === undefined) column.first_name = column.full_name
+    delete column.full_name
+    if (column.first_name === undefined) errors.push('חסרה עמודה: first_name')
+  }
+  for (const key of column.last_name !== undefined ? ['email', 'callsign', 'phone'] : ['full_name', 'email', 'callsign', 'phone']) {
+    if (column[key] === undefined) errors.push(`חסרה עמודה: ${key}`)
+  }
+  if (errors.length) return { invites: [], errors }
+
+  const invites = []
+  const seenEmail = new Map()
+  const seenCallsign = new Map()
+  rows.slice(1).forEach((cells, i) => {
+    const line = i + 2
+    const cell = (key) => (column[key] === undefined ? '' : String(cells[column[key]] ?? '').trim())
+    const fullName =
+      column.last_name !== undefined
+        ? [cell('first_name'), cell('last_name')].filter(Boolean).join(' ')
+        : cell('full_name')
+    const email = cell('email').toLowerCase()
+    const callsign = cell('callsign')
+    const phone = normalizePhone(cell('phone'))
+    const role = ROLE_ALIASES[squash(cell('role'))]
+    const statusRaw = squash(cell('volunteer_status'))
+    const status = statusRaw ? STATUS_ALIASES[statusRaw] : undefined
+
+    const problems = []
+    if (!fullName) problems.push('חסר שם מלא')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) problems.push('דוא״ל לא תקין')
+    if (!callsign) problems.push('חסר או״ק')
+    if (phone.length !== 10) problems.push('טלפון חייב 10 ספרות')
+    if (!role) problems.push(`תפקיד לא מוכר: ${cell('role')}`)
+    if (statusRaw && !status) problems.push(`סטטוס לא מוכר: ${cell('volunteer_status')}`)
+    if (email && seenEmail.has(email)) problems.push(`דוא״ל כפול (שורה ${seenEmail.get(email)})`)
+    const callsignKey = callsign.toLowerCase()
+    if (callsign && seenCallsign.has(callsignKey)) {
+      problems.push(`או״ק כפול (שורה ${seenCallsign.get(callsignKey)})`)
+    }
+    if (email) seenEmail.set(email, seenEmail.get(email) ?? line)
+    if (callsign) seenCallsign.set(callsignKey, seenCallsign.get(callsignKey) ?? line)
+
+    if (problems.length) {
+      errors.push(`שורה ${line}: ${problems.join(', ')}`)
+      return
+    }
+    invites.push({
+      line,
+      body: {
+        action: 'invite',
+        full_name: fullName,
+        email,
+        callsign,
+        phone,
+        roles: ROLES[role],
+        ...(status ? { volunteer_status: status } : {}),
+        vehicles: [],
+      },
+    })
+  })
+  return { invites, errors }
+}
+
+const ALREADY_EXISTS = 'המשתמש כבר קיים במערכת.'
+/** admin-users messages about this row only. Anything else may hit every row. */
+const ROW_PROBLEMS = new Set(['או״ק זה כבר בשימוש.', 'כתובת הדוא״ל אינה תקינה.'])
+
+/**
+ * Sends invites one at a time. `invoke(body)` resolves to { status, body }.
+ * A user who already exists is skipped, so a re-run is safe. A known row
+ * problem is recorded and the run goes on. Anything else (auth, rate limit,
+ * email or SMS provider, server error, network) stops the run at that row:
+ * a failed email leaves the user created but not emailed, and a re-run would
+ * then skip them, so they need "שליחת הזמנה מחדש" in the users screen.
+ */
+export async function runInvites({ invites, invoke, delayMs = 1500, limit, log = () => {}, sleep }) {
+  const wait = sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+  const queue = typeof limit === 'number' ? invites.slice(0, limit) : invites
+  const results = []
+  for (const [index, invite] of queue.entries()) {
+    if (index > 0) await wait(delayMs)
+    let response
+    try {
+      response = await invoke(invite.body)
+    } catch (error) {
+      response = { status: 0, body: { error: error instanceof Error ? error.message : String(error) } }
+    }
+    const message = response.body?.error ?? response.body?.message ?? ''
+    let outcome
+    if (response.status === 200 && response.body?.ok) outcome = 'invited'
+    else if (response.status === 409 && message === ALREADY_EXISTS) outcome = 'exists'
+    else if ((response.status === 400 || response.status === 409) && ROW_PROBLEMS.has(message)) {
+      outcome = 'failed'
+    } else outcome = 'stopped'
+    results.push({ line: invite.line, email: invite.body.email, outcome, status: response.status, message })
+    log(`שורה ${invite.line} ${invite.body.email}: ${outcome}${message ? ` (${message})` : ''}`)
+    if (outcome === 'stopped') break
+  }
+  return results
+}
+
+export function resultsCsv(results) {
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const lines = [['line', 'email', 'outcome', 'status', 'message'].join(',')]
+  for (const r of results) lines.push([r.line, esc(r.email), r.outcome, r.status, esc(r.message)].join(','))
+  return `﻿${lines.join('\r\n')}\r\n`
+}

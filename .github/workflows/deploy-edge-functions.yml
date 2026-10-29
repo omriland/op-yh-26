@@ -22,6 +22,7 @@ on:
       - "supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql"
       - "supabase/migrations/20261015130000_skip_auto_secondary_on_participation_status.sql"
       - "supabase/migrations/20261029120000_app_review_demo_isolation.sql"
+      - "supabase/migrations/20261029180000_prelaunch_gate.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -80,11 +81,17 @@ jobs:
             -f supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261015130000_skip_auto_secondary_on_participation_status.sql
-          # Keep last: 20260929082322 above replaces events_reject_same_day_police_event_id
+          # Keep after the files above: 20260929082322 replaces events_reject_same_day_police_event_id
           # and this file restores its demo-aware body. Must land before unit-broadcast
           # and responder-fill, which select profiles.is_app_review_demo.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261029120000_app_review_demo_isolation.sql
+          # After 20261029120000: it rewrites list_unit_contacts and
+          # list_unit_map_pins, and this file adds the pre-launch check to both.
+          # Inert from 2026-10-31T22:01:00Z. Must land before the frontend and
+          # before responder-fill / responder-api call is_prelaunch_blocked.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261029180000_prelaunch_gate.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
