@@ -96,6 +96,7 @@ describe('parseAppPath', () => {
     expect(parseAppPath('/android')).toEqual({ kind: 'android' })
     expect(parseAppPath('/ios')).toEqual({ kind: 'ios' })
     expect(parseAppPath('/delete-data')).toEqual({ kind: 'delete_data' })
+    expect(parseAppPath('/support')).toEqual({ kind: 'support' })
     expect(parseAppPath('/privacy')).toEqual({ kind: 'privacy' })
     expect(parseAppPath('/oauth/authorize')).toEqual({ kind: 'oauth' })
     expect(parseAppPath('/login')).toEqual({ kind: 'home' })
@@ -175,6 +176,7 @@ describe('appPath', () => {
     expect(appPath({ ...listState('profile'), legalPage: 'privacy' })).toBe('/privacy')
     expect(appPath({ ...listState('profile'), legalPage: 'ios' })).toBe('/ios')
     expect(appPath({ ...listState('profile'), legalPage: 'delete_data' })).toBe('/delete-data')
+    expect(appPath({ ...listState('profile'), legalPage: 'support' })).toBe('/support')
   })
 })
 
@@ -183,6 +185,7 @@ describe('readBootRoute', () => {
     expect(readBootRoute('/android').legalPage).toBe('android')
     expect(readBootRoute('/ios').legalPage).toBe('ios')
     expect(readBootRoute('/delete-data').legalPage).toBe('delete_data')
+    expect(readBootRoute('/support').legalPage).toBe('support')
     expect(readBootRoute('/privacy').legalPage).toBe('privacy')
     expect(readBootRoute('/events/evt-1')).toEqual({
       view: 'events',

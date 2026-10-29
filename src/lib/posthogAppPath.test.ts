@@ -16,6 +16,9 @@ describe('appAnalyticsPath', () => {
     expect(
       appAnalyticsPath({ loading: true, signedIn: false, legalPage: 'ios', view: 'mine' }),
     ).toBeNull()
+    expect(
+      appAnalyticsPath({ signedIn: false, legalPage: 'support', view: 'mine' }),
+    ).toBe('/support')
   })
 
   it('maps signed-out and gate screens', () => {
