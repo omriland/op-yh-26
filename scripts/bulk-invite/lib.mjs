@@ -192,6 +192,10 @@ const ROW_PROBLEMS = new Set(['או״ק זה כבר בשימוש.', 'כתובת 
  * email or SMS provider, server error, network) stops the run at that row:
  * a failed email leaves the user created but not emailed, and a re-run would
  * then skip them, so they need "שליחת הזמנה מחדש" in the users screen.
+ *
+ * Email only unless `sendSms`: each request carries `send_sms`, and an invite
+ * that does not come back with sms "off" stops the run, because that
+ * admin-users ignored the flag (not deployed yet) and may have texted.
  */
 export async function runInvites({
   invites,
@@ -202,6 +206,8 @@ export async function runInvites({
   sleep,
   vehiclesByEmail,
   syncVehicles,
+  sendSms = false,
+  stopOnSmsFailure = true,
 }) {
   const wait = sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
   const queue = typeof limit === 'number' ? invites.slice(0, limit) : invites
@@ -210,7 +216,7 @@ export async function runInvites({
     if (index > 0) await wait(delayMs)
     let response
     try {
-      response = await invoke(invite.body)
+      response = await invoke({ ...invite.body, send_sms: sendSms })
     } catch (error) {
       response = { status: 0, body: { error: error instanceof Error ? error.message : String(error) } }
     }
@@ -222,6 +228,7 @@ export async function runInvites({
       outcome = 'failed'
     } else outcome = 'stopped'
     const result = { line: invite.line, email: invite.body.email, outcome, status: response.status, message }
+    if (outcome === 'invited' && typeof response.body?.sms === 'string') result.sms = response.body.sms
     const wanted = vehiclesByEmail?.get(invite.body.email) ?? []
     if (syncVehicles && wanted.length && (outcome === 'invited' || outcome === 'exists')) {
       try {
@@ -235,9 +242,20 @@ export async function runInvites({
         result.message = `רכבים: ${error instanceof Error ? error.message : String(error)}`
       }
     }
+    // An SMS failure on one invite will almost surely hit every row (provider,
+    // sender or credit), so stop unless told otherwise. That user has the email.
+    if (stopOnSmsFailure && result.outcome === 'invited' && result.sms === 'failed') {
+      result.outcome = 'stopped'
+      result.message = `${result.message ? `${result.message}; ` : ''}SMS נכשל (המייל נשלח)`
+    }
+    if (!sendSms && result.outcome === 'invited' && result.sms !== 'off') {
+      result.outcome = 'stopped'
+      result.message = `${result.message ? `${result.message}; ` : ''}השרת התעלם מ-send_sms: false (admin-users לא פרוס?), ייתכן שנשלח SMS`
+    }
     results.push(result)
     const cars = result.vehicles_added === undefined ? '' : ` רכבים +${result.vehicles_added} (קיימים ${result.vehicles_skipped})`
-    log(`שורה ${invite.line} ${invite.body.email}: ${result.outcome}${result.message ? ` (${result.message})` : ''}${cars}`)
+    const sms = result.sms ? ` SMS ${result.sms}` : ''
+    log(`שורה ${invite.line} ${invite.body.email}: ${result.outcome}${result.message ? ` (${result.message})` : ''}${sms}${cars}`)
     if (result.outcome === 'stopped') break
   }
   return results
@@ -245,9 +263,9 @@ export async function runInvites({
 
 export function resultsCsv(results) {
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const lines = [['line', 'email', 'outcome', 'status', 'message', 'vehicles_added', 'vehicles_skipped'].join(',')]
+  const lines = [['line', 'email', 'outcome', 'status', 'message', 'vehicles_added', 'vehicles_skipped', 'sms'].join(',')]
   for (const r of results) {
-    lines.push([r.line, esc(r.email), r.outcome, r.status, esc(r.message), r.vehicles_added ?? '', r.vehicles_skipped ?? ''].join(','))
+    lines.push([r.line, esc(r.email), r.outcome, r.status, esc(r.message), r.vehicles_added ?? '', r.vehicles_skipped ?? '', r.sms ?? ''].join(','))
   }
   return `﻿${lines.join('\r\n')}\r\n`
 }

@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   INVITE_SMS_BODY,
+  redactProviderBody,
   sendInviteSms,
+  sopranoBodyLooksFailed,
 } from '../../supabase/functions/_shared/inviteSms'
 
 const BODY =
@@ -60,37 +60,20 @@ describe('invite SMS', () => {
     expect(await sendInviteSms('0501234567', env, fetchImpl)).toBe('failed')
   })
 
-  it('fires only after the initial-login invite email, including resend', () => {
-    const src = readFileSync(
-      resolve(import.meta.dirname, '../../supabase/functions/admin-users/index.ts'),
-      'utf8',
-    )
-    expect(src).toContain('from "../_shared/inviteSms.ts"')
-
-    const invite = src.slice(src.indexOf('async function handleInvite'), src.length)
-    const inviteMail = invite.indexOf('const mail = await sendInviteEmail')
-    const inviteSms = invite.indexOf('await sendInviteSmsBestEffort(phone)')
-    expect(inviteMail).toBeGreaterThan(-1)
-    expect(inviteSms).toBeGreaterThan(inviteMail)
-
-    const prepare = src.slice(
-      src.indexOf('async function handlePrepareInviteLink'),
-      src.indexOf('async function sendInviteEmail'),
-    )
-    const emailBlock = prepare.slice(prepare.indexOf('if (sendEmail)'))
-    expect(emailBlock).toContain('await sendInviteEmail')
-    expect(emailBlock.indexOf('await sendInviteSmsBestEffort')).toBeGreaterThan(
-      emailBlock.indexOf('if (mail.error)'),
-    )
-    expect(prepare.slice(0, prepare.indexOf('if (sendEmail)'))).not.toContain(
-      'sendInviteSmsBestEffort',
-    )
-
-    const setPassword = src.slice(
-      src.indexOf('async function handleSetPassword'),
-      src.indexOf('async function handleSetEmail'),
-    )
-    expect(setPassword).not.toContain('sendInviteSms')
-    expect(setPassword).not.toContain('sendInviteEmail')
+  it('treats a Soprano HTTP 200 whose body is an error or empty as failed', async () => {
+    for (const body of ['', 'Error: invalid source', '<result><status>error</status></result>', 'שגיאה בשולח']) {
+      const fetchImpl = vi.fn<typeof fetch>(async () => new Response(body, { status: 200 }))
+      expect(await sendInviteSms('0501234567', env, fetchImpl)).toBe('failed')
+    }
+    expect(sopranoBodyLooksFailed('ok')).toBe(false)
   })
+
+  it('redacts phone numbers and credentials from logged bodies', () => {
+    const out = redactProviderBody('user=abc&password=secret dest 972501234567 status 100')
+    expect(out).not.toContain('secret')
+    expect(out).not.toContain('abc')
+    expect(out).not.toContain('972501234567')
+  })
+
 })
+

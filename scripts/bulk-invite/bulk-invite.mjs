@@ -9,7 +9,7 @@
  *     node scripts/bulk-invite/bulk-invite.mjs members.csv --send --confirm-production [--limit 3]
  *   add --vehicles cars.csv to also add each member's cars (no extra email/SMS)
  *
- * --send sends a real invite email and SMS to every row.
+ * --send sends a real invite email to every row. No SMS unless --sms.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -40,11 +40,15 @@ try {
       limit: { type: 'string' },
       'delay-ms': { type: 'string', default: '1500' },
       vehicles: { type: 'string' },
+      sms: { type: 'boolean', default: false },
+      'no-sms': { type: 'boolean', default: false },
+      'allow-sms-failure': { type: 'boolean', default: false },
     },
     strict: true,
   })
   const file = positionals[0]
   if (!file) throw new Error('Usage: node scripts/bulk-invite/bulk-invite.mjs <file.csv> [--send --confirm-production] [--limit N]')
+  if (values.sms && values['no-sms']) throw new Error('Use either --sms or --no-sms, not both.')
 
   const { invites, errors: inviteErrors } = buildInvites(parseCsv(readFileSync(file, 'utf8')))
   const vehicleFile = values.vehicles
@@ -72,6 +76,7 @@ try {
         `${counts.filter((n) => n > 1).length} with 2+, ${counts.filter((n) => n === 0).length} without.`,
     )
   }
+  console.log(values.sms ? 'SMS: ON (--sms): every invited member is also texted.' : 'SMS: off (email only). Add --sms to also text.')
 
   if (!values.send) {
     console.log('Dry run: nothing sent. Add --send --confirm-production (and BULK_INVITE_ALLOW=1) to invite.')
@@ -94,6 +99,8 @@ try {
     delayMs: Number(values['delay-ms']),
     log: console.log,
     vehiclesByEmail,
+    sendSms: values.sms,
+    stopOnSmsFailure: !values['allow-sms-failure'],
     syncVehicles: vehicleFile
       ? (args) =>
           syncUserVehicles({
@@ -119,7 +126,9 @@ try {
   const count = (o) => results.filter((r) => r.outcome === o).length
   console.log(
     `invited ${count('invited')}, already existed ${count('exists')}, failed ${count('failed')}, ` +
-      `stopped ${count('stopped')}, not reached ${planned.length - results.length}. Results: ${out}`,
+      `stopped ${count('stopped')}, not reached ${planned.length - results.length}. ` +
+      `SMS sent ${results.filter((r) => r.sms === 'sent').length}, skipped ${results.filter((r) => r.sms === 'skipped').length}, ` +
+      `failed ${results.filter((r) => r.sms === 'failed').length}. Results: ${out}`,
   )
   if (count('stopped')) process.exit(2)
 } catch (error) {
