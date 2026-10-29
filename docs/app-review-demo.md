@@ -153,3 +153,8 @@ refresh_profile_lifetime_stats.
 4. Run `create-app-review-demo.mjs --target production --confirm-production` with
    `APP_REVIEW_DEMO_ALLOW=1`, then copy the email and password into App Store Connect.
 5. After review: `remove-app-review-demo.mjs`.
+
+Rollback: run `remove-app-review-demo.mjs` first, then
+`scripts/app-review-demo/rollback-20261029120000.sql` (it refuses while demo rows exist).
+Tested locally: migration, rollback, migration again; the schema after rollback is
+identical to before the migration.
