@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ImagePlus, MessageSquarePlus, Mic, Square, Trash2 } from 'lucide-react'
+import { Bug, ImagePlus, Lightbulb, MessageSquarePlus, Mic, Square, Trash2 } from 'lucide-react'
 import { Button, IconButton } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
 import { TextAreaField } from '../ui/TextAreaField'
@@ -12,6 +12,7 @@ import {
 import {
   FEEDBACK_ATTACH_HINT,
   FEEDBACK_ATTACH_MAX,
+  FEEDBACK_KIND_ERROR,
   FEEDBACK_KIND_LABEL,
   FEEDBACK_RECORD_MAX_SECONDS,
   addFeedbackAttachments,
@@ -174,11 +175,14 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
             className="feedback-fab__btn"
             variant="primary"
             label="משוב"
-            title="Submit feedback"
+            title="לשליחת משוב"
             onClick={() => setOpen(true)}
           >
             <MessageSquarePlus size={20} strokeWidth={1.75} aria-hidden="true" />
           </IconButton>
+          <span className="feedback-fab__tooltip" role="tooltip" aria-hidden="true">
+            לשליחת משוב
+          </span>
         </div>
       )}
       <Dialog
@@ -210,27 +214,41 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
         }
       >
         <div className="feedback-form">
+          <p className="t-body text-secondary feedback-form__intro">
+            דיווח על תקלה או הצעה לשיפור המערכת. המשוב נשלח ישירות לצוות הפיתוח.
+          </p>
           <fieldset className="field feedback-form__kind">
             <legend className="field__label">סוג</legend>
-            <div className="chips chips--field-height" role="group" aria-label="סוג משוב">
-              {(['bug', 'suggestion'] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className="chip"
-                  aria-pressed={kind === value}
-                  onClick={() => setKind(value)}
-                >
-                  {FEEDBACK_KIND_LABEL[value]}
-                </button>
-              ))}
+            <div
+              className="chips chips--field-height feedback-form__kinds"
+              role="group"
+              aria-label="סוג משוב"
+            >
+              {(['bug', 'suggestion'] as const).map((value) => {
+                const KindIcon = value === 'bug' ? Bug : Lightbulb
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    className="chip feedback-form__kind-btn"
+                    aria-pressed={kind === value}
+                    onClick={() => {
+                      setKind(value)
+                      if (error === FEEDBACK_KIND_ERROR) setError(undefined)
+                    }}
+                  >
+                    <KindIcon size={20} strokeWidth={1.75} aria-hidden="true" />
+                    <span>{FEEDBACK_KIND_LABEL[value]}</span>
+                  </button>
+                )
+              })}
             </div>
           </fieldset>
           <TextAreaField
             label="הערה"
             hint="אפשר לכתוב, להקליט, לצרף קבצים, או לשלב."
             placeholder="למשל: אחרי שמירה המסך נשאר ריק"
-            rows={5}
+            rows={4}
             maxLength={2000}
             value={body}
             error={error}
@@ -242,20 +260,25 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
           <div className="feedback-form__tools">
             <div className="field feedback-form__tool">
               <p className="field__label">הקלטה</p>
+              <p className="field__hint">הקלטה קולית קצרה עד דקה וחצי במקום או בנוסף לכתיבה.</p>
               <div className="feedback-record">
                 {recording ? (
                   <div className="feedback-record__live">
+                    <div className="feedback-record__status">
+                      <span className="feedback-record__dot" aria-hidden="true" />
+                      <p className="t-num feedback-record__time" aria-live="polite">
+                        {formatRecordSeconds(elapsed)} / {formatRecordSeconds(FEEDBACK_RECORD_MAX_SECONDS)}
+                      </p>
+                    </div>
                     <Button
                       type="button"
                       variant="secondary"
+                      block
                       icon={<Square size={20} strokeWidth={1.75} aria-hidden="true" />}
                       onClick={stopRecording}
                     >
                       עצירת הקלטה
                     </Button>
-                    <p className="t-num feedback-record__time" aria-live="polite">
-                      {formatRecordSeconds(elapsed)} / {formatRecordSeconds(FEEDBACK_RECORD_MAX_SECONDS)}
-                    </p>
                   </div>
                 ) : audioUrl ? (
                   <div className="feedback-record__preview">
@@ -268,6 +291,7 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
                   <Button
                     type="button"
                     variant="secondary"
+                    block
                     icon={<Mic size={20} strokeWidth={1.75} aria-hidden="true" />}
                     onClick={() => void startRecording()}
                   >
@@ -276,39 +300,8 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
                 )}
               </div>
             </div>
-            <fieldset className="field feedback-form__tool">
-              <legend className="field__label">קבצים</legend>
-              {files.length < FEEDBACK_ATTACH_MAX ? (
-                <div className="feedback-attach">
-                  <input
-                    ref={fileInputRef}
-                    className="visually-hidden"
-                    type="file"
-                    accept="image/*,video/*"
-                    multiple
-                    tabIndex={-1}
-                    aria-hidden="true"
-                    disabled={busy || recording}
-                    onChange={(event) => {
-                      const picked = Array.from(event.target.files ?? [])
-                      event.target.value = ''
-                      if (picked.length === 0) return
-                      const result = addFeedbackAttachments(files, picked)
-                      setFiles(result.files)
-                      setAttachError(result.error)
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={busy || recording}
-                    icon={<ImagePlus size={20} strokeWidth={1.75} aria-hidden="true" />}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    צירוף קובץ
-                  </Button>
-                </div>
-              ) : null}
+            <div className="field feedback-form__tool">
+              <p className="field__label">קבצים</p>
               {attachError ? (
                 <p className="field__hint field__hint--error" role="alert">
                   {attachError}
@@ -316,29 +309,63 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
               ) : (
                 <p className="field__hint">{FEEDBACK_ATTACH_HINT}</p>
               )}
-              {files.length > 0 ? (
-                <ul className="feedback-attach__list">
-                  {files.map((file, index) => (
-                    <li key={`${file.name}-${file.size}-${index}`} className="feedback-attach__row">
-                      <span className="t-body feedback-attach__name" dir="ltr">
-                        {file.name}
-                      </span>
-                      <IconButton
-                        label="הסרת קובץ"
-                        variant="ghost"
-                        disabled={busy || recording}
-                        onClick={() => {
-                          setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
-                          setAttachError(undefined)
-                        }}
-                      >
-                        <Trash2 size={20} strokeWidth={1.75} aria-hidden="true" />
-                      </IconButton>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </fieldset>
+              <div className="feedback-attach">
+                {files.length < FEEDBACK_ATTACH_MAX ? (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      className="visually-hidden"
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      disabled={busy || recording}
+                      onChange={(event) => {
+                        const picked = Array.from(event.target.files ?? [])
+                        event.target.value = ''
+                        if (picked.length === 0) return
+                        const result = addFeedbackAttachments(files, picked)
+                        setFiles(result.files)
+                        setAttachError(result.error)
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      block
+                      disabled={busy || recording}
+                      icon={<ImagePlus size={20} strokeWidth={1.75} aria-hidden="true" />}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      צירוף קובץ
+                    </Button>
+                  </>
+                ) : null}
+                {files.length > 0 ? (
+                  <ul className="feedback-attach__list">
+                    {files.map((file, index) => (
+                      <li key={`${file.name}-${file.size}-${index}`} className="feedback-attach__row">
+                        <span className="t-body feedback-attach__name" dir="ltr">
+                          {file.name}
+                        </span>
+                        <IconButton
+                          label="הסרת קובץ"
+                          variant="ghost"
+                          disabled={busy || recording}
+                          onClick={() => {
+                            setFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                            setAttachError(undefined)
+                          }}
+                        >
+                          <Trash2 size={20} strokeWidth={1.75} aria-hidden="true" />
+                        </IconButton>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
       </Dialog>

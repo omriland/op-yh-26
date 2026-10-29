@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   FEEDBACK_ATTACH_COUNT_ERROR,
@@ -221,5 +224,32 @@ describe('feedback treated SMS', () => {
     expect(feedbackTreatedToast('sent')).toEqual({ message: 'הסטטוס עודכן.', tone: 'done' })
     expect(feedbackTreatedToast('skipped_no_phone').tone).toBe('alert')
     expect(feedbackTreatedToast('failed').message).toContain('SMS')
+  })
+})
+
+describe('FeedbackFab tooltip and popup layout', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const fabSrc = readFileSync(resolve(here, '../components/feedback/FeedbackFab.tsx'), 'utf8')
+  const css = readFileSync(resolve(here, '../styles/components.css'), 'utf8')
+
+  it('renders a Hebrew hover tooltip לשליחת משוב on the bottom-left FAB', () => {
+    expect(fabSrc).not.toContain('Submit feedback')
+    expect(fabSrc).toContain('title="לשליחת משוב"')
+    expect(fabSrc).toContain('className="feedback-fab__tooltip"')
+    expect(fabSrc).toContain('לשליחת משוב')
+    expect(css).toContain('.feedback-fab__tooltip')
+    expect(css).toContain('.feedback-fab:hover .feedback-fab__tooltip')
+    expect(css).toContain('.feedback-fab__btn:focus-visible + .feedback-fab__tooltip')
+  })
+
+  it('structures the feedback popup with equal-width kind cards and balanced tool wells', () => {
+    expect(fabSrc).toContain('feedback-form__kinds')
+    expect(fabSrc).toContain('feedback-form__kind-btn')
+    expect(fabSrc).toContain('feedback-form__tool')
+    expect(fabSrc).not.toContain('<fieldset className="field feedback-form__tool">')
+    expect(fabSrc).toContain('<p className="field__label">הקלטה</p>')
+    expect(fabSrc).toContain('<p className="field__label">קבצים</p>')
+    expect(css).toContain('.feedback-form__kinds')
+    expect(css).toContain('.feedback-form__kind-btn[aria-pressed=\'true\']')
   })
 })

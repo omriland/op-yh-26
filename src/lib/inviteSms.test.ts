@@ -23,7 +23,7 @@ describe('invite SMS', () => {
   })
 
   it('posts that sentence to Soprano for an Israeli mobile', async () => {
-    const fetchImpl = vi.fn(async () => new Response('ok', { status: 200 }))
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response('ok', { status: 200 }))
     const result = await sendInviteSms('050-1234567', env, fetchImpl)
 
     expect(result).toBe('sent')
