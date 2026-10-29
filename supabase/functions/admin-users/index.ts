@@ -10,6 +10,7 @@ import {
   ANDROID_APP_DOWNLOAD_URL,
   androidDownloadButtonHtml,
 } from "../_shared/email.ts";
+import { sendInviteSms } from "../_shared/inviteSms.ts";
 import { inviteExpiresAt, isInviteExpired } from "../_shared/inviteTtl.ts";
 
 type AppRole = "admin" | "shift_lead" | "responder";
@@ -956,6 +957,7 @@ async function handlePrepareInviteLink(
     if (mail.error) {
       return json(400, { error: mail.error, detail: mail.detail });
     }
+    await sendInviteSmsBestEffort(typeof profile.phone === "string" ? profile.phone : null);
   }
 
   return json(200, {
@@ -963,6 +965,22 @@ async function handlePrepareInviteLink(
     action_link: actionLink,
     message: sendEmail ? "ההזמנה נשלחה מחדש." : "קישור ההזמנה הועתק.",
   });
+}
+
+function sopranoCredentials() {
+  return {
+    user: Deno.env.get("SOPRANO_USER"),
+    password: Deno.env.get("SOPRANO_PASSWORD"),
+    source: Deno.env.get("SOPRANO_SOURCE"),
+  };
+}
+
+/** Best-effort. A missing phone or a Soprano failure does not fail the invite. */
+async function sendInviteSmsBestEffort(phone: string | null | undefined): Promise<void> {
+  const result = await sendInviteSms(phone, sopranoCredentials());
+  if (result === "failed") {
+    console.error("admin-users: invite SMS was not sent");
+  }
 }
 
 async function sendInviteEmail(to: string, fullName: string, actionLink: string) {
@@ -1148,6 +1166,7 @@ async function handleInvite(
   if (mail.error) {
     return json(400, { error: mail.error, detail: mail.detail });
   }
+  await sendInviteSmsBestEffort(phone);
 
   const { error: profileError } = await adminClient
     .from("profiles")

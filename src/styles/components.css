@@ -2455,19 +2455,61 @@ p.alert--info {
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: var(--space-5);
+  align-items: flex-start;
+  gap: 0;
   width: 100%;
   margin-block-start: auto;
-  padding-block-start: var(--space-8);
-  padding-block-end: var(--space-4);
+  padding-block: var(--space-4);
+  color: var(--text-muted);
 }
 
-.app-footer__top {
+.app-footer__line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3) var(--space-6);
+  gap: var(--space-2) var(--space-4);
+  max-width: 100%;
+}
+
+.app-footer__line + .app-footer__line {
+  margin-block-start: var(--space-2);
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.app-footer__group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 44px;
+  max-width: 100%;
+}
+
+.app-footer__line > .app-footer__group + .app-footer__group {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 1px solid var(--stroke-hairline);
+}
+
+@media (max-width: 640px) {
+  .app-footer__line {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+  }
+
+  .app-footer__group {
+    justify-content: flex-start;
+  }
+
+  .app-footer__line > .app-footer__group + .app-footer__group {
+    margin-block-start: var(--space-2);
+    padding-block-start: var(--space-2);
+    padding-inline-start: 0;
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--stroke-hairline);
+  }
 }
 
 .app-footer__brand {
@@ -2479,7 +2521,7 @@ p.alert--info {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font: inherit;
   text-align: start;
 }
@@ -2494,29 +2536,15 @@ div.app-footer__brand {
 
 .app-footer__favicon {
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-sm);
-}
-
-.app-footer__brand-name {
-  font: 700 20px/28px var(--font-ui);
-}
-
-/* LTR cluster — English security line sits next to the vendor marks. */
-.app-footer__security {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  max-width: 100%;
 }
 
 .app-footer__vendors {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -2526,13 +2554,12 @@ div.app-footer__brand {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-full);
-  background: var(--surface-sunken);
-  color: var(--text-secondary);
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
   text-decoration: none;
-  transition: background-color var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard);
 }
 
 .app-footer__vendor-btn:focus-visible {
@@ -2542,75 +2569,33 @@ div.app-footer__brand {
 
 .app-footer__vendor-logo {
   flex: none;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
 }
 
 .app-footer__security-label {
   margin: 0;
-  color: var(--text-muted);
-  font: 400 12px/16px var(--font-ui);
-}
-
-.app-footer__bottom {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding-block-start: var(--space-5);
-  border-block-start: 1px solid var(--stroke-hairline);
-}
-
-.app-footer__copy {
-  display: flex;
-  flex-direction: column;
-  align-items: start;
-  gap: var(--space-1);
-  color: var(--text-muted);
-  font: 400 14px/22px var(--font-ui);
-  text-align: start;
 }
 
 .app-footer__legal {
-  white-space: nowrap;
-}
-
-.app-footer__actions {
-  display: flex;
-  flex-direction: column;
-  align-items: start;
-  gap: var(--space-1);
-  text-align: start;
-}
-
-.app-footer__links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
   margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 .app-footer__link {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-2);
   min-height: 44px;
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-primary);
-  font: 400 14px/20px var(--font-ui);
+  color: var(--text-muted);
   text-decoration: none;
   text-underline-offset: 0.2em;
   cursor: pointer;
   transition: color var(--duration-fast) var(--ease-standard);
-}
-
-.app-footer__link--legal {
-  color: var(--text-muted);
-  margin-block-start: var(--space-1);
 }
 
 .app-footer__link:focus-visible {
@@ -2620,11 +2605,11 @@ div.app-footer__brand {
 
 @media (hover: hover) {
   .app-footer__vendor-btn:hover {
-    background: var(--accent-subtle);
-    color: var(--text-primary);
+    color: var(--text-secondary);
   }
 
   .app-footer__link:hover {
+    color: var(--text-secondary);
     text-decoration: underline;
   }
 
@@ -2635,38 +2620,10 @@ div.app-footer__brand {
   .app-footer__link:hover > .app-footer__link-label {
     text-decoration: underline;
   }
-
-  .app-footer__link--legal:hover {
-    color: var(--text-secondary);
-  }
 }
 
 .app-footer__link:active {
-  color: var(--text-primary);
-}
-
-@media (min-width: 1025px) {
-  .app-footer {
-    padding-block-start: var(--space-10);
-    padding-block-end: var(--space-6);
-  }
-
-  .app-footer__bottom {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: start;
-    justify-content: space-between;
-    gap: var(--space-4) var(--space-8);
-    padding-block-start: var(--space-6);
-  }
-
-  .app-footer__actions {
-    margin-inline-start: auto;
-  }
-
-  .app-footer__link {
-    min-height: 40px;
-  }
+  color: var(--text-secondary);
 }
 
 .android-download,
@@ -2692,15 +2649,6 @@ div.app-footer__brand {
   gap: var(--space-3);
 }
 
-.login__footer-link {
-  display: inline-flex;
-  align-items: center;
-}
-
-.login__footer-link,
-.app-footer__link {
-  gap: var(--space-2);
-}
 
 .android-download__panel,
 .ios-download__panel {
@@ -2744,46 +2692,34 @@ div.app-footer__brand {
   margin-block-start: var(--space-1);
 }
 
-.login__footer {
+.login__portal {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
+  width: 100%;
+  margin-block: auto;
+  gap: var(--space-6);
+}
+
+.login__portal .login__stage {
+  margin-block: 0;
+}
+
+.login .app-footer {
+  width: 100%;
+  margin-block-start: 0;
+  padding-block: 0;
+  align-items: center;
+}
+
+.login .app-footer__line {
   justify-content: center;
-  gap: var(--space-2);
-  padding-block: var(--space-4) var(--space-2);
 }
 
-.login__footer-sep {
-  width: 1px;
-  height: 14px;
-  background: color-mix(in srgb, var(--text-on-command, #c3cedc) 35%, transparent);
-}
-
-.login__footer-link {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary, #c3cedc);
-  font: inherit;
-  font-size: 0.8125rem;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
-  cursor: pointer;
-  min-height: 44px;
-  padding-inline: var(--space-2);
-}
-
-.login__footer-link:has(.stamp) {
-  text-decoration: none;
-}
-
-.login__footer-link:has(.stamp) > .login__footer-link-label {
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
-}
-
-.login__footer-link .stamp {
-  text-decoration: none;
+@media (max-width: 640px) {
+  .login .app-footer__group {
+    justify-content: center;
+  }
 }
 
 .privacy {
@@ -7961,6 +7897,45 @@ html[data-keyboard-open] .event-form__footer {
   width: 44px;
   min-height: 44px;
   height: 44px;
+}
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.feedback-form__kind {
+  gap: var(--space-2);
+}
+
+.feedback-form__tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-block-start: var(--space-5);
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.feedback-form__tool {
+  min-inline-size: 0;
+  gap: var(--space-2);
+}
+
+.feedback-form__tool > .field__label,
+.feedback-form__tool > .field__hint {
+  margin: 0;
+  padding: 0;
+}
+
+@media (min-width: 1025px) {
+  .feedback-form__tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: var(--space-6);
+    row-gap: var(--space-4);
+  }
 }
 
 fieldset.field {

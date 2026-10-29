@@ -1,7 +1,7 @@
 /** English brand mark — explicit exception to Hebrew-only UI (see design spec). */
 export const SNYK_SECURITY_BADGE = {
   href: 'https://snyk.io',
-  label: 'Protected and monitored by Snyk and Cloudflare',
+  label: 'This website is protected by Snyk and Cloudflare',
 } as const
 
 export const CLOUDFLARE_SECURITY_BADGE = {

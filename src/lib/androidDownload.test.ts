@@ -6,6 +6,7 @@ import {
   fetchAndroidApkHref,
   isAndroidDownloadPath,
   isAndroidMobile,
+  showLoginAndroidDownload,
 } from './androidDownload'
 
 describe('isAndroidMobile', () => {
@@ -41,6 +42,65 @@ describe('isAndroidMobile', () => {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       ),
     ).toBe(false)
+  })
+})
+
+describe('showLoginAndroidDownload', () => {
+  const iphone =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+  const ipad =
+    'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+  const ipadOsDesktop =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15'
+  const androidPhone =
+    'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+  const androidTablet =
+    'Mozilla/5.0 (Linux; Android 13; SM-X700) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  const windows =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  const mac =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  const linux =
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+  it('hides on iPhone, iPad, and iPadOS desktop-mode', () => {
+    expect(showLoginAndroidDownload({ userAgent: iphone, platform: 'iPhone', maxTouchPoints: 5 })).toBe(
+      false,
+    )
+    expect(showLoginAndroidDownload({ userAgent: ipad, platform: 'iPad', maxTouchPoints: 5 })).toBe(
+      false,
+    )
+    expect(
+      showLoginAndroidDownload({
+        userAgent: ipadOsDesktop,
+        platform: 'MacIntel',
+        maxTouchPoints: 5,
+      }),
+    ).toBe(false)
+    expect(
+      showLoginAndroidDownload({ userAgent: mac, platform: 'iPad', maxTouchPoints: 0 }),
+    ).toBe(false)
+  })
+
+  it('shows on Android phones and tablets', () => {
+    expect(
+      showLoginAndroidDownload({ userAgent: androidPhone, platform: 'Linux armv8l', maxTouchPoints: 5 }),
+    ).toBe(true)
+    expect(
+      showLoginAndroidDownload({ userAgent: androidTablet, platform: 'Linux armv8l', maxTouchPoints: 5 }),
+    ).toBe(true)
+  })
+
+  it('shows on Windows, Mac, and Linux desktops', () => {
+    expect(showLoginAndroidDownload({ userAgent: windows, platform: 'Win32', maxTouchPoints: 0 })).toBe(
+      true,
+    )
+    expect(showLoginAndroidDownload({ userAgent: mac, platform: 'MacIntel', maxTouchPoints: 0 })).toBe(
+      true,
+    )
+    expect(showLoginAndroidDownload({ userAgent: linux, platform: 'Linux x86_64', maxTouchPoints: 0 })).toBe(
+      true,
+    )
   })
 })
 

@@ -19,7 +19,7 @@ describe('SNYK_SECURITY_BADGE', () => {
   it('links to snyk.io with the English brand line', () => {
     expect(SNYK_SECURITY_BADGE.href).toBe('https://snyk.io')
     expect(SNYK_SECURITY_BADGE.label).toBe(
-      'Protected and monitored by Snyk and Cloudflare',
+      'This website is protected by Snyk and Cloudflare',
     )
   })
 })

@@ -30,6 +30,24 @@ export function isAndroidMobile(userAgent: string): boolean {
   return true
 }
 
+/**
+ * Login-screen Android download control.
+ * Hidden on iOS web: iPhone, iPad, and iPadOS (Macintosh user agent plus touch).
+ * Shown on Mac, Windows, and Linux desktops, and on Android browsers.
+ */
+export function showLoginAndroidDownload(client: {
+  userAgent: string
+  platform?: string
+  maxTouchPoints?: number
+}): boolean {
+  const ua = client.userAgent
+  const platform = client.platform ?? ''
+  if (/iPhone|iPad|iPod/i.test(ua) || /iPhone|iPad|iPod/i.test(platform)) return false
+  const touch = client.maxTouchPoints ?? 0
+  if (touch > 1 && /Macintosh/i.test(ua)) return false
+  return true
+}
+
 export function isAndroidDownloadPath(pathname: string): boolean {
   const path = pathname.replace(/\/+$/, '') || '/'
   return path === ANDROID_DOWNLOAD_PATH

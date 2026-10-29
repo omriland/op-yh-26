@@ -325,8 +325,6 @@ export function ShiftsPage({
             unitWindow.inWindow.length === 0 &&
             unitWindow.hasMore
           }
-          canManage={canManage && Boolean(onCreate)}
-          onCreate={onCreate}
           onClear={() => setQuery('')}
           onLoadMore={() => setUnitWindows((windows) => windows + 1)}
         />
@@ -416,15 +414,11 @@ function ShiftCards({
 function ListEmptyState({
   filtered,
   recentWindowEmpty = false,
-  canManage,
-  onCreate,
   onClear,
   onLoadMore,
 }: {
   filtered: boolean
   recentWindowEmpty?: boolean
-  canManage: boolean
-  onCreate?: () => void
   onClear: () => void
   onLoadMore?: () => void
 }) {
@@ -462,13 +456,6 @@ function ListEmptyState({
     <EmptyState
       icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
       title="אין משמרות עדיין"
-      action={
-        canManage && onCreate ? (
-          <Button onClick={onCreate} icon={<Plus size={20} strokeWidth={1.75} />}>
-            משמרת חדשה
-          </Button>
-        ) : undefined
-      }
     />
   )
 }

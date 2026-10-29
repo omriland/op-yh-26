@@ -16,13 +16,8 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { StampChip } from '../components/ui/StampChip'
 import { PasswordField, TextField } from '../components/ui/TextField'
 import { captureEvent } from '../lib/posthog'
-import {
-  ANDROID_BETA_LABEL,
-  ANDROID_FOOTER_LINK,
-  fetchAndroidApkHref,
-  isAndroidMobile,
-} from '../lib/androidDownload'
-import { PRIVACY_FOOTER_LINK } from '../lib/privacyPolicy'
+import { ANDROID_BETA_LABEL, fetchAndroidApkHref, isAndroidMobile } from '../lib/androidDownload'
+import { SnykBadge } from '../components/shell/SnykBadge'
 
 type Mode = 'signin' | 'reset' | 'reset-sent' | 'set-password' | 'password-set'
 
@@ -189,6 +184,7 @@ export function LoginPage({
       className={['login', isSetupFlow ? 'login--setup' : ''].filter(Boolean).join(' ')}
       data-theme="command"
     >
+      <div className="login__portal">
       <div className="login__stage">
         <header className="login__masthead" aria-label={PLATFORM_NAME}>
           <div className="login__lockup">
@@ -480,27 +476,10 @@ export function LoginPage({
           ) : null}
         </div>
 
-        <footer className="login__footer">
-          {onOpenAndroid ? (
-            <button type="button" className="login__footer-link" onClick={onOpenAndroid}>
-              <span className="login__footer-link-label">{ANDROID_FOOTER_LINK.label}</span>
-              <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
-            </button>
-          ) : (
-            <a className="login__footer-link" href={ANDROID_FOOTER_LINK.href}>
-              <span className="login__footer-link-label">{ANDROID_FOOTER_LINK.label}</span>
-              <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
-            </a>
-          )}
-          {onOpenPrivacy ? (
-            <>
-              <span className="login__footer-sep" aria-hidden="true" />
-              <button type="button" className="login__footer-link" onClick={onOpenPrivacy}>
-                {PRIVACY_FOOTER_LINK.label}
-              </button>
-            </>
-          ) : null}
-        </footer>
+      </div>
+      {onOpenPrivacy ? (
+        <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} />
+      ) : null}
       </div>
     </div>
   )

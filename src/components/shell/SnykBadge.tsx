@@ -1,10 +1,14 @@
 import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
-import { ANDROID_BETA_LABEL, ANDROID_FOOTER_LINK } from '../../lib/androidDownload'
+import {
+  ANDROID_BETA_LABEL,
+  ANDROID_FOOTER_LINK,
+  showLoginAndroidDownload,
+} from '../../lib/androidDownload'
 import { StampChip } from '../ui/StampChip'
 import { CLOUDFLARE_SECURITY_BADGE, SNYK_SECURITY_BADGE } from '../../lib/securityBadge'
 
 const BRAND_NAME = 'אבן דרך'
-const UNIT_LINE = 'היחידה הארצית לפינוי צירים (יחפ״צ)'
+const RIGHTS_CREDIT = 'כל הזכויות שמורות לעמרי לנדמן'
 const FAVICON_SRC = '/favicon.svg'
 
 /** Snyk dog mark (Simple Icons path) — fill via currentColor for both themes. */
@@ -13,8 +17,8 @@ function SnykLogo() {
     <svg
       className="app-footer__vendor-logo"
       viewBox="0 0 24 24"
-      width={20}
-      height={20}
+      width={16}
+      height={16}
       aria-hidden="true"
       focusable="false"
     >
@@ -31,8 +35,8 @@ function CloudflareLogo() {
     <img
       className="app-footer__vendor-logo"
       src={CLOUDFLARE_SECURITY_BADGE.logoSrc}
-      width={20}
-      height={20}
+      width={16}
+      height={16}
       alt=""
     />
   )
@@ -44,11 +48,11 @@ function BrandMark({ onHome }: { onHome?: () => void }) {
       <img
         className="app-footer__favicon"
         src={FAVICON_SRC}
-        width={28}
-        height={28}
+        width={20}
+        height={20}
         alt=""
       />
-      <span className="app-footer__brand-name">{BRAND_NAME}</span>
+      <span className="app-footer__brand-name t-label">{BRAND_NAME}</span>
     </>
   )
 
@@ -69,8 +73,8 @@ function BrandMark({ onHome }: { onHome?: () => void }) {
 }
 
 /**
- * App document footer (brand + vendor marks + downloads + privacy).
- * Layout adapted from the service Footer pattern into רשומה tokens — not shadcn/Tailwind.
+ * Document footer: brand, rights line, privacy, vendor marks, Android download.
+ * Android download is hidden on iOS web (including iPadOS desktop mode).
  */
 export function SnykBadge({
   onOpenPrivacy,
@@ -82,17 +86,30 @@ export function SnykBadge({
   onHome?: () => void
 }) {
   const year = new Date().getFullYear()
-  const mainLinks: Array<{ label: string; onClick: () => void; beta?: boolean }> = []
-  if (onOpenAndroid) {
-    mainLinks.push({ label: ANDROID_FOOTER_LINK.label, onClick: onOpenAndroid, beta: true })
-  }
+  const showAndroid =
+    Boolean(onOpenAndroid) &&
+    typeof navigator !== 'undefined' &&
+    showLoginAndroidDownload({
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      maxTouchPoints: navigator.maxTouchPoints,
+    })
 
   return (
     <footer className="app-footer">
-      <div className="app-footer__top">
-        <BrandMark onHome={onHome} />
-
-        <div className="app-footer__security" dir="ltr">
+      <div className="app-footer__line">
+        <div className="app-footer__group">
+          <BrandMark onHome={onHome} />
+        </div>
+        <div className="app-footer__group">
+          <p className="app-footer__legal t-caption">{`© ${year} ${RIGHTS_CREDIT}`}</p>
+          <button type="button" className="app-footer__link t-caption" onClick={onOpenPrivacy}>
+            {PRIVACY_FOOTER_LINK.label}
+          </button>
+        </div>
+      </div>
+      <div className="app-footer__line">
+        <div className="app-footer__group">
           <ul className="app-footer__vendors">
             <li>
               <a
@@ -117,31 +134,17 @@ export function SnykBadge({
               </a>
             </li>
           </ul>
-          <p className="app-footer__security-label">{SNYK_SECURITY_BADGE.label}</p>
+          <p className="app-footer__security-label t-caption" dir="ltr">
+            {SNYK_SECURITY_BADGE.label}
+          </p>
         </div>
-      </div>
-
-      <div className="app-footer__bottom">
-        <div className="app-footer__copy">
-          <div className="app-footer__legal">{`© ${year} ${BRAND_NAME} | ${UNIT_LINE}`}</div>
-          <button type="button" className="app-footer__link app-footer__link--legal" onClick={onOpenPrivacy}>
-            {PRIVACY_FOOTER_LINK.label}
-          </button>
-        </div>
-
-        {mainLinks.length > 0 ? (
-          <nav className="app-footer__actions" aria-label="קישורים">
-            <ul className="app-footer__links">
-              {mainLinks.map((link) => (
-                <li key={link.label}>
-                  <button type="button" className="app-footer__link" onClick={link.onClick}>
-                    <span className="app-footer__link-label">{link.label}</span>
-                    {link.beta ? <StampChip label={ANDROID_BETA_LABEL} tone="pending" /> : null}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
+        {showAndroid && onOpenAndroid ? (
+          <div className="app-footer__group">
+            <button type="button" className="app-footer__link t-caption" onClick={onOpenAndroid}>
+              <span className="app-footer__link-label">{ANDROID_FOOTER_LINK.label}</span>
+              <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
+            </button>
+          </div>
         ) : null}
       </div>
     </footer>
