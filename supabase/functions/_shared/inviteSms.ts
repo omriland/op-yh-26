@@ -1,37 +1,19 @@
 /**
  * SMS that rides along with the initial-login invite email.
- * One body, no link and no password.
- *
- * Providers (secret INVITE_SMS_PROVIDER, default "soprano"):
- * - "soprano": `SOPRANO_USER` / `SOPRANO_PASSWORD` / `SOPRANO_SOURCE`. Soprano answers
- *   HTTP 200 even when it rejects a message (the result is in the body), so the body
- *   is always logged and an error body counts as failed.
- * - "twilio": the login-OTP Messaging Service (`TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`,
- *   `TWILIO_API_SECRET`, `TWILIO_MESSAGING_SERVICE_SID`). Success = 2xx with a message SID.
+ * One body, no link and no password. Soprano is the existing gateway
+ * (`SOPRANO_USER` / `SOPRANO_PASSWORD` / `SOPRANO_SOURCE`). Soprano answers
+ * HTTP 200 even when it rejects a message (the result is in the body), so the
+ * body is always logged and an error body counts as failed.
  */
 export const INVITE_SMS_BODY =
   "הוזמנת למערכת 'אבן דרך'. פרטי התחברות ראשוניים מופיעים בתיבת המייל שלך";
 
 const SOPRANO_API_URL = "https://sec.soprano.co.il/";
-const TWILIO_MESSAGES_URL = (accountSid: string) =>
-  `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
 
 export type SopranoCredentials = {
   user?: string;
   password?: string;
   source?: string;
-};
-
-export type TwilioCredentials = {
-  accountSid?: string;
-  apiKey?: string;
-  apiSecret?: string;
-  messagingServiceSid?: string;
-};
-
-export type InviteSmsEnv = SopranoCredentials & {
-  provider?: string;
-  twilio?: TwilioCredentials;
 };
 
 export type InviteSmsResult = "sent" | "skipped" | "failed";
@@ -104,57 +86,12 @@ async function sendViaSoprano(
   }
 }
 
-async function sendViaTwilio(
-  destination972: string,
-  env: TwilioCredentials | undefined,
-  fetchImpl: typeof fetch,
-): Promise<InviteSmsResult> {
-  if (!env?.accountSid || !env.apiKey || !env.apiSecret || !env.messagingServiceSid) {
-    console.error("admin-users: missing Twilio env");
-    return "failed";
-  }
-  const formData = new URLSearchParams({
-    To: `+${destination972}`,
-    MessagingServiceSid: env.messagingServiceSid,
-    Body: INVITE_SMS_BODY,
-  });
-  try {
-    const res = await fetchImpl(TWILIO_MESSAGES_URL(env.accountSid), {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${btoa(`${env.apiKey}:${env.apiSecret}`)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: formData.toString(),
-    });
-    const text = await res.text().catch(() => "");
-    let sid = "";
-    try {
-      sid = (JSON.parse(text) as { sid?: string }).sid ?? "";
-    } catch {
-      sid = "";
-    }
-    if (!res.ok || !sid) {
-      console.error("admin-users: Twilio rejected", res.status, redactProviderBody(text));
-      return "failed";
-    }
-    console.log("admin-users: Twilio ok", sid);
-    return "sent";
-  } catch (err) {
-    console.error("admin-users: Twilio exception", err);
-    return "failed";
-  }
-}
-
 export async function sendInviteSms(
   phone: string | null | undefined,
-  env: InviteSmsEnv,
+  env: SopranoCredentials,
   fetchImpl: typeof fetch = fetch,
 ): Promise<InviteSmsResult> {
   const destination = inviteSmsDestination(phone);
   if (!destination) return "skipped";
-  if ((env.provider ?? "").trim().toLowerCase() === "twilio") {
-    return sendViaTwilio(destination, env.twilio, fetchImpl);
-  }
   return sendViaSoprano(destination, env, fetchImpl);
 }

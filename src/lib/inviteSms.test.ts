@@ -111,22 +111,6 @@ describe('invite SMS', () => {
     expect(out).not.toContain('972501234567')
   })
 
-  it('sends through the Twilio Messaging Service when INVITE_SMS_PROVIDER=twilio', async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ sid: 'SM123' }), { status: 201 }))
-    const twilio = { accountSid: 'AC1', apiKey: 'k', apiSecret: 's', messagingServiceSid: 'MG1' }
-    expect(await sendInviteSms('050-1234567', { ...env, provider: 'twilio', twilio }, fetchImpl)).toBe('sent')
-    const [url, init] = fetchImpl.mock.calls[0]!
-    expect(url).toBe('https://api.twilio.com/2010-04-01/Accounts/AC1/Messages.json')
-    const params = form(init)
-    expect(params.get('To')).toBe('+972501234567')
-    expect(params.get('MessagingServiceSid')).toBe('MG1')
-    expect(params.get('Body')).toBe(BODY)
-
-    const noSid = vi.fn<typeof fetch>(async () => new Response('{}', { status: 201 }))
-    expect(await sendInviteSms('0501234567', { provider: 'twilio', twilio }, noSid)).toBe('failed')
-    expect(await sendInviteSms('0501234567', { provider: 'twilio' }, noSid)).toBe('failed')
-  })
-
   it('returns the SMS result in the invite response', () => {
     const src = readFileSync(
       resolve(import.meta.dirname, '../../supabase/functions/admin-users/index.ts'),

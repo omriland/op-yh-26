@@ -969,16 +969,9 @@ async function handlePrepareInviteLink(
 
 function inviteSmsEnv() {
   return {
-    provider: Deno.env.get("INVITE_SMS_PROVIDER"),
     user: Deno.env.get("SOPRANO_USER"),
     password: Deno.env.get("SOPRANO_PASSWORD"),
     source: Deno.env.get("SOPRANO_SOURCE"),
-    twilio: {
-      accountSid: Deno.env.get("TWILIO_ACCOUNT_SID"),
-      apiKey: Deno.env.get("TWILIO_API_KEY"),
-      apiSecret: Deno.env.get("TWILIO_API_SECRET"),
-      messagingServiceSid: Deno.env.get("TWILIO_MESSAGING_SERVICE_SID"),
-    },
   };
 }
 
