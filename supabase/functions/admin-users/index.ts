@@ -967,20 +967,30 @@ async function handlePrepareInviteLink(
   });
 }
 
-function sopranoCredentials() {
+function inviteSmsEnv() {
   return {
+    provider: Deno.env.get("INVITE_SMS_PROVIDER"),
     user: Deno.env.get("SOPRANO_USER"),
     password: Deno.env.get("SOPRANO_PASSWORD"),
     source: Deno.env.get("SOPRANO_SOURCE"),
+    twilio: {
+      accountSid: Deno.env.get("TWILIO_ACCOUNT_SID"),
+      apiKey: Deno.env.get("TWILIO_API_KEY"),
+      apiSecret: Deno.env.get("TWILIO_API_SECRET"),
+      messagingServiceSid: Deno.env.get("TWILIO_MESSAGING_SERVICE_SID"),
+    },
   };
 }
 
 /** Best-effort. A missing phone or a Soprano failure does not fail the invite. */
-async function sendInviteSmsBestEffort(phone: string | null | undefined): Promise<void> {
-  const result = await sendInviteSms(phone, sopranoCredentials());
+async function sendInviteSmsBestEffort(
+  phone: string | null | undefined,
+): Promise<"sent" | "skipped" | "failed"> {
+  const result = await sendInviteSms(phone, inviteSmsEnv());
   if (result === "failed") {
     console.error("admin-users: invite SMS was not sent");
   }
+  return result;
 }
 
 async function sendInviteEmail(to: string, fullName: string, actionLink: string) {
@@ -1166,7 +1176,7 @@ async function handleInvite(
   if (mail.error) {
     return json(400, { error: mail.error, detail: mail.detail });
   }
-  await sendInviteSmsBestEffort(phone);
+  const sms = await sendInviteSmsBestEffort(phone);
 
   const { error: profileError } = await adminClient
     .from("profiles")
@@ -1216,6 +1226,7 @@ async function handleInvite(
     ok: true,
     user_id: userId,
     action_link: actionLink,
+    sms,
     message: "משתמש נוצר בהצלחה",
   });
 }

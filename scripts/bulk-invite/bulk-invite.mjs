@@ -40,6 +40,7 @@ try {
       limit: { type: 'string' },
       'delay-ms': { type: 'string', default: '1500' },
       vehicles: { type: 'string' },
+      'allow-sms-failure': { type: 'boolean', default: false },
     },
     strict: true,
   })
@@ -94,6 +95,7 @@ try {
     delayMs: Number(values['delay-ms']),
     log: console.log,
     vehiclesByEmail,
+    stopOnSmsFailure: !values['allow-sms-failure'],
     syncVehicles: vehicleFile
       ? (args) =>
           syncUserVehicles({
@@ -119,7 +121,9 @@ try {
   const count = (o) => results.filter((r) => r.outcome === o).length
   console.log(
     `invited ${count('invited')}, already existed ${count('exists')}, failed ${count('failed')}, ` +
-      `stopped ${count('stopped')}, not reached ${planned.length - results.length}. Results: ${out}`,
+      `stopped ${count('stopped')}, not reached ${planned.length - results.length}. ` +
+      `SMS sent ${results.filter((r) => r.sms === 'sent').length}, skipped ${results.filter((r) => r.sms === 'skipped').length}, ` +
+      `failed ${results.filter((r) => r.sms === 'failed').length}. Results: ${out}`,
   )
   if (count('stopped')) process.exit(2)
 } catch (error) {

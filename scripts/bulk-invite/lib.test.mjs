@@ -138,7 +138,7 @@ describe('runInvites', () => {
 
   it('writes a results file Excel opens in Hebrew', () => {
     expect(resultsCsv([{ line: 2, email: 'a@example.test', outcome: 'failed', status: 409, message: 'או״ק "x"' }])).toBe(
-      '﻿line,email,outcome,status,message,vehicles_added,vehicles_skipped\r\n2,"a@example.test",failed,409,"או״ק ""x""",,\r\n',
+      '﻿line,email,outcome,status,message,vehicles_added,vehicles_skipped,sms\r\n2,"a@example.test",failed,409,"או״ק ""x""",,,\r\n',
     )
   })
 })
@@ -280,5 +280,23 @@ describe('buildVehicles shared cars', () => {
     expect(errors).toHaveLength(2)
     expect(errors[0]).toContain('אותו רכב אצל שני אנשים')
     expect(errors[1]).toContain('רכב כפול לאותו אדם')
+  })
+})
+
+describe('runInvites SMS status', () => {
+  const invites = twoInvites()
+  it('records the SMS result and stops on the first SMS failure', async () => {
+    const invoke = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id', sms: 'failed' } }))
+    const results = await runInvites({ invites, invoke, delayMs: 0, sleep: async () => {} })
+    expect(results).toHaveLength(1)
+    expect(results[0]).toMatchObject({ outcome: 'stopped', sms: 'failed' })
+    expect(results[0].message).toContain('SMS נכשל')
+  })
+  it('goes on when SMS is sent, or when told to ignore SMS failures', async () => {
+    const sent = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id', sms: 'sent' } }))
+    expect((await runInvites({ invites, invoke: sent, delayMs: 0, sleep: async () => {} })).map((r) => r.outcome)).toEqual(['invited', 'invited'])
+    const failed = vi.fn(async () => ({ status: 200, body: { ok: true, user_id: 'id', sms: 'failed' } }))
+    const r = await runInvites({ invites, invoke: failed, delayMs: 0, sleep: async () => {}, stopOnSmsFailure: false })
+    expect(r.map((x) => x.outcome)).toEqual(['invited', 'invited'])
   })
 })
