@@ -144,15 +144,14 @@ refresh_profile_lifetime_stats.
 
 ## Deploy order (needs Omri's OK)
 
-1. Apply the migration `20261029120000_app_review_demo_isolation.sql` to
-   `yahpaz-2026`. It must land before step 2: the changed functions select
-   `profiles.is_app_review_demo`, and without the column broadcasts and fill emails fail.
-2. Deploy the edge functions `unit-broadcast` and `responder-fill` (keep their current
-   flags; `responder-fill` is deployed with `--no-verify-jwt`).
-3. Deploy the site (privacy policy and `/support`).
-4. Run `create-app-review-demo.mjs --target production --confirm-production` with
+1. Merge into `infra/bootstrap` and push. The Deploy Edge Functions workflow applies
+   the migration last in its list (it is re-runnable, and running last restores the
+   same-day trigger body that `20260929082322` replaces on every run), then deploys the
+   functions, so the column exists before `unit-broadcast` and `responder-fill` select it.
+2. Netlify Git CD publishes the site (privacy policy and `/support`).
+3. Run `create-app-review-demo.mjs --target production --confirm-production` with
    `APP_REVIEW_DEMO_ALLOW=1`, then copy the email and password into App Store Connect.
-5. After review: `remove-app-review-demo.mjs`.
+4. After review: `remove-app-review-demo.mjs`.
 
 Rollback: run `remove-app-review-demo.mjs` first, then
 `scripts/app-review-demo/rollback-20261029120000.sql` (it refuses while demo rows exist).

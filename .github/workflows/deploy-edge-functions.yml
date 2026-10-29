@@ -21,6 +21,7 @@ on:
       - "supabase/migrations/20261007120000_fill_token_stretch_remaining.sql"
       - "supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql"
       - "supabase/migrations/20261015130000_skip_auto_secondary_on_participation_status.sql"
+      - "supabase/migrations/20261029120000_app_review_demo_isolation.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -79,6 +80,11 @@ jobs:
             -f supabase/migrations/20261015100000_count_events_missing_lead_km_skip_cockpit.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261015130000_skip_auto_secondary_on_participation_status.sql
+          # Keep last: 20260929082322 above replaces events_reject_same_day_police_event_id
+          # and this file restores its demo-aware body. Must land before unit-broadcast
+          # and responder-fill, which select profiles.is_app_review_demo.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261029120000_app_review_demo_isolation.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

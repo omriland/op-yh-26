@@ -18,17 +18,20 @@
 --      stays responder-only and has no phone (so no SMS path can reach it).
 --   4. SECURITY DEFINER RPCs that bypass RLS and could leak or write real data
 --      are patched below. docs/app-review-demo.md lists every RPC and policy.
+--
+-- Re-runnable: the Deploy Edge Functions workflow applies it on every run, last,
+-- after 20260929082322 (which replaces events_reject_same_day_police_event_id).
 
 alter table public.profiles
-  add column is_app_review_demo boolean not null default false;
+  add column if not exists is_app_review_demo boolean not null default false;
 alter table public.events
-  add column is_demo boolean not null default false;
+  add column if not exists is_demo boolean not null default false;
 alter table public.shifts
-  add column is_demo boolean not null default false;
+  add column if not exists is_demo boolean not null default false;
 
-create index profiles_app_review_demo_idx on public.profiles (id) where is_app_review_demo;
-create index events_is_demo_idx on public.events (id) where is_demo;
-create index shifts_is_demo_idx on public.shifts (id) where is_demo;
+create index if not exists profiles_app_review_demo_idx on public.profiles (id) where is_app_review_demo;
+create index if not exists events_is_demo_idx on public.events (id) where is_demo;
+create index if not exists shifts_is_demo_idx on public.shifts (id) where is_demo;
 
 -- ---------------------------------------------------------------------------
 -- Helpers. SECURITY DEFINER so policies can call them without RLS recursion.
@@ -109,22 +112,26 @@ grant execute on function public.app_review_demo_assignment_ids() to authenticat
 --    real rows only. service_role bypasses RLS (provisioning and cleanup).
 -- ---------------------------------------------------------------------------
 
+drop policy if exists profiles_app_review_demo_scope on public.profiles;
 create policy profiles_app_review_demo_scope on public.profiles
   as restrictive for all to authenticated
   using (is_app_review_demo = (select public.is_app_review_demo_caller()))
   with check (is_app_review_demo = (select public.is_app_review_demo_caller()));
 
+drop policy if exists events_app_review_demo_scope on public.events;
 create policy events_app_review_demo_scope on public.events
   as restrictive for all to authenticated
   using (is_demo = (select public.is_app_review_demo_caller()))
   with check (is_demo = (select public.is_app_review_demo_caller()));
 
+drop policy if exists shifts_app_review_demo_scope on public.shifts;
 create policy shifts_app_review_demo_scope on public.shifts
   as restrictive for all to authenticated
   using (is_demo = (select public.is_app_review_demo_caller()))
   with check (is_demo = (select public.is_app_review_demo_caller()));
 
 -- Event children keyed by event_id.
+drop policy if exists event_responders_app_review_demo_scope on public.event_responders;
 create policy event_responders_app_review_demo_scope on public.event_responders
   as restrictive for all to authenticated
   using (
@@ -136,6 +143,7 @@ create policy event_responders_app_review_demo_scope on public.event_responders
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists event_media_app_review_demo_scope on public.event_media;
 create policy event_media_app_review_demo_scope on public.event_media
   as restrictive for all to authenticated
   using (
@@ -147,6 +155,7 @@ create policy event_media_app_review_demo_scope on public.event_media
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists event_secondary_leads_app_review_demo_scope on public.event_secondary_leads;
 create policy event_secondary_leads_app_review_demo_scope on public.event_secondary_leads
   as restrictive for all to authenticated
   using (
@@ -158,6 +167,7 @@ create policy event_secondary_leads_app_review_demo_scope on public.event_second
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists event_audit_app_review_demo_scope on public.event_audit;
 create policy event_audit_app_review_demo_scope on public.event_audit
   as restrictive for all to authenticated
   using (
@@ -169,6 +179,7 @@ create policy event_audit_app_review_demo_scope on public.event_audit
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists my_active_event_prefs_app_review_demo_scope on public.my_active_event_prefs;
 create policy my_active_event_prefs_app_review_demo_scope on public.my_active_event_prefs
   as restrictive for all to authenticated
   using (
@@ -181,6 +192,7 @@ create policy my_active_event_prefs_app_review_demo_scope on public.my_active_ev
   );
 
 -- Event children keyed by event_id or by assignment.
+drop policy if exists event_treated_plates_app_review_demo_scope on public.event_treated_plates;
 create policy event_treated_plates_app_review_demo_scope on public.event_treated_plates
   as restrictive for all to authenticated
   using (
@@ -198,6 +210,7 @@ create policy event_treated_plates_app_review_demo_scope on public.event_treated
     ) = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists event_treated_vehicles_app_review_demo_scope on public.event_treated_vehicles;
 create policy event_treated_vehicles_app_review_demo_scope on public.event_treated_vehicles
   as restrictive for all to authenticated
   using (
@@ -215,6 +228,7 @@ create policy event_treated_vehicles_app_review_demo_scope on public.event_treat
     ) = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists event_responder_live_locations_app_review_demo_scope on public.event_responder_live_locations;
 create policy event_responder_live_locations_app_review_demo_scope
   on public.event_responder_live_locations
   as restrictive for all to authenticated
@@ -228,6 +242,7 @@ create policy event_responder_live_locations_app_review_demo_scope
   );
 
 -- Shift children.
+drop policy if exists shift_responders_app_review_demo_scope on public.shift_responders;
 create policy shift_responders_app_review_demo_scope on public.shift_responders
   as restrictive for all to authenticated
   using (
@@ -239,6 +254,7 @@ create policy shift_responders_app_review_demo_scope on public.shift_responders
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists shift_events_app_review_demo_scope on public.shift_events;
 create policy shift_events_app_review_demo_scope on public.shift_events
   as restrictive for all to authenticated
   using (
@@ -250,6 +266,7 @@ create policy shift_events_app_review_demo_scope on public.shift_events
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists shift_event_type_counts_app_review_demo_scope on public.shift_event_type_counts;
 create policy shift_event_type_counts_app_review_demo_scope on public.shift_event_type_counts
   as restrictive for all to authenticated
   using (
@@ -261,6 +278,7 @@ create policy shift_event_type_counts_app_review_demo_scope on public.shift_even
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists shift_treated_vehicle_counts_app_review_demo_scope on public.shift_treated_vehicle_counts;
 create policy shift_treated_vehicle_counts_app_review_demo_scope
   on public.shift_treated_vehicle_counts
   as restrictive for all to authenticated
@@ -274,6 +292,7 @@ create policy shift_treated_vehicle_counts_app_review_demo_scope
   );
 
 -- Per-member tables keyed by user_id.
+drop policy if exists vehicles_app_review_demo_scope on public.vehicles;
 create policy vehicles_app_review_demo_scope on public.vehicles
   as restrictive for all to authenticated
   using (
@@ -285,6 +304,7 @@ create policy vehicles_app_review_demo_scope on public.vehicles
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists user_addresses_app_review_demo_scope on public.user_addresses;
 create policy user_addresses_app_review_demo_scope on public.user_addresses
   as restrictive for all to authenticated
   using (
@@ -296,6 +316,7 @@ create policy user_addresses_app_review_demo_scope on public.user_addresses
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists user_roles_app_review_demo_scope on public.user_roles;
 create policy user_roles_app_review_demo_scope on public.user_roles
   as restrictive for all to authenticated
   using (
@@ -307,6 +328,7 @@ create policy user_roles_app_review_demo_scope on public.user_roles
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists user_feedback_app_review_demo_scope on public.user_feedback;
 create policy user_feedback_app_review_demo_scope on public.user_feedback
   as restrictive for all to authenticated
   using (
@@ -318,6 +340,7 @@ create policy user_feedback_app_review_demo_scope on public.user_feedback
       = (select public.is_app_review_demo_caller())
   );
 
+drop policy if exists ios_devices_app_review_demo_scope on public.ios_devices;
 create policy ios_devices_app_review_demo_scope on public.ios_devices
   as restrictive for all to authenticated
   using (
@@ -331,12 +354,14 @@ create policy ios_devices_app_review_demo_scope on public.ios_devices
 
 -- A demo account never holds a push token, so no broadcast reaches the
 -- reviewer's phone.
+drop policy if exists device_tokens_app_review_demo_scope on public.device_tokens;
 create policy device_tokens_app_review_demo_scope on public.device_tokens
   as restrictive for all to authenticated
   using (not (select public.is_app_review_demo_caller()))
   with check (not (select public.is_app_review_demo_caller()));
 
 -- Storage: event photos live under <event_id>/, feedback files under <user_id>/.
+drop policy if exists storage_app_review_demo_scope on storage.objects;
 create policy storage_app_review_demo_scope on storage.objects
   as restrictive for all to authenticated
   using (
@@ -412,21 +437,27 @@ begin
 end;
 $$;
 
+drop trigger if exists events_app_review_demo_link on public.events;
 create trigger events_app_review_demo_link
   before insert or update on public.events
   for each row execute function public.guard_app_review_demo_link();
+drop trigger if exists shifts_app_review_demo_link on public.shifts;
 create trigger shifts_app_review_demo_link
   before insert or update on public.shifts
   for each row execute function public.guard_app_review_demo_link();
+drop trigger if exists event_responders_app_review_demo_link on public.event_responders;
 create trigger event_responders_app_review_demo_link
   before insert or update on public.event_responders
   for each row execute function public.guard_app_review_demo_link();
+drop trigger if exists event_secondary_leads_app_review_demo_link on public.event_secondary_leads;
 create trigger event_secondary_leads_app_review_demo_link
   before insert or update on public.event_secondary_leads
   for each row execute function public.guard_app_review_demo_link();
+drop trigger if exists shift_responders_app_review_demo_link on public.shift_responders;
 create trigger shift_responders_app_review_demo_link
   before insert or update on public.shift_responders
   for each row execute function public.guard_app_review_demo_link();
+drop trigger if exists shift_events_app_review_demo_link on public.shift_events;
 create trigger shift_events_app_review_demo_link
   before insert or update on public.shift_events
   for each row execute function public.guard_app_review_demo_link();
@@ -464,6 +495,7 @@ begin
 end;
 $$;
 
+drop trigger if exists profiles_guard_app_review_demo on public.profiles;
 create trigger profiles_guard_app_review_demo
   before update on public.profiles
   for each row execute function public.guard_app_review_demo_profile();
@@ -481,6 +513,7 @@ begin
 end;
 $$;
 
+drop trigger if exists user_roles_guard_app_review_demo on public.user_roles;
 create trigger user_roles_guard_app_review_demo
   before insert or update on public.user_roles
   for each row execute function public.guard_app_review_demo_role();
@@ -500,9 +533,11 @@ begin
 end;
 $$;
 
+drop trigger if exists oauth_authorization_codes_guard_app_review_demo on public.oauth_authorization_codes;
 create trigger oauth_authorization_codes_guard_app_review_demo
   before insert or update on public.oauth_authorization_codes
   for each row execute function public.guard_app_review_demo_oauth();
+drop trigger if exists oauth_access_tokens_guard_app_review_demo on public.oauth_access_tokens;
 create trigger oauth_access_tokens_guard_app_review_demo
   before insert or update on public.oauth_access_tokens
   for each row execute function public.guard_app_review_demo_oauth();
