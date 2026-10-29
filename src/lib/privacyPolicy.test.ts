@@ -36,6 +36,15 @@ describe('PRIVACY_POLICY', () => {
     expect(text).not.toMatch(/בגד|חולצה|נשק|רישיון נשק/)
   })
 
+  it('covers what the mobile apps collect: media, voice notes, push token, app version', () => {
+    const text = privacyPolicyPlainText()
+    expect(text).toMatch(/תמונות וסרטונים קצרים/)
+    expect(text).toMatch(/הקלטות קול/)
+    expect(text).toMatch(/אסימון התראות/)
+    expect(text).toMatch(/גרסת האפליקציה/)
+    expect(text).toMatch(/מי נדרש עדכון/)
+  })
+
   it('describes first-tier providers and unnamed cyber monitoring', () => {
     const text = privacyPolicyPlainText()
     expect(text).toMatch(/ספקי שירות מהשורה הראשונה/)
