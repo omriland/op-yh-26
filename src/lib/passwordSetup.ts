@@ -99,6 +99,15 @@ export function markPasswordSetupRequired(reason: PasswordSetupReason): void {
   sessionStorage.setItem(STORAGE_KEY, reason)
 }
 
+/**
+ * The server may redeem an invite with a recovery-type token, and supabase-js
+ * then reports PASSWORD_RECOVERY. That is still an invite: switching the
+ * reason would remount the setup screen mid-redeem.
+ */
+export function reasonForRecoveryEvent(current: PasswordSetupReason | null): PasswordSetupReason {
+  return current === 'invite' ? 'invite' : 'recovery'
+}
+
 export function clearPasswordSetupIntent(): void {
   sessionStorage.removeItem(STORAGE_KEY)
   clearStashedAuthToken()

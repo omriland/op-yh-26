@@ -4,15 +4,21 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { redeemStashedAuthToken, stashAuthTokenFromUrl } from './consumeAuthToken'
+import {
+  isInviteRedeemInFlight,
+  redeemStashedAuthToken,
+  stashAuthTokenFromUrl,
+} from './consumeAuthToken'
 import {
   clearPasswordSetupIntent,
   getPasswordSetupReason,
   markPasswordSetupRequired,
+  reasonForRecoveryEvent,
   stripPasswordSetupFromUrl,
   type PasswordSetupReason,
 } from './passwordSetup'
@@ -24,7 +30,7 @@ import {
   readRolePreviewStash,
 } from './rolePreviewStash'
 import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
-import { identifyPosthogUser, resetPosthogUser } from './posthog'
+import { captureEvent, identifyPosthogUser, resetPosthogUser } from './posthog'
 import { passwordStrengthError } from './passwordRules'
 import {
   ensureRememberSessionUntil,
@@ -124,6 +130,21 @@ function resolvePasswordSetupReason(
   return fromStorage
 }
 
+const SESSION_LOST_DURING_SETUP =
+  'ההתחברות נותקה לפני בחירת הסיסמה. לחצו שוב על "המשך להגדרת סיסמה".'
+
+/** Device class for invite diagnostics. No personal data. */
+function clientHints() {
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
+  return {
+    android: /Android/i.test(ua),
+    ios: /iPhone|iPad|iPod/i.test(ua),
+    mobile: /Mobile/i.test(ua),
+    webview: /; wv\)/.test(ua),
+    in_app: /GSA\/|FBAN|FBAV|Instagram|WhatsApp/i.test(ua),
+  }
+}
+
 type ApplySessionResult =
   | { kind: 'signed_out' }
   | {
@@ -151,8 +172,8 @@ async function prepareSession(
 
   let reason: PasswordSetupReason | null
   if (event === 'PASSWORD_RECOVERY') {
-    markPasswordSetupRequired('recovery')
-    reason = 'recovery'
+    reason = reasonForRecoveryEvent(getPasswordSetupReason())
+    markPasswordSetupRequired(reason)
   } else {
     reason = resolvePasswordSetupReason(loaded.profile)
   }
@@ -175,6 +196,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => getPasswordSetupReason(),
   )
   const [authBootstrapError, setAuthBootstrapError] = useState<string | null>(null)
+  // The auth listener is registered once; it reads the live session from here.
+  const sessionRef = useRef<Session | null>(null)
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
 
   useEffect(() => {
     let mounted = true
@@ -229,11 +255,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })()
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, next) => {
+      // redeemInviteToken adopts the verified session itself. Reading the
+      // database from here, inside verifyOtp's callback, could stall it.
+      if (isInviteRedeemInFlight()) return
+
       if (event === 'PASSWORD_RECOVERY') {
-        markPasswordSetupRequired('recovery')
+        markPasswordSetupRequired(reasonForRecoveryEvent(getPasswordSetupReason()))
       }
 
       if (!next?.user) {
+        // A session that disappears while the member is choosing a password
+        // must not silently put the "continue" button back.
+        if (sessionRef.current && getPasswordSetupReason()) {
+          console.error('[invite] session lost during password setup', { event })
+          captureEvent('invite_session_lost', { event, ...clientHints() })
+          setAuthBootstrapError(SESSION_LOST_DURING_SETUP)
+        }
         setSession(null)
         setProfile(null)
         setRoles([])
@@ -395,28 +432,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const redeemInviteToken = useCallback(async () => {
     setAuthBootstrapError(null)
     const result = await redeemStashedAuthToken()
-    if (result.error) {
+    if (result.error !== null) {
+      console.error('[invite] redeem failed', {
+        reason: result.reason,
+        otpType: result.otpType,
+        clockAheadS: result.clockAheadS,
+      })
+      captureEvent('invite_redeem_failed', {
+        reason: result.reason,
+        otp_type: result.otpType,
+        clock_ahead_s: result.clockAheadS,
+        ...clientHints(),
+      })
       setAuthBootstrapError(result.error)
       setPasswordSetupReason(getPasswordSetupReason())
-      return result
+      return { error: result.error }
     }
-    const { data } = await supabase.auth.getSession()
-    if (data.session?.user) {
-      const prepared = await prepareSession(data.session)
-      if (prepared.kind === 'signed_out') {
-        setSession(null)
-        setProfile(null)
-        setRoles([])
-        setPasswordSetupReason(null)
-        return { error: 'החשבון אינו פעיל. פנו למנהל המערכת.' }
-      }
-      setProfile(prepared.profile)
-      setRoles(prepared.roles)
-      setPasswordSetupReason(prepared.passwordSetupReason)
-      setSession(prepared.session)
-    } else {
-      setPasswordSetupReason(getPasswordSetupReason())
+    // Adopt the session verifyOtp returned. Do not read it back from storage:
+    // a session that is not there yet (or no longer) left the button silently.
+    const prepared = await prepareSession(result.session)
+    if (prepared.kind === 'signed_out') {
+      setSession(null)
+      setProfile(null)
+      setRoles([])
+      setPasswordSetupReason(null)
+      return { error: 'החשבון אינו פעיל. פנו למנהל המערכת.' }
     }
+    captureEvent('invite_redeemed', clientHints())
+    setProfile(prepared.profile)
+    setRoles(prepared.roles)
+    setPasswordSetupReason(prepared.passwordSetupReason)
+    setSession(prepared.session)
     return { error: null }
   }, [])
 
