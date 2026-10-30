@@ -73,4 +73,46 @@ describe('authStorage', () => {
     expect(local.getItem('sb')).toBeNull()
     expect(session.getItem('sb')).toBeNull()
   })
+
+  it('keeps the session in memory when the browser drops the write (in-app browsers)', () => {
+    const dropping: StorageLike = { getItem: () => null, setItem: () => {}, removeItem: () => {} }
+    const storage = createAuthStorage(
+      () => dropping,
+      () => dropping,
+      () => true,
+    )
+    storage.setItem('sb', 'token')
+    expect(storage.getItem('sb')).toBe('token')
+    storage.removeItem('sb')
+    expect(storage.getItem('sb')).toBeNull()
+  })
+
+  it('keeps the session in memory when the browser refuses the write', () => {
+    const refusing: StorageLike = {
+      getItem: () => null,
+      setItem: () => {
+        throw new DOMException('denied', 'SecurityError')
+      },
+      removeItem: () => {},
+    }
+    const storage = createAuthStorage(
+      () => refusing,
+      () => refusing,
+      () => true,
+    )
+    expect(() => storage.setItem('sb', 'token')).not.toThrow()
+    expect(storage.getItem('sb')).toBe('token')
+  })
+
+  it('prefers the real store over the memory copy', () => {
+    const local = memoryStorage()
+    const storage = createAuthStorage(
+      () => local,
+      () => null,
+      () => true,
+    )
+    storage.setItem('sb', 'token')
+    local.setItem('sb', 'refreshed-elsewhere')
+    expect(storage.getItem('sb')).toBe('refreshed-elsewhere')
+  })
 })
