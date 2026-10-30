@@ -87,8 +87,8 @@ insert into legacy.event_car_hits (cars_in_hits_index, hit_id, value) values (10
 -- Structure
 -- ---------------------------------------------------------------------------
 
-select pg_temp.ok(count(*) = 7 and bool_and(c.relrowsecurity),
-  'every legacy table has RLS on')
+select pg_temp.ok(count(*) = 8 and bool_and(c.relrowsecurity),
+  'every legacy table, the audit log included, has RLS on')
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'legacy' and c.relkind = 'r';
 select pg_temp.ok(count(*) = 0, 'no RLS policy on any legacy table (deny-all)')
@@ -164,6 +164,42 @@ select pg_temp.act_as('c0000000-0000-4000-8000-000000000003');
 select pg_temp.throws($$select * from legacy.vol_events$$, '42501',
   'admin: legacy tables are not readable directly');
 
+-- ---------------------------------------------------------------------------
+-- Audit log: one row per allowed lookup, written only by the RPC
+-- ---------------------------------------------------------------------------
+
+select pg_temp.throws($$select * from legacy.report_lookup_audit$$, '42501',
+  'admin: the audit log is not readable through the API roles');
+reset role;
+-- 5 admin + 1 super admin lookups in "Access", 3 super admin ones in "ID masking".
+select pg_temp.ok(count(*) = 9, 'every allowed lookup above wrote one audit row') from legacy.report_lookup_audit;
+select pg_temp.ok(count(*) = 0, 'refused lookups wrote nothing')
+from legacy.report_lookup_audit
+where actor_user_id not in ('c0000000-0000-4000-8000-000000000003', 'c0000000-0000-4000-8000-000000000004');
+select pg_temp.ok(count(*) = 4 and bool_and(actor_role = 'super_admin'), 'a super admin is logged as super_admin')
+from legacy.report_lookup_audit where actor_user_id = 'c0000000-0000-4000-8000-000000000004';
+select pg_temp.ok(bool_and(actor_role = 'admin'), 'an admin is logged as admin')
+from legacy.report_lookup_audit where actor_user_id = 'c0000000-0000-4000-8000-000000000003';
+
+set local role authenticated;
+select pg_temp.act_as('c0000000-0000-4000-8000-000000000003');
+select count(*) from public.legacy_report_search('callsign_date', '000', '2023-05-06');
+select count(*) from public.legacy_report_search('callsign_list', ' 000000018 ');
+reset role;
+select pg_temp.ok(a.search_kind = 'callsign_date' and a.search_value = '000' and a.search_date = '2023-05-06'
+    and a.result_count = 1 and a.result_fks = array['T-FK-2'] and a.result_event_numbers = array['9002']
+    and a.created_at is not null,
+  'the audit row records the search, the result count and the opened report')
+from legacy.report_lookup_audit a
+where a.search_kind = 'callsign_date' and a.search_date = '2023-05-06';
+select pg_temp.ok(count(*) = 1 and bool_and(search_value = ' ******018 ' and result_count = 0),
+  'an ID-number-like search value is stored masked')
+from legacy.report_lookup_audit where search_value like '%018%';
+select pg_temp.ok(count(*) = 0, 'no full ID number is stored in the audit log')
+from legacy.report_lookup_audit a where position('000000018' in a::text) > 0;
+
+set local role anon;
+select pg_temp.throws($$select * from legacy.report_lookup_audit$$, '42501', 'anon: the audit log is not readable');
 reset role;
 
 do $$

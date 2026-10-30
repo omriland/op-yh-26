@@ -104,14 +104,31 @@ create table if not exists legacy.event_types (
   event_description text                   -- EventDescription
 );
 
+-- Who looked up what. Written only by public.legacy_report_search; read from the
+-- SQL editor. Never holds a full ID number (see legacy.mask_id_like).
+create table if not exists legacy.report_lookup_audit (
+  id                   bigint generated always as identity primary key,
+  created_at           timestamptz not null default now(),
+  actor_user_id        uuid not null,
+  actor_role           text not null,            -- 'admin' | 'super_admin'
+  search_kind          text not null,            -- p_kind
+  search_value         text,                     -- p_value, ID-number-like digits masked
+  search_date          date,                     -- p_date
+  result_count         integer not null,
+  result_fks           text[] not null default '{}',
+  result_event_numbers text[] not null default '{}'
+);
+create index if not exists report_lookup_audit_created_idx on legacy.report_lookup_audit (created_at);
+
 -- Deny-all RLS (defence in depth; the definer function bypasses it as owner).
-alter table legacy.vol_events     enable row level security;
-alter table legacy.cars_in_hits   enable row level security;
-alter table legacy.event_car_hits enable row level security;
-alter table legacy.users          enable row level security;
-alter table legacy.user_details   enable row level security;
-alter table legacy.branches       enable row level security;
-alter table legacy.event_types    enable row level security;
+alter table legacy.vol_events          enable row level security;
+alter table legacy.cars_in_hits        enable row level security;
+alter table legacy.event_car_hits      enable row level security;
+alter table legacy.users               enable row level security;
+alter table legacy.user_details        enable row level security;
+alter table legacy.branches            enable row level security;
+alter table legacy.event_types         enable row level security;
+alter table legacy.report_lookup_audit enable row level security;
 
 -- ---------------------------------------------------------------------------
 -- ת.ז. as it may leave the database: the last 3 digits only (`******123`), or
@@ -198,8 +215,19 @@ as $$
   where ve.auto_id = p_auto_id;
 $$;
 
+-- Search input as it may be logged: any run of 8+ digits (an ID number) keeps
+-- only its last 3. Call signs and event numbers are shorter and stay readable.
+create or replace function legacy.mask_id_like(p_value text)
+returns text
+language sql
+immutable
+as $$
+  select regexp_replace(p_value, '[0-9]{5,}([0-9]{3})', '******\1', 'g');
+$$;
+
 -- ---------------------------------------------------------------------------
--- Public lookup RPC (admin-gated). Returns 0..N reports as jsonb rows.
+-- Public lookup RPC (admin-gated). Returns 0..N reports as jsonb rows and logs
+-- each allowed lookup in legacy.report_lookup_audit.
 --   p_kind: 'id' | 'report' | 'callsign_date' | 'callsign_list'
 --   p_value: the id / event number / call sign
 --   p_date: only for 'callsign_date' (the event date)
@@ -214,13 +242,22 @@ language plpgsql
 security definer
 set search_path = public, legacy
 as $$
+declare
+  v_uid     uuid := auth.uid();
+  v_role    text;
+  v_reports jsonb[];
 begin
-  if not (public.has_role(auth.uid(), 'admin') or public.has_role(auth.uid(), 'super_admin')) then
+  if public.has_role(v_uid, 'super_admin') then
+    v_role := 'super_admin';
+  elsif public.has_role(v_uid, 'admin') then
+    v_role := 'admin';
+  else
     raise exception 'not authorized to read the legacy event archive' using errcode = '42501';
   end if;
 
-  return query
-  with matches as (
+  select coalesce(array_agg(legacy.build_report(m.auto_id) order by m.event_date nulls last), '{}')
+  into v_reports
+  from (
     select ve.auto_id, ve.event_date
     from legacy.vol_events ve
     where case p_kind
@@ -230,10 +267,18 @@ begin
       when 'callsign_list' then btrim(ve.call_sign) = btrim(p_value)
       else false
     end
-  )
-  select legacy.build_report(m.auto_id)
-  from matches m
-  order by m.event_date nulls last;
+  ) m;
+
+  insert into legacy.report_lookup_audit
+    (actor_user_id, actor_role, search_kind, search_value, search_date,
+     result_count, result_fks, result_event_numbers)
+  values
+    (v_uid, v_role, p_kind, legacy.mask_id_like(p_value), p_date,
+     cardinality(v_reports),
+     array(select r ->> 'fk' from unnest(v_reports) with ordinality t(r, n) order by n),
+     array(select r ->> 'eventNumber' from unnest(v_reports) with ordinality t(r, n) order by n));
+
+  return query select t.r from unnest(v_reports) with ordinality t(r, n) order by t.n;
 end;
 $$;
 
@@ -246,3 +291,5 @@ grant execute on function public.legacy_report_search(text, text, date) to authe
 revoke all on schema legacy from public, anon, authenticated;
 revoke all on function legacy.build_report(integer) from public, anon, authenticated;
 revoke all on function legacy.mask_pid(text) from public, anon, authenticated;
+revoke all on function legacy.mask_id_like(text) from public, anon, authenticated;
+revoke all on table legacy.report_lookup_audit from public, anon, authenticated;
