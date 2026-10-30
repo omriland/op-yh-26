@@ -21,3 +21,12 @@ export function visibleReportKinds<T extends { audience: ReportAudience }>(
 export function canOpenReports(roles: readonly AppRole[]): boolean {
   return reportsNavPlacement(roles) !== 'none'
 }
+
+/**
+ * Who may see the legacy event-report archive. The archived reports carry
+ * volunteers' personal data (ת.ז.), so this is restricted to admins and
+ * super-admins. Change the policy here only.
+ */
+export function canViewLegacyEventArchive(roles: readonly AppRole[]): boolean {
+  return roles.includes('admin') || roles.includes('super_admin')
+}

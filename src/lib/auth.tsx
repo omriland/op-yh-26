@@ -58,7 +58,7 @@ export type Profile = {
   lifetime_stats_updated_at: string | null
 }
 
-type AuthState = {
+export type AuthState = {
   session: Session | null
   user: User | null
   profile: Profile | null
@@ -79,7 +79,7 @@ type AuthState = {
   signOut: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthState | null>(null)
+export const AuthContext = createContext<AuthState | null>(null)
 
 async function loadProfileAndRoles(userId: string) {
   const [{ data: profile }, { data: roleRows }] = await Promise.all([
