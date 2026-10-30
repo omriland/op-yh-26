@@ -6,7 +6,7 @@ import {
   runWithCors,
 } from "../_shared/cors.ts";
 import { deliverInvite } from "../_shared/inviteDelivery.ts";
-import { inviteExpiresAt, isInviteExpired } from "../_shared/inviteTtl.ts";
+import { inviteExpiresAt, isInviteExpired, reusableInviteToken } from "../_shared/inviteTtl.ts";
 
 type AppRole = "admin" | "shift_lead" | "responder";
 
@@ -914,7 +914,7 @@ async function handlePrepareInviteLink(
 
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
-    .select("full_name, callsign, phone, active, invite_pending")
+    .select("full_name, callsign, phone, active, invite_pending, invite_token, invite_token_expires_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -931,6 +931,26 @@ async function handlePrepareInviteLink(
   }
 
   const redirectBase = Deno.env.get("INVITE_REDIRECT_TO") ?? "https://yahpz.com/";
+
+  // Copying hands out the member's current link: a fresh token here would
+  // silently kill the link already in their email (or an earlier copy).
+  const invite = profile as { invite_token?: unknown; invite_token_expires_at?: unknown };
+  const currentToken = !sendEmail
+    ? reusableInviteToken({
+      token: typeof invite.invite_token === "string" ? invite.invite_token : null,
+      expiresAt: typeof invite.invite_token_expires_at === "string"
+        ? invite.invite_token_expires_at
+        : null,
+    })
+    : null;
+  if (currentToken) {
+    return json(200, {
+      ok: true,
+      action_link: buildDurableInviteLink(currentToken, redirectBase),
+      message: "קישור ההזמנה הועתק.",
+    });
+  }
+
   const fullName = trim(profile.full_name) || email;
   const { inviteToken, expiresAt } = newInviteTokenRow();
   const actionLink = buildDurableInviteLink(inviteToken, redirectBase);
