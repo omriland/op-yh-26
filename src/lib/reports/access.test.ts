@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reportsNavPlacement, visibleReportKinds } from './access'
+import { canViewLegacyEventArchive, reportsNavPlacement, visibleReportKinds } from './access'
 import type { ReportKind } from './types'
 
 const kinds: Pick<ReportKind, 'id' | 'audience'>[] = [
@@ -44,5 +44,19 @@ describe('visibleReportKinds', () => {
 
   it('shows none to responder', () => {
     expect(visibleReportKinds(kinds, ['responder'])).toEqual([])
+  })
+})
+
+describe('canViewLegacyEventArchive', () => {
+  it('shows the archive to admins and super-admins', () => {
+    expect(canViewLegacyEventArchive(['admin'])).toBe(true)
+    expect(canViewLegacyEventArchive(['super_admin'])).toBe(true)
+    expect(canViewLegacyEventArchive(['admin', 'shift_lead'])).toBe(true)
+  })
+
+  it('hides the archive from shift leads and responders (PID in the data)', () => {
+    expect(canViewLegacyEventArchive(['shift_lead'])).toBe(false)
+    expect(canViewLegacyEventArchive(['responder'])).toBe(false)
+    expect(canViewLegacyEventArchive([])).toBe(false)
   })
 })

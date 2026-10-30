@@ -4,8 +4,9 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
 import { ReportCatalogCard } from '../components/reports/ReportCatalogCard'
 import { ReportRunner } from '../components/reports/ReportRunner'
+import { LegacyReportArchive } from '../components/reports/LegacyReportArchive'
 import { useAuth } from '../lib/auth'
-import { visibleReportKinds } from '../lib/reports/access'
+import { canViewLegacyEventArchive, visibleReportKinds } from '../lib/reports/access'
 import { filterReportCatalog } from '../lib/reports/librarySearch'
 import { REPORT_KINDS, reportKindById } from '../lib/reports/registry'
 
@@ -17,12 +18,14 @@ type ReportsPageProps = {
 export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
   const { roles, profile, user } = useAuth()
   const [reportId, setReportId] = useState<string | null>(null)
+  const [showLegacy, setShowLegacy] = useState(false)
   const [query, setQuery] = useState('')
   const kinds = visibleReportKinds(REPORT_KINDS, roles)
   const kind = reportId ? reportKindById(reportId) : undefined
   const allowed = Boolean(kind && kinds.some((item) => item.id === kind.id))
   const filtered = useMemo(() => filterReportCatalog(kinds, query), [kinds, query])
   const isAdmin = roles.includes('admin')
+  const canLegacy = canViewLegacyEventArchive(roles)
   const viewer = useMemo(
     () => ({
       userId: profile?.id ?? user?.id ?? '',
@@ -42,6 +45,10 @@ export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
         onOpenEvent={onOpenEvent}
       />
     )
+  }
+
+  if (showLegacy && canLegacy) {
+    return <LegacyReportArchive onBack={() => setShowLegacy(false)} />
   }
 
   return (
@@ -72,7 +79,7 @@ export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
             </label>
           </div>
 
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && !canLegacy ? (
             <EmptyState
               icon={<Search size={40} strokeWidth={1.75} aria-hidden="true" />}
               title="לא נמצאו דוחות תואמים"
@@ -95,6 +102,17 @@ export function ReportsPage({ asTable, onOpenEvent }: ReportsPageProps) {
                   />
                 </li>
               ))}
+              {canLegacy && (
+                <li>
+                  <ReportCatalogCard
+                    id="legacy_event_archive"
+                    title="ארכיון דוחות אירוע"
+                    includes="שחזור דוח אירוע מהמערכת הישנה (מתוך גיבוי הנתונים)"
+                    index={filtered.length}
+                    onOpen={() => setShowLegacy(true)}
+                  />
+                </li>
+              )}
             </ul>
           )}
         </>
