@@ -10,6 +10,7 @@ import {
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
 import {
+  hasRedeemableInvite,
   isInviteRedeemInFlight,
   redeemStashedAuthToken,
   stashAuthTokenFromUrl,
@@ -17,8 +18,10 @@ import {
 import {
   clearPasswordSetupIntent,
   getPasswordSetupReason,
+  inviteLinkForOtherAccount,
   markPasswordSetupRequired,
   reasonForRecoveryEvent,
+  stripInviteLinkFromUrl,
   stripPasswordSetupFromUrl,
   type PasswordSetupReason,
 } from './passwordSetup'
@@ -56,6 +59,8 @@ export type Profile = {
   lifetime_event_count: number
   lifetime_km: number
   lifetime_stats_updated_at: string | null
+  /** Still registering (invite not finished). Read with the own profile. */
+  invite_pending?: boolean
 }
 
 type AuthState = {
@@ -76,6 +81,15 @@ type AuthState = {
   redeemInviteToken: () => Promise<{ error: string | null }>
   /** Leave the set-password gate after the success confirmation. */
   acknowledgePasswordSetup: () => void
+  /**
+   * Name of the registered account this browser is signed in to when an
+   * invite link was opened here (it is someone else's invite). Null otherwise.
+   */
+  inviteLinkSignedInAs: string | null
+  /** Sign out here only, keep the invite, and continue as the new member. */
+  continueInviteAsNewUser: () => Promise<void>
+  /** Drop the invite link and go back to the app as the signed-in account. */
+  leaveInviteLink: () => void
   signOut: () => Promise<void>
 }
 
@@ -86,7 +100,7 @@ async function loadProfileAndRoles(userId: string) {
     supabase
       .from('profiles')
       .select(
-        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled, availability, available_from, lifetime_event_count, lifetime_km, lifetime_stats_updated_at',
+        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled, availability, available_from, lifetime_event_count, lifetime_km, lifetime_stats_updated_at, invite_pending',
       )
       .eq('id', userId)
       .maybeSingle(),
@@ -111,6 +125,8 @@ async function loadProfileAndRoles(userId: string) {
             typeof row.lifetime_stats_updated_at === 'string'
               ? row.lifetime_stats_updated_at
               : null,
+          invite_pending:
+            typeof row.invite_pending === 'boolean' ? row.invite_pending : undefined,
         }
       : null,
     roles: (roleRows ?? []).map((r) => r.role as AppRole),
@@ -472,6 +488,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPasswordSetupReason(null)
   }, [])
 
+  const inviteLinkSignedInAs = inviteLinkForOtherAccount({
+    reason: passwordSetupReason,
+    signedIn: Boolean(session),
+    invitePending: profile?.invite_pending,
+    hasInviteLink: hasRedeemableInvite(),
+  })
+    ? profile?.full_name?.trim() || profile?.email || ''
+    : null
+
+  const continueInviteAsNewUser = useCallback(async () => {
+    // Intentional: not a "session lost during setup". This browser only; the
+    // account's other devices stay signed in. The invite stays stashed.
+    sessionRef.current = null
+    setAuthBootstrapError(null)
+    await supabase.auth.signOut({ scope: 'local' })
+    setSession(null)
+    setProfile(null)
+    setRoles([])
+  }, [])
+
+  const leaveInviteLink = useCallback(() => {
+    clearPasswordSetupIntent()
+    stripInviteLinkFromUrl()
+    setPasswordSetupReason(null)
+  }, [])
+
   const signOut = useCallback(async () => {
     clearImpersonationStash()
     clearRolePreviewStash()
@@ -504,6 +546,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatePassword,
       redeemInviteToken,
       acknowledgePasswordSetup,
+      inviteLinkSignedInAs,
+      continueInviteAsNewUser,
+      leaveInviteLink,
       signOut,
     }),
     [
@@ -519,6 +564,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatePassword,
       redeemInviteToken,
       acknowledgePasswordSetup,
+      inviteLinkSignedInAs,
+      continueInviteAsNewUser,
+      leaveInviteLink,
       signOut,
     ],
   )

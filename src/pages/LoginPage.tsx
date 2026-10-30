@@ -45,6 +45,9 @@ export function LoginPage({
     updatePassword,
     redeemInviteToken,
     acknowledgePasswordSetup,
+    inviteLinkSignedInAs,
+    continueInviteAsNewUser,
+    leaveInviteLink,
     passwordSetupReason,
     authBootstrapError,
     session,
@@ -345,7 +348,15 @@ export function LoginPage({
             </div>
           ) : null}
 
-          {mode === 'set-password' ? (
+          {mode === 'set-password' && inviteLinkSignedInAs !== null ? (
+            <InviteForOtherAccount
+              signedInAs={inviteLinkSignedInAs}
+              onContinue={continueInviteAsNewUser}
+              onLeave={leaveInviteLink}
+            />
+          ) : null}
+
+          {mode === 'set-password' && inviteLinkSignedInAs === null ? (
             <form
               className="login__form login__form--setup"
               onSubmit={onSetPassword}
@@ -500,6 +511,59 @@ function FormError({ message }: { message: string | null }) {
       <AlertCircle size={20} strokeWidth={1.75} aria-hidden="true" />
       {message}
     </p>
+  )
+}
+
+/** Someone's invite link opened in a browser signed in to another account. */
+function InviteForOtherAccount({
+  signedInAs,
+  onContinue,
+  onLeave,
+}: {
+  signedInAs: string
+  onContinue: () => Promise<void>
+  onLeave: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const who = signedInAs || 'חשבון אחר'
+  return (
+    <div className="login__form login__form--setup">
+      <div className="login-setup__intro">
+        <div className="login-setup__title-row">
+          <span className="login-setup__icon" aria-hidden="true">
+            <AlertCircle size={22} strokeWidth={1.75} />
+          </span>
+          <h2 className="t-section">הקישור מיועד למשתמש חדש</h2>
+        </div>
+        <p className="t-body text-secondary">
+          פתחתם קישור להשלמת הרשמה, אבל הדפדפן מחובר כ־{who}. בחירת סיסמה כאן הייתה משנה
+          את הסיסמה של {who}, ולא של המשתמש החדש.
+        </p>
+        <p className="t-body text-secondary">
+          אם הקישור מיועד למישהו אחר, פשוט שלחו לו אותו. כדי להשלים את ההרשמה מהדפדפן הזה,
+          התנתקו קודם.
+        </p>
+      </div>
+      <div className="login__actions">
+        <Button
+          type="button"
+          block
+          loading={busy}
+          loadingLabel="מתנתקים…"
+          onClick={() => {
+            setBusy(true)
+            void onContinue().finally(() => setBusy(false))
+          }}
+        >
+          התנתקות והמשך להרשמה
+        </Button>
+        <div className="login__links">
+          <Button variant="ghost" onClick={onLeave}>
+            חזרה למערכת
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
