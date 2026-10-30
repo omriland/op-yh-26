@@ -241,7 +241,10 @@ export function resendAdminInvite(userId: string) {
   })
 }
 
-/** Regenerate invite link and return it for clipboard copy (no email). */
+/**
+ * The member's current invite link for clipboard copy (no email). The same
+ * link as their email while it is valid; a new one only if it expired.
+ */
 export function copyAdminInviteLink(userId: string) {
   return callAdminUsers({
     action: 'copy_invite_link',

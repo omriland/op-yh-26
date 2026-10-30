@@ -3,6 +3,7 @@ import {
   INVITE_TTL_MS,
   inviteExpiresAt,
   isInviteExpired,
+  reusableInviteToken,
 } from '../../supabase/functions/_shared/inviteTtl'
 
 const HOUR = 60 * 60 * 1000
@@ -25,5 +26,20 @@ describe('invite TTL', () => {
     expect(isInviteExpired(expiresAt, issuedAt + ttl - 1)).toBe(false)
     expect(isInviteExpired(expiresAt, issuedAt + ttl)).toBe(false)
     expect(isInviteExpired(expiresAt, issuedAt + ttl + 1)).toBe(true)
+  })
+})
+
+describe('reusableInviteToken (copy invite link)', () => {
+  const now = Date.parse('2026-10-30T15:00:00.000Z')
+  const token = '11111111-2222-4333-8444-555555555555'
+
+  it('reuses the member’s current token while it is valid, so the emailed link keeps working', () => {
+    expect(reusableInviteToken({ token, expiresAt: inviteExpiresAt(now - HOUR) }, now)).toBe(token)
+  })
+
+  it('returns null when there is no token or it has expired, so a fresh one is minted', () => {
+    expect(reusableInviteToken({ token: null, expiresAt: inviteExpiresAt(now) }, now)).toBeNull()
+    expect(reusableInviteToken({ token, expiresAt: new Date(now - 1).toISOString() }, now)).toBeNull()
+    expect(reusableInviteToken({ token: '  ', expiresAt: inviteExpiresAt(now) }, now)).toBeNull()
   })
 })

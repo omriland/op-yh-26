@@ -127,6 +127,15 @@ describe('admin-users invite wiring', () => {
     expect(prepare.indexOf('invite_token: inviteToken')).toBeLessThan(prepare.indexOf('if (sendEmail)'))
   })
 
+  it('copy link reuses the current valid token; resend still issues a new one', () => {
+    const prepare = between(adminUsersSource(), 'async function handlePrepareInviteLink', 'function inviteDeliveryEnv')
+    const reuse = prepare.indexOf('reusableInviteToken(')
+    const mint = prepare.indexOf('newInviteTokenRow()')
+    expect(reuse).toBeGreaterThan(-1)
+    expect(reuse).toBeLessThan(mint)
+    expect(prepare.slice(reuse - 200, reuse)).toContain('!sendEmail')
+  })
+
   it('set_password sends nothing', () => {
     const setPassword = between(adminUsersSource(), 'async function handleSetPassword', 'async function handleSetEmail')
     expect(setPassword).not.toMatch(/deliverInvite|sendInviteEmail|sendInviteSms/)
