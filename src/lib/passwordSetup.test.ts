@@ -3,12 +3,14 @@ import {
   capturePasswordSetupIntent,
   clearPasswordSetupIntent,
   getPasswordSetupReason,
+  inviteLinkForOtherAccount,
   markPasswordSetupRequired,
   readAuthTokenFromSearch,
   readInviteTokenFromSearch,
   readStashedInviteToken,
   resolveInviteToken,
   stashInviteToken,
+  stripInviteLinkFromUrl,
   stripPasswordSetupFromUrl,
 } from './passwordSetup'
 
@@ -132,5 +134,45 @@ describe('admin_reset reason', () => {
     stubSessionStorage()
     markPasswordSetupRequired('admin_reset')
     expect(getPasswordSetupReason()).toBe('admin_reset')
+  })
+})
+
+describe('invite link opened while signed in', () => {
+  const base = { reason: 'invite' as const, signedIn: true, invitePending: false, hasInviteLink: true }
+
+  it('flags a registered account that opens someone’s invite link', () => {
+    expect(inviteLinkForOtherAccount(base)).toBe(true)
+  })
+
+  it('lets the invitee who already redeemed in this browser choose a password', () => {
+    expect(inviteLinkForOtherAccount({ ...base, invitePending: true })).toBe(false)
+  })
+
+  it('does nothing when signed out, without an invite link, or for other setup reasons', () => {
+    expect(inviteLinkForOtherAccount({ ...base, signedIn: false })).toBe(false)
+    expect(inviteLinkForOtherAccount({ ...base, hasInviteLink: false })).toBe(false)
+    expect(inviteLinkForOtherAccount({ ...base, reason: 'recovery' })).toBe(false)
+    expect(inviteLinkForOtherAccount({ ...base, reason: 'admin_reset' })).toBe(false)
+    expect(inviteLinkForOtherAccount({ ...base, reason: null })).toBe(false)
+  })
+
+  it('waits for the profile before deciding', () => {
+    expect(inviteLinkForOtherAccount({ ...base, invitePending: undefined })).toBe(false)
+  })
+
+  it('strips the invite from the address bar when leaving the link', () => {
+    const token = '11111111-1111-1111-1111-111111111111'
+    const replaced: string[] = []
+    vi.stubGlobal('window', {
+      location: { href: `https://yahpz.com/?set_password=1&type=invite&invite_token=${token}&tab=x` },
+      history: {
+        state: null,
+        replaceState: (_state: unknown, _title: string, next: string) => {
+          replaced.push(next)
+        },
+      },
+    })
+    stripInviteLinkFromUrl()
+    expect(replaced).toEqual(['/?tab=x'])
   })
 })

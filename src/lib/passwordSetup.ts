@@ -108,6 +108,26 @@ export function reasonForRecoveryEvent(current: PasswordSetupReason | null): Pas
   return current === 'invite' ? 'invite' : 'recovery'
 }
 
+/**
+ * An invite link opened in a browser that is already signed in to a
+ * registered account (an admin checking a copied link). The setup screen
+ * would otherwise offer that account's own password, not the invitee's.
+ * A pending account is the invitee itself, mid-registration: let it be.
+ */
+export function inviteLinkForOtherAccount(input: {
+  reason: PasswordSetupReason | null
+  signedIn: boolean
+  invitePending: boolean | undefined
+  hasInviteLink: boolean
+}): boolean {
+  return (
+    input.reason === 'invite' &&
+    input.signedIn &&
+    input.invitePending === false &&
+    input.hasInviteLink
+  )
+}
+
 export function clearPasswordSetupIntent(): void {
   sessionStorage.removeItem(STORAGE_KEY)
   clearStashedAuthToken()
@@ -161,6 +181,19 @@ export function stripPasswordSetupFromUrl(): void {
     url.searchParams.delete('set_password')
     url.searchParams.delete('type')
     url.searchParams.delete('invite_token')
+  }
+  if (url.href === before) return
+  const next = `${url.pathname}${url.search}${url.hash}`
+  window.history.replaceState(window.history.state, '', next || '/')
+}
+
+/** Drop the whole invite (durable token included) when leaving the link unused. */
+export function stripInviteLinkFromUrl(): void {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  const before = url.href
+  for (const key of ['token_hash', 'set_password', 'type', 'invite_token']) {
+    url.searchParams.delete(key)
   }
   if (url.href === before) return
   const next = `${url.pathname}${url.search}${url.hash}`
