@@ -14,6 +14,9 @@
 --
 -- Data is loaded separately (psql \copy from the trimmed backup CSVs), after the
 -- cutover + delta pull. This migration only creates the structure.
+--
+-- The Deploy Edge Functions workflow applies this file on every run, so every
+-- statement must stay re-runnable. Rollback: scripts/legacy-archive/rollback-20261030120000.sql.
 
 create schema if not exists legacy;
 
@@ -21,7 +24,7 @@ create schema if not exists legacy;
 -- Tables (minimal column set needed to render a report)
 -- ---------------------------------------------------------------------------
 
-create table legacy.vol_events (
+create table if not exists legacy.vol_events (
   auto_id                   integer primary key,     -- tbl_VolEvents.AutoID (join key for cars)
   event_fk                  text not null,           -- fld_EventFK (old URL ?id=, the report key)
   event_number              text,                    -- fld_EventNumber (NOT unique across years)
@@ -58,44 +61,44 @@ create table legacy.vol_events (
   eq_chainflipsmall         boolean,                 -- fld_ChainFlipSmall
   eq_airtube                boolean                  -- fld_AirTube
 );
-create index vol_events_event_fk_idx       on legacy.vol_events (event_fk);
-create index vol_events_callsign_date_idx  on legacy.vol_events (call_sign, event_date);
-create index vol_events_event_number_idx   on legacy.vol_events (event_number);
+create index if not exists vol_events_event_fk_idx       on legacy.vol_events (event_fk);
+create index if not exists vol_events_callsign_date_idx  on legacy.vol_events (call_sign, event_date);
+create index if not exists vol_events_event_number_idx   on legacy.vol_events (event_number);
 
-create table legacy.cars_in_hits (
+create table if not exists legacy.cars_in_hits (
   auto_id       integer primary key,  -- tbl_CarsInHits.AutoID
   event_fk      integer not null,     -- fld_EventFK = legacy.vol_events.auto_id
   car_index     integer,              -- fld_CarIndex 1..4
   license_plate text                  -- fld_LicensePlate (free-text type/colour)
 );
-create index cars_in_hits_event_fk_idx on legacy.cars_in_hits (event_fk);
+create index if not exists cars_in_hits_event_fk_idx on legacy.cars_in_hits (event_fk);
 
-create table legacy.event_car_hits (
+create table if not exists legacy.event_car_hits (
   cars_in_hits_index integer not null, -- fld_CarsInHitsIndex = legacy.cars_in_hits.auto_id
   hit_id             integer not null, -- fld_HitID = HitTypes.fld_AutoID = display order 1..17
   value              boolean           -- fld_Value (checked)
 );
-create index event_car_hits_cih_idx on legacy.event_car_hits (cars_in_hits_index);
+create index if not exists event_car_hits_cih_idx on legacy.event_car_hits (cars_in_hits_index);
 
-create table legacy.users (
+create table if not exists legacy.users (
   call_sign  text,  -- tbl_Users.fld_CallSign
   first_name text,  -- fld_FirstName
   last_name  text   -- fld_LastName
 );
-create index users_call_sign_idx on legacy.users (call_sign);
+create index if not exists users_call_sign_idx on legacy.users (call_sign);
 
-create table legacy.user_details (
+create table if not exists legacy.user_details (
   users_fk text,    -- tbl_UserDetails.fld_UsersFK = call sign
   pid      text     -- fld_PID (ת.ז.)
 );
-create index user_details_users_fk_idx on legacy.user_details (users_fk);
+create index if not exists user_details_users_fk_idx on legacy.user_details (users_fk);
 
-create table legacy.branches (
+create table if not exists legacy.branches (
   branch_id   integer primary key,  -- tbl_Branches.BranchID
   branch_name text                  -- BranchName
 );
 
-create table legacy.event_types (
+create table if not exists legacy.event_types (
   event_id          integer primary key,  -- tbl_EventTypes.EventID
   event_description text                   -- EventDescription
 );
