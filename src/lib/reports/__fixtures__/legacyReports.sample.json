@@ -1,0 +1,151 @@
+[
+  {
+    "fk": "DEMO-1",
+    "eventNumber": "9001",
+    "callSign": "999",
+    "eventDate": "2026-09-29",
+    "header": {
+      "volName": "ישראל ישראלי (דוגמה)",
+      "pid": "000000000",
+      "carNumber": "12-345-67",
+      "branch": "מרכז",
+      "approvingOfficer": "101",
+      "policeCallSign": "550",
+      "roadNumber": "20",
+      "location": "מחלף דוגמה צפון",
+      "coordinator": "361 מתאם לדוגמה",
+      "eventType": "תאונה",
+      "inShift": false,
+      "startHour": "19:57",
+      "endHour": "20:27",
+      "shool": true,
+      "siren": true,
+      "specialApprovingOfficer": "יחפ\"צ 1 דוגמה",
+      "officerName": "שירה דוגמה",
+      "startKM": "0",
+      "endKM": "16",
+      "totalKM": "16",
+      "route": "יציאה מהבסיס, נסיעה בכביש 20 דרומה עד למחלף הדוגמה, חזרה.",
+      "actionsTaken": "פינוי שני כלי רכב מנתיב הנסיעה, הצבת תמרור אזהרה, תיאום עם משטרה.",
+      "problems": "",
+      "problemsReportedTo": "",
+      "otherEquipment": ""
+    },
+    "equipment": {
+      "fld_2Meter": false,
+      "fld_3Meter": true,
+      "fld_9Meter": false,
+      "fld_AgasChain": true,
+      "fld_ChainFlipLarge": false,
+      "fld_ChainFlipSmall": false,
+      "fld_AirTube": false
+    },
+    "cars": [
+      { "index": 1, "plate": "פורד לבן (דוגמה)" },
+      { "index": 2, "plate": "סקודה לבנה (דוגמה)" }
+    ],
+    "hits": [
+      [1, 1],
+      [1, 3],
+      [1, 13],
+      [2, 1],
+      [2, 11]
+    ]
+  },
+  {
+    "fk": "DEMO-2",
+    "eventNumber": "9002",
+    "callSign": "999",
+    "eventDate": "2023-07-30",
+    "header": {
+      "volName": "ישראל ישראלי (דוגמה)",
+      "pid": "000000000",
+      "carNumber": "12-345-67",
+      "branch": "מרכז",
+      "approvingOfficer": "101",
+      "policeCallSign": "314",
+      "roadNumber": "6",
+      "location": "מחלף דוגמה דרום",
+      "coordinator": "905 מתאם לדוגמה",
+      "eventType": "תאונה",
+      "inShift": true,
+      "startHour": "18:00",
+      "endHour": "18:26",
+      "shool": true,
+      "siren": false,
+      "specialApprovingOfficer": "",
+      "officerName": "אמיר דוגמה",
+      "startKM": "18445",
+      "endKM": "18475",
+      "totalKM": "30",
+      "route": "מאחוזת דוגמה על כביש 6 עד למקום האירוע.",
+      "actionsTaken": "רכב מתגלגל עם נהג. חולץ בבטחה לשול.",
+      "problems": "",
+      "problemsReportedTo": "",
+      "otherEquipment": ""
+    },
+    "equipment": {
+      "fld_2Meter": false,
+      "fld_3Meter": true,
+      "fld_9Meter": false,
+      "fld_AgasChain": true,
+      "fld_ChainFlipLarge": false,
+      "fld_ChainFlipSmall": false,
+      "fld_AirTube": false
+    },
+    "cars": [
+      { "index": 1, "plate": "הונדה שחורה (דוגמה)" }
+    ],
+    "hits": [
+      [1, 1],
+      [1, 2],
+      [1, 10]
+    ]
+  },
+  {
+    "fk": "DEMO-3",
+    "eventNumber": "9003",
+    "callSign": "998",
+    "eventDate": "2024-01-15",
+    "header": {
+      "volName": "ישראלה כהן (דוגמה)",
+      "pid": "000000000",
+      "carNumber": "98-765-43",
+      "branch": "צפון",
+      "approvingOfficer": "101",
+      "policeCallSign": "402",
+      "roadNumber": "4",
+      "location": "חיבור דוגמה",
+      "coordinator": "940 מתאם לדוגמה",
+      "eventType": "תקוע",
+      "inShift": false,
+      "startHour": "23:10",
+      "endHour": "23:59",
+      "shool": true,
+      "siren": false,
+      "specialApprovingOfficer": "",
+      "officerName": "אלון דוגמה",
+      "startKM": "0",
+      "endKM": "10",
+      "totalKM": "10",
+      "route": "נסיעה עד לאירוע וחזרה.",
+      "actionsTaken": "רכב תקוע פונה בגרירה לשול. אין נזק.",
+      "problems": "אין תקלות (נתוני דוגמה).",
+      "problemsReportedTo": "מוקד",
+      "otherEquipment": "כלי עבודה"
+    },
+    "equipment": {
+      "fld_2Meter": false,
+      "fld_3Meter": false,
+      "fld_9Meter": true,
+      "fld_AgasChain": false,
+      "fld_ChainFlipLarge": false,
+      "fld_ChainFlipSmall": false,
+      "fld_AirTube": true
+    },
+    "cars": [
+      { "index": 1, "plate": "אוטובוס (דוגמה)" }
+    ],
+    "hits": []
+  }
+]

@@ -1,0 +1,150 @@
+/* Scoped styles for the legacy event-report replica. Kept close to the original
+   ShowEventReport.aspx look so the archived document stays recognizable and prints
+   cleanly. All selectors are namespaced under .lgr. */
+
+.lgr {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #fff;
+  color: #000;
+  font-family: Arial, 'Segoe UI', sans-serif;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.lgr-hdr {
+  text-align: center;
+  color: #4a3c8c;
+  font-weight: bold;
+  font-size: 22px;
+  margin: 6px 0 16px;
+  border-bottom: 3px solid #4a3c8c;
+  padding-bottom: 8px;
+}
+.lgr-hdr-sub {
+  font-size: 14px;
+}
+
+.lgr-info {
+  width: 100%;
+  border-collapse: collapse;
+}
+.lgr-info td {
+  padding: 5px 8px;
+  text-align: right;
+  vertical-align: top;
+}
+.lgr-lbl {
+  text-decoration: underline;
+  color: gray;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.lgr-val {
+  font-weight: bold;
+  color: #111;
+}
+.lgr-blue {
+  color: blue;
+}
+.lgr-red {
+  color: red;
+}
+
+.lgr-sec {
+  margin-top: 14px;
+  color: #1414b4;
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.lgr-box {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #bbb;
+  padding: 6px;
+  background: #fafafa;
+  min-height: 34px;
+  white-space: pre-wrap;
+  border-radius: 3px;
+}
+
+.lgr-cars {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+.lgr-cars td {
+  text-align: center;
+  color: #1414b4;
+  padding: 4px;
+}
+
+.lgr-grid {
+  width: 100%;
+  border-collapse: collapse;
+  border: 2px ridge #ccc;
+  margin-top: 6px;
+}
+.lgr-grid th {
+  background: #4a3c8c;
+  color: #e7e7ff;
+  padding: 5px;
+}
+.lgr-grid td {
+  background: #dedfde;
+  color: #000;
+  padding: 4px;
+  text-align: center;
+}
+.lgr-grid td.lgr-hit {
+  text-align: right;
+  padding-right: 8px;
+}
+
+.lgr-eq {
+  width: 100%;
+  border-collapse: collapse;
+}
+.lgr-eq td {
+  padding: 5px;
+  text-align: right;
+}
+.lgr-other {
+  margin-top: 4px;
+}
+
+.lgr-note {
+  color: #888;
+  font-size: 11px;
+  text-align: center;
+  margin-top: 18px;
+}
+
+@media print {
+  .lgr-note {
+    display: none;
+  }
+  .lgr {
+    max-width: none;
+    padding: 0;
+  }
+}
+
+/* Call-sign results row in the in-app archive view. */
+.legacy-archive-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  text-align: right;
+  padding: 10px 14px;
+  border: 1px solid var(--border, #d8dae0);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  cursor: pointer;
+}
+.legacy-archive-row:hover {
+  border-color: var(--accent, #4a3c8c);
+  background: var(--surface-hover, #f6f5fb);
+}

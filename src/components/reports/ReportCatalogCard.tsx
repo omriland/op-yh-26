@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   AlertTriangle,
+  Archive,
   BarChart3,
   ChevronLeft,
   ClipboardList,
@@ -25,6 +26,7 @@ const ICONS: Record<string, LucideIcon> = {
   duplicate_events: Copy,
   fuel_allocate: Fuel,
   fuel_usage: BarChart3,
+  legacy_event_archive: Archive,
 }
 
 type ReportCatalogCardProps = {
