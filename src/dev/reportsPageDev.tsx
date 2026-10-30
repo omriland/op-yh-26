@@ -21,7 +21,7 @@ __setLegacyFixtureProvider(async () => fixture as unknown as LegacyReport[])
 const mockAuth = {
   session: null,
   user: { id: 'dev-admin' },
-  profile: { id: 'dev-admin', full_name: 'מנהל (דמו)', callsign: '327', active: true },
+  profile: { id: 'dev-admin', full_name: 'מנהל (דמו)', callsign: '000', active: true },
   roles: ['admin'],
   loading: false,
   passwordSetupReason: null,

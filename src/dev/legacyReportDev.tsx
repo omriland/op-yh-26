@@ -124,7 +124,7 @@ function Harness() {
           {mode === 'callsign' && (
             <>
               <input ref={primaryRef} value={callSign} onChange={(e) => setCallSign(e.target.value)}
-                placeholder="אות קריאה, למשל 327" autoComplete="off" style={inp} onKeyDown={(e) => { if (e.key === 'Enter') void run() }} />
+                placeholder="אות קריאה, למשל 000" autoComplete="off" style={inp} onKeyDown={(e) => { if (e.key === 'Enter') void run() }} />
               <div style={{ minWidth: 200 }}>
                 <DateField label="תאריך האירוע" value={dateIso} onChange={setDateIso} />
               </div>
@@ -132,7 +132,7 @@ function Harness() {
           )}
           {mode === 'callsignList' && (
             <input ref={primaryRef} value={callSign} onChange={(e) => setCallSign(e.target.value)}
-              placeholder="אות קריאה, למשל 327" autoComplete="off" style={inp} onKeyDown={(e) => { if (e.key === 'Enter') void run() }} />
+              placeholder="אות קריאה, למשל 000" autoComplete="off" style={inp} onKeyDown={(e) => { if (e.key === 'Enter') void run() }} />
           )}
           <button onClick={() => void run()} style={{ ...btn, background: '#4a3c8c', color: '#fff' }}>חפש</button>
         </div>

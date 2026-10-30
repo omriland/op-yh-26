@@ -101,7 +101,7 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
         inputMode="numeric"
         value={callSign}
         onChange={(e) => setCallSign(e.target.value)}
-        placeholder="אות קריאה, למשל 327"
+        placeholder="אות קריאה, למשל 000"
         onKeyDown={(e) => { if (e.key === 'Enter') void run() }}
       />
     </label>
