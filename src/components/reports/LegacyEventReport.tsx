@@ -6,6 +6,7 @@ import { useMemo } from 'react'
 import {
   EQUIPMENT,
   HIT_TYPES,
+  maskPid,
   toDisplayDate,
   type LegacyReport,
 } from '../../lib/reports/legacyReport'
@@ -50,7 +51,7 @@ export function LegacyEventReport({ report }: { report: LegacyReport }) {
             <Cell label="אות קריאה" value={report.callSign} />
           </tr>
           <tr>
-            <Cell label="מספר ת.ז." value={h.pid} />
+            <Cell label="מספר ת.ז." value={maskPid(h.pid)} />
             <Cell label="מספר רכב" value={h.carNumber} />
           </tr>
           <tr>

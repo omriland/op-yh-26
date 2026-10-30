@@ -8,7 +8,8 @@
 --   * The legacy.* tables are NOT exposed to the API (the `legacy` schema is not in
 --     the PostgREST schema list). They are reachable only through the SECURITY
 --     DEFINER function public.legacy_report_search, which enforces admin/super_admin
---     via public.has_role. The reports carry volunteers' ת.ז., hence the gate.
+--     via public.has_role. The reports carry volunteers' ת.ז., hence the gate,
+--     and the RPC only ever returns it masked to the last 3 digits (legacy.mask_pid).
 --   * RLS is enabled on every legacy table with no policies (deny-all) as defence in
 --     depth; the definer function runs as the table owner and bypasses it.
 --
@@ -113,6 +114,22 @@ alter table legacy.branches       enable row level security;
 alter table legacy.event_types    enable row level security;
 
 -- ---------------------------------------------------------------------------
+-- ת.ז. as it may leave the database: the last 3 digits only (`******123`), or
+-- null when missing. Nothing else in a report carries the ID number.
+-- ---------------------------------------------------------------------------
+create or replace function legacy.mask_pid(p_pid text)
+returns text
+language sql
+immutable
+as $$
+  select case
+    when nullif(btrim(p_pid), '') is null then null
+    when length(btrim(p_pid)) <= 3 then '******'
+    else '******' || right(btrim(p_pid), 3)
+  end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Report assembler (internal) — builds one report's JSON from a vol_events row.
 -- Shape matches the LegacyReport type in src/lib/reports/legacyReport.ts.
 -- ---------------------------------------------------------------------------
@@ -130,9 +147,9 @@ as $$
       'volName', coalesce((
         select btrim(u.first_name) || ' ' || btrim(u.last_name)
         from legacy.users u where btrim(u.call_sign) = btrim(ve.call_sign) limit 1), ''),
-      'pid', coalesce((
-        select btrim(ud.pid) from legacy.user_details ud
-        where btrim(ud.users_fk) = btrim(ve.call_sign) limit 1), ''),
+      'pid', legacy.mask_pid((
+        select ud.pid from legacy.user_details ud
+        where btrim(ud.users_fk) = btrim(ve.call_sign) limit 1)),
       'carNumber',        coalesce(btrim(ve.vol_car_number), ''),
       'branch',           coalesce((select btrim(b.branch_name) from legacy.branches b where b.branch_id = ve.branch_id), ''),
       'approvingOfficer', coalesce(btrim(ve.approving_officer), ''),
@@ -228,3 +245,4 @@ grant execute on function public.legacy_report_search(text, text, date) to authe
 -- Internal: only the definer RPC (as owner) uses the schema and its helper.
 revoke all on schema legacy from public, anon, authenticated;
 revoke all on function legacy.build_report(integer) from public, anon, authenticated;
+revoke all on function legacy.mask_pid(text) from public, anon, authenticated;

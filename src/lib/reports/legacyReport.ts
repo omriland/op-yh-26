@@ -56,7 +56,8 @@ export type LegacyCar = { index: number; plate: string }
 
 export type LegacyReportHeader = {
   volName: string
-  pid: string
+  /** ת.ז., masked by the server to its last 3 digits (`******123`); null when missing. */
+  pid: string | null
   carNumber: string
   branch: string
   approvingOfficer: string
@@ -136,6 +137,16 @@ export function toDisplayDate(iso: string): string {
   if (!m) return iso
   const [, y, mo, d] = m
   return `${d}/${mo}/${y}`
+}
+
+/**
+ * ת.ז. for display: only the last 3 digits. The RPC already masks it; masking
+ * again keeps any other source (the dev fixture) from showing a full number.
+ */
+export function maskPid(pid: string | null | undefined): string {
+  const value = (pid ?? '').trim()
+  if (!value) return ''
+  return value.length <= 3 ? '******' : `******${value.slice(-3)}`
 }
 
 const byDate = (a: LegacyReport, b: LegacyReport) => a.eventDate.localeCompare(b.eventDate)

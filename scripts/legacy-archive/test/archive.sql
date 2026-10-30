@@ -140,6 +140,17 @@ select pg_temp.act_as('c0000000-0000-4000-8000-000000000004');
 select pg_temp.ok(count(*) = 1, 'super admin: lookup by event number')
 from public.legacy_report_search('report', '9002');
 
+-- ---------------------------------------------------------------------------
+-- ID masking: the RPC never returns a full ת.ז.
+-- ---------------------------------------------------------------------------
+
+select pg_temp.ok(bool_and(r -> 'header' ->> 'pid' = '******018'), 'pid is masked to its last 3 digits')
+from public.legacy_report_search('callsign_list', '000') r;
+select pg_temp.ok(bool_and(position('000000018' in r::text) = 0), 'the full ID appears nowhere in the payload')
+from public.legacy_report_search('callsign_list', '000') r;
+select pg_temp.ok((select r -> 'header' -> 'pid' from public.legacy_report_search('id', 'T-FK-3') r) = 'null'::jsonb,
+  'a blank ID comes back as null');
+
 select pg_temp.act_as('c0000000-0000-4000-8000-000000000001');
 select pg_temp.throws($$select * from public.legacy_report_search('callsign_list', '000')$$, '42501',
   'responder: refused');
