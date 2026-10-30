@@ -220,5 +220,11 @@ begin
 end;
 $$;
 
-revoke all on function public.legacy_report_search(text, text, date) from public;
+-- Supabase's default privileges grant every new public function to anon, so a
+-- revoke from public alone leaves anon able to call it.
+revoke all on function public.legacy_report_search(text, text, date) from public, anon;
 grant execute on function public.legacy_report_search(text, text, date) to authenticated;
+
+-- Internal: only the definer RPC (as owner) uses the schema and its helper.
+revoke all on schema legacy from public, anon, authenticated;
+revoke all on function legacy.build_report(integer) from public, anon, authenticated;

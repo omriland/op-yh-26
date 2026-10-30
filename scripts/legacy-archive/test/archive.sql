@@ -95,6 +95,30 @@ select pg_temp.ok(count(*) = 0, 'no RLS policy on any legacy table (deny-all)')
 from pg_policies where schemaname = 'legacy';
 
 -- ---------------------------------------------------------------------------
+-- Grants (Supabase's default privileges grant new public functions to anon)
+-- ---------------------------------------------------------------------------
+
+select pg_temp.ok(not has_function_privilege('anon', 'public.legacy_report_search(text,text,date)', 'execute'),
+  'anon cannot execute the RPC');
+select pg_temp.ok(not exists (
+    select 1 from pg_proc p, aclexplode(p.proacl) a
+    where p.oid = 'public.legacy_report_search(text,text,date)'::regprocedure and a.grantee = 0),
+  'PUBLIC cannot execute the RPC');
+select pg_temp.ok(has_function_privilege('authenticated', 'public.legacy_report_search(text,text,date)', 'execute'),
+  'authenticated can execute the RPC (the role check is inside)');
+select pg_temp.ok(not has_schema_privilege('anon', 'legacy', 'usage')
+    and not has_schema_privilege('authenticated', 'legacy', 'usage'),
+  'anon and authenticated have no USAGE on the legacy schema');
+select pg_temp.ok(not has_function_privilege('authenticated', 'legacy.build_report(integer)', 'execute')
+    and not has_function_privilege('anon', 'legacy.build_report(integer)', 'execute'),
+  'nobody but the owner executes legacy.build_report');
+
+set local role anon;
+select pg_temp.throws($$select * from public.legacy_report_search('callsign_list', '000')$$, '42501',
+  'anon: refused before the function body runs');
+reset role;
+
+-- ---------------------------------------------------------------------------
 -- Access
 -- ---------------------------------------------------------------------------
 
