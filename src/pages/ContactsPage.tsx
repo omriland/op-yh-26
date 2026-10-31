@@ -117,29 +117,41 @@ export function ContactsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((contact) => (
-                <tr key={contact.id} className="is-static">
-                  <td>{contact.full_name}</td>
-                  <td className={monoClass(contact.callsign)}>{contact.callsign}</td>
-                  <td className="num table-cell--nowrap">
-                    {contact.phone ? (
-                      <span className={`ltr ${monoClass(contact.phone)}`}>
-                        {formatPhone(contact.phone)}
-                      </span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <a className="ltr" href={`mailto:${contact.email}`}>
-                      {contact.email}
-                    </a>
-                  </td>
-                  <td>
-                    <ContactActions contact={contact} labeled={false} />
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((contact) => {
+                const tel = toTelHref(contact.phone)
+                return (
+                  <tr key={contact.id} className="is-static">
+                    <td>{contact.full_name}</td>
+                    <td className={monoClass(contact.callsign)}>{contact.callsign}</td>
+                    <td className="num table-cell--nowrap">
+                      {contact.phone ? (
+                        tel ? (
+                          <a
+                            className={`ltr ${monoClass(contact.phone)}`}
+                            href={tel}
+                          >
+                            {formatPhone(contact.phone)}
+                          </a>
+                        ) : (
+                          <span className={`ltr ${monoClass(contact.phone)}`}>
+                            {formatPhone(contact.phone)}
+                          </span>
+                        )
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      <a className="ltr" href={`mailto:${contact.email}`}>
+                        {contact.email}
+                      </a>
+                    </td>
+                    <td>
+                      <ContactActions contact={contact} labeled={false} />
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -147,35 +159,46 @@ export function ContactsPage() {
 
       {contacts && filtered.length > 0 && !isDesktop ? (
         <ul className="stack-3">
-          {filtered.map((contact) => (
-            <li key={contact.id} className="card contact-card">
-              <div className="contact-card__head">
-                <Avatar name={contact.full_name} size="lg" />
-                <div className="contact-card__identity">
-                  <p className="t-section">{contact.full_name}</p>
-                  <p className={`t-caption text-muted ${monoClass(contact.callsign)}`}>
-                    {contact.callsign}
-                  </p>
+          {filtered.map((contact) => {
+            const tel = toTelHref(contact.phone)
+            return (
+              <li key={contact.id} className="card contact-card">
+                <div className="contact-card__head">
+                  <Avatar name={contact.full_name} size="lg" />
+                  <div className="contact-card__identity">
+                    <p className="t-section">{contact.full_name}</p>
+                    <p className={`t-caption text-muted ${monoClass(contact.callsign)}`}>
+                      {contact.callsign}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <Ledger>
-                <LedgerRow
-                  label="טלפון"
-                  numeric
-                  isolate
-                  value={contact.phone ? formatPhone(contact.phone) : undefined}
-                />
-                <LedgerRow
-                  label="דוא״ל"
-                  isolate
-                  value={
-                    <a href={`mailto:${contact.email}`}>{contact.email}</a>
-                  }
-                />
-              </Ledger>
-              <ContactActions contact={contact} labeled />
-            </li>
-          ))}
+                <Ledger>
+                  <LedgerRow
+                    label="טלפון"
+                    numeric
+                    isolate
+                    value={
+                      contact.phone ? (
+                        tel ? (
+                          <a href={tel}>{formatPhone(contact.phone)}</a>
+                        ) : (
+                          formatPhone(contact.phone)
+                        )
+                      ) : undefined
+                    }
+                  />
+                  <LedgerRow
+                    label="דוא״ל"
+                    isolate
+                    value={
+                      <a href={`mailto:${contact.email}`}>{contact.email}</a>
+                    }
+                  />
+                </Ledger>
+                <ContactActions contact={contact} labeled />
+              </li>
+            )
+          })}
         </ul>
       ) : null}
     </>
