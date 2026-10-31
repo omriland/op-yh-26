@@ -3,6 +3,11 @@ import { Button } from '../components/ui/Button'
 import { DELETE_DATA_PATH } from '../lib/deleteDataPage'
 import { PRIVACY_PATH } from '../lib/privacyPageToken'
 import { PRIVACY_POLICY } from '../lib/privacyPolicy'
+import {
+  SUPPORT_WHATSAPP_DISPLAY,
+  SUPPORT_WHATSAPP_HREF,
+  SUPPORT_WHATSAPP_MENU_LABEL,
+} from '../lib/supportWhatsapp'
 
 type SupportPageProps = {
   onBack?: () => void
@@ -52,7 +57,16 @@ export function SupportPage({ onBack }: SupportPageProps) {
         <h2 className="t-section">איך מקבלים עזרה</h2>
         <ul className="privacy__list">
           <li className="t-body">שכחתם סיסמה? במסך הכניסה בחרו ״שכחתי סיסמה״ ויישלח אליכם קישור לאיפוס בדוא״ל.</li>
-          <li className="t-body">אנשי יחידה מחוברים יכולים לדווח על תקלה או להציע שיפור מכפתור המשוב באפליקציה.</li>
+          <li className="t-body">אנשי יחידה מחוברים יכולים לדווח על תקלה או להציע שיפור מכפתור התמיכה באפליקציה.</li>
+          <li className="t-body">
+            {SUPPORT_WHATSAPP_MENU_LABEL}
+            {': '}
+            <a href={SUPPORT_WHATSAPP_HREF} target="_blank" rel="noopener noreferrer">
+              <span className="mono" dir="ltr">
+                {SUPPORT_WHATSAPP_DISPLAY}
+              </span>
+            </a>
+          </li>
           <li className="t-body">לכל שאלה אחרת, כתבו לנו בדוא״ל:</li>
         </ul>
         <p className="t-body">

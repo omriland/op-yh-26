@@ -34,6 +34,12 @@ describe('SupportPage', () => {
     expect(html).toContain(PRIVACY_POLICY.contact.address)
   })
 
+  it('publishes the WhatsApp support number', () => {
+    expect(html).toContain('href="https://wa.me/972548654223"')
+    expect(html).toContain('054-865-4223')
+    expect(html).toContain('dir="ltr"')
+  })
+
   it('links to the privacy policy and data deletion pages', () => {
     expect(html).toContain('href="/privacy"')
     expect(html).toContain('href="/delete-data"')
