@@ -1,182 +1,201 @@
-// Faithful replica of the old-site ShowEventReport.aspx document, from archived data.
-// Ported from the offline exporter (yp_report.py). Rendered as a printable document
-// (dir="rtl"); the surrounding app chrome is hidden on print.
+// The old-site ShowEventReport document, from archived data, typeset as a record:
+// ledger rows, ruled sections and a damage table (06-components.md). Same fields as
+// the original form; the ID number arrives masked and is masked again here.
+// Printing shows this document only (see LegacyEventReport.css).
 
-import { useMemo } from 'react'
-import {
-  EQUIPMENT,
-  HIT_TYPES,
-  maskPid,
-  toDisplayDate,
-  type LegacyReport,
-} from '../../lib/reports/legacyReport'
+import { useMemo, type ReactNode } from 'react'
+import { Check, Minus } from 'lucide-react'
+import { Ledger, LedgerRow } from '../ui/Ledger'
+import { isoDateToDisplay } from '../../lib/format'
+import { EQUIPMENT, HIT_TYPES, maskPid, type LegacyReport } from '../../lib/reports/legacyReport'
 import './LegacyEventReport.css'
 
-function Cell({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <td className="lgr-lbl">{label}</td>
-      <td className="lgr-val">{value || '—'}</td>
-    </>
-  )
-}
-
-function Box({ text }: { text: string }) {
-  return <div className="lgr-box">{text || ' '}</div>
-}
+const CARS = [1, 2, 3, 4] as const
 
 function yn(v: boolean): string {
   return v ? 'כן' : 'לא'
 }
 
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="form-section lgr__section">
+      <h3 className="form-section__heading">{title}</h3>
+      <div className="lgr__section-body">{children}</div>
+    </section>
+  )
+}
+
+function TextBlock({ label, text }: { label: string; text: string }) {
+  const empty = !text.trim()
+  return (
+    <div className="lgr__text-field">
+      <p className="t-label text-secondary">{label}</p>
+      <p className={['lgr__text', empty ? 'lgr__text--empty' : ''].filter(Boolean).join(' ')}>
+        {empty ? '—' : text}
+      </p>
+    </div>
+  )
+}
+
 export function LegacyEventReport({ report }: { report: LegacyReport }) {
   const h = report.header
   const hitSet = useMemo(() => new Set(report.hits.map(([c, o]) => `${c}:${o}`)), [report.hits])
-  const plate = (i: number) => report.cars.find((c) => c.index === i)?.plate ?? ''
-  const noEquipment =
-    !EQUIPMENT.some((e) => report.equipment[e.key]) && !h.otherEquipment.trim()
+  const plate = (i: number) => report.cars.find((c) => c.index === i)?.plate.trim() ?? ''
+  // Only cars that were recorded, and only damage locations that were marked.
+  const cars = CARS.filter((car) => plate(car) || report.hits.some(([c]) => c === car))
+  const hitRows = HIT_TYPES.filter(({ order }) => cars.some((car) => hitSet.has(`${car}:${order}`)))
+  const noEquipment = !EQUIPMENT.some((e) => report.equipment[e.key]) && !h.otherEquipment.trim()
+  const date = isoDateToDisplay(report.eventDate)
+  const pid = maskPid(h.pid)
 
   return (
-    <div className="lgr" dir="rtl" lang="he">
-      <div className="lgr-hdr">
-        יחפ"צ — היחידה הארצית לפינוי צירים
-        <br />
-        <span className="lgr-hdr-sub">דוח ארוע</span>
-      </div>
+    <article className="lgr" dir="rtl" lang="he" aria-label={`דוח אירוע ${report.eventNumber}`}>
+      <header className="lgr__head">
+        <p className="t-label text-secondary">יחפ״צ — היחידה הארצית לפינוי צירים</p>
+        <h2 className="t-section">
+          דוח אירוע <span className="mono">{report.eventNumber || '—'}</span>
+        </h2>
+        <p className="t-caption text-muted">
+          {date ? <span className="mono">{date}</span> : 'ללא תאריך'}
+          {report.callSign ? (
+            <>
+              {' · '}אות קריאה <span className="mono">{report.callSign}</span>
+            </>
+          ) : null}
+        </p>
+      </header>
 
-      <table className="lgr-info">
-        <tbody>
-          <tr>
-            <Cell label="שם המתנדב" value={h.volName} />
-            <Cell label="אות קריאה" value={report.callSign} />
-          </tr>
-          <tr>
-            <Cell label="מספר ת.ז." value={maskPid(h.pid)} />
-            <Cell label="מספר רכב" value={h.carNumber} />
-          </tr>
-          <tr>
-            <Cell label="תאריך הארוע" value={toDisplayDate(report.eventDate)} />
-            <Cell label="מספר ארוע" value={report.eventNumber} />
-          </tr>
-          <tr>
-            <Cell label="שלוחה" value={h.branch} />
-            <Cell label="קצין מאשר" value={h.approvingOfficer} />
-          </tr>
-          <tr>
-            <Cell label="אות קריאה ניידת בארוע" value={h.policeCallSign} />
-            <Cell label="מס' כביש" value={h.roadNumber} />
-          </tr>
-          <tr>
-            <Cell label="מיקום" value={h.location} />
-            <Cell label="מתאם פעילות" value={h.coordinator} />
-          </tr>
-          <tr>
-            <Cell label="סוג הארוע" value={h.eventType} />
-            <Cell label="האם במסגרת משמרת" value={yn(h.inShift)} />
-          </tr>
-          <tr>
-            <Cell label="שעת התחלה" value={h.startHour} />
-            <Cell label="שעת סיום" value={h.endHour} />
-          </tr>
-          <tr>
-            <Cell label="נסיעה בשוליים" value={yn(h.shool)} />
-            <Cell label="נסיעה מבצעית" value={yn(h.siren)} />
-          </tr>
-          <tr>
-            <Cell label="ק. מאשר נסיעה מבצעית" value={h.specialApprovingOfficer} />
-            <td className="lgr-lbl">&nbsp;</td>
-            <td>&nbsp;</td>
-          </tr>
-          <tr>
-            <td className="lgr-lbl lgr-blue">שם השוטר</td>
-            <td className="lgr-val">{h.officerName || '—'}</td>
-            <td className="lgr-lbl lgr-red">ק"מ התחלה</td>
-            <td className="lgr-val">{h.startKM || '—'}</td>
-          </tr>
-          <tr>
-            <td className="lgr-lbl lgr-red">ק"מ סיום</td>
-            <td className="lgr-val">{h.endKM || '—'}</td>
-            <td className="lgr-lbl">סה"כ ק"מ</td>
-            <td className="lgr-val">{h.totalKM || '—'}</td>
-          </tr>
-        </tbody>
-      </table>
+      <Section title="פרטי המתנדב">
+        <Ledger>
+          <LedgerRow label="שם המתנדב" value={h.volName} />
+          <LedgerRow label="אות קריאה" value={report.callSign} numeric />
+          <LedgerRow label="מספר ת״ז" value={pid} numeric isolate />
+          <LedgerRow label="מספר רכב" value={h.carNumber} numeric isolate />
+        </Ledger>
+      </Section>
 
-      <div className="lgr-sec lgr-red">מסלול הנסיעה</div>
-      <Box text={h.route} />
-      <div className="lgr-sec lgr-red">אופן הטיפול ופעולות שבוצעו</div>
-      <Box text={h.actionsTaken} />
+      <Section title="פרטי האירוע">
+        <Ledger>
+          <LedgerRow label="תאריך האירוע" value={date} numeric />
+          <LedgerRow label="מספר אירוע" value={report.eventNumber} numeric />
+          <LedgerRow label="סוג האירוע" value={h.eventType} />
+          <LedgerRow label="שלוחה" value={h.branch} />
+          <LedgerRow label="מס׳ כביש" value={h.roadNumber} numeric />
+          <LedgerRow label="מיקום" value={h.location} />
+          <LedgerRow label="אות קריאה ניידת באירוע" value={h.policeCallSign} numeric />
+          <LedgerRow label="שם השוטר" value={h.officerName} />
+          <LedgerRow label="מתאם פעילות" value={h.coordinator} />
+          <LedgerRow label="קצין מאשר" value={h.approvingOfficer} />
+          <LedgerRow label="שעת התחלה" value={h.startHour} numeric />
+          <LedgerRow label="שעת סיום" value={h.endHour} numeric />
+          <LedgerRow label="במסגרת משמרת" value={yn(h.inShift)} />
+        </Ledger>
+      </Section>
 
-      <table className="lgr-cars">
-        <tbody>
-          <tr>
-            <td>סוג וצבע רכב 1</td>
-            <td>סוג וצבע רכב 2</td>
-            <td>סוג וצבע רכב 3</td>
-            <td>סוג וצבע רכב 4</td>
-          </tr>
-          <tr>
-            <td className="lgr-val">{plate(1) || '—'}</td>
-            <td className="lgr-val">{plate(2) || '—'}</td>
-            <td className="lgr-val">{plate(3) || '—'}</td>
-            <td className="lgr-val">{plate(4) || '—'}</td>
-          </tr>
-        </tbody>
-      </table>
+      <Section title="נסיעה">
+        <Ledger>
+          <LedgerRow label="נסיעה מבצעית" value={yn(h.siren)} />
+          <LedgerRow label="קצין מאשר נסיעה מבצעית" value={h.specialApprovingOfficer} />
+          <LedgerRow label="ק״מ התחלה" value={h.startKM} numeric />
+          <LedgerRow label="ק״מ סיום" value={h.endKM} numeric />
+          <LedgerRow label="סה״כ ק״מ" value={h.totalKM} numeric />
+          <LedgerRow label="נסיעה בשוליים" value={yn(h.shool)} />
+        </Ledger>
+        <TextBlock label="מסלול הנסיעה" text={h.route} />
+      </Section>
 
-      <div className="lgr-sec">מצב כלי הרכב שטופלו</div>
-      <table className="lgr-grid">
-        <thead>
-          <tr>
-            <th>מיקום הפגיעה</th>
-            <th>רכב 1</th>
-            <th>רכב 2</th>
-            <th>רכב 3</th>
-            <th>רכב 4</th>
-          </tr>
-        </thead>
-        <tbody>
-          {HIT_TYPES.map(({ order, label }) => (
-            <tr key={order}>
-              <td className="lgr-hit">{label}</td>
-              {[1, 2, 3, 4].map((car) => (
-                <td key={car} className="lgr-c">
-                  <input type="checkbox" disabled checked={hitSet.has(`${car}:${order}`)} readOnly />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Section title="הטיפול">
+        <TextBlock label="אופן הטיפול ופעולות שבוצעו" text={h.actionsTaken} />
+      </Section>
 
-      <div className="lgr-sec">ציוד שהיה בו שימוש:</div>
-      <table className="lgr-eq">
-        <tbody>
-          <tr>
-            {EQUIPMENT.map((e) => (
-              <td key={e.key}>
-                <input type="checkbox" disabled checked={report.equipment[e.key]} readOnly />{' '}
-                <label>{e.label}</label>
-              </td>
-            ))}
-            <td>
-              <input type="checkbox" disabled checked={noEquipment} readOnly />{' '}
-              <label>לא השתמשתי בציוד כלשהו</label>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div className="lgr-eq lgr-other">
-        אחר: <span className="lgr-val">{h.otherEquipment || '—'}</span>
-      </div>
+      <Section title="כלי הרכב שטופלו">
+        {cars.length === 0 ? (
+          <p className="t-body text-muted">לא נרשמו כלי רכב.</p>
+        ) : (
+          <div className="lgr__table-wrap">
+            <table className="lgr__table">
+              <caption className="visually-hidden">סוג הרכב ומיקומי הפגיעה שסומנו לכל רכב</caption>
+              <thead>
+                <tr>
+                  <th scope="col">מיקום הפגיעה</th>
+                  {cars.map((car) => (
+                    <th key={car} scope="col">
+                      רכב {car}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="lgr__table-types">
+                  <th scope="row">סוג וצבע</th>
+                  {cars.map((car) => (
+                    <td key={car}>{plate(car) || '—'}</td>
+                  ))}
+                </tr>
+                {hitRows.map(({ order, label }) => (
+                  <tr key={order}>
+                    <th scope="row">{label}</th>
+                    {cars.map((car) => (
+                      <td key={car} className="lgr__hit">
+                        {hitSet.has(`${car}:${order}`) ? (
+                          <>
+                            <Check size={20} strokeWidth={1.75} aria-hidden="true" />
+                            <span className="visually-hidden">פגיעה</span>
+                          </>
+                        ) : (
+                          <span className="visually-hidden">ללא פגיעה</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {cars.length > 0 && hitRows.length === 0 ? (
+          <p className="t-body text-muted">לא סומנו מיקומי פגיעה.</p>
+        ) : null}
+      </Section>
 
-      <div className="lgr-sec">תקלות ופערים</div>
-      <Box text={h.problems} />
-      <div className="lgr-eq">
-        דווח ל: <span className="lgr-val">{h.problemsReportedTo || '—'}</span>
-      </div>
+      <Section title="ציוד שהיה בו שימוש">
+        <ul className="lgr__equipment">
+          {EQUIPMENT.map((e) => {
+            const on = report.equipment[e.key]
+            return (
+              <li key={e.key} className={on ? 'is-used' : undefined}>
+                {on ? (
+                  <Check size={20} strokeWidth={1.75} aria-hidden="true" />
+                ) : (
+                  <Minus size={20} strokeWidth={1.75} aria-hidden="true" />
+                )}
+                <span>{e.label}</span>
+                <span className="visually-hidden">{on ? 'בשימוש' : 'לא בשימוש'}</span>
+              </li>
+            )
+          })}
+          {noEquipment ? (
+            <li className="is-used">
+              <Check size={20} strokeWidth={1.75} aria-hidden="true" />
+              <span>לא נעשה שימוש בציוד</span>
+            </li>
+          ) : null}
+        </ul>
+        <Ledger>
+          <LedgerRow label="ציוד אחר" value={h.otherEquipment} />
+        </Ledger>
+      </Section>
 
-      <div className="lgr-note">שוחזר מגיבוי מקומי · fld_EventFK={report.fk}</div>
-    </div>
+      <Section title="תקלות ופערים">
+        <TextBlock label="פירוט" text={h.problems} />
+        <Ledger>
+          <LedgerRow label="דווח ל" value={h.problemsReportedTo} />
+        </Ledger>
+      </Section>
+
+      <p className="lgr__note t-caption text-muted">
+        שוחזר מגיבוי המערכת הישנה · מזהה דוח <span className="mono ltr">{report.fk}</span>
+      </p>
+    </article>
   )
 }
