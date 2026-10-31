@@ -33,8 +33,8 @@ const ROLE_LABELS: Partial<Record<AppRole, string>> = {
   responder: 'מתנדב',
 }
 
-const VEHICLES_VIEW_ONLY_CAPTION =
-  'רכבים מנוהלים על ידי מנהל המערכת. לבחירת רכב ראשי לחצו על הכוכב.'
+const VEHICLES_VIEW_ONLY_CAPTION = 'רכבים מנוהלים על ידי מנהל המערכת.'
+const VEHICLES_DEFAULT_CHOICE_CAPTION = 'לבחירת רכב ראשי לחצו על הכוכב.'
 
 function visibleRoles(roles: AppRole[]): AppRole[] {
   return roles.filter((role) => role !== 'super_admin')
@@ -331,7 +331,9 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
         <section className="card">
           <h2 className="t-section">רכבים</h2>
           <p className="t-caption text-muted" style={{ marginBlockStart: 'var(--space-2)' }}>
-            {VEHICLES_VIEW_ONLY_CAPTION}
+            {canStar
+              ? `${VEHICLES_VIEW_ONLY_CAPTION} ${VEHICLES_DEFAULT_CHOICE_CAPTION}`
+              : VEHICLES_VIEW_ONLY_CAPTION}
           </p>
           <div className="stack-4" style={{ marginBlockStart: 'var(--space-4)' }}>
             {vehicles === null ? (
