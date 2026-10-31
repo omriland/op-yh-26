@@ -2755,7 +2755,8 @@ div.app-footer__brand {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  margin-block-end: var(--space-3);
+  /* Follows the sign-in form: the app offer stays visible without leading. */
+  margin-block-start: var(--space-6);
   background: var(--surface-sunken, var(--surface-raised));
   border: 1px solid var(--stroke-hairline);
   border-radius: var(--radius-md, 8px);
@@ -4077,9 +4078,11 @@ html[data-keyboard-open] .event-form__footer {
   white-space: nowrap;
 }
 
+/* The closed-system notice sits under the card, so the form leads on a phone. */
 .login__public {
   margin: 0;
   max-width: 36em;
+  align-self: center;
   text-align: center;
 }
 
@@ -4126,6 +4129,49 @@ html[data-keyboard-open] .event-form__footer {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* Password rules under "סיסמה חדשה": muted until met, then seal green + check. */
+.login__rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-block-start: calc(-1 * var(--space-2));
+}
+
+.login__rules p {
+  margin: 0;
+}
+
+.login__rules ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.login__rules li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+}
+
+.login__rules li svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.login__rules li.is-met {
+  color: var(--text-primary);
+}
+
+.login__rules li.is-met svg {
+  color: var(--status-done);
 }
 
 .login__actions {

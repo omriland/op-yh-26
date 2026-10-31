@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { AlertCircle, Download, KeyRound } from 'lucide-react'
+import { AlertCircle, Check, Circle, Download, KeyRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { monoClass } from '../lib/format'
-import { passwordStrengthError } from '../lib/passwordRules'
+import { passwordStrengthError, validatePasswordStrength, type PasswordRule } from '../lib/passwordRules'
 import {
   readBrowserPassword,
   readRememberLogin,
@@ -198,44 +198,12 @@ export function LoginPage({
               <span className="login__unit-line">{UNIT_LINE_2}</span>
             </p>
           </div>
-          <p className="login__public t-body text-secondary">{PUBLIC_DESCRIPTION}</p>
         </header>
 
         <div
           className={['login__card', isSetupFlow ? 'login__card--setup' : ''].join(' ')}
           data-theme="field"
         >
-          {showAndroidCta && mode === 'signin' ? (
-            <div className="login__android" role="region" aria-label="הורדת אפליקציה">
-              <p className="t-body-strong">יש אפליקציה לאנדרואיד</p>
-              <p className="t-caption text-secondary">
-                מומלץ להתקין את אבן דרך ולהשתמש באפליקציה במקום בדפדפן.
-              </p>
-              <div className="login__android-actions">
-                {onOpenAndroid ? (
-                  <Button
-                    type="button"
-                    block
-                    icon={<Download size={20} strokeWidth={1.75} aria-hidden="true" />}
-                    onClick={onOpenAndroid}
-                  >
-                    הורדת האפליקציה
-                    <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
-                  </Button>
-                ) : apkHref ? (
-                  <a className="btn btn--primary btn--block" href={apkHref} download>
-                    <Download size={20} strokeWidth={1.75} aria-hidden="true" />
-                    הורדת האפליקציה
-                    <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
-                  </a>
-                ) : (
-                  <Button type="button" block disabled>
-                    טוען קישור הורדה…
-                  </Button>
-                )}
-              </div>
-            </div>
-          ) : null}
 
           {mode === 'signin' ? (
             <form
@@ -288,6 +256,40 @@ export function LoginPage({
                 </div>
               </div>
             </form>
+          ) : null}
+
+          {/* After the form: signing in leads; the app offer stays on the first screen. */}
+          {showAndroidCta && mode === 'signin' ? (
+            <div className="login__android" role="region" aria-label="הורדת אפליקציה">
+              <p className="t-body-strong">יש אפליקציה לאנדרואיד</p>
+              <p className="t-caption text-secondary">
+                מומלץ להתקין את אבן דרך ולהשתמש באפליקציה במקום בדפדפן.
+              </p>
+              <div className="login__android-actions">
+                {onOpenAndroid ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    block
+                    icon={<Download size={20} strokeWidth={1.75} aria-hidden="true" />}
+                    onClick={onOpenAndroid}
+                  >
+                    הורדת האפליקציה
+                    <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
+                  </Button>
+                ) : apkHref ? (
+                  <a className="btn btn--secondary btn--block" href={apkHref} download>
+                    <Download size={20} strokeWidth={1.75} aria-hidden="true" />
+                    הורדת האפליקציה
+                    <StampChip label={ANDROID_BETA_LABEL} tone="pending" />
+                  </a>
+                ) : (
+                  <Button type="button" variant="secondary" block disabled>
+                    טוען קישור הורדה…
+                  </Button>
+                )}
+              </div>
+            </div>
           ) : null}
 
           {mode === 'reset' ? (
@@ -419,6 +421,8 @@ export function LoginPage({
                       onChange={(event) => setPassword(event.target.value)}
                     />
 
+                    <PasswordRules password={password} />
+
                     <PasswordField
                       label="אימות סיסמה"
                       autoComplete="new-password"
@@ -487,11 +491,47 @@ export function LoginPage({
           ) : null}
         </div>
 
+        <p className="login__public t-body text-secondary">{PUBLIC_DESCRIPTION}</p>
       </div>
       {onOpenPrivacy ? (
         <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} />
       ) : null}
       </div>
+    </div>
+  )
+}
+
+const PASSWORD_RULES: ReadonlyArray<{ rule: PasswordRule; label: string }> = [
+  { rule: 'minLength', label: '8 תווים לפחות' },
+  { rule: 'uppercase', label: 'אות גדולה באנגלית' },
+  { rule: 'symbol', label: 'תו מיוחד (למשל !)' },
+]
+
+/** The password rules up front, ticking off as the member types. */
+function PasswordRules({ password }: { password: string }) {
+  const result = validatePasswordStrength(password)
+  const missing = result.ok ? [] : result.missing
+  return (
+    <div className="login__rules">
+      <p className="t-label text-secondary" id="password-rules-title">
+        הסיסמה צריכה לכלול:
+      </p>
+      <ul aria-labelledby="password-rules-title">
+        {PASSWORD_RULES.map(({ rule, label }) => {
+          const met = !missing.includes(rule)
+          return (
+            <li key={rule} className={met ? 'is-met' : undefined}>
+              {met ? (
+                <Check size={16} strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <Circle size={16} strokeWidth={1.75} aria-hidden="true" />
+              )}
+              <span>{label}</span>
+              <span className="visually-hidden">{met ? ' — בוצע' : ' — חסר'}</span>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }
