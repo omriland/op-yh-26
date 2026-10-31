@@ -658,6 +658,33 @@ export async function deleteEvent(
   return { ok: false, error: EVENT_DELETE_FAILED }
 }
 
+/**
+ * Same delete_event RPC (same server checks), sent while the page is going away
+ * (reload / tab close). A normal request is cancelled with the page, so this one
+ * uses `keepalive`. Fire-and-forget: returns whether it was sent.
+ */
+export function deleteEventOnUnload(
+  eventId: string,
+  accessToken: string | null | undefined,
+  options: { url?: string; anonKey?: string; fetchImpl?: typeof fetch } = {},
+): boolean {
+  const url = options.url ?? import.meta.env.VITE_SUPABASE_URL
+  const anonKey = options.anonKey ?? import.meta.env.VITE_SUPABASE_ANON_KEY
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch
+  if (!eventId || !accessToken || !url || !anonKey || !fetchImpl) return false
+  fetchImpl(`${String(url).replace(/\/+$/, '')}/rest/v1/rpc/delete_event`, {
+    method: 'POST',
+    keepalive: true,
+    headers: {
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ p_event_id: eventId }),
+  }).catch(() => {})
+  return true
+}
+
 export async function approveEventFreeze(
   eventId: string,
   reason: 'over_60km' | 'suspicious_duplicate',

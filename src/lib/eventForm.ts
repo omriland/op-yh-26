@@ -35,6 +35,7 @@ import {
   EVENT_DONE_NEEDS_KM_ERROR,
 } from './eventStatus'
 import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocked } from './assignedVolunteerEventEdit'
+import { isForeignShiftLeadEvent } from './foreignEventEdit'
 import {
   EVENT_EDIT_LOCKED_TOOLTIP,
   isEventEditAgeLocked,
@@ -622,6 +623,39 @@ export function isAbandonedEmptyEventDraft(
   const currentLead = draft.shift_lead_id?.trim() ?? ''
   if (originalLead && currentLead && originalLead !== currentLead) return false
   return true
+}
+
+/**
+ * The id to drop when leaving: only this lead's untouched empty insert (see
+ * isAbandonedEmptyEventDraft). Anything typed, a changed date, another lead's
+ * event, or a row that was never saved → null, so nothing is deleted.
+ */
+export function abandonedEmptyEventIdToDiscard(
+  draft: EventFormDraft | null | undefined,
+  initialEventDate: string,
+  viewerId: string | undefined | null,
+): string | null {
+  if (!draft?.id || !viewerId) return null
+  if (!isAbandonedEmptyEventDraft(draft, initialEventDate, viewerId)) return null
+  if (isForeignShiftLeadEvent({ viewerId, shiftLeadId: draft.shift_lead_id })) return null
+  return draft.id
+}
+
+/**
+ * Reload / tab close while the cockpit is editing an untouched empty insert:
+ * drop it. Not when the page may come back from the back/forward cache, and
+ * not for an event that was only previewed.
+ */
+export function cockpitPageHideDiscardId(input: {
+  variant: 'page' | 'cockpit'
+  persisted: boolean
+  previewing: boolean
+  draft: EventFormDraft | null | undefined
+  initialEventDate: string
+  viewerId: string | undefined | null
+}): string | null {
+  if (input.variant !== 'cockpit' || input.persisted || input.previewing) return null
+  return abandonedEmptyEventIdToDiscard(input.draft, input.initialEventDate, input.viewerId)
 }
 
 let abandonEmptyEventHandler: (() => Promise<boolean>) | null = null

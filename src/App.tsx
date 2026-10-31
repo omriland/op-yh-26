@@ -384,6 +384,8 @@ function Gate() {
 
   useEffect(() => {
     function onPop() {
+      // Back / Forward leaves the open form like a nav click does.
+      void discardAbandonedEmptyEventIfAny()
       const parsed = parseAppPath(window.location.pathname)
       if (parsed.kind === 'android') {
         setLegalPage('android')
@@ -1001,6 +1003,7 @@ function Gate() {
   }
 
   function openNewEventForm() {
+    void discardAbandonedEmptyEventIfAny()
     setLegalPage(null)
     setView('events')
     setEventCreateNonce((n) => n + 1)
