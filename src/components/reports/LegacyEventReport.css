@@ -1,150 +1,341 @@
-/* Scoped styles for the legacy event-report replica. Kept close to the original
-   ShowEventReport.aspx look so the archived document stays recognizable and prints
-   cleanly. All selectors are namespaced under .lgr. */
+/* Legacy event-report archive: the search view and the archived document.
+   Tokens only (02/04-*.md); the document reuses ledger rows and ruled form
+   sections (06-components.md). Scoped under .legacy-archive / .lgr. */
+
+/* ---- Search ---- */
+
+.legacy-archive__search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.legacy-archive__modes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Four modes: wrap rather than scroll, so every option stays visible on a phone. */
+.legacy-archive__modes .chips {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.legacy-archive__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+}
+
+/* Plex Mono has no Hebrew: the "למשל:" example stays in the UI face. */
+.legacy-archive__fields .field__input--numeric::placeholder {
+  font-family: var(--font-ui);
+}
+
+/* Side by side from tablet up, button on the inputs' baseline as in .report-filters. */
+@media (min-width: 641px) {
+  .legacy-archive__fields {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+  .legacy-archive__fields--date {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .legacy-archive__submit {
+    width: 100%;
+  }
+}
+
+/* ---- Results ---- */
+
+.legacy-archive__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.legacy-archive__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+
+.legacy-archive__rows > li + li {
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.legacy-archive__row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas: 'event date type hits go';
+  align-items: center;
+  column-gap: var(--space-4);
+  width: 100%;
+  min-height: 48px;
+  padding-block: var(--space-3);
+  padding-inline: var(--space-4);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.legacy-archive__row-event {
+  grid-area: event;
+}
+.legacy-archive__row-date {
+  grid-area: date;
+  color: var(--text-secondary);
+}
+.legacy-archive__row-type {
+  grid-area: type;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.legacy-archive__row-hits {
+  grid-area: hits;
+  color: var(--text-muted);
+}
+.legacy-archive__row-go {
+  grid-area: go;
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .legacy-archive__row:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+.legacy-archive__row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.legacy-archive__row[aria-current='true'] {
+  background: var(--accent-subtle);
+}
+.legacy-archive__row[aria-current='true'] .legacy-archive__row-event,
+.legacy-archive__row[aria-current='true'] .legacy-archive__row-go {
+  color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .legacy-archive__row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'event date go'
+      'type hits go';
+    row-gap: var(--space-1);
+    column-gap: var(--space-3);
+  }
+}
+
+/* ---- Report ---- */
+
+.legacy-archive__report {
+  scroll-margin-block-start: var(--space-4);
+}
+
+.legacy-archive__report-actions {
+  display: flex;
+  justify-content: flex-end;
+}
 
 .lgr {
-  max-width: 900px;
-  margin: 0 auto;
-  background: #fff;
-  color: #000;
-  font-family: Arial, 'Segoe UI', sans-serif;
-  padding: 20px;
-  border-radius: 8px;
+  container: lgr / inline-size;
+  padding: var(--space-4);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-primary);
 }
 
-.lgr-hdr {
-  text-align: center;
-  color: #4a3c8c;
-  font-weight: bold;
-  font-size: 22px;
-  margin: 6px 0 16px;
-  border-bottom: 3px solid #4a3c8c;
-  padding-bottom: 8px;
-}
-.lgr-hdr-sub {
-  font-size: 14px;
+@media (min-width: 1025px) {
+  .lgr {
+    padding: var(--space-5);
+  }
 }
 
-.lgr-info {
+.lgr__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* A flex column makes the heading a block-level item, so its negative margin lifts
+   it onto the rule (an inline-flex heading stays in the line box). */
+.lgr__section.form-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-block-start: var(--space-8);
+}
+
+.lgr__section-body {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--space-4);
+  padding-block-start: var(--space-4);
+}
+
+.lgr .ledger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--space-8);
+  row-gap: var(--space-1);
+}
+
+.lgr__text-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.lgr__text {
+  margin: 0;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font: 400 16px/24px var(--font-ui);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lgr__text--empty {
+  color: var(--text-muted);
+}
+
+.lgr__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-sm);
+}
+
+.lgr__table {
   width: 100%;
   border-collapse: collapse;
+  font: 400 16px/24px var(--font-ui);
 }
-.lgr-info td {
-  padding: 5px 8px;
-  text-align: right;
-  vertical-align: top;
+.lgr__table th,
+.lgr__table td {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  text-align: center;
 }
-.lgr-lbl {
-  text-decoration: underline;
-  color: gray;
-  font-size: 12px;
+.lgr__table tbody tr + tr > * {
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+.lgr__table thead th {
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
   white-space: nowrap;
 }
-.lgr-val {
-  font-weight: bold;
-  color: #111;
+.lgr__table thead th:first-child,
+.lgr__table tbody th {
+  text-align: start;
 }
-.lgr-blue {
-  color: blue;
+.lgr__table tbody th {
+  color: var(--text-primary);
+  font-weight: 400;
 }
-.lgr-red {
-  color: red;
+.lgr__table-types td {
+  color: var(--text-secondary);
 }
-
-.lgr-sec {
-  margin-top: 14px;
-  color: #1414b4;
-  font-weight: bold;
-  text-decoration: underline;
-}
-
-.lgr-box {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #bbb;
-  padding: 6px;
-  background: #fafafa;
-  min-height: 34px;
-  white-space: pre-wrap;
-  border-radius: 3px;
+.lgr__hit svg {
+  display: block;
+  margin-inline: auto;
+  color: var(--text-primary);
 }
 
-.lgr-cars {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 12px;
+.lgr__equipment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2) var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.lgr-cars td {
-  text-align: center;
-  color: #1414b4;
-  padding: 4px;
+.lgr__equipment li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font: 400 16px/24px var(--font-ui);
 }
-
-.lgr-grid {
-  width: 100%;
-  border-collapse: collapse;
-  border: 2px ridge #ccc;
-  margin-top: 6px;
+.lgr__equipment li svg {
+  flex: none;
 }
-.lgr-grid th {
-  background: #4a3c8c;
-  color: #e7e7ff;
-  padding: 5px;
-}
-.lgr-grid td {
-  background: #dedfde;
-  color: #000;
-  padding: 4px;
-  text-align: center;
-}
-.lgr-grid td.lgr-hit {
-  text-align: right;
-  padding-right: 8px;
+.lgr__equipment li.is-used {
+  color: var(--text-primary);
 }
 
-.lgr-eq {
-  width: 100%;
-  border-collapse: collapse;
-}
-.lgr-eq td {
-  padding: 5px;
-  text-align: right;
-}
-.lgr-other {
-  margin-top: 4px;
+/* Two columns once the document is wide enough to read them side by side
+   (after the base rules, which it overrides). */
+@container lgr (min-width: 600px) {
+  .lgr .ledger,
+  .lgr__equipment {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.lgr-note {
-  color: #888;
-  font-size: 11px;
-  text-align: center;
-  margin-top: 18px;
+.lgr__note {
+  margin-block-start: var(--space-8);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+/* ---- Print: the open report only ----
+   The archive portals the open report into .legacy-print-root on <body>. While it
+   exists, printing hides every other child of <body> (app shell, search, results). */
+
+.legacy-print-root {
+  display: none;
+}
+
+@page legacy-report {
+  size: A4;
+  margin: 14mm 12mm;
 }
 
 @media print {
-  .lgr-note {
+  body:has(> .legacy-print-root) {
+    background: var(--surface-raised);
+  }
+  body:has(> .legacy-print-root) > :not(.legacy-print-root) {
     display: none;
   }
-  .lgr {
-    max-width: none;
-    padding: 0;
+  .legacy-print-root {
+    display: block;
+    page: legacy-report;
   }
-}
-
-/* Call-sign results row in the in-app archive view. */
-.legacy-archive-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-  text-align: right;
-  padding: 10px 14px;
-  border: 1px solid var(--border, #d8dae0);
-  border-radius: 8px;
-  background: var(--surface, #fff);
-  cursor: pointer;
-}
-.legacy-archive-row:hover {
-  border-color: var(--accent, #4a3c8c);
-  background: var(--surface-hover, #f6f5fb);
+  .legacy-print-root .lgr {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .lgr__section,
+  .lgr__text-field,
+  .lgr__table tr {
+    break-inside: avoid;
+  }
+  .lgr__note {
+    display: none;
+  }
 }

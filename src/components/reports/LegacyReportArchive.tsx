@@ -1,17 +1,23 @@
 // In-app "Event report archive" — the old-site ShowEventReport, reconstructed from
-// the archived YP backup. Lives inside the Reports section. Lookup by report id,
-// event number, or call sign (+ optional date), then renders the printable replica.
+// the archived YP backup. Lives inside the Reports section. Lookup by call sign
+// (all its events, or one date), event number or report id, then shows the report.
 //
-// Data comes from src/lib/reports/legacyReport.ts (fixture in the prototype; Supabase
-// `legacy.*` in production) — this view never talks to a backend directly.
+// Data comes from src/lib/reports/legacyReport.ts (fixture in the dev harness;
+// Supabase `legacy.*` in production) — this view never talks to a backend directly.
+// The open report is also portaled into a print-only root, so printing (button or
+// browser) outputs that document alone, without the app chrome or the search.
 
-import { useEffect, useRef, useState } from 'react'
-import { ChevronRight, FileSearch, Printer, Search } from 'lucide-react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { Archive, ChevronLeft, ChevronRight, FileSearch, Printer, Search } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { DateField } from '../ui/DateField'
 import { EmptyState } from '../ui/EmptyState'
+import { FilterChips } from '../ui/FilterChips'
+import { TextField } from '../ui/TextField'
 import { LegacyEventReport } from './LegacyEventReport'
 import './LegacyEventReport.css'
+import { isoDateToDisplay } from '../../lib/format'
 import {
   searchByCallSign,
   searchLegacyReports,
@@ -20,14 +26,28 @@ import {
   type LegacyReport,
 } from '../../lib/reports/legacyReport'
 
-type Mode = 'id' | 'report' | 'callsign' | 'callsignList'
+type Mode = 'callsignList' | 'callsign' | 'report' | 'id'
 
-const MODES: ReadonlyArray<[Mode, string]> = [
-  ['callsignList', 'לפי אות קריאה'],
-  ['callsign', 'אות קריאה + תאריך'],
-  ['report', 'לפי מספר אירוע'],
-  ['id', 'לפי מזהה דוח'],
+const MODES: Array<{ value: Mode; label: string }> = [
+  { value: 'callsignList', label: 'אות קריאה' },
+  { value: 'callsign', label: 'אות קריאה ותאריך' },
+  { value: 'report', label: 'מספר אירוע' },
+  { value: 'id', label: 'מזהה דוח' },
 ]
+
+/** What was searched, for the result heading and the empty state. */
+type Searched = { mode: Mode; text: string }
+
+function describe(s: Searched): string {
+  if (s.mode === 'report') return `אירוע מספר ${s.text}`
+  if (s.mode === 'id') return `דוח עם המזהה ${s.text}`
+  return `אות קריאה ${s.text}`
+}
+
+function hitsLabel(n: number): string {
+  if (n === 0) return 'ללא פגיעות'
+  return n === 1 ? 'פגיעה אחת' : `${n} פגיעות`
+}
 
 export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
   const [mode, setMode] = useState<Mode>('callsignList')
@@ -35,80 +55,77 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
   const [reportNo, setReportNo] = useState('')
   const [callSign, setCallSign] = useState('')
   const [dateIso, setDateIso] = useState('')
-  const [results, setResults] = useState<LegacyReport[] | null>(null)
-  const [list, setList] = useState<LegacyReport[] | null>(null)
-  const [error, setError] = useState('')
+  const [fieldError, setFieldError] = useState<{ field: 'value' | 'date'; text: string } | null>(null)
+  const [loadError, setLoadError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [found, setFound] = useState<LegacyReport[] | null>(null)
+  const [searched, setSearched] = useState<Searched | null>(null)
+  const [selectedFk, setSelectedFk] = useState<string | null>(null)
 
-  const primaryRef = useRef<HTMLInputElement>(null)
+  const reportRef = useRef<HTMLDivElement>(null)
 
-  // Focus the active input whenever the search type changes.
+  const selected = found?.find((r) => r.fk === selectedFk) ?? null
+  // A list whenever there is a choice to make; a call-sign search always lists.
+  const showList = Boolean(found && (found.length > 1 || searched?.mode === 'callsignList'))
+
   useEffect(() => {
-    primaryRef.current?.focus()
-  }, [mode])
+    if (selectedFk && found && found.length > 1) reportRef.current?.scrollIntoView({ block: 'start' })
+  }, [selectedFk, found])
 
   function switchMode(m: Mode) {
     setMode(m)
-    setResults(null)
-    setList(null)
-    setError('')
+    setFound(null)
+    setSearched(null)
+    setSelectedFk(null)
+    setFieldError(null)
+    setLoadError('')
   }
 
   async function run() {
-    setError('')
-    setList(null)
+    setFieldError(null)
+    setLoadError('')
 
+    const cs = callSign.trim()
     let lookup: LegacyLookup | null = null
-    if (mode === 'callsignList') {
-      if (!callSign.trim()) return setError('הזן אות קריאה')
-    } else if (mode === 'id') {
-      if (!id.trim()) return setError('הזן מזהה דוח')
-      lookup = { kind: 'id', id }
+    let text = ''
+    if (mode === 'callsignList' || mode === 'callsign') {
+      if (!cs) return setFieldError({ field: 'value', text: 'יש להזין אות קריאה' })
+      if (mode === 'callsign') {
+        if (!dateIso) return setFieldError({ field: 'date', text: 'יש לבחור תאריך' })
+        lookup = { kind: 'callsign', callSign: cs, date: toDisplayDate(dateIso) }
+      }
+      text = cs
     } else if (mode === 'report') {
-      if (!reportNo.trim()) return setError('הזן מספר אירוע')
+      if (!reportNo.trim()) return setFieldError({ field: 'value', text: 'יש להזין מספר אירוע' })
       lookup = { kind: 'report', eventNumber: reportNo }
+      text = reportNo.trim()
     } else {
-      if (!callSign.trim() || !dateIso) return setError('הזן אות קריאה ובחר תאריך')
-      lookup = { kind: 'callsign', callSign, date: toDisplayDate(dateIso) }
+      if (!id.trim()) return setFieldError({ field: 'value', text: 'יש להזין מזהה דוח' })
+      lookup = { kind: 'id', id }
+      text = id.trim()
     }
 
     setLoading(true)
     try {
-      if (mode === 'callsignList') {
-        const found = await searchByCallSign(callSign)
-        setResults(null)
-        setList(found)
-        if (found.length === 0) setError('לא נמצאו אירועים לאות קריאה זו')
-        return
-      }
-      const found = await searchLegacyReports(lookup!)
-      setResults(found)
-      if (found.length === 0) setError('לא נמצא אירוע תואם')
+      const results = lookup ? await searchLegacyReports(lookup) : await searchByCallSign(cs)
+      setFound(results)
+      setSearched({ mode, text: mode === 'callsign' ? `${text} בתאריך ${isoDateToDisplay(dateIso)}` : text })
+      setSelectedFk(results.length === 1 ? results[0].fk : null)
     } catch {
-      setError('שגיאה בטעינת הדוח. נסו שוב.')
+      setFound(null)
+      setLoadError('טעינת הדוחות נכשלה. בדקו את החיבור ונסו שוב.')
     } finally {
       setLoading(false)
     }
   }
 
-  const callSignField = (
-    <label className="search-field">
-      <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-      <span className="visually-hidden">אות קריאה</span>
-      <input
-        ref={primaryRef}
-        type="search"
-        inputMode="numeric"
-        value={callSign}
-        onChange={(e) => setCallSign(e.target.value)}
-        placeholder="אות קריאה, למשל 000"
-        onKeyDown={(e) => { if (e.key === 'Enter') void run() }}
-      />
-    </label>
-  )
+  const valueError = fieldError?.field === 'value' ? fieldError.text : undefined
+  const onEnter = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') void run()
+  }
 
   return (
-    <div className="stack-4">
+    <div className="stack-4 legacy-archive">
       <div>
         <Button variant="ghost" onClick={onBack} icon={<ChevronRight size={20} strokeWidth={1.75} />}>
           דוחות
@@ -122,90 +139,144 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* search-type selector */}
-      <div className="admin-toolbar" style={{ gap: 8, flexWrap: 'wrap' }}>
-        {MODES.map(([m, label]) => (
-          <Button key={m} variant={mode === m ? 'primary' : 'secondary'} onClick={() => switchMode(m)}>
-            {label}
-          </Button>
-        ))}
-      </div>
-
-      {/* inputs for the active mode */}
-      <div className="admin-toolbar" style={{ gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        {mode === 'id' && (
-          <label className="search-field">
-            <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-            <span className="visually-hidden">מזהה דוח</span>
-            <input ref={primaryRef} type="search" value={id} onChange={(e) => setId(e.target.value)}
-              placeholder="מזהה דוח (fld_EventFK)" onKeyDown={(e) => { if (e.key === 'Enter') void run() }} />
-          </label>
-        )}
-        {mode === 'report' && (
-          <label className="search-field">
-            <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-            <span className="visually-hidden">מספר אירוע</span>
-            <input ref={primaryRef} type="search" inputMode="numeric" value={reportNo}
-              onChange={(e) => setReportNo(e.target.value)} placeholder="מספר אירוע, למשל 8717"
-              onKeyDown={(e) => { if (e.key === 'Enter') void run() }} />
-          </label>
-        )}
-        {mode === 'callsign' && (
-          <>
-            {callSignField}
-            <div style={{ minWidth: 200 }}>
-              <DateField label="תאריך האירוע" value={dateIso} onChange={setDateIso} />
-            </div>
-          </>
-        )}
-        {mode === 'callsignList' && callSignField}
-        <Button onClick={() => void run()} loading={loading} loadingLabel="מחפש…" icon={<FileSearch size={20} strokeWidth={1.75} />}>
-          חפש
-        </Button>
-      </div>
-
-      {error && <p className="t-body" style={{ color: 'var(--danger, #b00)' }}>{error}</p>}
-
-      {/* call-sign results: events sorted by date */}
-      {list && list.length > 0 && (
-        <div className="stack-2">
-          <p className="t-caption text-muted">
-            {list.length} אירועים לאות קריאה {callSign.trim()} (ממוינים לפי תאריך)
+      <section className="card legacy-archive__search" aria-label="חיפוש בארכיון">
+        <div className="legacy-archive__modes">
+          <p className="t-label text-secondary" aria-hidden="true">
+            חיפוש לפי
           </p>
-          <ul className="stack-2" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {list.map((r) => (
-              <li key={r.fk}>
-                <button type="button" className="legacy-archive-row" onClick={() => setResults([r])}>
-                  <span className="t-body-strong">{toDisplayDate(r.eventDate)}</span>
-                  <span className="t-body">אירוע {r.eventNumber}</span>
-                  <span className="t-body">{r.header.eventType || '—'}</span>
-                  <span className="t-caption text-muted">{r.hits.length} פגיעות</span>
-                  <ChevronRight size={18} strokeWidth={1.75} aria-hidden="true" style={{ marginInlineStart: 'auto' }} />
-                </button>
-              </li>
-            ))}
-          </ul>
+          <FilterChips options={MODES} value={mode} onChange={switchMode} label="חיפוש לפי" />
         </div>
-      )}
 
-      {results && results.length === 0 && (
-        <EmptyState icon={<FileSearch size={40} strokeWidth={1.75} aria-hidden="true" />} title="לא נמצא אירוע תואם" />
-      )}
+        <div className={['legacy-archive__fields', mode === 'callsign' ? 'legacy-archive__fields--date' : ''].join(' ')}>
+          {mode === 'callsignList' || mode === 'callsign' ? (
+            <TextField
+              key="callsign"
+              label="אות קריאה"
+              value={callSign}
+              onChange={(e) => setCallSign(e.target.value)}
+              onKeyDown={onEnter}
+              placeholder="למשל: 000"
+              inputMode="numeric"
+              autoComplete="off"
+              numeric
+              error={valueError}
+            />
+          ) : mode === 'report' ? (
+            <TextField
+              key="report"
+              label="מספר אירוע"
+              value={reportNo}
+              onChange={(e) => setReportNo(e.target.value)}
+              onKeyDown={onEnter}
+              placeholder="למשל: 8717"
+              inputMode="numeric"
+              autoComplete="off"
+              numeric
+              error={valueError}
+            />
+          ) : (
+            <TextField
+              key="id"
+              label="מזהה דוח"
+              value={id}
+              onChange={(e) => setId(e.target.value)}
+              onKeyDown={onEnter}
+              autoComplete="off"
+              numeric
+              isolate
+              error={valueError}
+            />
+          )}
+          {mode === 'callsign' ? (
+            <DateField
+              label="תאריך האירוע"
+              value={dateIso}
+              onChange={setDateIso}
+              error={fieldError?.field === 'date' ? fieldError.text : undefined}
+            />
+          ) : null}
+          <Button
+            onClick={() => void run()}
+            loading={loading}
+            loadingLabel="מחפשים…"
+            icon={<Search size={20} strokeWidth={1.75} />}
+            className="legacy-archive__submit"
+          >
+            חיפוש
+          </Button>
+        </div>
+      </section>
 
-      {results && results.length > 1 && (
-        <p className="t-caption text-muted">נמצאו {results.length} אירועים תואמים</p>
-      )}
+      {loadError ? (
+        <p className="t-body text-danger" role="alert">
+          {loadError}
+        </p>
+      ) : null}
 
-      {results?.map((r) => (
-        <div key={r.fk} className="stack-2">
-          <div>
+      {!found && !loadError ? (
+        <EmptyState
+          icon={<Archive size={40} strokeWidth={1.75} aria-hidden="true" />}
+          title="חיפוש דוח בארכיון"
+          caption="הזינו אות קריאה כדי לראות את כל האירועים שלה, או חפשו לפי מספר אירוע או מזהה דוח."
+        />
+      ) : null}
+
+      {found && found.length === 0 && searched ? (
+        <EmptyState
+          icon={<FileSearch size={40} strokeWidth={1.75} aria-hidden="true" />}
+          title="לא נמצאו דוחות"
+          caption={`אין בארכיון ${describe(searched)}. בדקו את הערך ונסו שוב.`}
+        />
+      ) : null}
+
+      {showList && found && found.length > 0 && searched ? (
+        <section className="legacy-archive__results" aria-label="תוצאות החיפוש">
+          <p className="t-caption text-muted" aria-live="polite">
+            {found.length === 1 ? 'אירוע אחד' : `${found.length} אירועים`} · {describe(searched)} · לפי תאריך
+          </p>
+          <ul className="legacy-archive__rows">
+            {found.map((r) => {
+              const current = r.fk === selectedFk
+              return (
+                <li key={r.fk}>
+                  <button
+                    type="button"
+                    className="legacy-archive__row"
+                    data-archive-row
+                    aria-current={current ? 'true' : undefined}
+                    onClick={() => setSelectedFk(r.fk)}
+                  >
+                    <span className="legacy-archive__row-event t-body-strong">
+                      אירוע <span className="mono">{r.eventNumber || '—'}</span>
+                    </span>
+                    <span className="legacy-archive__row-date t-num">{isoDateToDisplay(r.eventDate) || '—'}</span>
+                    <span className="legacy-archive__row-type t-body">{r.header.eventType || '—'}</span>
+                    <span className="legacy-archive__row-hits t-caption">{hitsLabel(r.hits.length)}</span>
+                    <ChevronLeft className="legacy-archive__row-go" size={20} strokeWidth={1.75} aria-hidden="true" />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {selected ? (
+        <div className="legacy-archive__report stack-3" ref={reportRef}>
+          <div className="legacy-archive__report-actions">
             <Button variant="secondary" onClick={() => window.print()} icon={<Printer size={20} strokeWidth={1.75} />}>
               הדפסה / PDF
             </Button>
           </div>
-          <LegacyEventReport report={r} />
+          <LegacyEventReport report={selected} />
+          {createPortal(
+            <div className="legacy-print-root">
+              <LegacyEventReport report={selected} />
+            </div>,
+            document.body,
+          )}
         </div>
-      ))}
+      ) : null}
     </div>
   )
 }
