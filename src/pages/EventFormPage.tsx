@@ -39,6 +39,8 @@ import {
   leadKmForInput,
   patrolCallsignNumberForInput,
   patrolCallsignPrefixForInput,
+  abandonedEmptyEventIdToDiscard,
+  cockpitPageHideDiscardId,
   isAbandonedEmptyEventDraft,
   isSelfAssignDisabledInPicker,
   mergeAssignmentIds,
@@ -58,9 +60,11 @@ import {
 import {
   canViewerDeleteEvent,
   deleteEvent,
+  deleteEventOnUnload,
   eventDeleteConfirmBody,
   eventDeleteConfirmTitle,
 } from '../lib/events'
+import { forgetDiscardedEventId, rememberDiscardedEventId } from '../lib/discardedEvents'
 import { eventReleasedToResponders } from '../lib/eventResponderRelease'
 import {
   RESPONDER_ADDED_HELD_TOAST,
@@ -195,7 +199,9 @@ export function EventFormPage({
   onRequestCockpitEdit,
   onDismissForeignEdit,
 }: EventFormPageProps) {
-  const { user, profile, roles } = useAuth()
+  const { user, profile, roles, session } = useAuth()
+  const accessTokenRef = useRef<string | null>(null)
+  accessTokenRef.current = session?.access_token ?? null
   const { show } = useToast()
   const isDesktop = useIsDesktop()
   const isAdmin = roles.includes('admin')
@@ -569,20 +575,15 @@ export function EventFormPage({
 
   async function discardIfAbandonedEmpty(): Promise<boolean> {
     const current = draftRef.current
-    if (!current?.id || !isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) {
-      return false
-    }
-    if (
-      isForeignShiftLeadEvent({
-        viewerId: user?.id,
-        shiftLeadId: current.shift_lead_id,
-      })
-    ) {
-      return false
-    }
-    const eventId = current.id
+    const eventId = abandonedEmptyEventIdToDiscard(current, initialDateRef.current, user?.id)
+    if (!current || !eventId) return false
+    // Leaving does not wait for this delete; hide the row from a list fetched meanwhile.
+    rememberDiscardedEventId(eventId)
     const result = await deleteEvent(eventId)
-    if (!result.ok) return false
+    if (!result.ok) {
+      forgetDiscardedEventId(eventId)
+      return false
+    }
     if (user) clearEventFormStash(user.id, eventId)
     const cleared = { ...current, id: undefined }
     draftRef.current = cleared
@@ -1288,10 +1289,24 @@ export function EventFormPage({
       if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) return
       void persistLatest()
     }
-    function onPageHide() {
+    function onPageHide(event: PageTransitionEvent) {
       stashLatest.current?.()
       const current = draftRef.current
-      if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) return
+      if (current && isAbandonedEmptyEventDraft(current, initialDateRef.current, user?.id)) {
+        // Reload / tab close with the cockpit's untouched new event open: drop it.
+        const discardId = cockpitPageHideDiscardId({
+          variant,
+          persisted: event.persisted,
+          previewing: cockpitPreviewingRef.current,
+          draft: current,
+          initialEventDate: initialDateRef.current,
+          viewerId: user?.id,
+        })
+        if (discardId && deleteEventOnUnload(discardId, accessTokenRef.current)) {
+          rememberDiscardedEventId(discardId)
+        }
+        return
+      }
       void persistLatest()
     }
     document.addEventListener('visibilitychange', onHidden)
@@ -1301,7 +1316,7 @@ export function EventFormPage({
       window.removeEventListener('pagehide', onPageHide)
       if (savedTimer.current) window.clearTimeout(savedTimer.current)
     }
-  }, [user])
+  }, [user, variant])
 
   useEffect(() => {
     if (!pickerOpen) return

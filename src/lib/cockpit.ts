@@ -6,6 +6,7 @@ import { locationPinIsLocked, type LocationPinSource } from './locationPin'
 import { geocodePlaceQuery } from './googlePlaces'
 import { supabase } from './supabase'
 import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
+import { withoutDiscardedEvents } from './discardedEvents'
 
 export const COCKPIT_WINDOW_MS = 5 * 60 * 60 * 1000
 /** Allow a just-inserted row whose server `created_at` is slightly ahead of the client clock. */
@@ -411,7 +412,9 @@ export async function fetchCockpitReel(now = new Date()): Promise<CockpitReelIte
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(error.message)
-  return filterCockpitReel((data ?? []) as unknown as CockpitReelItem[], now)
+  return withoutDiscardedEvents(
+    filterCockpitReel((data ?? []) as unknown as CockpitReelItem[], now),
+  )
 }
 
 export async function insertCockpitDraft(shiftLeadId: string): Promise<
