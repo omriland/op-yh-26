@@ -7,10 +7,11 @@
 // The open report is also portaled into a print-only root, so printing (button or
 // browser) outputs that document alone, without the app chrome or the search.
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Archive, ChevronLeft, ChevronRight, FileSearch, Printer, Search } from 'lucide-react'
 import { Button } from '../ui/Button'
+import { Dialog } from '../ui/Dialog'
 import { DateField } from '../ui/DateField'
 import { EmptyState } from '../ui/EmptyState'
 import { FilterChips } from '../ui/FilterChips'
@@ -62,15 +63,9 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
   const [searched, setSearched] = useState<Searched | null>(null)
   const [selectedFk, setSelectedFk] = useState<string | null>(null)
 
-  const reportRef = useRef<HTMLDivElement>(null)
-
   const selected = found?.find((r) => r.fk === selectedFk) ?? null
   // A list whenever there is a choice to make; a call-sign search always lists.
   const showList = Boolean(found && (found.length > 1 || searched?.mode === 'callsignList'))
-
-  useEffect(() => {
-    if (selectedFk && found && found.length > 1) reportRef.current?.scrollIntoView({ block: 'start' })
-  }, [selectedFk, found])
 
   function switchMode(m: Mode) {
     setMode(m)
@@ -235,10 +230,11 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
             {found.length === 1 ? 'אירוע אחד' : `${found.length} אירועים`} · {describe(searched)} · לפי תאריך
           </p>
           <ul className="legacy-archive__rows">
-            {found.map((r) => {
+            {found.map((r, i) => {
               const current = r.fk === selectedFk
               return (
-                <li key={r.fk}>
+                // fld_EventFK repeats in the legacy data, so it can't key the list alone.
+                <li key={`${r.fk}-${i}`}>
                   <button
                     type="button"
                     className="legacy-archive__row"
@@ -248,6 +244,15 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
                   >
                     <span className="legacy-archive__row-event t-body-strong">
                       אירוע <span className="mono">{r.eventNumber || '—'}</span>
+                      {/* Event numbers repeat across call signs — show the call sign
+                          to tell apart otherwise-identical-looking rows. Redundant in
+                          a call-sign search (the header already names it). */}
+                      {searched && searched.mode !== 'callsignList' && searched.mode !== 'callsign' ? (
+                        <>
+                          {' · '}
+                          <span className="text-secondary">א.ק</span> <span className="mono">{r.callSign || '—'}</span>
+                        </>
+                      ) : null}
                     </span>
                     <span className="legacy-archive__row-date t-num">{isoDateToDisplay(r.eventDate) || '—'}</span>
                     <span className="legacy-archive__row-type t-body">{r.header.eventType || '—'}</span>
@@ -262,20 +267,29 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {selected ? (
-        <div className="legacy-archive__report stack-3" ref={reportRef}>
-          <div className="legacy-archive__report-actions">
+        <Dialog
+          open
+          wide
+          dir="rtl"
+          lang="he"
+          title={`דוח אירוע ${selected.eventNumber || ''}`.trim()}
+          onClose={() => setSelectedFk(null)}
+          footer={
             <Button variant="secondary" onClick={() => window.print()} icon={<Printer size={20} strokeWidth={1.75} />}>
               הדפסה / PDF
             </Button>
+          }
+        >
+          <div className="legacy-archive__report stack-3">
+            <LegacyEventReport report={selected} />
           </div>
-          <LegacyEventReport report={selected} />
           {createPortal(
             <div className="legacy-print-root">
               <LegacyEventReport report={selected} />
             </div>,
             document.body,
           )}
-        </div>
+        </Dialog>
       ) : null}
     </div>
   )
