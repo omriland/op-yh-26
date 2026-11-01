@@ -3,7 +3,7 @@ import { formatDate, formatPlate } from './format.ts'
 import { eventStamp } from './status.ts'
 
 export function isBlankQuery(q: string): boolean {
-  return q.replace(/[\s.,;:!?'"`״׳"'()[\]{}\-–—_/\\]/g, '') === ''
+  return q.replace(/[\s\p{P}\p{S}\p{Cf}]/gu, '') === ''
 }
 
 export function isDirectQuery(q: string): boolean {
