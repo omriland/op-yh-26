@@ -40,6 +40,23 @@ describe('deriveEventStatus', () => {
     expect(deriveEventStatus(draft({ responders: [] }))).toBe('draft')
   })
 
+  it('is done when cancelled and nobody is assigned', () => {
+    expect(
+      deriveEventStatus(draft({ is_cancelled: true, responders: [], end_time: '' })),
+    ).toBe('done')
+  })
+
+  it('keeps the responder rule when a cancelled event still has assignments', () => {
+    expect(
+      deriveEventStatus(
+        draft({
+          is_cancelled: true,
+          responders: [responder({ status: 'pending', total_km: '' })],
+        }),
+      ),
+    ).toBe('in_progress')
+  })
+
   it('is done only when every responder is done, end time is set, and every KM is filled', () => {
     expect(
       deriveEventStatus(
