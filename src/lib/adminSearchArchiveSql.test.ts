@@ -66,6 +66,25 @@ describe('admin_search_archive migration', () => {
     expect(sql).toContain("if v_entity = 'people' or v_source = 'new' then")
   })
 
+  it('picks events by the event-level keys, then matches and summarizes every row of them', () => {
+    expect(sql).toContain('group by ve.event_fk\n    ),')
+    expect(sql).toContain('join cand c on c.event_fk = ve.event_fk')
+    const vol = sql.slice(sql.indexOf('    vol as ('), sql.indexOf('    person as ('))
+    expect(vol).not.toContain('where')
+  })
+
+  it('lets text find plates (and their digits), event numbers, roads and people', () => {
+    expect(sql).toMatch(
+      /string_agg\(concat_ws\(E'\\n', vol\.event_number, vol\.road_number, vol\.location,\s+vol\.volunteer, vol\.coordinator, vol\.actions_taken, vol\.problems\)/,
+    )
+    expect(sql).toContain("string_agg(concat_ws(E'\\n', car.plate, regexp_replace(car.plate, '\\D', '', 'g')), E'\\n')")
+    expect(sql).toContain('or cardinality(v_text_words) > 0\n    ),')
+    for (const label of ["'מספר אירוע '", "'לוחית '", "'מיקום: '", "'אחמ״ש: '", "'כונן: '", "'טיפול: '"]) {
+      expect(sql).toContain(label)
+    }
+    expect(sql).not.toContain("'כביש ' || 'כביש")
+  })
+
   it('withholds the function from public and anon', () => {
     expect(sql).toContain('revoke all on function public.admin_search_archive(jsonb, int) from public, anon')
     expect(sql).toContain('grant execute on function public.admin_search_archive(jsonb, int) to authenticated')

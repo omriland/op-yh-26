@@ -132,16 +132,14 @@ begin
       from legacy.users u
       order by btrim(u.call_sign)
     ),
-    vol as (
-      -- Volunteer rows, narrowed by the keys that describe the event itself.
-      select ve.auto_id, ve.event_fk, ve.event_date, btrim(ve.event_number) as event_number,
-        btrim(ve.road_number) as road_number, btrim(ve.location) as location,
-        ve.event_type, ve.branch_id, ve.actions_taken, ve.problems,
-        concat_ws(' ', nullif(btrim(ve.call_sign), ''), nv.name) as volunteer,
-        concat_ws(' ', nullif(btrim(ve.coordinator), ''), nc.name) as coordinator
+    cand as (
+      -- Events with a volunteer row matching the keys that describe the event
+      -- itself. Each old row is one volunteer's report (its own road, place
+      -- and cars), so everything after this uses every row of these events.
+      select ve.event_fk,
+        min(btrim(ve.location)) filter (where btrim(ve.location) <> '') as location_hit,
+        min(btrim(ve.road_number)) filter (where btrim(ve.road_number) <> '') as road_hit
       from legacy.vol_events ve
-      left join names nv on nv.sign = btrim(ve.call_sign)
-      left join names nc on nc.sign = btrim(ve.coordinator)
       where (v_from is null or ve.event_date::date >= v_from)
         and (v_to is null or ve.event_date::date <= v_to)
         and (v_police_id is null or public.smart_search_word_in(btrim(ve.event_number), v_police_id))
@@ -153,6 +151,19 @@ begin
         and (cardinality(v_location_words) = 0 or public.smart_search_all_words_in(ve.location, v_location_words))
         and (v_event_type is null or ve.event_type = any (v_type_ids))
         and (v_branch_ids is null or ve.branch_id = any (v_branch_ids))
+      group by ve.event_fk
+    ),
+    vol as (
+      -- Every volunteer row of the candidate events.
+      select ve.auto_id, ve.event_fk, ve.event_date, btrim(ve.event_number) as event_number,
+        btrim(ve.road_number) as road_number, btrim(ve.location) as location,
+        ve.event_type, ve.branch_id, ve.actions_taken, ve.problems,
+        concat_ws(' ', nullif(btrim(ve.call_sign), ''), nv.name) as volunteer,
+        concat_ws(' ', nullif(btrim(ve.coordinator), ''), nc.name) as coordinator
+      from legacy.vol_events ve
+      join cand c on c.event_fk = ve.event_fk
+      left join names nv on nv.sign = btrim(ve.call_sign)
+      left join names nc on nc.sign = btrim(ve.coordinator)
     ),
     person as (
       -- Every person word must match the same volunteer or coordinator, so
@@ -165,7 +176,7 @@ begin
         and public.smart_search_all_words_in(x.who, v_person_words)
     ),
     car as (
-      -- Only when a car key is set.
+      -- Only when a car key or text is set.
       select vol.event_fk, btrim(ci.license_plate) as plate,
         v_plate is not null
           and regexp_replace(coalesce(ci.license_plate, ''), '\D', '', 'g') like '%' || v_plate || '%' as plate_hit,
@@ -181,13 +192,17 @@ begin
       from vol
       join legacy.cars_in_hits ci on ci.event_fk = vol.auto_id
       where v_plate is not null or cardinality(v_vehicle_words) > 0 or v_damaged or v_hit_id is not null
+        or cardinality(v_text_words) > 0
     ),
     car_per_event as (
       select car.event_fk,
         min(car.plate) filter (where car.plate_hit) as plate_hit,
         min(car.plate) filter (where car.vehicle_hit) as vehicle_hit,
         bool_or(car.damaged) as damaged,
-        bool_or(car.location_hit) as location_hit
+        bool_or(car.location_hit) as location_hit,
+        -- text also finds a plate by its digits (12-345-67 typed with dashes).
+        string_agg(concat_ws(E'\n', car.plate, regexp_replace(car.plate, '\D', '', 'g')), E'\n')
+          filter (where cardinality(v_text_words) > 0) as text_hay
       from car
       group by car.event_fk
     ),
@@ -203,22 +218,26 @@ begin
           when v_person_role <> 'lead' and vol.volunteer in (select who from person) then 'כונן: ' || vol.volunteer
           when v_person_role <> 'responder' and vol.coordinator in (select who from person) then 'אחמ״ש: ' || vol.coordinator
         end) as person_hit,
-        -- Every text word must match some field. Fields are joined by a
-        -- newline, so a word (which has no whitespace) cannot span two.
-        cardinality(v_text_words) > 0 and public.smart_search_all_words_in(
-          string_agg(concat_ws(E'\n', vol.actions_taken, vol.problems, vol.location), E'\n'),
-          v_text_words) as text_ok
+        -- What text searches besides the plates: like admin_search, the event
+        -- number, road, place, people and treatment text.
+        string_agg(concat_ws(E'\n', vol.event_number, vol.road_number, vol.location,
+            vol.volunteer, vol.coordinator, vol.actions_taken, vol.problems), E'\n')
+          filter (where cardinality(v_text_words) > 0) as text_hay
       from vol
       group by vol.event_fk
     ),
     matched as (
-      select pe.*, cpe.plate_hit, cpe.vehicle_hit, cpe.damaged
+      select pe.*, c.location_hit, c.road_hit, cpe.plate_hit, cpe.vehicle_hit, cpe.damaged
       from per_event pe
+      join cand c on c.event_fk = pe.event_fk
       left join car_per_event cpe on cpe.event_fk = pe.event_fk
       where (v_plate is null or cpe.plate_hit is not null)
         and (cardinality(v_vehicle_words) = 0 or cpe.vehicle_hit is not null)
         and (cardinality(v_person_words) = 0 or pe.person_hit is not null)
-        and (cardinality(v_text_words) = 0 or pe.text_ok)
+        -- Every text word must match some field. Fields are joined by a
+        -- newline, so a word (which has no whitespace) cannot span two.
+        and (cardinality(v_text_words) = 0
+          or public.smart_search_all_words_in(concat_ws(E'\n', pe.text_hay, cpe.text_hay), v_text_words))
         and (not v_damaged or cpe.damaged)
         and (v_hit_id is null or cpe.location_hit)
       order by pe.event_date desc nulls last, pe.event_fk
@@ -252,13 +271,42 @@ begin
       group by x.event_fk
     ),
     text_hit as (
-      -- The first actions or problems text holding a text word.
-      select distinct on (mv.event_fk) mv.event_fk, b.body as text_hit
-      from matched_vol mv
-      cross join lateral (values (1, mv.actions_taken), (2, mv.problems)) as b(ord, body)
-      where cardinality(v_text_words) > 0
-        and exists (select 1 from unnest(v_text_words) as w where public.smart_search_word_in(b.body, w))
-      order by mv.event_fk, mv.auto_id, b.ord
+      -- found_by for text: the first field holding a text word, in
+      -- admin_search's field order.
+      select distinct on (f.event_fk) f.event_fk, f.label as text_hit
+      from (
+        select mv.event_fk, 10 as ord, mv.auto_id as sub, 'מספר אירוע ' || mv.event_number as label,
+          mv.event_number as hay
+        from matched_vol mv
+        union all
+        select mv.event_fk, 20, ci.auto_id, 'לוחית ' || btrim(ci.license_plate),
+          concat_ws(' ', ci.license_plate, regexp_replace(ci.license_plate, '\D', '', 'g'))
+        from matched_vol mv
+        join legacy.cars_in_hits ci on ci.event_fk = mv.auto_id
+        union all
+        -- Old road numbers are mostly bare digits, some already say כביש.
+        select mv.event_fk, 30, mv.auto_id,
+          case when mv.road_number ~ '^כביש' then mv.road_number else 'כביש ' || mv.road_number end,
+          mv.road_number
+        from matched_vol mv
+        union all
+        select mv.event_fk, 40, mv.auto_id, 'מיקום: ' || mv.location, mv.location
+        from matched_vol mv
+        union all
+        select mv.event_fk, 50, mv.auto_id, 'אחמ״ש: ' || mv.coordinator, mv.coordinator
+        from matched_vol mv
+        union all
+        select mv.event_fk, 52, mv.auto_id, 'כונן: ' || mv.volunteer, mv.volunteer
+        from matched_vol mv
+        union all
+        select mv.event_fk, 60, mv.auto_id,
+          'טיפול: ' || left(regexp_replace(legacy.mask_id_digits(b.body), '\s+', ' ', 'g'), 40), b.body
+        from matched_vol mv
+        cross join lateral (values (mv.actions_taken), (mv.problems)) as b(body)
+      ) as f
+      where cardinality(v_text_words) > 0 and btrim(f.hay) <> ''
+        and exists (select 1 from unnest(v_text_words) as w where public.smart_search_word_in(f.hay, w))
+      order by f.event_fk, f.ord, f.sub
     ),
     summary as (
       select m.*, p.people, c.cars, d.damage, t.text_hit
@@ -283,12 +331,10 @@ begin
           case when v_police_id is not null then 'מספר אירוע ' || s.event_number end,
           s.person_hit,
           case when cardinality(v_vehicle_words) > 0 then 'רכב: ' || s.vehicle_hit end,
-          case when s.text_hit is not null
-            then 'טיפול: ' || left(regexp_replace(legacy.mask_id_digits(s.text_hit), '\s+', ' ', 'g'), 40) end,
-          case when cardinality(v_location_words) > 0 then 'מיקום: ' || s.location end,
-          -- Old road numbers are mostly bare digits, some already say כביש.
+          s.text_hit,
+          case when cardinality(v_location_words) > 0 then 'מיקום: ' || s.location_hit end,
           case when v_road is not null then
-            case when s.road_number ~ '^כביש' then s.road_number else 'כביש ' || s.road_number end
+            case when s.road_hit ~ '^כביש' then s.road_hit else 'כביש ' || s.road_hit end
           end,
           case when v_hit_id is not null then 'נזק: ' || v_damage_location end,
           case when v_damaged then 'נזק: ' || s.damage end,
