@@ -8410,3 +8410,196 @@ fieldset.field {
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
 }
+
+/* ============================================================
+   Search (/search) — screens/search.md
+   ============================================================ */
+
+.search-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.search-page > .page-head {
+  margin-block-end: var(--space-2);
+}
+
+/* Input and חיפוש share one row on every width. */
+.search-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.search-bar__field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Magnifier affix at inline-start. */
+.search-bar__input {
+  padding-inline-start: var(--space-12);
+  padding-inline-end: var(--space-3);
+}
+
+.search-bar__affix {
+  inset-inline-start: var(--space-1);
+  inset-inline-end: auto;
+  pointer-events: none;
+}
+
+/* Match the 44 px field it sits beside. */
+.search-bar .btn {
+  flex: none;
+  min-height: 44px;
+}
+
+/* הבנתי: — neutral chips (secondary-chip chrome), never stamps. */
+.search-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.search-chips__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font: 400 12px/16px var(--font-ui);
+  white-space: nowrap;
+}
+
+.search-chip:has(.search-chip__remove) {
+  padding-inline-end: 0;
+}
+
+.search-chip__remove {
+  position: relative;
+  display: inline-flex;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-8);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+/* 44 × 44 hit area around the visible ✕, centred on it in both directions. */
+.search-chip__remove::before {
+  content: '';
+  position: absolute;
+  inset: calc(50% - 22px);
+}
+
+@media (hover: hover) {
+  .search-chip__remove:hover {
+    background: var(--accent-subtle);
+    color: var(--accent);
+  }
+}
+
+/* Section rule: heading on a hairline, export at inline-end (under it on mobile). */
+.search-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.search-section__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.search-section__rule {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.search-section__line {
+  flex: 1 1 auto;
+  min-inline-size: var(--space-6);
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+@media (min-width: 1025px) {
+  .search-section__head {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .search-section__rule {
+    flex: 1 1 auto;
+  }
+}
+
+/* The events table plus נמצא לפי is wider than the content column at common desktop
+   widths. Scroll it sideways rather than clip it. */
+.search-section .table-wrap {
+  overflow-x: auto;
+}
+
+/* Archive columns share the width equally; long cells ellipsize with a HoverTip. */
+.search-archive-table {
+  table-layout: fixed;
+}
+
+/* One-line cells with the full text in a HoverTip (events נמצא לפי, archive columns). */
+.table .table-col--truncate__text {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Archive card (mobile): same anatomy and pressed state as the event card. */
+.search-archive-card__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  text-align: start;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.search-archive-card__open:active,
+.search-person-card:active {
+  background: var(--surface-sunken);
+}
+
+.search-person-card {
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+/* The info line sits in the page stack, which already spaces it. */
+.search-page .banner {
+  margin-block-end: 0;
+}
+
+.search-report__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

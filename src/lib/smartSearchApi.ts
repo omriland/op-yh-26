@@ -175,3 +175,16 @@ export async function reportCounts(
 export async function reportChipRemoved(logId: string): Promise<void> {
   await supabase.rpc('mark_smart_search_chip_removed', { p_id: logId })
 }
+
+/** The earliest new-system event date, for section order. Null when unknown. */
+export async function fetchFirstNewEventDate(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('event_date')
+    .eq('is_demo', false)
+    .order('event_date', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (error || !data) return null
+  return (data as { event_date: string }).event_date
+}

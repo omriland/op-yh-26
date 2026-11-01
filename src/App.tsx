@@ -130,6 +130,8 @@ function Gate() {
   const [eventCreateNonce, setEventCreateNonce] = useState(0)
   const [cockpitEventId, setCockpitEventId] = useState<string | undefined>(boot.cockpitEventId)
   const [searchQuery, setSearchQuery] = useState<string | undefined>(boot.searchQuery)
+  // A search result opens this user's edit dialog on משתמשים.
+  const [editUserId, setEditUserId] = useState<string | undefined>()
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
     myShifts: false,
@@ -427,6 +429,7 @@ function Gate() {
         setShiftSurface(parsed.state.shiftSurface)
         setCockpitEventId(parsed.state.cockpitEventId)
         setSearchQuery(parsed.state.searchQuery)
+        setEditUserId(undefined)
         return
       }
       setCockpitEventId(undefined)
@@ -1033,6 +1036,7 @@ function Gate() {
     setShiftSurface(nextState.shiftSurface)
     setCockpitEventId(undefined)
     setSearchQuery(undefined)
+    setEditUserId(undefined)
     setView(nextState.view)
     setSectionReset(nextState.sectionReset)
   }
@@ -1230,7 +1234,7 @@ function Gate() {
             ) : activeView === 'fuel_quarter' ? (
               <FuelQuarterPage key={sectionReset} />
             ) : (
-              <AdminUsersPage key={sectionReset} />
+              <AdminUsersPage key={sectionReset} editUserId={editUserId} />
             )}
           </div>
       ) : activeView === 'search' ? (
@@ -1238,6 +1242,15 @@ function Gate() {
           key={sectionReset}
           initialQuery={searchQuery ?? ''}
           onQueryChange={(q) => setSearchQuery(q || undefined)}
+          onOpenEvent={(eventId) => {
+            setView('events')
+            setEventSurface({ kind: 'detail', eventId })
+            setShiftSurface({ kind: 'list' })
+          }}
+          onOpenUser={(userId) => {
+            navigate('users')
+            setEditUserId(userId)
+          }}
         />
       ) : activeView === 'contacts' ? (
         <div className={isDesktop ? 'page--wide' : undefined}>

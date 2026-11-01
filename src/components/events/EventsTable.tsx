@@ -28,6 +28,8 @@ type EventsTableProps = {
   incompleteNoticeFor?: (event: EventListItem) => IncompleteNotice | undefined
   /** Ledger queue title for the pinned incomplete table. */
   caption?: string
+  /** Search results: why each row matched, as a last `נמצא לפי` column. */
+  foundBy?: (event: EventListItem) => string
 }
 
 const NO_ASSIGNED_RESPONDERS = 'אין מתנדבים משובצים'
@@ -65,6 +67,7 @@ export function EventsTable({
   onContextDelete,
   incompleteNoticeFor,
   caption,
+  foundBy,
 }: EventsTableProps) {
   const skipOpenUntil = useRef(0)
 
@@ -81,6 +84,7 @@ export function EventsTable({
             <th scope="col">אחמ״ש</th>
             <th scope="col">מתנדבים</th>
             <th scope="col">סטטוס תיעוד</th>
+            {foundBy ? <th scope="col">נמצא לפי</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -172,6 +176,13 @@ export function EventsTable({
                       }))}
                     />
                   </td>
+                  {foundBy ? (
+                    <td className="table-col--truncate">
+                      <HoverTip text={foundBy(event)} className="table-col--truncate__text">
+                        {foundBy(event)}
+                      </HoverTip>
+                    </td>
+                  ) : null}
                 </tr>
                 {incomplete && notice ? (
                   <tr
@@ -182,7 +193,7 @@ export function EventsTable({
                     }}
                     onContextMenu={onContextMenu}
                   >
-                    <td colSpan={7}>
+                    <td colSpan={foundBy ? 8 : 7}>
                       <IncompleteFieldsNotice fields={notice.fields} spoken={notice.spoken} />
                     </td>
                   </tr>

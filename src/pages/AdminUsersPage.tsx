@@ -292,7 +292,7 @@ function UserAndroidInstallMark({
   )
 }
 
-export function AdminUsersPage() {
+export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
   const isDesktop = useIsDesktop()
   const { user: authUser, roles, profile: authProfile } = useAuth()
   const authUserId = authUser?.id
@@ -532,6 +532,17 @@ export function AdminUsersPage() {
       setRefreshing(false)
     }
   }
+
+  // Opened from a search result: open that user's edit dialog once the list is in.
+  const openedEditRef = useRef(false)
+  useEffect(() => {
+    if (!editUserId || !users || openedEditRef.current) return
+    openedEditRef.current = true
+    const target = users.find((row) => row.id === editUserId)
+    if (!target || !canMutateAdminUser(isSuperAdmin, target.roles)) return
+    setFormError(null)
+    setDraft(draftFromUser(target))
+  }, [editUserId, users, isSuperAdmin])
 
   const usersLoaded = users !== null
   useEffect(() => {
