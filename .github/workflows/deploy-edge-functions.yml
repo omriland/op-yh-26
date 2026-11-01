@@ -29,6 +29,7 @@ on:
       - "supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql"
       - "supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql"
       - "supabase/migrations/20261101120000_admin_smart_search.sql"
+      - "supabase/migrations/20261101121000_admin_search_archive.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -126,6 +127,10 @@ jobs:
           # log_smart_search) and before the frontend /search page.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261101120000_admin_smart_search.sql
+          # Admin smart search over the old-site archive: admin_search_archive.
+          # Needs the legacy archive and admin_smart_search helpers above.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261101121000_admin_search_archive.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
