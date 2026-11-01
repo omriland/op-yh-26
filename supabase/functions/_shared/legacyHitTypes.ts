@@ -1,0 +1,20 @@
+/** The 17 damage-location labels of the old-site report, in order. Mirrors HIT_TYPES in src/lib/reports/legacyReport.ts. */
+export const LEGACY_HIT_TYPE_LABELS: readonly string[] = [
+  'פגוש קדמי',
+  'כנף ימין קדמית',
+  'כנף שמאל קדמית',
+  'דלת נהג',
+  'דלת נוסע',
+  'דלת אחורית שמאלית',
+  'דלת אחורית ימנית',
+  'כנף אחורית ימנית',
+  'כנף אחורית שמאלית',
+  'תא מטען',
+  'פגוש אחורי',
+  'גג',
+  'שמשה קדמית',
+  'שמשה אחורית',
+  'מרכב תחתון',
+  'גלגלים',
+  'מכסה מנוע',
+]
