@@ -39,7 +39,6 @@ export function eventsCsv(rows: CsvEvent[]): string {
 
 const ARCHIVE_HEADERS = ['תאריך', 'מספר אירוע', 'כביש / מיקום', 'כוננים', 'רכבים', 'נזק', 'נמצא לפי', 'פעולות שבוצעו']
 
-/** The archive RPC returns no actions text, so the last column stays empty. */
 export function archiveCsv(rows: ArchiveRow[]): string {
   return toCsv(
     ARCHIVE_HEADERS,
@@ -51,7 +50,7 @@ export function archiveCsv(rows: ArchiveRow[]): string {
       r.cars,
       r.damage,
       r.found_by,
-      '',
+      r.actions,
     ]),
   )
 }

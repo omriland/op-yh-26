@@ -51,6 +51,7 @@ describe('archiveCsv', () => {
     cars: 'סוזוקי',
     damage: 'פגוש',
     found_by: 'כביש 1',
+    actions: 'החלפת גלגל',
   }
 
   it('has the spec header and no 9-digit run', () => {
@@ -60,6 +61,7 @@ describe('archiveCsv', () => {
     )
     expect(csv).not.toMatch(/\d{9}/)
     expect(csv).toContain('02.03.2019')
+    expect(csv.split('\r\n')[1].endsWith(',החלפת גלגל')).toBe(true)
   })
 })
 

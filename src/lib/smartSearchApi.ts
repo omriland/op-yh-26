@@ -1,6 +1,7 @@
 import type { SmartSearchFilter } from '../../supabase/functions/_shared/smartSearchFilter.ts'
 import { SMART_SEARCH_MAX_QUERY_CHARS } from '../../supabase/functions/_shared/smartSearchFilter.ts'
 import { EVENT_LIST_SELECT, type EventListItem } from './events'
+import { withResponderFreeze } from './responderFreezeSchema'
 import { searchQueryVariants } from './searchQuery'
 import { directFilter, isBlankQuery, isDirectQuery } from './smartSearch'
 import { supabase } from './supabase'
@@ -15,6 +16,7 @@ export type ArchiveRow = {
   cars: string
   damage: string
   found_by: string
+  actions: string
 }
 
 export type PersonHit = {
@@ -134,16 +136,18 @@ export async function runSearch(
     }),
   )
 
+  // The second variant's tail can be dropped at the cap.
   const hits = mergeBy(results.map((r) => r.main.events ?? []), (e) => e.id).slice(0, limit)
   const archive = mergeBy(results.map((r) => r.archive.rows ?? []), (r) => r.event_fk).slice(0, limit)
   const people = mergeBy(results.map((r) => r.main.people ?? []), (p) => p.id).slice(0, limit)
 
   const byId = new Map<string, EventListItem>()
+  const select = await withResponderFreeze(SEARCH_EVENT_SELECT)
   const ids = hits.map((h) => h.id)
   for (let i = 0; i < ids.length; i += HYDRATE_CHUNK) {
     const { data, error } = await supabase
       .from('events')
-      .select(SEARCH_EVENT_SELECT)
+      .select(select)
       .in('id', ids.slice(i, i + HYDRATE_CHUNK))
     if (error) throw new Error(error.message)
     for (const row of (data ?? []) as unknown as EventListItem[]) byId.set(row.id, row)

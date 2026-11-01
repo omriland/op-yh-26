@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const sb = vi.hoisted(() => ({ invoke: vi.fn(), rpc: vi.fn(), inFn: vi.fn() }))
+const sb = vi.hoisted(() => ({ invoke: vi.fn(), rpc: vi.fn(), inFn: vi.fn(), select: vi.fn() }))
 vi.mock('./supabase', () => ({
   supabase: {
     functions: { invoke: sb.invoke },
     rpc: sb.rpc,
-    from: () => ({ select: () => ({ in: sb.inFn }) }),
+    from: () => ({ select: (s: string) => { sb.select(s); return { in: sb.inFn } } }),
   },
 }))
+vi.mock('./responderFreezeSchema', async (orig) => {
+  const actual = await orig<typeof import('./responderFreezeSchema')>()
+  return { ...actual, withResponderFreeze: async (s: string) => s.split(actual.RESPONDER_FREEZE_FIELDS).join('frozen_over_60km,') }
+})
 
 import { interpretQuery, reportChipRemoved, reportCounts, runSearch } from './smartSearchApi'
 import { directFilter } from './smartSearch'
@@ -21,6 +25,7 @@ beforeEach(() => {
   sb.invoke.mockReset()
   sb.rpc.mockReset()
   sb.inFn.mockReset()
+  sb.select.mockReset()
   sb.rpc.mockResolvedValue({ data: 'log-1', error: null })
 })
 
@@ -114,6 +119,40 @@ describe('runSearch', () => {
         : { data: { events: [], people: [] }, error: null },
     )
     await expect(runSearch(directFilter('12345'), 50)).rejects.toThrow()
+  })
+})
+
+describe('runSearch errors and hydration', () => {
+  it('resolves the responder-freeze token in the hydration select', async () => {
+    sb.rpc.mockImplementation(async (name: string) =>
+      name === 'admin_search'
+        ? { data: { events: [{ id: 'a', found_by: 'x' }], people: [] }, error: null }
+        : { data: { rows: [] }, error: null },
+    )
+    sb.inFn.mockResolvedValue({ data: [{ id: 'a' }], error: null })
+    await runSearch(directFilter('12345'), 50)
+    expect(sb.select).toHaveBeenCalledTimes(1)
+    expect(sb.select.mock.calls[0][0]).not.toContain('__responder_freeze_fields__')
+    expect(sb.select.mock.calls[0][0]).toContain('frozen_over_60km')
+  })
+
+  it('throws when admin_search errors', async () => {
+    sb.rpc.mockImplementation(async (name: string) =>
+      name === 'admin_search'
+        ? { data: null, error: { message: 'x' } }
+        : { data: { rows: [] }, error: null },
+    )
+    await expect(runSearch(directFilter('12345'), 50)).rejects.toThrow('x')
+  })
+
+  it('throws when hydration errors', async () => {
+    sb.rpc.mockImplementation(async (name: string) =>
+      name === 'admin_search'
+        ? { data: { events: [{ id: 'a', found_by: 'x' }], people: [] }, error: null }
+        : { data: { rows: [] }, error: null },
+    )
+    sb.inFn.mockResolvedValue({ data: null, error: { message: 'hydrate failed' } })
+    await expect(runSearch(directFilter('12345'), 50)).rejects.toThrow('hydrate failed')
   })
 })
 
