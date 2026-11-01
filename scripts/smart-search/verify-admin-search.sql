@@ -83,12 +83,17 @@ select set_config('verify.make', coalesce((
   where split_part(tp.manufacturer, ' ', 1) ~ '^[א-ת]{3,}$'
   group by 1 order by count(*) desc limit 1), ''), true);
 
--- Road 531 this year, counted by hand (the same rules: no demo, no cancelled).
+-- Road 531 this year, and road 4 ever, counted by hand (the same rules: the
+-- number is whole, so 4 is not 40 or 431; no demo, no cancelled).
 select set_config('verify.road_count', (
   select count(*)::text from public.events e
   join public.roads r on r.id = e.road_id
-  where r.name ilike '%531%' and not e.is_demo and not e.is_cancelled
+  where r.name ~ '(^|\D)531(\D|$)' and not e.is_demo and not e.is_cancelled
     and e.event_date between date '2026-01-01' and (now() at time zone 'Asia/Jerusalem')::date), true);
+select set_config('verify.road4_count', (
+  select count(*)::text from public.events e
+  join public.roads r on r.id = e.road_id
+  where r.name ~ '(^|\D)4(\D|$)' and not e.is_demo and not e.is_cancelled), true);
 
 select pg_temp.ok(current_setting('verify.admin') <> '', 'sample: an admin exists');
 select pg_temp.ok(current_setting('verify.responder') <> '', 'sample: a non-admin exists');
@@ -135,6 +140,19 @@ select pg_temp.ok(jsonb_array_length(public.admin_search(jsonb_build_object(
     = current_setting('verify.road_count')::int,
   'road 531 this year matches the hand count (' || current_setting('verify.road_count') || ')');
 
+select pg_temp.ok(cardinality(pg_temp.event_ids('{"road":"4"}')) = current_setting('verify.road4_count')::int
+    and not exists (
+      select 1 from unnest(pg_temp.event_ids('{"road":"4"}')) as x(event_id)
+      join public.events e on e.id = x.event_id::uuid
+      join public.roads r on r.id = e.road_id
+      where r.name !~ '(^|\D)4(\D|$)'),
+  'single-digit road 4 matches the hand count (' || current_setting('verify.road4_count') || ') and no road 40, 44 or 431');
+
+-- A filter with no event-side key returns no events.
+select pg_temp.ok(public.admin_search('{}') -> 'events' = '[]', 'an empty filter returns no events');
+select pg_temp.ok(public.admin_search('{"entity":"events","damage_location":"פגוש קדמי"}') -> 'events' = '[]',
+  'archive-only damage_location returns no new events');
+
 select pg_temp.ok(exists (
     select 1 from jsonb_array_elements(public.admin_search(jsonb_build_object(
       'entity', 'people', 'person', 'ל' || current_setting('verify.first_name'))) -> 'people') as p
@@ -149,7 +167,7 @@ select pg_temp.ok(
   'direct lane: ב + a car make finds every event the bare make finds');
 
 select pg_temp.ok(not exists (
-    select 1 from unnest(pg_temp.event_ids('{}')) as x(event_id)
+    select 1 from unnest(pg_temp.event_ids('{"date_from":"2000-01-01"}')) as x(event_id)
     join public.events e on e.id = x.event_id::uuid
     where e.is_demo or e.is_cancelled),
   'no demo or cancelled event comes back by default');

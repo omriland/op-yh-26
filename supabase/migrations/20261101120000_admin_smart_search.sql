@@ -150,6 +150,13 @@ declare
     when cardinality(v_person_words) > 0 then v_person_words
     else v_text_words
   end;
+  -- Without one of these keys, a filter does not narrow new events (e.g. {}
+  -- or the archive-only damage_location), so no events are returned.
+  v_has_event_key boolean := v_from is not null or v_to is not null
+    or v_police_id is not null or v_road is not null or cardinality(v_location_words) > 0
+    or v_event_type is not null or v_district is not null or v_plate is not null
+    or cardinality(v_vehicle_words) > 0 or cardinality(v_person_words) > 0
+    or cardinality(v_text_words) > 0 or v_status is not null or v_damaged;
   -- "full_name callsign" of every profile matching all person words.
   v_person_hays text[] := '{}';
   v_events jsonb := '[]'::jsonb;
@@ -162,7 +169,7 @@ begin
     return v_empty;
   end if;
 
-  if v_entity <> 'people' and v_source <> 'archive' then
+  if v_entity <> 'people' and v_source <> 'archive' and v_has_event_key then
     -- Every person word must match the same lead or responder. Matched once
     -- per profile here, not once per event link below.
     if cardinality(v_person_words) > 0 then
@@ -187,7 +194,11 @@ begin
         and (v_from is null or e.event_date >= v_from)
         and (v_to is null or e.event_date <= v_to)
         and (v_police_id is null or public.smart_search_word_in(e.police_event_id, v_police_id))
-        and (v_road is null or public.smart_search_word_in(r.name, v_road))
+        -- A numeric road matches as a whole number: 4 is כביש 4, not 40 or 431.
+        and (v_road is null or case
+          when v_road ~ '^\d+$' then r.name ~ ('(^|\D)' || v_road || '(\D|$)')
+          else public.smart_search_word_in(r.name, v_road)
+        end)
         and (v_event_type is null or t.name = v_event_type)
         and (v_district is null or d.name = v_district)
         and (v_status is null or e.status::text = v_status)

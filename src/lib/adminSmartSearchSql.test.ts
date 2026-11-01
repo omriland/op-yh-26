@@ -31,6 +31,25 @@ describe('admin smart search migration', () => {
     expect(sql).not.toMatch(/drop table/i)
   })
 
+  it('matches a numeric road as a whole number, not a substring', () => {
+    expect(sql).toContain("when v_road ~ '^\\d+$' then r.name ~ ('(^|\\D)' || v_road || '(\\D|$)')")
+  })
+
+  it('returns no events for a filter with no event-side key ({} or archive-only damage_location)', () => {
+    const gate = sql.slice(
+      sql.indexOf('v_has_event_key boolean :='),
+      sql.indexOf(';', sql.indexOf('v_has_event_key boolean :=')),
+    )
+    for (const v of [
+      'v_from', 'v_to', 'v_police_id', 'v_road', 'v_location_words', 'v_event_type', 'v_district',
+      'v_plate', 'v_vehicle_words', 'v_person_words', 'v_text_words', 'v_status', 'v_damaged',
+    ]) {
+      expect(gate).toContain(v)
+    }
+    expect(gate).not.toContain('damage_location')
+    expect(sql).toContain("if v_entity <> 'people' and v_source <> 'archive' and v_has_event_key then")
+  })
+
   it('withholds admin_search from anon', () => {
     expect(sql).toContain('revoke all on function public.admin_search(jsonb, int) from public, anon')
     expect(sql).toContain('grant execute on function public.admin_search(jsonb, int) to authenticated')
