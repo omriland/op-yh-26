@@ -1,8 +1,8 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { EventListItem } from '../../lib/events'
-import { EventsTable } from './EventsTable'
+import type { EventListItem, EventResponderSummary } from '../../lib/events'
+import { AssignedRespondersTip, EventsTable, responderDisplayName } from './EventsTable'
 
 function event(partial: Partial<EventListItem> = {}): EventListItem {
   return {
@@ -29,6 +29,55 @@ function event(partial: Partial<EventListItem> = {}): EventListItem {
     ...partial,
   }
 }
+
+function responder(
+  partial: Partial<EventResponderSummary> & Pick<EventResponderSummary, 'id'>,
+): EventResponderSummary {
+  return {
+    responder_id: partial.id,
+    status: 'pending',
+    total_km: null,
+    started_at: null,
+    ended_at: null,
+    profile: { full_name: 'מתנדב', callsign: '1' },
+    ...partial,
+  }
+}
+
+describe('AssignedRespondersTip', () => {
+  it('uses the display name, then the callsign', () => {
+    expect(responderDisplayName({ full_name: 'אלכסנדר', callsign: '738' })).toBe('אלכסנדר')
+    expect(responderDisplayName({ full_name: null, callsign: '12' })).toBe('12')
+    expect(responderDisplayName(null)).toBe('מתנדב')
+  })
+
+  it('lists assigned responders and says when nobody is assigned', () => {
+    const filled = renderToStaticMarkup(
+      createElement(AssignedRespondersTip, {
+        responders: [
+          responder({
+            id: 'r1',
+            status: 'done',
+            profile: { full_name: 'אלכסנדר', callsign: '738' },
+          }),
+          responder({
+            id: 'r2',
+            profile: { full_name: 'דנה', callsign: '14' },
+          }),
+        ],
+      }),
+    )
+    const empty = renderToStaticMarkup(
+      createElement(AssignedRespondersTip, { responders: [] }),
+    )
+
+    expect(filled).toContain('אלכסנדר')
+    expect(filled).toContain('דנה')
+    expect(filled).not.toContain('738')
+    expect(empty).toContain('אין מתנדבים משובצים')
+    expect(empty).toContain('hover-tip__empty')
+  })
+})
 
 describe('EventsTable incomplete pin', () => {
   it('keeps סוג אירוע clean and lists missing fields on a meta row', () => {
@@ -132,5 +181,27 @@ describe('EventsTable incomplete pin', () => {
     expect(html).toContain('table-row--done')
     expect(html).not.toContain('table-row--needs-completion')
     expect(html).not.toContain('table-row--completion-meta')
+  })
+
+  it('keeps the done/assigned fraction and makes it a focusable hover target', () => {
+    const html = renderToStaticMarkup(
+      createElement(EventsTable, {
+        events: [
+          event({
+            responders: [
+              responder({ id: 'r1', status: 'done' }),
+              responder({ id: 'r2', status: 'pending' }),
+            ],
+          }),
+          event({ id: 'empty' }),
+        ],
+        onOpen: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('events-table__responders')
+    expect(html).toContain('tabindex="0"')
+    expect(html).toContain('>1/2<')
+    expect(html).toContain('>0/0<')
   })
 })

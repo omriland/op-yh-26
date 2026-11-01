@@ -1,6 +1,6 @@
 import { Fragment, useRef, type MouseEvent } from 'react'
 import { formatDate, monoClass } from '../../lib/format'
-import { doneFraction, type EventListItem } from '../../lib/events'
+import { doneFraction, type EventListItem, type EventResponderSummary } from '../../lib/events'
 import { mapSecondaryLeadRows } from '../../lib/eventShiftLeads'
 import type { FreezeViewer } from '../../lib/eventFreeze'
 import { HoverTip } from '../ui/HoverTip'
@@ -28,6 +28,32 @@ type EventsTableProps = {
   incompleteNoticeFor?: (event: EventListItem) => IncompleteNotice | undefined
   /** Ledger queue title for the pinned incomplete table. */
   caption?: string
+}
+
+const NO_ASSIGNED_RESPONDERS = 'אין מתנדבים משובצים'
+
+/** Same identity the status trail already uses for a responder on this table. */
+export function responderDisplayName(
+  profile: { full_name?: string | null; callsign?: string | null } | null | undefined,
+): string {
+  return profile?.full_name ?? profile?.callsign ?? 'מתנדב'
+}
+
+export function AssignedRespondersTip({
+  responders,
+}: {
+  responders: EventResponderSummary[]
+}) {
+  if (responders.length === 0) {
+    return <p className="hover-tip__empty">{NO_ASSIGNED_RESPONDERS}</p>
+  }
+  return (
+    <ul className="hover-tip__list">
+      {responders.map((row) => (
+        <li key={row.id}>{responderDisplayName(row.profile)}</li>
+      ))}
+    </ul>
+  )
 }
 
 /** Command desktop only — mobile renders the same data as cards. */
@@ -120,7 +146,16 @@ export function EventsTable({
                       />
                     )}
                   </td>
-                  <td className="num mono">{doneFraction(event)}</td>
+                  <td className="num mono">
+                    <HoverTip
+                      mode="always"
+                      pinOnClick={false}
+                      className="events-table__responders"
+                      content={<AssignedRespondersTip responders={event.responders} />}
+                    >
+                      {doneFraction(event)}
+                    </HoverTip>
+                  </td>
                   <td className="table-cell--status">
                     <EventStatusTrail
                       status={event.status}
@@ -133,7 +168,7 @@ export function EventsTable({
                       responders={event.responders.map((row) => ({
                         id: row.id,
                         status: row.status,
-                        name: row.profile?.full_name ?? row.profile?.callsign ?? 'מתנדב',
+                        name: responderDisplayName(row.profile),
                       }))}
                     />
                   </td>

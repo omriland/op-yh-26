@@ -3555,7 +3555,8 @@ html[data-keyboard-open] .event-form__footer {
   cursor: default;
 }
 
-.event-list-lead__overflow {
+.event-list-lead__overflow,
+.events-table__responders {
   white-space: nowrap;
   cursor: default;
 }
