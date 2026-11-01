@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { ImagePlus } from 'lucide-react'
+import { Camera, ImagePlus } from 'lucide-react'
 import { compressEventImage } from '../../lib/compressEventImage'
+import { eventMediaFileInputAttributes } from '../../lib/eventMediaFileInput'
 import {
   EVENT_MEDIA_ADDED,
   EVENT_MEDIA_CAP,
@@ -118,8 +119,10 @@ export function EventMediaGallery({
   onUnfinishedChange,
   dropUnfinishedTick = 0,
 }: EventMediaGalleryProps) {
-  const inputId = useId()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const uploadInputId = useId()
+  const cameraInputId = useId()
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const { show } = useToast()
   const [items, setItems] = useState<EventMedia[]>([])
   const [plates, setPlates] = useState<EventMediaPlateOption[]>([])
@@ -211,7 +214,7 @@ export function EventMediaGallery({
     show(EVENT_MEDIA_ADDED, 'done')
   }
 
-  function onPick(fileList: FileList | null) {
+  function onPick(fileList: FileList | null, input: HTMLInputElement | null) {
     if (!fileList || !addEnabled) return
     const remaining = slotsRemaining(items.length, inFlight)
     const picked = Array.from(fileList).slice(0, Math.max(0, remaining))
@@ -225,7 +228,7 @@ export function EventMediaGallery({
       uploading: false,
     }))
     setDrafts((current) => [...current, ...next])
-    if (inputRef.current) inputRef.current.value = ''
+    if (input) input.value = ''
     void listEventMediaPlates(eventId).then(setPlates)
   }
 
@@ -406,23 +409,41 @@ export function EventMediaGallery({
       {canWrite ? (
         <div className="event-media__add">
           <input
-            id={inputId}
-            ref={inputRef}
+            id={uploadInputId}
+            ref={uploadInputRef}
             className="visually-hidden"
             type="file"
-            accept="image/*"
-            multiple
             disabled={!addEnabled}
-            onChange={(event) => onPick(event.target.files)}
+            onChange={(event) => onPick(event.target.files, event.target)}
+            {...eventMediaFileInputAttributes('upload')}
           />
-          <Button
-            variant="secondary"
+          <input
+            id={cameraInputId}
+            ref={cameraInputRef}
+            className="visually-hidden"
+            type="file"
             disabled={!addEnabled}
-            icon={<ImagePlus size={20} strokeWidth={1.75} />}
-            onClick={() => inputRef.current?.click()}
-          >
-            הוספת תמונות
-          </Button>
+            onChange={(event) => onPick(event.target.files, event.target)}
+            {...eventMediaFileInputAttributes('camera')}
+          />
+          <div className="event-media__add-actions">
+            <Button
+              variant="secondary"
+              disabled={!addEnabled}
+              icon={<ImagePlus size={20} strokeWidth={1.75} />}
+              onClick={() => uploadInputRef.current?.click()}
+            >
+              הוספת תמונות
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!addEnabled}
+              icon={<Camera size={20} strokeWidth={1.75} />}
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              צילום תמונה
+            </Button>
+          </div>
           {!addEnabled ? (
             <p className="field__hint">{EVENT_MEDIA_CAP_ERROR}</p>
           ) : null}

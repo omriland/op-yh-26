@@ -7912,6 +7912,13 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-1);
 }
 
+.event-media__add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .event-media__lightbox {
   display: flex;
   flex-direction: column;
