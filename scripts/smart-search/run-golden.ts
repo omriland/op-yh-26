@@ -1,8 +1,9 @@
 // Run: OPENAI_API_KEY=... SMART_SEARCH_MODEL=... node scripts/smart-search/run-golden.ts
 // Calls OpenAI directly with the production prompt and schema. Not part of `npm test`.
 import { readFileSync } from 'node:fs'
-import { validateSmartSearchFilter, smartSearchJsonSchema } from '../../supabase/functions/_shared/smartSearchFilter.ts'
+import { smartSearchJsonSchema } from '../../supabase/functions/_shared/smartSearchFilter.ts'
 import type { SmartSearchFilter, SmartSearchVocab } from '../../supabase/functions/_shared/smartSearchFilter.ts'
+import { openAiRequestBody, parseOpenAiFilter } from '../../supabase/functions/_shared/smartSearchOpenAi.ts'
 import { buildSmartSearchMessages } from '../../supabase/functions/_shared/smartSearchPrompt.ts'
 
 const apiKey = process.env.OPENAI_API_KEY
@@ -25,16 +26,16 @@ for (const c of golden.cases) {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
+      body: JSON.stringify(openAiRequestBody(
         model,
-        temperature: 0,
-        messages: buildSmartSearchMessages(c.q, c.today, golden.vocab),
-        response_format: { type: 'json_schema', json_schema: smartSearchJsonSchema(golden.vocab) },
-      }),
+        buildSmartSearchMessages(c.q, c.today, golden.vocab),
+        smartSearchJsonSchema(golden.vocab),
+      )),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status} ${await res.text()}`)
-    const body = await res.json()
-    got = validateSmartSearchFilter(JSON.parse(body.choices[0].message.content), golden.vocab)
+    const parsed = parseOpenAiFilter(await res.json(), golden.vocab)
+    if (!parsed) throw new Error('model refused or returned no usable filter')
+    got = parsed
   } catch (err) {
     console.log(`FAIL  ${c.q}  (${err instanceof Error ? err.message : err})`)
     continue
