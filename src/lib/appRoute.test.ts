@@ -308,6 +308,9 @@ describe('search route', () => {
   it('allows search for admins only', () => {
     expect(isAllowedAppView('search', admin)).toBe(true)
     expect(isAllowedAppView('search', lead)).toBe(false)
+    expect(
+      isAllowedAppView('search', { manages: true, hasMineList: true, isAdmin: false, isSuperAdmin: true }),
+    ).toBe(false)
     expect(isAllowedAppView('search', responder)).toBe(false)
   })
 

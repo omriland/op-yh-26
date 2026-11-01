@@ -86,6 +86,23 @@ describe('splitMobileNav', () => {
     expect(views(more)).toEqual(['search', 'shifts', 'contacts', 'map'])
   })
 
+  it('puts חיפוש first in the overflow of a realistic admin list with my_shifts', () => {
+    const { tabs, more } = splitMobileNav([
+      { view: 'events' },
+      { view: 'mine' },
+      { view: 'users' },
+      { view: 'my_shifts' },
+      { view: 'shifts' },
+      { view: 'contacts' },
+      { view: 'map' },
+      { view: 'reports' },
+      { view: 'search' },
+    ])
+
+    expect(views(tabs)).toEqual(['events', 'mine', 'users'])
+    expect(views(more)).toEqual(['search', 'my_shifts', 'shifts', 'contacts', 'map', 'reports'])
+  })
+
   it('gives a manager-only admin events, ניהול, and unit shifts', () => {
     const { tabs, more } = splitMobileNav([
       { view: 'contacts' },

@@ -31,6 +31,17 @@ function isMenu<T extends { children?: readonly unknown[] }>(entry: T): boolean 
 export function splitMobileNav<T extends { view?: string; children?: readonly unknown[] }>(
   entries: readonly T[],
 ): { tabs: T[]; more: T[] } {
+  const split = splitByRank(entries)
+  // חיפוש leads the עוד sheet even ahead of primary views that overflowed (e.g. המשמרות שלי).
+  const search = split.more.filter((entry) => entry.view === 'search')
+  if (search.length === 0) return split
+  const rest = split.more.filter((entry) => entry.view !== 'search')
+  return { tabs: split.tabs, more: [...search, ...rest] }
+}
+
+function splitByRank<T extends { view?: string; children?: readonly unknown[] }>(
+  entries: readonly T[],
+): { tabs: T[]; more: T[] } {
   const menus = entries.filter(isMenu)
   const rest = entries.filter((entry) => !isMenu(entry))
   const ordered = [...rest].sort((a, b) => rank(a.view ?? '') - rank(b.view ?? ''))
