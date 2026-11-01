@@ -42,6 +42,7 @@ import {
   type SaveRuleIssue,
 } from '../lib/eventSaveRules'
 import { fetchEventPhotoCoverage } from '../lib/eventVehiclePhotos'
+import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
@@ -755,6 +756,7 @@ export function ResponderFillPage({
                 <TextAreaField
                   label="פירוט הטיפול"
                   required
+                  counter={treatmentDetailCounter(draft.treatment_detail)}
                   value={draft.treatment_detail}
                   error={errors.treatment_detail}
                   rows={5}

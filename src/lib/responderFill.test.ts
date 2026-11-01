@@ -17,6 +17,9 @@ function draft(patch: Partial<ResponderFillDraft> = {}): ResponderFillDraft {
   return { ...emptyResponderFillDraft(), ...patch }
 }
 
+/** Long enough to satisfy the פירוט הטיפול minimum in complete-mode cases. */
+const treatmentOk = 'א'.repeat(40)
+
 describe('responderVehicleChoices', () => {
   it('includes a vehicle added after the responder was assigned', () => {
     const choices = responderVehicleChoices(
@@ -114,6 +117,60 @@ describe('odometerRangeError', () => {
 describe('validateResponderFillDraft (user-entered odometer end)', () => {
   const plates = ['1234567']
 
+  it('draft mode allows a short פירוט הטיפול', () => {
+    const errors = validateResponderFillDraft(
+      draft({ treatment_detail: 'טיפול' }),
+      'draft',
+      plates,
+      null,
+    )
+    expect(errors.treatment_detail).toBeUndefined()
+  })
+
+  it('complete mode requires at least 40 characters in פירוט הטיפול', () => {
+    const short = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'א'.repeat(39),
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(short.treatment_detail).toBe('יש להזין לפחות 40 תווים בפירוט הטיפול.')
+
+    const exact = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: `  ${'א'.repeat(40)}  `,
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(exact.treatment_detail).toBeUndefined()
+
+    const longer = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'א'.repeat(80),
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(longer.treatment_detail).toBeUndefined()
+  })
+
   it('draft mode does not require totalKm or end', () => {
     const errors = validateResponderFillDraft(
       draft({ odometer_start: '100' }),
@@ -131,7 +188,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -147,7 +204,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -163,7 +220,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '115',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -179,7 +236,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '110',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -195,7 +252,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '100',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -209,7 +266,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '0',
         odometer_end: '0',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -225,7 +282,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '99',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -241,7 +298,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
         treated_plate_pending: '12',
       }),
       'complete',
@@ -258,7 +315,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
         treated_plate_pending: '24100502',
       }),
       'complete',
@@ -275,7 +332,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -291,7 +348,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -308,7 +365,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'draft',
       plates,
@@ -325,7 +382,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,

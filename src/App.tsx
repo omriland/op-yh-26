@@ -60,6 +60,8 @@ import { usePrelaunchGate } from './lib/usePrelaunchGate'
 import { PrelaunchGatePage } from './pages/PrelaunchGatePage'
 import { useCobrowse } from './lib/useCobrowse'
 import { fetchOtpStatus } from './lib/phoneOtp'
+import { loginOtpCheck } from './lib/loginOtpGate'
+import { clearOpenAdminUserForm } from './lib/adminUserFormOpen'
 import {
   clearPostLoginFill,
   consumeFillEventTarget,
@@ -411,6 +413,7 @@ function Gate() {
       if (parsed.kind === 'oauth') return
       setLegalPage(null)
       if (parsed.kind === 'app') {
+        if (parsed.state.view !== 'users') clearOpenAdminUserForm()
         setView(parsed.state.view)
         setEventSurface(parsed.state.eventSurface)
         setShiftSurface(parsed.state.shiftSurface)
@@ -420,6 +423,7 @@ function Gate() {
       setCockpitEventId(undefined)
       setEventSurface({ kind: 'list' })
       setShiftSurface({ kind: 'list' })
+      clearOpenAdminUserForm()
       setView(null)
     }
     window.addEventListener('popstate', onPop)
@@ -534,13 +538,24 @@ function Gate() {
     if (analyticsPath) captureAppPageview(analyticsPath)
   }, [analyticsPath])
 
+  const loginOtpClearedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (!session || passwordSetupReason) {
+    const userId = session?.user?.id ?? null
+    const decision = loginOtpCheck({
+      signedIn: Boolean(session?.user),
+      passwordSetup: Boolean(passwordSetupReason),
+      impersonating: isImpersonating(),
+      otpLoginEnabled: Boolean(profile?.otp_login_enabled),
+      userId,
+      clearedUserId: loginOtpClearedFor.current,
+    })
+    if (decision === 'keep') return
+    if (decision === 'idle') {
+      loginOtpClearedFor.current = null
       setLoginOtp({ state: 'idle' })
       return
     }
-
-    if (isImpersonating() || !profile?.otp_login_enabled) {
+    if (decision === 'ok') {
       setLoginOtp({ state: 'ok' })
       return
     }
@@ -557,9 +572,10 @@ function Gate() {
         }
         if (status.loginRequired) {
           setLoginOtp({ state: 'required', maskedPhone: status.maskedPhone })
-        } else {
-          setLoginOtp({ state: 'ok' })
+          return
         }
+        if (userId) loginOtpClearedFor.current = userId
+        setLoginOtp({ state: 'ok' })
       })
       .catch(() => {
         if (active) setLoginOtp({ state: 'required', maskedPhone: null })
@@ -989,6 +1005,7 @@ function Gate() {
   const commandShell = isDesktop && (manages || isAdminHub)
 
   function navigate(next: AppView) {
+    if ((view ?? fallbackView) === 'users') clearOpenAdminUserForm()
     void discardAbandonedEmptyEventIfAny()
     const nextState = applyNavClick(
       { view: view ?? fallbackView, eventSurface, shiftSurface, sectionReset },
@@ -1009,6 +1026,7 @@ function Gate() {
   }
 
   function openNewEventForm() {
+    if ((view ?? fallbackView) === 'users') clearOpenAdminUserForm()
     void discardAbandonedEmptyEventIfAny()
     setLegalPage(null)
     setView('events')

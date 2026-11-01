@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { sheetAboveKeyboard, shouldScrollFocusedField } from '../../lib/appViewport'
+import { shouldDismissDialogBackdrop } from '../../lib/dialogDismiss'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 
 type DialogProps = {
@@ -52,6 +53,45 @@ export function Dialog({
   // otherwise focus jumps to the first control (the X) on every letter.
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const backdropPointerDown = useRef(false)
+  const windowFocusedAt = useRef(0)
+
+  useEffect(() => {
+    if (!open) return
+    const onFocus = () => {
+      windowFocusedAt.current = Date.now()
+    }
+    const onHide = () => {
+      if (document.visibilityState !== 'visible') backdropPointerDown.current = false
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onHide)
+    }
+  }, [open])
+
+  function onBackdropPointerDown(event: PointerEvent<HTMLDivElement>) {
+    backdropPointerDown.current =
+      document.visibilityState === 'visible' && event.target === event.currentTarget
+  }
+
+  function onBackdropClick(event: MouseEvent<HTMLDivElement>) {
+    const pointerDownOnBackdrop = backdropPointerDown.current
+    backdropPointerDown.current = false
+    if (
+      !shouldDismissDialogBackdrop({
+        pointerDownOnBackdrop,
+        clickTargetIsBackdrop: event.target === event.currentTarget,
+        documentVisible: document.visibilityState === 'visible',
+        millisSinceWindowFocus: Date.now() - windowFocusedAt.current,
+      })
+    ) {
+      return
+    }
+    onCloseRef.current()
+  }
 
   /**
    * `aria-modal="true"` is a promise about behavior. Without a trap it is a lie to
@@ -153,7 +193,12 @@ export function Dialog({
     <div ref={rootRef} className="dialog-root" role="presentation">
       {/* Backdrop dismissal stays available to pointers but leaves the tab order to
           the dialog's own controls, which the close button already covers. */}
-      <div className="dialog-backdrop" onClick={onClose} aria-hidden="true" />
+      <div
+        className="dialog-backdrop"
+        onPointerDown={onBackdropPointerDown}
+        onClick={onBackdropClick}
+        aria-hidden="true"
+      />
       <div
         ref={dialogRef}
         tabIndex={-1}

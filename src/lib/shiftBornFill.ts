@@ -16,6 +16,7 @@ import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import type { EventStatus } from './status'
 import { supabase } from './supabase'
 import { mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
+import { TREATMENT_DETAIL_MIN_ERROR, treatmentDetailMeetsMinimum } from './treatmentDetail'
 
 export type ShiftBornFillDraft = {
   police_event_id: string
@@ -57,8 +58,8 @@ export function shiftBornCompleteErrors(
   const errors: ShiftBornFillErrors = {}
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש'
   if (!draft.location.trim()) errors.location = 'יש להזין מיקום'
-  if (!draft.treatment_detail.trim()) {
-    errors.treatment_detail = 'יש להזין פירוט טיפול'
+  if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
+    errors.treatment_detail = TREATMENT_DETAIL_MIN_ERROR
   }
   if (event) {
     const gate = eventDoneGateError({

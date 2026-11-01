@@ -18,6 +18,7 @@ import { deriveStoredEventStatus, eventMissingLeadDoneDetails } from './eventSta
 import { ODOMETER_ORDER_ERROR } from './odometer'
 import type { EventOrigin } from './shiftBornEvents'
 import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
+import { TREATMENT_DETAIL_MIN_ERROR, treatmentDetailMeetsMinimum } from './treatmentDetail'
 
 export { plateDigits }
 
@@ -239,7 +240,9 @@ export function validateResponderFillDraft(
     if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא מד אוץ התחלה.'
     if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא מד אוץ סיום.'
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
-    if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
+    if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
+      errors.treatment_detail = TREATMENT_DETAIL_MIN_ERROR
+    }
     const settled = settleTreatedPlatePending(
       draft.treated_plate_pending,
       draft.treated_plates,

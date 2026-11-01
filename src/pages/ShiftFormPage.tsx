@@ -18,6 +18,7 @@ import {
   type ShiftSaveError,
 } from '../lib/shiftForm'
 import { lastSavedByLabel } from '../lib/shiftBornEvents'
+import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { deriveShiftLogStatus, eventToLogSnapshot } from '../lib/shiftLogStatus'
 import {
   saveShiftBornEventFill,
@@ -932,6 +933,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                       />
                       <TextAreaField
                         label={`פירוט הטיפול · ${row.typeName}`}
+                        counter={treatmentDetailCounter(row.draft.treatment_detail)}
                         value={row.draft.treatment_detail}
                         onChange={(event) =>
                           patchBornDraft(row.id, { treatment_detail: event.target.value })

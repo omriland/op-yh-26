@@ -19,12 +19,33 @@ describe('shiftBornCompleteErrors', () => {
     const errors = shiftBornCompleteErrors(draft())
     expect(errors.road_id).toBe('יש לבחור כביש')
     expect(errors.location).toBe('יש להזין מיקום')
-    expect(errors.treatment_detail).toBe('יש להזין פירוט טיפול')
+    expect(errors.treatment_detail).toBe('יש להזין לפחות 40 תווים בפירוט הטיפול.')
+  })
+
+  it('requires at least 40 characters in פירוט טיפול and allows more', () => {
+    const short = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(39) }),
+    )
+    expect(short.treatment_detail).toBe('יש להזין לפחות 40 תווים בפירוט הטיפול.')
+
+    const exact = shiftBornCompleteErrors(
+      draft({
+        road_id: 'r1',
+        location: 'מחלף שורק',
+        treatment_detail: `  ${'א'.repeat(40)}  `,
+      }),
+    )
+    expect(exact.treatment_detail).toBeUndefined()
+
+    const longer = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(80) }),
+    )
+    expect(longer.treatment_detail).toBeUndefined()
   })
 
   it('accepts a complete record', () => {
     const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'חילוץ' }),
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(40) }),
     )
     expect(errors).toEqual({})
   })
@@ -48,14 +69,14 @@ describe('shiftBornCompleteErrors', () => {
 
   it('does not require the optional fields', () => {
     const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'x', treatment_detail: 'y' }),
+      draft({ road_id: 'r1', location: 'x', treatment_detail: 'א'.repeat(40) }),
     )
     expect(errors).toEqual({})
   })
 
   it('blocks complete when the event has no end time', () => {
     const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'x', treatment_detail: 'y' }),
+      draft({ road_id: 'r1', location: 'x', treatment_detail: 'א'.repeat(40) }),
       { ended_at: null, responders: [{ total_km: 12 }] },
     )
     expect(errors.form).toBe(EVENT_DONE_NEEDS_END_ERROR)
@@ -63,7 +84,7 @@ describe('shiftBornCompleteErrors', () => {
 
   it('blocks complete when any assigned responder is missing lead KM', () => {
     const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'x', treatment_detail: 'y' }),
+      draft({ road_id: 'r1', location: 'x', treatment_detail: 'א'.repeat(40) }),
       {
         ended_at: '2026-09-10T09:00:00',
         responders: [{ total_km: 12 }, { total_km: null }],

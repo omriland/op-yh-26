@@ -32,6 +32,12 @@ import {
   USER_CREATE_STASH_DEBOUNCE_MS,
   userEmailFieldHint,
 } from '../lib/adminUserDraft'
+import {
+  applyOpenAdminUserForm,
+  clearOpenAdminUserForm,
+  readOpenAdminUserForm,
+  writeOpenAdminUserForm,
+} from '../lib/adminUserFormOpen'
 import { SUPER_ADMIN_LOCK_ERROR, canMutateAdminUser, canToggleUsersPageOtp } from '../lib/adminUserMenu'
 import {
   highestRoleLabel,
@@ -319,7 +325,11 @@ export function AdminUsersPage() {
   const [query, setQuery] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
-  const [draft, setDraft] = useState<Draft | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(() => {
+    const saved = readOpenAdminUserForm()
+    if (!saved) return null
+    return applyOpenAdminUserForm(emptyDraft(), saved)
+  })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState<AdminUserRow | null>(null)
@@ -404,6 +414,7 @@ export function AdminUsersPage() {
   function closeCreateForm() {
     if (saving) return
     stashCreateDraftNow()
+    clearOpenAdminUserForm()
     setDraft(null)
   }
 
@@ -419,11 +430,23 @@ export function AdminUsersPage() {
   }, [authUserId, draft])
 
   useEffect(() => {
+    if (!draft) return
+    writeOpenAdminUserForm(draft)
+  }, [draft])
+
+  useEffect(() => {
+    function persistOpenForm() {
+      const current = draftRef.current
+      if (current) writeOpenAdminUserForm(current)
+    }
     function onHidden() {
-      if (document.visibilityState === 'hidden') stashLatest.current?.()
+      if (document.visibilityState !== 'hidden') return
+      stashLatest.current?.()
+      persistOpenForm()
     }
     function onPageHide() {
       stashLatest.current?.()
+      persistOpenForm()
     }
     document.addEventListener('visibilitychange', onHidden)
     window.addEventListener('pagehide', onPageHide)
@@ -641,6 +664,7 @@ export function AdminUsersPage() {
               'alert',
             )
             if (authUserId) clearCreateUserStash(authUserId)
+            clearOpenAdminUserForm()
             setDraft(null)
             setReloadKey((value) => value + 1)
             return
@@ -691,6 +715,7 @@ export function AdminUsersPage() {
         }
         show('המשתמש נשמר', 'done')
       }
+      clearOpenAdminUserForm()
       setDraft(null)
       setReloadKey((value) => value + 1)
     } finally {
@@ -922,7 +947,10 @@ export function AdminUsersPage() {
       return
     }
     show(result.message ?? 'המשתמש נמחק', 'done')
-    if (draft?.id === target.id) setDraft(null)
+    if (draft?.id === target.id) {
+      clearOpenAdminUserForm()
+      setDraft(null)
+    }
     setReloadKey((value) => value + 1)
   }
 

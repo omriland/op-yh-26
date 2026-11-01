@@ -23,6 +23,7 @@ import {
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
 import { leftoverEventMediaError } from '../lib/eventMedia'
+import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { Button } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -426,6 +427,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             <TextAreaField
               label="פירוט הטיפול"
               required
+              counter={treatmentDetailCounter(draft.treatment_detail)}
               error={errors.treatment_detail}
               value={draft.treatment_detail}
               disabled={readOnly}

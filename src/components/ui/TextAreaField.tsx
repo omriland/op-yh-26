@@ -5,12 +5,15 @@ type TextAreaFieldProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'cla
   label: string
   hint?: string
   error?: string
+  /** Compact count above the input. `met` switches the caption tone. */
+  counter?: { text: string; met: boolean }
 }
 
 export function TextAreaField({
   label,
   hint,
   error,
+  counter,
   id,
   required,
   value,
@@ -19,7 +22,11 @@ export function TextAreaField({
   const generatedId = useId()
   const fieldId = id ?? generatedId
   const describedBy =
-    [error ? `${fieldId}-error` : null, hint ? `${fieldId}-hint` : null]
+    [
+      counter ? `${fieldId}-count` : null,
+      error ? `${fieldId}-error` : null,
+      hint ? `${fieldId}-hint` : null,
+    ]
       .filter(Boolean)
       .join(' ') || undefined
   const isBlank = Boolean(required) && !value
@@ -29,6 +36,14 @@ export function TextAreaField({
       <FieldLabel htmlFor={fieldId} required={required}>
         {label}
       </FieldLabel>
+      {counter ? (
+        <p
+          id={`${fieldId}-count`}
+          className={counter.met ? 'field__counter field__counter--met' : 'field__counter'}
+        >
+          {counter.text}
+        </p>
+      ) : null}
       <div className="field__control">
         <textarea
           id={fieldId}
