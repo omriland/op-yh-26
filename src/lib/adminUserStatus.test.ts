@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { compareAdminUsers, hasAvailability, isInvitePending } from './adminUserStatus'
+import {
+  compareAdminUsers,
+  hasAvailability,
+  isInvitePending,
+  shouldClearInviteOnPasswordSignIn,
+} from './adminUserStatus'
 
 describe('isInvitePending', () => {
   it('is true for active invite_pending users', () => {
@@ -12,6 +17,23 @@ describe('isInvitePending', () => {
 
   it('is false for inactive users even if invite_pending', () => {
     expect(isInvitePending({ active: false, invite_pending: true })).toBe(false)
+  })
+})
+
+describe('shouldClearInviteOnPasswordSignIn', () => {
+  it('clears the invited flag after a password sign-in', () => {
+    const pending = { active: true, invite_pending: true }
+    expect(shouldClearInviteOnPasswordSignIn(pending, null)).toBe(true)
+    expect(isInvitePending({ ...pending, invite_pending: false })).toBe(false)
+  })
+
+  it('leaves someone who is already registered', () => {
+    expect(shouldClearInviteOnPasswordSignIn({ invite_pending: false }, null)).toBe(false)
+    expect(shouldClearInviteOnPasswordSignIn(null, null)).toBe(false)
+  })
+
+  it('does not clear while the invite password screen is still open', () => {
+    expect(shouldClearInviteOnPasswordSignIn({ invite_pending: true }, 'invite')).toBe(false)
   })
 })
 

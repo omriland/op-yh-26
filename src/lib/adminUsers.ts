@@ -29,7 +29,7 @@ export type AdminUserRow = {
   active: boolean
   last_sign_in_at: string | null
   last_active_at: string | null
-  /** True until the invitee sets a password in the app. */
+  /** True until a password is set, or the person signs in with that password. */
   invite_pending: boolean
   otp_login_enabled: boolean
   otp_users_page_enabled: boolean
