@@ -1,0 +1,61 @@
+import type { EventListItem } from './events'
+import { formatDate, formatPlate } from './format'
+import { eventStamp } from './status'
+import { toCsv } from './reports/csv'
+import type { ArchiveRow } from './smartSearchApi'
+
+type PlateRow = { plate_number: string; manufacturer?: string | null; model?: string | null; sort_order?: number }
+type CsvEvent = EventListItem & { found_by: string; shared_plates?: PlateRow[] | null }
+
+const EVENT_HEADERS = [
+  'תאריך', 'מספר אירוע', 'סוג אירוע', 'כביש / מיקום', 'אחמ״ש', 'מתנדבים', 'סטטוס תיעוד',
+  'נמצא לפי', 'לוחיות', 'יצרן ודגם', 'כוננים', 'ק״מ', 'פירוט הטיפול',
+]
+
+export function eventsCsv(rows: CsvEvent[]): string {
+  return toCsv(
+    EVENT_HEADERS,
+    rows.map((e) => {
+      const plates = [...(e.shared_plates ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      const done = e.responders.filter((r) => r.status === 'done').length
+      return [
+        formatDate(e.event_date),
+        e.police_event_id ?? '',
+        e.event_type?.name ?? '',
+        [e.road?.name, e.location].filter(Boolean).join(' · '),
+        e.origin === 'shift' ? '' : (e.shift_lead?.full_name ?? ''),
+        `${done}/${e.responders.length}`,
+        eventStamp(e.status).label,
+        e.found_by,
+        plates.map((p) => formatPlate(p.plate_number)).join('; '),
+        plates.map((p) => [p.manufacturer, p.model].filter(Boolean).join(' ')).join('; '),
+        e.responders.map((r) => r.profile?.full_name ?? r.profile?.callsign ?? '').join('; '),
+        e.responders.map((r) => (r.total_km == null ? '' : String(r.total_km))).join('; '),
+        e.treatment_detail ?? '',
+      ]
+    }),
+  )
+}
+
+const ARCHIVE_HEADERS = ['תאריך', 'מספר אירוע', 'כביש / מיקום', 'כוננים', 'רכבים', 'נזק', 'נמצא לפי', 'פעולות שבוצעו']
+
+/** The archive RPC returns no actions text, so the last column stays empty. */
+export function archiveCsv(rows: ArchiveRow[]): string {
+  return toCsv(
+    ARCHIVE_HEADERS,
+    rows.map((r) => [
+      r.event_date ? formatDate(r.event_date) : '',
+      r.event_number ?? '',
+      [r.road, r.location].filter(Boolean).join(' · '),
+      r.people,
+      r.cars,
+      r.damage,
+      r.found_by,
+      '',
+    ]),
+  )
+}
+
+export function searchCsvFilename(kind: 'events' | 'archive', today: string): string {
+  return `חיפוש-${kind === 'events' ? 'אירועים' : 'ארכיון'}-${today}.csv`
+}
