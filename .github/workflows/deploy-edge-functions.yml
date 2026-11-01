@@ -27,6 +27,7 @@ on:
       - "supabase/migrations/20261029200000_vehicles_member_write_error.sql"
       - "supabase/migrations/20261030120000_legacy_event_archive.sql"
       - "supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql"
+      - "supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -114,6 +115,11 @@ jobs:
           # Cancelled events with no responders must stay `done`.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql
+          # event_responders_self_update must not read events inline.
+          # events_select reads event_responders, and the pair raises 42P17
+          # on every volunteer-row update.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
