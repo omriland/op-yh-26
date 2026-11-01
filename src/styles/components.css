@@ -4594,6 +4594,7 @@ html[data-keyboard-open] .event-form__footer {
 
 .dialog__header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -4603,11 +4604,13 @@ html[data-keyboard-open] .event-form__footer {
 
 .dialog__body {
   overflow: auto;
+  min-height: 0;
   padding: var(--space-4);
 }
 
 .dialog__footer {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column-reverse;
   gap: var(--space-2);
   padding: var(--space-4);

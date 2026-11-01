@@ -13,6 +13,19 @@ describe('Dialog portal', () => {
   })
 })
 
+describe('Dialog keyboard lift', () => {
+  it('listens to the visual viewport and focus so a phone sheet clears the keyboard', () => {
+    expect(src).toContain('window.visualViewport')
+    expect(src).toContain("vv.addEventListener('resize', place)")
+    expect(src).toContain("vv.addEventListener('scroll', place)")
+    expect(src).toContain("sheet.addEventListener('focusin', onFocusIn)")
+    expect(src).toContain('sheetAboveKeyboard')
+    expect(src).toContain('if (!open || isDesktop) return')
+    expect(src).toContain("root.style.bottom = ''")
+    expect(src).toContain("sheet.style.maxHeight = ''")
+  })
+})
+
 describe('Dialog focus trap', () => {
   it('does not re-run initial focus when parent re-renders with a new onClose', () => {
     // Typing in a form dialog (e.g. משתמש חדש) recreates an inline onClose every

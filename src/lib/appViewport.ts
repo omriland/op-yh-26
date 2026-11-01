@@ -32,6 +32,36 @@ export function applyKeyboardOpenState(
   else root.removeAttribute(KEYBOARD_OPEN_ATTR)
 }
 
+/**
+ * How many pixels of the layout viewport sit below the visual viewport.
+ * That gap is the on-screen keyboard. A shortfall under the keyboard
+ * threshold is browser chrome, not a keyboard, and counts as closed.
+ */
+export function keyboardCoverPx(
+  innerHeight: number,
+  visualOffsetTop: number,
+  visualHeight: number,
+  thresholdPx = KEYBOARD_OPEN_THRESHOLD_PX,
+): number {
+  const overlap = innerHeight - (visualOffsetTop + visualHeight)
+  if (!Number.isFinite(overlap) || overlap < thresholdPx) return 0
+  return Math.round(overlap)
+}
+
+/** Pin a fixed bottom sheet to the visual viewport while the keyboard is open. */
+export function sheetAboveKeyboard(
+  innerHeight: number,
+  visualOffsetTop: number,
+  visualHeight: number,
+): { rootBottom: string; sheetMaxHeight: string } {
+  const cover = keyboardCoverPx(innerHeight, visualOffsetTop, visualHeight)
+  if (cover <= 0) return { rootBottom: '', sheetMaxHeight: '' }
+  return {
+    rootBottom: `${cover}px`,
+    sheetMaxHeight: `${Math.max(1, Math.round(visualHeight))}px`,
+  }
+}
+
 export function shouldScrollFocusedField(
   el: { tagName: string; isContentEditable: boolean } | null,
 ): boolean {
