@@ -3389,6 +3389,21 @@ html[data-keyboard-open] .event-form__footer {
   vertical-align: middle;
 }
 
+/* Search results: why the row matched, as a full-width line under it (same anatomy as
+   the completion meta row, without the alert rail). */
+.table--events tbody tr.table-row--found-by {
+  border-block-start: 1px dotted var(--stroke-hairline);
+}
+
+.table--events tbody tr.table-row--found-by td {
+  height: auto;
+  padding-block: var(--space-2);
+}
+
+.events-table__found-by {
+  color: var(--text-primary);
+}
+
 .table-wrap--event-locations {
   overflow: visible;
 }
@@ -3707,6 +3722,11 @@ html[data-keyboard-open] .event-form__footer {
   }
 
   .table--events tbody tr.table-row--completion-meta:hover {
+    background: var(--accent-subtle);
+  }
+
+  .table--events tbody tr:not(.table-row--done):hover + .table-row--found-by,
+  .table--events tbody tr:not(.table-row--done):has(+ .table-row--found-by:hover) {
     background: var(--accent-subtle);
   }
 
@@ -8550,18 +8570,12 @@ fieldset.field {
   }
 }
 
-/* The events table plus נמצא לפי is wider than the content column at common desktop
-   widths. Scroll it sideways rather than clip it. */
-.search-section .table-wrap {
-  overflow-x: auto;
-}
-
 /* Archive columns share the width equally; long cells ellipsize with a HoverTip. */
 .search-archive-table {
   table-layout: fixed;
 }
 
-/* One-line cells with the full text in a HoverTip (events נמצא לפי, archive columns). */
+/* One-line archive cells with the full text in a HoverTip. */
 .table .table-col--truncate__text {
   display: block;
   max-width: 260px;

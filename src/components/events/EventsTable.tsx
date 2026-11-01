@@ -28,7 +28,7 @@ type EventsTableProps = {
   incompleteNoticeFor?: (event: EventListItem) => IncompleteNotice | undefined
   /** Ledger queue title for the pinned incomplete table. */
   caption?: string
-  /** Search results: why each row matched, as a last `נמצא לפי` column. */
+  /** Search results: why each row matched, as a full-width `נמצא לפי` line under the row. */
   foundBy?: (event: EventListItem) => string
 }
 
@@ -84,7 +84,6 @@ export function EventsTable({
             <th scope="col">אחמ״ש</th>
             <th scope="col">מתנדבים</th>
             <th scope="col">סטטוס תיעוד</th>
-            {foundBy ? <th scope="col">נמצא לפי</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -92,6 +91,7 @@ export function EventsTable({
             const locationLabel =
               [event.road?.name, event.location].filter(Boolean).join(' · ') || '—'
             const notice = incompleteNoticeFor?.(event)
+            const reason = foundBy?.(event)
             const incomplete = Boolean(notice && notice.fields.length > 0)
             const rowClass = [
               event.status === 'done' && !incomplete ? 'table-row--done' : '',
@@ -176,13 +176,6 @@ export function EventsTable({
                       }))}
                     />
                   </td>
-                  {foundBy ? (
-                    <td className="table-col--truncate">
-                      <HoverTip text={foundBy(event)} className="table-col--truncate__text">
-                        {foundBy(event)}
-                      </HoverTip>
-                    </td>
-                  ) : null}
                 </tr>
                 {incomplete && notice ? (
                   <tr
@@ -193,8 +186,24 @@ export function EventsTable({
                     }}
                     onContextMenu={onContextMenu}
                   >
-                    <td colSpan={foundBy ? 8 : 7}>
+                    <td colSpan={7}>
                       <IncompleteFieldsNotice fields={notice.fields} spoken={notice.spoken} />
+                    </td>
+                  </tr>
+                ) : null}
+                {reason ? (
+                  <tr
+                    className={`table-row--found-by${event.status === 'done' && !incomplete ? ' table-row--done' : ''}`}
+                    onClick={(click) => {
+                      if (click.button !== 0) return
+                      openRow()
+                    }}
+                    onContextMenu={onContextMenu}
+                  >
+                    <td colSpan={7}>
+                      <p className="t-caption events-table__found-by">
+                        <span className="text-secondary">נמצא לפי:</span> {reason}
+                      </p>
                     </td>
                   </tr>
                 ) : null}

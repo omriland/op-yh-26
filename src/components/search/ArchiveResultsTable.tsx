@@ -94,19 +94,19 @@ export function ArchiveResultsTable({
             >
               <td className="num mono table-cell--nowrap">{dateLabel(row)}</td>
               <td className={`num ${monoClass(row.event_number)}`}>{row.event_number ?? '—'}</td>
-              <td className="table-col--truncate">
+              <td>
                 <Truncated text={place(row)} />
               </td>
-              <td className="table-col--truncate">
+              <td>
                 <Truncated text={row.people} />
               </td>
-              <td className="table-col--truncate">
+              <td>
                 <Truncated text={row.cars} />
               </td>
-              <td className="table-col--truncate">
+              <td>
                 <Truncated text={row.damage} />
               </td>
-              <td className="table-col--truncate">
+              <td>
                 <Truncated text={row.found_by} />
               </td>
             </tr>
