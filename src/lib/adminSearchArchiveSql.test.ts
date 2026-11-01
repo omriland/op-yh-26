@@ -85,6 +85,13 @@ describe('admin_search_archive migration', () => {
     expect(sql).not.toContain("'כביש ' || 'כביש")
   })
 
+  it('returns the actions of every volunteer row, distinct, joined with | and masked', () => {
+    expect(sql).toContain(
+      "string_agg(distinct btrim(mv.actions_taken), ' | ' order by btrim(mv.actions_taken)) as actions",
+    )
+    expect(sql).toContain("'actions', coalesce(legacy.mask_id_digits(s.actions), '')")
+  })
+
   it('withholds the function from public and anon', () => {
     expect(sql).toContain('revoke all on function public.admin_search_archive(jsonb, int) from public, anon')
     expect(sql).toContain('grant execute on function public.admin_search_archive(jsonb, int) to authenticated')

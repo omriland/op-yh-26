@@ -7,7 +7,7 @@
 -- Security: the legacy schema is reachable only through security definer
 -- functions, so this one runs as owner and gates on admin / super_admin like
 -- legacy_report_search. It never reads the ID-number table, and free text
--- that leaves it (location, cars, found_by) has any run of 9+ digits masked.
+-- that leaves it (location, cars, actions, found_by) has any run of 9+ digits masked.
 -- Every allowed call writes one legacy.report_lookup_audit row (search_kind
 -- 'smart'), except a new-only or people-only filter, which never reaches the
 -- archive.
@@ -259,6 +259,14 @@ begin
       where btrim(ci.license_plate) <> ''
       group by mv.event_fk
     ),
+    actions as (
+      -- The archive CSV's פעולות שבוצעו column.
+      select mv.event_fk,
+        string_agg(distinct btrim(mv.actions_taken), ' | ' order by btrim(mv.actions_taken)) as actions
+      from matched_vol mv
+      where btrim(mv.actions_taken) <> ''
+      group by mv.event_fk
+    ),
     damage as (
       select x.event_fk, string_agg(v_hit_labels[x.hit_id], ', ' order by x.hit_id) as damage
       from (
@@ -309,10 +317,11 @@ begin
       order by f.event_fk, f.ord, f.sub
     ),
     summary as (
-      select m.*, p.people, c.cars, d.damage, t.text_hit
+      select m.*, p.people, c.cars, a.actions, d.damage, t.text_hit
       from matched m
       left join people p on p.event_fk = m.event_fk
       left join cars c on c.event_fk = m.event_fk
+      left join actions a on a.event_fk = m.event_fk
       left join damage d on d.event_fk = m.event_fk
       left join text_hit t on t.event_fk = m.event_fk
     )
@@ -326,6 +335,7 @@ begin
         'people', coalesce(s.people, ''),
         'cars', coalesce(legacy.mask_id_digits(s.cars), ''),
         'damage', coalesce(s.damage, ''),
+        'actions', coalesce(legacy.mask_id_digits(s.actions), ''),
         'found_by', legacy.mask_id_digits(coalesce(
           case when v_plate is not null then 'לוחית ' || s.plate_hit end,
           case when v_police_id is not null then 'מספר אירוע ' || s.event_number end,
