@@ -26,6 +26,7 @@ on:
       - "supabase/migrations/20261029190000_prelaunch_native_block.sql"
       - "supabase/migrations/20261029200000_vehicles_member_write_error.sql"
       - "supabase/migrations/20261030120000_legacy_event_archive.sql"
+      - "supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -108,6 +109,11 @@ jobs:
           # Must land before the frontend shows the archive card.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261030120000_legacy_event_archive.sql
+          # After 20260913090000: that replay restores the older
+          # derived_event_status / guard_event_done_requirements bodies.
+          # Cancelled events with no responders must stay `done`.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
