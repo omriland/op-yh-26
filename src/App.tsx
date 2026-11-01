@@ -58,6 +58,7 @@ import { ROLE_PREVIEW_CHANGE_EVENT, isRolePreviewing } from './lib/rolePreviewSt
 import { usePresenceHeartbeat } from './lib/usePresenceHeartbeat'
 import { usePrelaunchGate } from './lib/usePrelaunchGate'
 import { PrelaunchGatePage } from './pages/PrelaunchGatePage'
+import { useCobrowse } from './lib/useCobrowse'
 import { fetchOtpStatus } from './lib/phoneOtp'
 import {
   clearPostLoginFill,
@@ -574,6 +575,11 @@ function Gate() {
     session && !passwordSetupReason ? (user?.id ?? null) : null,
     roles,
   )
+  useCobrowse({
+    signedIn: Boolean(session && !passwordSetupReason && loginOtp.state === 'ok'),
+    impersonating: superAdminChrome.impersonating,
+    identity: profile,
+  })
 
   const entries = useMemo(() => {
     const list: NavEntry[] = []

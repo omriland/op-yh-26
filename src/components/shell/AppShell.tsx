@@ -53,6 +53,7 @@ import { Avatar } from '../ui/Avatar'
 import { NewEventButtonShell } from '../ui/NewEventButtonShell'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
+import { CobrowseSupport } from './CobrowseSupport'
 import { ImpersonationBar } from './ImpersonationBar'
 import { RolePreviewBar } from './RolePreviewBar'
 import { UpdateAvailableNotice } from './UpdateAvailableNotice'
@@ -162,6 +163,7 @@ export function AppShell({
       )}
       <ImpersonationBar onRestored={onHome} />
       <RolePreviewBar onRestored={onHome} />
+      <CobrowseSupport />
       <UpdateAvailableNotice />
       <div className="shell__body">
         {withSidebar ? (

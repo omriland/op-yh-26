@@ -58,6 +58,7 @@ import {
 } from '../lib/userPresence'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import { useAuth, type AppRole } from '../lib/auth'
+import { COBROWSE_LICENSE_KEY, cobrowseConnectUrl } from '../lib/cobrowse'
 import { canImpersonateTarget } from '../lib/impersonationEligibility'
 import { isImpersonating } from '../lib/impersonationStash'
 import { isValidIlMobile } from '../lib/phoneE164'
@@ -187,6 +188,7 @@ function buildUserMenuItems(
     onEdit: () => void
     onSetPassword?: () => void
     onImpersonate?: () => void
+    onRequestScreenControl?: () => void
     onToggleOtpLogin: () => void
     onToggleOtpUsersPage: () => void
     onResendInvite: () => void
@@ -204,6 +206,9 @@ function buildUserMenuItems(
       : []),
     ...(actions.onImpersonate
       ? [{ label: 'צפייה כמשתמש זה', onSelect: actions.onImpersonate }]
+      : []),
+    ...(actions.onRequestScreenControl
+      ? [{ label: 'בקשת שליטה במסך', onSelect: actions.onRequestScreenControl }]
       : []),
   ]
   if (!canMutate) return privileged
@@ -782,6 +787,17 @@ export function AdminUsersPage() {
           ? () => {
               setMenuUserId(null)
               setImpersonateTargetId(user.id)
+            }
+          : undefined,
+      onRequestScreenControl:
+        COBROWSE_LICENSE_KEY &&
+        isSuperAdmin &&
+        !viewingAsOther &&
+        canImpersonateTarget(authUser?.id, user)
+          ? () => {
+              setMenuUserId(null)
+              window.open(cobrowseConnectUrl(user.id), '_blank', 'noopener')
+              show('נפתח חלון Cobrowse. המשתמש יתבקש לאשר במסך שלו.', 'done')
             }
           : undefined,
       onToggleOtpLogin: () => requestToggleOtpLogin(user),
