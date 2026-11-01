@@ -28,6 +28,7 @@ on:
       - "supabase/migrations/20261030120000_legacy_event_archive.sql"
       - "supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql"
       - "supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql"
+      - "supabase/migrations/20261101120000_admin_smart_search.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -120,6 +121,11 @@ jobs:
           # on every volunteer-row update.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql
+          # Admin smart search: admin_search, word variants, smart_search_log.
+          # Must land before the smart-search function (it calls
+          # log_smart_search) and before the frontend /search page.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261101120000_admin_smart_search.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
