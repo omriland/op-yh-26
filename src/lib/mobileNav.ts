@@ -2,7 +2,7 @@
 export const MOBILE_TAB_PRIMARY = ['events', 'mine', 'users', 'my_shifts'] as const
 
 /** Reachable on mobile, but not every-session. Overflow into עוד. */
-export const MOBILE_TAB_SECONDARY = ['shifts', 'contacts', 'map', 'reports'] as const
+export const MOBILE_TAB_SECONDARY = ['search', 'shifts', 'contacts', 'map', 'reports'] as const
 
 /** Five is the hard limit; the last slot is reserved for עוד when anything overflows. */
 export const MOBILE_TAB_MAX = 4

@@ -46,6 +46,8 @@ import { ShiftDetailPage } from './pages/ShiftDetailPage'
 import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
 import { ContactsPage } from './pages/ContactsPage'
+import { SearchPage } from './pages/SearchPage'
+import { useSearchShortcut } from './lib/searchShortcut'
 import { FeedbackInboxPage } from './pages/FeedbackInboxPage'
 import { EventLocationsPage } from './pages/EventLocationsPage'
 import { EventAuditPage } from './pages/EventAuditPage'
@@ -105,10 +107,11 @@ function readWindowBoot() {
       eventSurface: { kind: 'list' } as EventSurface,
       shiftSurface: { kind: 'list' } as ShiftSurface,
       cockpitEventId: undefined as string | undefined,
+      searchQuery: undefined as string | undefined,
       legalPage: null as 'privacy' | 'android' | 'ios' | 'delete_data' | 'support' | null,
     }
   }
-  return readBootRoute(window.location.pathname)
+  return readBootRoute(window.location.pathname, window.location.search)
 }
 
 function Gate() {
@@ -126,6 +129,7 @@ function Gate() {
   const [sectionReset, setSectionReset] = useState(0)
   const [eventCreateNonce, setEventCreateNonce] = useState(0)
   const [cockpitEventId, setCockpitEventId] = useState<string | undefined>(boot.cockpitEventId)
+  const [searchQuery, setSearchQuery] = useState<string | undefined>(boot.searchQuery)
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
     myShifts: false,
@@ -286,6 +290,8 @@ function Gate() {
   // Leads also go on events — same personal list/fill surface, not only the responder role.
   const hasMineList = responds || roles.includes('shift_lead')
   const fallbackView: AppView = defaultHomeView({ manages, hasMineList, isAdmin })
+
+  useSearchShortcut(isAdmin, () => navigate('search'))
   const [missingKmPopup, setMissingKmPopup] = useState<{ count: number } | null>(null)
 
   useEffect(() => {
@@ -361,6 +367,7 @@ function Gate() {
         eventSurface,
         shiftSurface,
         cockpitEventId: nextView === 'cockpit' ? cockpitEventId : undefined,
+        searchQuery: nextView === 'search' ? searchQuery : undefined,
         legalPage: null,
       },
       { adoptHome },
@@ -377,6 +384,7 @@ function Gate() {
     eventSurface,
     shiftSurface,
     cockpitEventId,
+    searchQuery,
     loginOtp.state,
     manages,
     hasMineList,
@@ -389,7 +397,7 @@ function Gate() {
     function onPop() {
       // Back / Forward leaves the open form like a nav click does.
       void discardAbandonedEmptyEventIfAny()
-      const parsed = parseAppPath(window.location.pathname)
+      const parsed = parseAppPath(window.location.pathname, window.location.search)
       if (parsed.kind === 'android') {
         setLegalPage('android')
         return
@@ -418,9 +426,11 @@ function Gate() {
         setEventSurface(parsed.state.eventSurface)
         setShiftSurface(parsed.state.shiftSurface)
         setCockpitEventId(parsed.state.cockpitEventId)
+        setSearchQuery(parsed.state.searchQuery)
         return
       }
       setCockpitEventId(undefined)
+      setSearchQuery(undefined)
       setEventSurface({ kind: 'list' })
       setShiftSurface({ kind: 'list' })
       clearOpenAdminUserForm()
@@ -705,6 +715,12 @@ function Gate() {
     }
 
     if (isAdmin) {
+      list.push({
+        view: 'search',
+        label: 'חיפוש',
+        icon: NAV_ICONS.search,
+        section: isDesktop ? 'ניהול' : undefined,
+      })
       if (isDesktop) {
         for (const segment of ADMIN_SEGMENTS) {
           const settings = segment.id === 'lists'
@@ -1016,6 +1032,7 @@ function Gate() {
     setEventSurface(nextState.eventSurface)
     setShiftSurface(nextState.shiftSurface)
     setCockpitEventId(undefined)
+    setSearchQuery(undefined)
     setView(nextState.view)
     setSectionReset(nextState.sectionReset)
   }
@@ -1216,6 +1233,12 @@ function Gate() {
               <AdminUsersPage key={sectionReset} />
             )}
           </div>
+      ) : activeView === 'search' ? (
+        <SearchPage
+          key={sectionReset}
+          initialQuery={searchQuery ?? ''}
+          onQueryChange={(q) => setSearchQuery(q || undefined)}
+        />
       ) : activeView === 'contacts' ? (
         <div className={isDesktop ? 'page--wide' : undefined}>
           <ContactsPage key={sectionReset} />

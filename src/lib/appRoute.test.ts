@@ -299,6 +299,76 @@ describe('isAllowedAppView', () => {
   })
 })
 
+describe('search route', () => {
+  const admin = { manages: true, hasMineList: true, isAdmin: true, isSuperAdmin: false }
+  const lead = { manages: true, hasMineList: true, isAdmin: false, isSuperAdmin: false }
+  const responder = { manages: false, hasMineList: true, isAdmin: false, isSuperAdmin: false }
+  const q = '%D7%9B%D7%91%D7%99%D7%A9'
+
+  it('allows search for admins only', () => {
+    expect(isAllowedAppView('search', admin)).toBe(true)
+    expect(isAllowedAppView('search', lead)).toBe(false)
+    expect(isAllowedAppView('search', responder)).toBe(false)
+  })
+
+  it('parses q from the path string or from a separate search string', () => {
+    const expected = {
+      kind: 'app',
+      state: { ...listState('search'), searchQuery: 'כביש' },
+    }
+    expect(parseAppPath(`/search?q=${q}`)).toEqual(expected)
+    expect(parseAppPath('/search', `?q=${q}`)).toEqual(expected)
+    expect(parseAppPath('/search')).toEqual({ kind: 'app', state: listState('search') })
+    expect(parseAppPath('/search', '?q=')).toEqual({ kind: 'app', state: listState('search') })
+  })
+
+  it('round-trips the query through appPath', () => {
+    const state = { ...listState('search'), searchQuery: 'כביש' }
+    expect(appPath(state)).toBe(`/search?q=${q}`)
+    expect(appPath(listState('search'))).toBe('/search')
+    expect(parseAppPath(appPath(state))).toEqual({ kind: 'app', state })
+  })
+
+  it('reads the query on boot', () => {
+    expect(readBootRoute('/search', `?q=${q}`).searchQuery).toBe('כביש')
+  })
+
+  it('pushes a new history entry when only the query changes', () => {
+    const pushState = vi.fn()
+    const replaceState = vi.fn()
+    const history = { pushState, replaceState, state: null }
+    applyAppUrl(
+      history,
+      { href: 'https://yahpz.com/search?q=a', pathname: '/search' },
+      { ...listState('search'), searchQuery: 'b' },
+    )
+    expect(pushState).toHaveBeenCalledWith(null, '', '/search?q=b')
+    expect(replaceState).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when the URL already holds the query', () => {
+    const pushState = vi.fn()
+    const replaceState = vi.fn()
+    applyAppUrl(
+      { pushState, replaceState, state: null },
+      { href: `https://yahpz.com/search?q=${q}`, pathname: '/search' },
+      { ...listState('search'), searchQuery: 'כביש' },
+    )
+    expect(pushState).not.toHaveBeenCalled()
+    expect(replaceState).not.toHaveBeenCalled()
+  })
+
+  it('drops q when leaving search', () => {
+    const pushState = vi.fn()
+    applyAppUrl(
+      { pushState, replaceState: vi.fn(), state: null },
+      { href: 'https://yahpz.com/search?q=a', pathname: '/search' },
+      listState('events'),
+    )
+    expect(pushState).toHaveBeenCalledWith(null, '', '/events')
+  })
+})
+
 describe('shouldSyncAppUrl', () => {
   it('holds the URL for token, oauth, track, and password-setup routes', () => {
     const ok = {

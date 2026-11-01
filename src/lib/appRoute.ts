@@ -1,6 +1,6 @@
 import { isAndroidDownloadPath, ANDROID_DOWNLOAD_PATH } from './androidDownload'
 import { isIosDownloadPath, IOS_DOWNLOAD_PATH } from './iosDownload'
-import { cockpitPath, parseCockpitPath, withPathname } from './cockpitPath'
+import { cockpitPath, parseCockpitPath } from './cockpitPath'
 import { DELETE_DATA_PATH, isDeleteDataPath } from './deleteDataPage'
 import { isOAuthAuthorizePath } from './partnerOAuth'
 import { isPrivacyPath, PRIVACY_PATH } from './privacyPageToken'
@@ -24,6 +24,7 @@ export type AppRouteView =
   | 'event_audit'
   | 'ios_devices'
   | 'highway_junctions'
+  | 'search'
 
 export type EventSurface =
   | { kind: 'list' }
@@ -41,6 +42,7 @@ export type AppRouteState = {
   eventSurface: EventSurface
   shiftSurface: ShiftSurface
   cockpitEventId?: string
+  searchQuery?: string
   legalPage?: 'privacy' | 'android' | 'ios' | 'delete_data' | 'support' | null
 }
 
@@ -79,6 +81,7 @@ const VIEW_TO_SLUG: Record<AppRouteView, string> = {
   event_audit: 'event-audit',
   ios_devices: 'ios-devices',
   highway_junctions: 'highway-junctions',
+  search: 'search',
 }
 
 const SLUG_TO_VIEW = Object.fromEntries(
@@ -169,7 +172,15 @@ function parseShiftState(view: AppRouteView, rest: string[]): AppRouteState {
   return base
 }
 
-export function parseAppPath(pathname: string): ParsedAppLocation {
+function parseSearchQuery(search: string): string | undefined {
+  const q = new URLSearchParams(search).get('q')
+  return q ? q : undefined
+}
+
+export function parseAppPath(rawPathname: string, rawSearch = ''): ParsedAppLocation {
+  const queryAt = rawPathname.indexOf('?')
+  const pathname = queryAt === -1 ? rawPathname : rawPathname.slice(0, queryAt)
+  const search = queryAt === -1 ? rawSearch : rawPathname.slice(queryAt)
   const path = normalizePath(pathname)
   if (path === '/') return { kind: 'home' }
   if (isAndroidDownloadPath(path)) return { kind: 'android' }
@@ -212,12 +223,14 @@ export function parseAppPath(pathname: string): ParsedAppLocation {
     return { kind: 'app', state: parseShiftState(view, parts.slice(1)) }
   }
   if (parts.length > 1) return { kind: 'home' }
+  const searchQuery = view === 'search' ? parseSearchQuery(search) : undefined
   return {
     kind: 'app',
     state: {
       view,
       eventSurface: { kind: 'list' },
       shiftSurface: { kind: 'list' },
+      ...(searchQuery ? { searchQuery } : {}),
     },
   }
 }
@@ -255,6 +268,9 @@ export function appPath(state: AppRouteState): string {
   if (state.legalPage === 'privacy') return PRIVACY_PATH
   if (state.view === 'cockpit') return cockpitPath(state.cockpitEventId)
   const root = `/${VIEW_TO_SLUG[state.view]}`
+  if (state.view === 'search') {
+    return state.searchQuery ? `${root}?q=${encodeURIComponent(state.searchQuery)}` : root
+  }
   if (EVENT_VIEWS.has(state.view)) return `${root}${eventPathSuffix(state.eventSurface)}`
   if (SHIFT_VIEWS.has(state.view)) {
     return `${root}${shiftPathSuffix(state.shiftSurface, state.eventSurface)}`
@@ -262,14 +278,15 @@ export function appPath(state: AppRouteState): string {
   return root
 }
 
-export function readBootRoute(pathname: string): {
+export function readBootRoute(pathname: string, search = ''): {
   view: AppRouteView | null
   eventSurface: EventSurface
   shiftSurface: ShiftSurface
   cockpitEventId?: string
+  searchQuery?: string
   legalPage: 'privacy' | 'android' | 'ios' | 'delete_data' | 'support' | null
 } {
-  const parsed = parseAppPath(pathname)
+  const parsed = parseAppPath(pathname, search)
   if (parsed.kind === 'android') {
     return {
       view: null,
@@ -317,6 +334,7 @@ export function readBootRoute(pathname: string): {
       eventSurface: parsed.state.eventSurface,
       shiftSurface: parsed.state.shiftSurface,
       cockpitEventId: parsed.state.cockpitEventId,
+      searchQuery: parsed.state.searchQuery,
       legalPage: null,
     }
   }
@@ -345,6 +363,7 @@ export function isAllowedAppView(view: AppRouteView, access: AppRouteAccess): bo
     case 'users':
     case 'fuel_quarter':
     case 'lists':
+    case 'search':
       return access.isAdmin
     case 'feedback':
     case 'event_locations':
@@ -403,10 +422,21 @@ export function applyAppUrl(
   state: AppRouteState,
   options: { adoptHome?: boolean } = {},
 ): void {
-  const path = appPath(state)
-  const method = appHistoryMethod(location.pathname, path, options)
+  const [path, query = ''] = appPath(state).split('?')
+  const url = new URL(location.href)
+  let method = appHistoryMethod(location.pathname, path, options)
+  if (
+    !method &&
+    state.view === 'search' &&
+    (url.searchParams.get('q') ?? '') !== (state.searchQuery ?? '')
+  ) {
+    method = 'push'
+  }
   if (!method) return
-  const next = withPathname(location.href, path)
+  url.pathname = path
+  if (state.view === 'search') url.search = query ? `?${query}` : ''
+  else if (normalizePath(location.pathname) === `/${VIEW_TO_SLUG.search}`) url.search = ''
+  const next = `${url.pathname}${url.search}${url.hash}`
   if (method === 'push') history.pushState(history.state, '', next)
   else history.replaceState(history.state, '', next)
 }

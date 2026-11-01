@@ -4,11 +4,11 @@ The unit's registry office. Admin-only. Tabs: `משתמשים`, `דוחות וס
 
 ## Navigation
 
-- Desktop sidebar section `ניהול`: items `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`. Pinned at sidebar block-end: `פרופיל` (non–Super Admin), then `הגדרות`. Super Admin opens profile from the avatar/user menu only.
+- Desktop sidebar section `ניהול`: items `חיפוש` (Search icon, first; admin-only, ⌘K / Ctrl+K opens it), `משתמשים`, `דוחות וסטטיסטיקות`, `ניהול דלק`. Pinned at sidebar block-end: `פרופיל` (non–Super Admin), then `הגדרות`. Super Admin opens profile from the avatar/user menu only.
 - Mobile tab bar: 3–4 items. Daily work stays in the bar; the last tab is `עוד` when anything overflows (bottom sheet). Profile via app-bar menu.
   - כונן: `האירועים שלי` · `המשמרות שלי` · `אנשי קשר` · `מפה`
   - אחמ״ש: `האירועים שלי` · `אירועים` · `המשמרות שלי` · `עוד` (`משמרות` · `אנשי קשר` · `מפה` · `דוחות`)
-  - מנהל: `האירועים שלי` · `אירועים` · `ניהול` · `עוד` (`המשמרות שלי` · `משמרות` · `אנשי קשר` · `מפה`)
+  - מנהל: `האירועים שלי` · `אירועים` · `ניהול` · `עוד` (`חיפוש` · `המשמרות שלי` · `משמרות` · `אנשי קשר` · `מפה`)
 - Mobile `ניהול` tab: segmented control at top for `משתמשים` | `דוחות וסטטיסטיקות` | `ניהול דלק` | `הגדרות`. `מפה` is personal nav after `אנשי קשר` (not ניהול / not כלים לאחמ״ש) — every signed-in user.
 
 ## דוחות וסטטיסטיקות (Reports)
