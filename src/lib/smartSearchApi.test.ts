@@ -33,14 +33,15 @@ describe('interpretQuery', () => {
   it('handles a plate-like query locally and logs the direct lane', async () => {
     const r = await interpretQuery('12-345-67')
     expect(sb.invoke).not.toHaveBeenCalled()
-    expect(r).toEqual({ filter: directFilter('12-345-67'), lane: 'direct', logId: 'log-1' })
+    expect(r).toMatchObject({ filter: directFilter('12-345-67'), lane: 'direct' })
+    expect(await r.logId).toBe('log-1')
     expect(sb.rpc).toHaveBeenCalledWith('log_smart_search', expect.objectContaining({ p_lane: 'direct', p_query: '12-345-67' }))
   })
 
   it('a log failure gives logId null, not an error', async () => {
     sb.rpc.mockRejectedValue(new Error('boom'))
     const r = await interpretQuery('123')
-    expect(r.logId).toBeNull()
+    expect(await r.logId).toBeNull()
     expect(r.lane).toBe('direct')
   })
 
@@ -48,21 +49,55 @@ describe('interpretQuery', () => {
     const r = await interpretQuery('  ״. ')
     expect(sb.invoke).not.toHaveBeenCalled()
     expect(sb.rpc).not.toHaveBeenCalled()
-    expect(r).toMatchObject({ lane: 'direct', logId: null })
+    expect(r.lane).toBe('direct')
+    expect(await r.logId).toBeNull()
+  })
+
+  it('returns the direct lane without waiting for the log write', async () => {
+    let finishLog: (v: { data: string; error: null }) => void = () => {}
+    sb.rpc.mockReturnValue(new Promise((resolve) => { finishLog = resolve }))
+    const r = await interpretQuery('4471')
+    expect(r.lane).toBe('direct')
+    expect(sb.rpc).toHaveBeenCalledWith('log_smart_search', expect.objectContaining({ p_lane: 'direct' }))
+    finishLog({ data: 'late-log', error: null })
+    expect(await r.logId).toBe('late-log')
+  })
+
+  it('returns the fallback lane without waiting for the log write', async () => {
+    sb.invoke.mockResolvedValue(httpError(503, { error: 'not_configured' }))
+    let finishLog: (v: { data: string; error: null }) => void = () => {}
+    sb.rpc.mockReturnValue(new Promise((resolve) => { finishLog = resolve }))
+    const r = await interpretQuery('סוזוקי')
+    expect(r.lane).toBe('fallback')
+    finishLog({ data: 'late-log', error: null })
+    expect(await r.logId).toBe('late-log')
   })
 
   it('uses the AI lane and its logId', async () => {
     const filter = { intent: 'find', entity: 'events', source: 'new', road: '90' }
     sb.invoke.mockResolvedValue({ data: { filter, logId: 'ai-1' }, error: null })
     const r = await interpretQuery('תקלות בכביש 90')
-    expect(sb.invoke).toHaveBeenCalledWith('smart-search', { body: { q: 'תקלות בכביש 90' } })
-    expect(r).toEqual({ filter, lane: 'ai', logId: 'ai-1' })
+    expect(sb.invoke).toHaveBeenCalledWith('smart-search', { body: { q: 'תקלות בכביש 90' }, timeout: 6500 })
+    expect(r).toMatchObject({ filter, lane: 'ai' })
+    expect(await r.logId).toBe('ai-1')
+  })
+
+  it('a client deadline abort falls back like any other failure', async () => {
+    const abort = Object.assign(new Error('Failed to send a request to the Edge Function'), {
+      name: 'FunctionsFetchError',
+      context: new DOMException('The operation was aborted.', 'AbortError'),
+    })
+    sb.invoke.mockResolvedValue({ data: null, error: abort })
+    const r = await interpretQuery('סוזוקי')
+    expect(r).toMatchObject({ filter: directFilter('סוזוקי'), lane: 'fallback' })
+    expect(await r.logId).toBe('log-1')
   })
 
   it('503 falls back to the direct filter and logs the fallback lane', async () => {
     sb.invoke.mockResolvedValue(httpError(503, { error: 'not_configured' }))
     const r = await interpretQuery('סוזוקי')
-    expect(r).toMatchObject({ filter: directFilter('סוזוקי'), lane: 'fallback', logId: 'log-1' })
+    expect(r).toMatchObject({ filter: directFilter('סוזוקי'), lane: 'fallback' })
+    expect(await r.logId).toBe('log-1')
     expect(sb.rpc).toHaveBeenCalledWith('log_smart_search', expect.objectContaining({ p_lane: 'fallback' }))
   })
 

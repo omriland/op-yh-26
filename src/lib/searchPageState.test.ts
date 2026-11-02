@@ -4,7 +4,7 @@ import type { Interpretation } from './smartSearchApi.ts'
 import { searchViewState } from './searchPageState.ts'
 
 const find: SmartSearchFilter = { intent: 'find', entity: 'both', source: 'both', road: '531' }
-const ai: Interpretation = { filter: find, lane: 'ai', logId: 'log-1' }
+const ai: Interpretation = { filter: find, lane: 'ai', logId: Promise.resolve('log-1') }
 const zero = { events: 0, archive: 0, people: 0 }
 const base = { query: 'אירוע בכביש 531', loading: false, error: false, interpretation: ai, counts: zero }
 
@@ -29,7 +29,7 @@ describe('searchViewState', () => {
   })
 
   it('is too_long when the query was rejected for length', () => {
-    const tooLong: Interpretation = { filter: find, lane: 'direct', logId: null, error: 'query_too_long' }
+    const tooLong: Interpretation = { filter: find, lane: 'direct', logId: Promise.resolve(null), error: 'query_too_long' }
     expect(searchViewState({ ...base, query: 'א'.repeat(301), interpretation: tooLong, counts: null })).toBe(
       'too_long',
     )
@@ -39,7 +39,7 @@ describe('searchViewState', () => {
     const unsupported: Interpretation = {
       filter: { ...find, intent: 'unsupported_question' },
       lane: 'ai',
-      logId: 'log-2',
+      logId: Promise.resolve('log-2'),
     }
     expect(searchViewState({ ...base, interpretation: unsupported, counts: null })).toBe('unsupported')
     expect(searchViewState({ ...base, interpretation: unsupported, counts: zero })).toBe('unsupported')

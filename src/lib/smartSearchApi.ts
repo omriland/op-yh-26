@@ -31,9 +31,13 @@ export type PersonHit = {
 export type Interpretation = {
   filter: SmartSearchFilter
   lane: 'ai' | 'direct' | 'fallback'
-  logId: string | null
+  /** Settles after the search starts on the direct and fallback lanes; never rejects. */
+  logId: Promise<string | null>
   error?: 'query_too_long'
 }
+
+/** The client deadline for the AI lane. The function's own AI timeout is 5 s. */
+const INTERPRET_DEADLINE_MS = 6500
 
 const PLATE_FIELDS = 'plate_number, model, manufacturer, sort_order'
 const LIST_RESPONDER_PROFILE = 'profile:profiles(full_name, callsign, vehicles(archived))'
@@ -83,24 +87,33 @@ async function errorCode(error: unknown): Promise<{ status?: number; code?: stri
  */
 export async function interpretQuery(q: string): Promise<Interpretation> {
   const startedAt = Date.now()
-  if (isBlankQuery(q)) return { filter: directFilter(q), lane: 'direct', logId: null }
+  const noLog = Promise.resolve(null)
+  if (isBlankQuery(q)) return { filter: directFilter(q), lane: 'direct', logId: noLog }
   if (q.length > SMART_SEARCH_MAX_QUERY_CHARS) {
-    return { filter: directFilter(q), lane: 'direct', logId: null, error: 'query_too_long' }
+    return { filter: directFilter(q), lane: 'direct', logId: noLog, error: 'query_too_long' }
   }
   if (isDirectQuery(q)) {
     const filter = directFilter(q)
-    return { filter, lane: 'direct', logId: await logLane(q, filter, 'direct', startedAt) }
+    return { filter, lane: 'direct', logId: logLane(q, filter, 'direct', startedAt) }
   }
 
-  const { data, error } = await supabase.functions.invoke('smart-search', { body: { q } })
+  // On the deadline the SDK aborts the request and returns an error, which falls back below.
+  const { data, error } = await supabase.functions.invoke('smart-search', {
+    body: { q },
+    timeout: INTERPRET_DEADLINE_MS,
+  })
   if (!error && data?.filter) {
-    return { filter: data.filter as SmartSearchFilter, lane: 'ai', logId: (data.logId as string | null) ?? null }
+    return {
+      filter: data.filter as SmartSearchFilter,
+      lane: 'ai',
+      logId: Promise.resolve((data.logId as string | null) ?? null),
+    }
   }
   if (error && (await errorCode(error)).code === 'query_too_long') {
-    return { filter: directFilter(q), lane: 'direct', logId: null, error: 'query_too_long' }
+    return { filter: directFilter(q), lane: 'direct', logId: noLog, error: 'query_too_long' }
   }
   const filter = directFilter(q)
-  return { filter, lane: 'fallback', logId: await logLane(q, filter, 'fallback', startedAt) }
+  return { filter, lane: 'fallback', logId: logLane(q, filter, 'fallback', startedAt) }
 }
 
 type EventHit = { id: string; found_by: string }

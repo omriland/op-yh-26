@@ -61,17 +61,17 @@ function interpretationFor(s: DevState, q: string): Interpretation {
   const direct: SmartSearchFilter = { intent: 'find', entity: 'both', source: 'both', text: q.trim() }
   switch (s) {
     case 'too_long':
-      return { filter: direct, lane: 'direct', logId: null, error: 'query_too_long' }
+      return { filter: direct, lane: 'direct', logId: Promise.resolve(null), error: 'query_too_long' }
     case 'unsupported':
-      return { filter: { ...aiFilter, intent: 'unsupported_question' }, lane: 'ai', logId: 'dev' }
+      return { filter: { ...aiFilter, intent: 'unsupported_question' }, lane: 'ai', logId: Promise.resolve('dev') }
     case 'fallback':
-      return { filter: direct, lane: 'fallback', logId: 'dev' }
+      return { filter: direct, lane: 'fallback', logId: Promise.resolve('dev') }
     case 'direct':
-      return { filter: direct, lane: 'direct', logId: 'dev' }
+      return { filter: direct, lane: 'direct', logId: Promise.resolve('dev') }
     case 'export':
-      return { filter: { ...aiFilter, intent: 'export' }, lane: 'ai', logId: 'dev' }
+      return { filter: { ...aiFilter, intent: 'export' }, lane: 'ai', logId: Promise.resolve('dev') }
     default:
-      return { filter: aiFilter, lane: 'ai', logId: 'dev' }
+      return { filter: aiFilter, lane: 'ai', logId: Promise.resolve('dev') }
   }
 }
 

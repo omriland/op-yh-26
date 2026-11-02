@@ -141,7 +141,7 @@ export function SearchPage({
       const found = await api.runSearch(next.filter, SCREEN_CAP)
       if (id !== runId.current) return
       setResults(found)
-      if (next.logId) api.reportCounts(next.logId, countsOf(found)).catch(() => {})
+      void next.logId.then((logId) => (logId ? api.reportCounts(logId, countsOf(found)) : undefined)).catch(() => {})
     } catch {
       if (id === runId.current) setFailed(true)
     } finally {
@@ -191,7 +191,7 @@ export function SearchPage({
     if (!filter) return
     const logId = interpretation?.logId
     void rerun(removeChip(filter, key), () => {
-      if (logId) api.reportChipRemoved(logId).catch(() => {})
+      void logId?.then((id) => (id ? api.reportChipRemoved(id) : undefined)).catch(() => {})
     })
   }
 
@@ -199,7 +199,7 @@ export function SearchPage({
     if (!filter) return
     const logId = interpretation?.logId
     void rerun({ ...filter, intent: 'find' }, (found) => {
-      if (logId) api.reportCounts(logId, countsOf(found)).catch(() => {})
+      void logId?.then((id) => (id ? api.reportCounts(id, countsOf(found)) : undefined)).catch(() => {})
     })
   }
 
