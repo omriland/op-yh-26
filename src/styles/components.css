@@ -7879,9 +7879,26 @@ html[data-keyboard-open] .event-form__footer {
    ============================================================ */
 
 .event-media {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* Drop target while files are dragged over the gallery (desktop). */
+.event-media__drop {
+  position: absolute;
+  inset: calc(-1 * var(--space-2));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-raised) 90%, transparent);
+  text-align: center;
+  pointer-events: none;
 }
 
 .event-media__title {
@@ -7912,6 +7929,7 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .event-media__thumb {
+  position: relative;
   display: block;
   width: 100%;
   aspect-ratio: 1;
@@ -7929,11 +7947,30 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .event-media__thumb img,
+.event-media__thumb video,
 .event-media__draft-thumb {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.event-media__thumb video {
+  pointer-events: none;
+}
+
+.event-media__play {
+  position: absolute;
+  inset-block-end: var(--space-1);
+  inset-inline-start: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text-primary);
 }
 
 .event-media__thumb-miss {

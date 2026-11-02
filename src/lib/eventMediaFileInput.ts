@@ -1,11 +1,12 @@
 /**
  * Two separate file inputs. `capture` on the upload input hides the gallery
- * on some phones, so only the take-photo input sets it.
+ * on some phones, so only the take-photo input sets it. The upload input also
+ * takes short videos.
  */
 export type EventMediaFileInputKind = 'upload' | 'camera'
 
 type EventMediaFileInputAttributes = {
-  accept: 'image/*'
+  accept: string
   capture?: 'environment'
   multiple?: true
 }
@@ -16,5 +17,5 @@ export function eventMediaFileInputAttributes(
   if (kind === 'camera') {
     return { accept: 'image/*', capture: 'environment' }
   }
-  return { accept: 'image/*', multiple: true }
+  return { accept: 'image/*,video/mp4,video/quicktime,video/webm', multiple: true }
 }

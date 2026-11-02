@@ -5,7 +5,13 @@ import {
   EVENT_MEDIA_CAPTION_ERROR,
   EVENT_MEDIA_LEFTOVER_ERROR,
   EVENT_MEDIA_NETWORK,
+  EVENT_MEDIA_VIDEO_MAX_BYTES,
+  EVENT_MEDIA_VIDEO_TOO_LARGE,
   canAddMoreMedia,
+  eventMediaKind,
+  isVideoMedia,
+  pickEventMediaFiles,
+  rejectVideoFile,
   captionError,
   eventMediaStoragePath,
   groupMediaByTakenWhen,
@@ -96,6 +102,74 @@ describe('groupMediaByTakenWhen', () => {
 describe('eventMediaStoragePath', () => {
   it('is {eventId}/{mediaId}.jpg', () => {
     expect(eventMediaStoragePath('e1', 'm1')).toBe('e1/m1.jpg')
+  })
+
+  it('uses the video extension for each video type', () => {
+    expect(eventMediaStoragePath('e1', 'm1', 'video/mp4')).toBe('e1/m1.mp4')
+    expect(eventMediaStoragePath('e1', 'm1', 'video/quicktime')).toBe('e1/m1.mov')
+    expect(eventMediaStoragePath('e1', 'm1', 'video/webm')).toBe('e1/m1.webm')
+  })
+})
+
+describe('eventMediaKind', () => {
+  it('treats any image type as a photo (compressed to JPEG later)', () => {
+    expect(eventMediaKind({ type: 'image/png' })).toBe('image')
+    expect(eventMediaKind({ type: 'image/heic' })).toBe('image')
+  })
+
+  it('accepts MP4, QuickTime and WebM videos only', () => {
+    expect(eventMediaKind({ type: 'video/mp4' })).toBe('video')
+    expect(eventMediaKind({ type: 'video/quicktime' })).toBe('video')
+    expect(eventMediaKind({ type: 'video/webm' })).toBe('video')
+    expect(eventMediaKind({ type: 'video/x-msvideo' })).toBeNull()
+  })
+
+  it('rejects everything else', () => {
+    expect(eventMediaKind({ type: 'application/pdf' })).toBeNull()
+    expect(eventMediaKind({ type: '' })).toBeNull()
+  })
+})
+
+describe('isVideoMedia', () => {
+  it('is true for stored video rows only', () => {
+    expect(isVideoMedia('video/mp4')).toBe(true)
+    expect(isVideoMedia('image/jpeg')).toBe(false)
+  })
+})
+
+describe('rejectVideoFile', () => {
+  it('accepts a video up to 25 MB', () => {
+    expect(rejectVideoFile({ size: EVENT_MEDIA_VIDEO_MAX_BYTES })).toBeNull()
+  })
+
+  it('rejects a longer video and an empty file', () => {
+    expect(rejectVideoFile({ size: EVENT_MEDIA_VIDEO_MAX_BYTES + 1 })).toBe(
+      EVENT_MEDIA_VIDEO_TOO_LARGE,
+    )
+    expect(rejectVideoFile({ size: 0 })).toBe(EVENT_MEDIA_VIDEO_TOO_LARGE)
+  })
+})
+
+describe('pickEventMediaFiles', () => {
+  const photo = { type: 'image/jpeg', name: 'a.jpg' }
+  const video = { type: 'video/mp4', name: 'b.mp4' }
+  const pdf = { type: 'application/pdf', name: 'c.pdf' }
+
+  it('keeps photos and videos in order and counts the rest as unsupported', () => {
+    expect(pickEventMediaFiles([photo, pdf, video], 20)).toEqual({
+      accepted: [photo, video],
+      unsupported: 1,
+      overCap: 0,
+    })
+  })
+
+  it('stops at the slots left and counts what did not fit', () => {
+    expect(pickEventMediaFiles([photo, video, photo], 2)).toEqual({
+      accepted: [photo, video],
+      unsupported: 0,
+      overCap: 1,
+    })
+    expect(pickEventMediaFiles([photo], 0)).toEqual({ accepted: [], unsupported: 0, overCap: 1 })
   })
 })
 

@@ -30,6 +30,8 @@ on:
       - "supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql"
       - "supabase/migrations/20261101120000_admin_smart_search.sql"
       - "supabase/migrations/20261101121000_admin_search_archive.sql"
+      - "supabase/migrations/20261102120000_contacts_include_self_and_pending.sql"
+      - "supabase/migrations/20261102121000_event_media_short_videos.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -131,6 +133,14 @@ jobs:
           # Needs the legacy archive and admin_smart_search helpers above.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261101121000_admin_search_archive.sql
+          # After 20261029180000, which last replaced list_unit_contacts:
+          # contacts now include the caller and members with a pending invite.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261102120000_contacts_include_self_and_pending.sql
+          # Event media accepts short videos (MP4 / MOV / WebM up to 25 MB).
+          # Must land before the frontend offers video uploads.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261102121000_event_media_short_videos.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

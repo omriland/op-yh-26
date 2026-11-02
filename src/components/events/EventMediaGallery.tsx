@@ -1,9 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import { Camera, ImagePlus } from 'lucide-react'
+import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
+import { Camera, ImagePlus, Play } from 'lucide-react'
 import { compressEventImage } from '../../lib/compressEventImage'
 import { eventMediaFileInputAttributes } from '../../lib/eventMediaFileInput'
 import {
   EVENT_MEDIA_ADDED,
+  EVENT_MEDIA_BAD_TYPE,
   EVENT_MEDIA_CAP,
   EVENT_MEDIA_CAP_ERROR,
   EVENT_MEDIA_DELETED,
@@ -12,9 +13,15 @@ import {
   EVENT_MEDIA_TAKEN_WHEN_LABEL,
   EVENT_MEDIA_TITLE,
   EVENT_MEDIA_UPDATED,
+  EVENT_MEDIA_VIDEO_ADDED,
+  EVENT_MEDIA_VIDEO_DELETED,
   canAddMoreMedia,
   captionError,
   deleteEventMedia,
+  eventMediaKind,
+  isVideoMedia,
+  pickEventMediaFiles,
+  rejectVideoFile,
   groupMediaByTakenWhen,
   listEventMedia,
   listEventMediaPlates,
@@ -22,11 +29,13 @@ import {
   updateEventMedia,
   uploadEventMedia,
   type EventMedia,
+  type EventMediaKind,
   type EventMediaPlateOption,
   type EventMediaTakenWhen,
 } from '../../lib/eventMedia'
 import { formatDateTime, formatPlate } from '../../lib/format'
 import { treatedPlateCaption } from '../../lib/treatedPlates'
+import { useIsDesktop } from '../../lib/useMediaQuery'
 import { Button } from '../ui/Button'
 import { AlertDialog } from '../ui/AlertDialog'
 import { Dialog } from '../ui/Dialog'
@@ -49,6 +58,7 @@ export type EventMediaGalleryProps = {
 
 type MediaDraft = {
   key: string
+  kind: EventMediaKind
   file: File
   previewUrl: string
   takenWhen: '' | EventMediaTakenWhen
@@ -61,6 +71,15 @@ type MediaDraft = {
 const TAKEN_WHEN_OPTIONS = (
   Object.entries(EVENT_MEDIA_TAKEN_WHEN_LABEL) as [EventMediaTakenWhen, string][]
 ).map(([value, label]) => ({ value, label }))
+
+/** Seek a hair past 0 so Safari paints the first frame instead of a blank box. */
+function videoPosterSrc(url: string): string {
+  return `${url}#t=0.1`
+}
+
+function hasDraggedFiles(event: DragEvent): boolean {
+  return Array.from(event.dataTransfer?.types ?? []).includes('Files')
+}
 
 function mediaPlateLabel(plate: EventMediaPlateOption): string {
   const caption = treatedPlateCaption(plate.model, plate.color)
@@ -124,6 +143,9 @@ export function EventMediaGallery({
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const { show } = useToast()
+  const isDesktop = useIsDesktop()
+  const [dragging, setDragging] = useState(false)
+  const dragDepthRef = useRef(0)
   const [items, setItems] = useState<EventMedia[]>([])
   const [plates, setPlates] = useState<EventMediaPlateOption[]>([])
   const [drafts, setDrafts] = useState<MediaDraft[]>([])
@@ -189,17 +211,31 @@ export function EventMediaGallery({
     const draft = draftsRef.current.find((row) => row.key === key)
     if (!draft) return
     patchDraft(key, { uploading: true, error: undefined, takenWhen })
-    const compressed = await compressEventImage(draft.file)
-    if (!compressed.ok) {
-      patchDraft(key, { uploading: false, error: compressed.error })
-      return
+    let payload: { blob: Blob; mimeType: string; width: number | null; height: number | null }
+    if (draft.kind === 'video') {
+      const rejected = rejectVideoFile(draft.file)
+      if (rejected) {
+        patchDraft(key, { uploading: false, error: rejected })
+        return
+      }
+      payload = { blob: draft.file, mimeType: draft.file.type, width: null, height: null }
+    } else {
+      const compressed = await compressEventImage(draft.file)
+      if (!compressed.ok) {
+        patchDraft(key, { uploading: false, error: compressed.error })
+        return
+      }
+      payload = {
+        blob: compressed.blob,
+        mimeType: 'image/jpeg',
+        width: compressed.width,
+        height: compressed.height,
+      }
     }
     const latest = draftsRef.current.find((row) => row.key === key) ?? draft
     const result = await uploadEventMedia({
       eventId,
-      blob: compressed.blob,
-      width: compressed.width,
-      height: compressed.height,
+      ...payload,
       takenWhen,
       treatedPlateIds: latest.treatedPlateIds,
       caption: latest.caption.trim() || null,
@@ -211,15 +247,24 @@ export function EventMediaGallery({
     URL.revokeObjectURL(draft.previewUrl)
     setDrafts((current) => current.filter((row) => row.key !== key))
     setItems((current) => [...current, result.media])
-    show(EVENT_MEDIA_ADDED, 'done')
+    show(draft.kind === 'video' ? EVENT_MEDIA_VIDEO_ADDED : EVENT_MEDIA_ADDED, 'done')
   }
 
-  function onPick(fileList: FileList | null, input: HTMLInputElement | null) {
-    if (!fileList || !addEnabled) return
-    const remaining = slotsRemaining(items.length, inFlight)
-    const picked = Array.from(fileList).slice(0, Math.max(0, remaining))
-    const next: MediaDraft[] = picked.map((file) => ({
+  function addFiles(files: File[]) {
+    if (files.length === 0) return
+    if (!addEnabled) {
+      show(EVENT_MEDIA_CAP_ERROR, 'alert')
+      return
+    }
+    // Every draft holds a slot, not only the ones already uploading.
+    const remaining = slotsRemaining(items.length, drafts.length)
+    const { accepted, unsupported, overCap } = pickEventMediaFiles(files, remaining)
+    if (unsupported > 0) show(EVENT_MEDIA_BAD_TYPE, 'alert')
+    else if (overCap > 0) show(EVENT_MEDIA_CAP_ERROR, 'alert')
+    if (accepted.length === 0) return
+    const next: MediaDraft[] = accepted.map((file) => ({
       key: crypto.randomUUID(),
+      kind: eventMediaKind(file) ?? 'image',
       file,
       previewUrl: URL.createObjectURL(file),
       takenWhen: '',
@@ -228,8 +273,39 @@ export function EventMediaGallery({
       uploading: false,
     }))
     setDrafts((current) => [...current, ...next])
-    if (input) input.value = ''
     void listEventMediaPlates(eventId).then(setPlates)
+  }
+
+  function onPick(fileList: FileList | null, input: HTMLInputElement | null) {
+    if (fileList) addFiles(Array.from(fileList))
+    if (input) input.value = ''
+  }
+
+  function onDragEnter(event: DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event)) return
+    event.preventDefault()
+    dragDepthRef.current += 1
+    setDragging(true)
+  }
+
+  function onDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = addEnabled ? 'copy' : 'none'
+  }
+
+  function onDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event)) return
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setDragging(false)
+  }
+
+  function onDrop(event: DragEvent<HTMLDivElement>) {
+    if (!hasDraggedFiles(event)) return
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setDragging(false)
+    addFiles(Array.from(event.dataTransfer.files))
   }
 
   function removeDraft(key: string) {
@@ -294,7 +370,7 @@ export function EventMediaGallery({
     setItems((current) => current.filter((row) => row.id !== viewer.id))
     setViewer(null)
     setConfirmDelete(false)
-    show(EVENT_MEDIA_DELETED, 'done')
+    show(isVideoMedia(viewer.mime_type) ? EVENT_MEDIA_VIDEO_DELETED : EVENT_MEDIA_DELETED, 'done')
   }
 
   const ownViewer = Boolean(viewer && viewerId && viewer.uploaded_by === viewerId && canWrite)
@@ -302,8 +378,18 @@ export function EventMediaGallery({
     ? plates.filter((plate) => viewer.treated_plate_ids.includes(plate.id))
     : []
 
+  const viewerIsVideo = Boolean(viewer && isVideoMedia(viewer.mime_type))
+
   return (
-    <div className="event-media">
+    <div
+      className={dragging ? 'event-media event-media--dragging' : 'event-media'}
+      {...(canWrite ? { onDragEnter, onDragOver, onDragLeave, onDrop } : {})}
+    >
+      {dragging ? (
+        <div className="event-media__drop" aria-hidden="true">
+          <p className="t-body">{addEnabled ? 'שחררו כאן כדי לצרף' : EVENT_MEDIA_CAP_ERROR}</p>
+        </div>
+      ) : null}
       <div className="row-between event-media__head">
         <h3 className="field__label event-media__title">{EVENT_MEDIA_TITLE}</h3>
         {canWrite ? (
@@ -338,7 +424,17 @@ export function EventMediaGallery({
         <ul className="event-media__drafts">
           {drafts.map((draft) => (
             <li key={draft.key} className="event-media__draft">
-              <img src={draft.previewUrl} alt="" className="event-media__draft-thumb" />
+              {draft.kind === 'video' ? (
+                <video
+                  src={videoPosterSrc(draft.previewUrl)}
+                  className="event-media__draft-thumb"
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                <img src={draft.previewUrl} alt="" className="event-media__draft-thumb" />
+              )}
               <div className="event-media__draft-fields">
                 <MediaPlateSelect
                   plates={plates}
@@ -433,7 +529,7 @@ export function EventMediaGallery({
               icon={<ImagePlus size={20} strokeWidth={1.75} />}
               onClick={() => uploadInputRef.current?.click()}
             >
-              הוספת תמונות
+              הוספת תמונות וסרטונים
             </Button>
             <Button
               variant="secondary"
@@ -446,13 +542,15 @@ export function EventMediaGallery({
           </div>
           {!addEnabled ? (
             <p className="field__hint">{EVENT_MEDIA_CAP_ERROR}</p>
+          ) : isDesktop ? (
+            <p className="field__hint">אפשר גם לגרור לכאן תמונות וסרטונים קצרים.</p>
           ) : null}
         </div>
       ) : null}
 
       <Dialog
         open={Boolean(viewer) && !confirmDelete}
-        title={viewer ? EVENT_MEDIA_TAKEN_WHEN_LABEL[viewer.taken_when] : 'תמונה'}
+        title={viewer ? EVENT_MEDIA_TAKEN_WHEN_LABEL[viewer.taken_when] : 'מדיה'}
         form={false}
         wide
         onClose={() => {
@@ -484,7 +582,16 @@ export function EventMediaGallery({
       >
         {viewer ? (
           <div className="event-media__lightbox">
-            {viewer.signed_url ? (
+            {viewer.signed_url && viewerIsVideo ? (
+              <video
+                src={viewer.signed_url}
+                className="event-media__full"
+                controls
+                playsInline
+                preload="metadata"
+                aria-label={viewer.caption ?? 'סרטון'}
+              />
+            ) : viewer.signed_url ? (
               <img src={viewer.signed_url} alt={viewer.caption ?? ''} className="event-media__full" />
             ) : (
               <p className="t-body text-muted">{EVENT_MEDIA_NETWORK}</p>
@@ -555,7 +662,7 @@ export function EventMediaGallery({
       <AlertDialog
         open={confirmDelete}
         status="danger"
-        title="למחוק את התמונה?"
+        title={viewerIsVideo ? 'למחוק את הסרטון?' : 'למחוק את התמונה?'}
         busy={deleting}
         onClose={() => {
           if (!deleting) setConfirmDelete(false)
@@ -593,8 +700,27 @@ function MediaBand({
       <ul className="event-media__grid">
         {items.map((item) => (
           <li key={item.id}>
-            <button type="button" className="event-media__thumb" onClick={() => onOpen(item)}>
-              {item.signed_url ? (
+            <button
+              type="button"
+              className="event-media__thumb"
+              aria-label={isVideoMedia(item.mime_type) ? `סרטון: ${item.caption ?? heading}` : undefined}
+              onClick={() => onOpen(item)}
+            >
+              {item.signed_url && isVideoMedia(item.mime_type) ? (
+                <>
+                  <video
+                    src={videoPosterSrc(item.signed_url)}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
+                  <span className="event-media__play" aria-hidden="true">
+                    <Play size={16} strokeWidth={1.75} />
+                  </span>
+                </>
+              ) : item.signed_url ? (
                 <img src={item.signed_url} alt={item.caption ?? heading} />
               ) : (
                 <span className="event-media__thumb-miss" />
