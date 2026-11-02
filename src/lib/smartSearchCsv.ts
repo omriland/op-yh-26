@@ -5,7 +5,27 @@ import { toCsv } from './reports/csv'
 import type { ArchiveRow } from './smartSearchApi'
 
 type PlateRow = { plate_number: string; manufacturer?: string | null; model?: string | null; sort_order?: number }
-type CsvEvent = EventListItem & { found_by: string; shared_plates?: PlateRow[] | null }
+type CsvEvent = Omit<EventListItem, 'responders'> & {
+  found_by: string
+  shared_plates?: PlateRow[] | null
+  responders: (EventListItem['responders'][number] & { treated_plates?: PlateRow[] | null })[]
+}
+
+const bySortOrder = (a: PlateRow, b: PlateRow) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+
+/** Event-owned plates first, then each responder's, one entry per plate number. */
+function eventPlates(e: CsvEvent): PlateRow[] {
+  const all = [
+    ...[...(e.shared_plates ?? [])].sort(bySortOrder),
+    ...e.responders.flatMap((r) => [...(r.treated_plates ?? [])].sort(bySortOrder)),
+  ]
+  const seen = new Set<string>()
+  return all.filter((p) => {
+    if (seen.has(p.plate_number)) return false
+    seen.add(p.plate_number)
+    return true
+  })
+}
 
 const EVENT_HEADERS = [
   'תאריך', 'מספר אירוע', 'סוג אירוע', 'כביש / מיקום', 'אחמ״ש', 'מתנדבים', 'סטטוס תיעוד',
@@ -16,7 +36,7 @@ export function eventsCsv(rows: CsvEvent[]): string {
   return toCsv(
     EVENT_HEADERS,
     rows.map((e) => {
-      const plates = [...(e.shared_plates ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      const plates = eventPlates(e)
       const done = e.responders.filter((r) => r.status === 'done').length
       return [
         formatDate(e.event_date),

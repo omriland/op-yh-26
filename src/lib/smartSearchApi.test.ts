@@ -136,6 +136,27 @@ describe('runSearch errors and hydration', () => {
     expect(sb.select.mock.calls[0][0]).toContain('frozen_over_60km')
   })
 
+  it('embeds event-owned and responder-owned treated plates', async () => {
+    sb.rpc.mockImplementation(async (name: string) =>
+      name === 'admin_search'
+        ? { data: { events: [{ id: 'a', found_by: 'x' }], people: [] }, error: null }
+        : { data: { rows: [] }, error: null },
+    )
+    sb.inFn.mockResolvedValue({ data: [{ id: 'a' }], error: null })
+    await runSearch(directFilter('12345'), 50)
+    const select: string = sb.select.mock.calls[0][0]
+    expect(select).toContain('shared_plates:event_treated_plates!event_treated_plates_event_id_fkey(')
+    const responders = select.indexOf('responders:event_responders(')
+    const owned = select.indexOf('treated_plates:event_treated_plates!event_treated_plates_event_responder_id_fkey(')
+    expect(responders).toBeGreaterThan(-1)
+    expect(owned).toBeGreaterThan(responders)
+    // The responder plates sit inside the responders embed, not after it.
+    let depth = 0
+    for (const ch of select.slice(responders, owned)) depth += ch === '(' ? 1 : ch === ')' ? -1 : 0
+    expect(depth).toBe(1)
+    expect(select.split('(').length).toBe(select.split(')').length)
+  })
+
   it('throws when admin_search errors', async () => {
     sb.rpc.mockImplementation(async (name: string) =>
       name === 'admin_search'

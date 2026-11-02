@@ -38,6 +38,37 @@ describe('eventsCsv', () => {
     expect(line).toContain('אבי כהן; רון בר')
     expect(line).toContain('החלפת גלגל')
   })
+
+  it('adds responder-owned plates after the event plates, once per plate number', () => {
+    const fillBorn = {
+      ...event,
+      shared_plates: [{ plate_number: '1234567', manufacturer: 'סוזוקי', model: 'סוויפט', sort_order: 0 }],
+      responders: [
+        {
+          ...event.responders[0],
+          treated_plates: [
+            { plate_number: '7654321', manufacturer: 'מאזדה', model: '3', sort_order: 1 },
+            { plate_number: '1234567', manufacturer: 'סוזוקי', model: 'סוויפט', sort_order: 0 },
+          ],
+        },
+        { ...event.responders[1], treated_plates: [{ plate_number: '11122233', manufacturer: 'טויוטה', model: null, sort_order: 0 }] },
+      ],
+    } as unknown as typeof event
+    const line = eventsCsv([fillBorn]).split('\r\n')[1]
+    expect(line).toContain('12-345-67; 76-543-21; 111-22-233')
+    expect(line).toContain('סוזוקי סוויפט; מאזדה 3; טויוטה')
+  })
+
+  it('lists responder-owned plates when the event owns none', () => {
+    const fillBorn = {
+      ...event,
+      shared_plates: [],
+      responders: [{ ...event.responders[0], treated_plates: [{ plate_number: '7654321', manufacturer: 'מאזדה', model: '3', sort_order: 0 }] }],
+    } as unknown as typeof event
+    const line = eventsCsv([fillBorn]).split('\r\n')[1]
+    expect(line).toContain('76-543-21')
+    expect(line).toContain('מאזדה 3')
+  })
 })
 
 describe('archiveCsv', () => {

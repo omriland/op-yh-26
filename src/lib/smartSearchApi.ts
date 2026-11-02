@@ -35,9 +35,19 @@ export type Interpretation = {
   error?: 'query_too_long'
 }
 
-/** The list select plus the treated plates the CSV export needs. */
-const SEARCH_EVENT_SELECT = `${EVENT_LIST_SELECT},
-  shared_plates:event_treated_plates!event_treated_plates_event_id_fkey(plate_number, model, manufacturer, sort_order)`
+const PLATE_FIELDS = 'plate_number, model, manufacturer, sort_order'
+const LIST_RESPONDER_PROFILE = 'profile:profiles(full_name, callsign, vehicles(archived))'
+
+/**
+ * The list select plus the treated plates the CSV export needs. A plate belongs to
+ * either the event or one responder row (fill-born events keep theirs on the row).
+ */
+const SEARCH_EVENT_SELECT = `${EVENT_LIST_SELECT.replace(
+  LIST_RESPONDER_PROFILE,
+  `${LIST_RESPONDER_PROFILE},
+    treated_plates:event_treated_plates!event_treated_plates_event_responder_id_fkey(${PLATE_FIELDS})`,
+)},
+  shared_plates:event_treated_plates!event_treated_plates_event_id_fkey(${PLATE_FIELDS})`
 
 const HYDRATE_CHUNK = 100
 
