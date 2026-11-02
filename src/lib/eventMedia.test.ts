@@ -117,6 +117,10 @@ describe('eventMediaKind', () => {
     expect(eventMediaKind({ type: 'image/heic' })).toBe('image')
   })
 
+  it('treats a .heic file with no reported type as a photo', () => {
+    expect(eventMediaKind({ type: '', name: 'IMG_0001.HEIC' })).toBe('image')
+  })
+
   it('accepts MP4, QuickTime and WebM videos only', () => {
     expect(eventMediaKind({ type: 'video/mp4' })).toBe('video')
     expect(eventMediaKind({ type: 'video/quicktime' })).toBe('video')

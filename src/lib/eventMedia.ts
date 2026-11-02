@@ -1,3 +1,4 @@
+import { isHeicFile } from './heicImage'
 import { supabase } from './supabase'
 
 export const EVENT_MEDIA_CAP = 20
@@ -31,8 +32,8 @@ const EVENT_MEDIA_VIDEO_EXTENSIONS: Record<string, string> = {
 export type EventMediaKind = 'image' | 'video'
 
 /** Any image is compressed to JPEG; only MP4, QuickTime and WebM videos are kept. */
-export function eventMediaKind(file: Pick<File, 'type'>): EventMediaKind | null {
-  if (file.type.startsWith('image/')) return 'image'
+export function eventMediaKind(file: { type: string; name?: string }): EventMediaKind | null {
+  if (file.type.startsWith('image/') || isHeicFile(file)) return 'image'
   if (file.type in EVENT_MEDIA_VIDEO_EXTENSIONS) return 'video'
   return null
 }
@@ -47,7 +48,7 @@ export function rejectVideoFile(file: Pick<File, 'size'>): string | null {
 }
 
 /** Splits picked or dropped files into what fits the event and what was left out. */
-export function pickEventMediaFiles<T extends Pick<File, 'type'>>(
+export function pickEventMediaFiles<T extends { type: string; name?: string }>(
   files: readonly T[],
   remaining: number,
 ): { accepted: T[]; unsupported: number; overCap: number } {

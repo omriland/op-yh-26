@@ -8006,6 +8006,13 @@ html[data-keyboard-open] .event-form__footer {
   background: var(--surface-sunken);
 }
 
+.event-media__draft-thumb--preparing {
+  display: grid;
+  place-items: center;
+  padding: var(--space-2);
+  text-align: center;
+}
+
 .event-media__draft-fields {
   display: flex;
   flex-direction: column;

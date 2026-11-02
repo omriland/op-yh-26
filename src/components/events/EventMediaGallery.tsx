@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
 import { Camera, ImagePlus, Play } from 'lucide-react'
 import { compressEventImage } from '../../lib/compressEventImage'
+import { heicToJpegFile, isHeicFile } from '../../lib/heicImage'
 import { eventMediaFileInputAttributes } from '../../lib/eventMediaFileInput'
 import {
   EVENT_MEDIA_ADDED,
@@ -9,6 +10,7 @@ import {
   EVENT_MEDIA_CAP_ERROR,
   EVENT_MEDIA_DELETED,
   EVENT_MEDIA_EMPTY_DETAIL,
+  EVENT_MEDIA_HEIC_FAIL,
   EVENT_MEDIA_NETWORK,
   EVENT_MEDIA_TAKEN_WHEN_LABEL,
   EVENT_MEDIA_TITLE,
@@ -65,6 +67,8 @@ type MediaDraft = {
   treatedPlateIds: string[]
   caption: string
   uploading: boolean
+  /** HEIC photo still being converted to JPEG; no preview yet. */
+  preparing?: boolean
   error?: string
 }
 
@@ -262,18 +266,34 @@ export function EventMediaGallery({
     if (unsupported > 0) show(EVENT_MEDIA_BAD_TYPE, 'alert')
     else if (overCap > 0) show(EVENT_MEDIA_CAP_ERROR, 'alert')
     if (accepted.length === 0) return
-    const next: MediaDraft[] = accepted.map((file) => ({
-      key: crypto.randomUUID(),
-      kind: eventMediaKind(file) ?? 'image',
-      file,
-      previewUrl: URL.createObjectURL(file),
-      takenWhen: '',
-      treatedPlateIds: [],
-      caption: '',
-      uploading: false,
-    }))
+    const next: MediaDraft[] = accepted.map((file) => {
+      const heic = isHeicFile(file)
+      return {
+        key: crypto.randomUUID(),
+        kind: eventMediaKind(file) ?? 'image',
+        file,
+        previewUrl: heic ? '' : URL.createObjectURL(file),
+        takenWhen: '',
+        treatedPlateIds: [],
+        caption: '',
+        uploading: false,
+        preparing: heic,
+      }
+    })
     setDrafts((current) => [...current, ...next])
     void listEventMediaPlates(eventId).then(setPlates)
+    for (const draft of next) {
+      if (draft.preparing) void prepareHeicDraft(draft.key, draft.file)
+    }
+  }
+
+  async function prepareHeicDraft(key: string, file: File) {
+    const jpeg = await heicToJpegFile(file)
+    if (!jpeg) {
+      patchDraft(key, { preparing: false, error: EVENT_MEDIA_HEIC_FAIL })
+      return
+    }
+    patchDraft(key, { preparing: false, file: jpeg, previewUrl: URL.createObjectURL(jpeg) })
   }
 
   function onPick(fileList: FileList | null, input: HTMLInputElement | null) {
@@ -432,8 +452,14 @@ export function EventMediaGallery({
                   playsInline
                   preload="metadata"
                 />
-              ) : (
+              ) : draft.preparing ? (
+                <div className="event-media__draft-thumb event-media__draft-thumb--preparing">
+                  <span className="t-caption text-muted">מכין תמונה…</span>
+                </div>
+              ) : draft.previewUrl ? (
                 <img src={draft.previewUrl} alt="" className="event-media__draft-thumb" />
+              ) : (
+                <div className="event-media__draft-thumb event-media__draft-thumb--preparing" />
               )}
               <div className="event-media__draft-fields">
                 <MediaPlateSelect
@@ -455,7 +481,7 @@ export function EventMediaGallery({
                   required
                   placeholder="בחירה"
                   value={draft.takenWhen}
-                  disabled={draft.uploading}
+                  disabled={draft.uploading || draft.preparing || !draft.previewUrl}
                   options={TAKEN_WHEN_OPTIONS}
                   onChange={(event) => {
                     const value = event.target.value as EventMediaTakenWhen

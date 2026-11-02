@@ -1,7 +1,8 @@
 /**
  * Two separate file inputs. `capture` on the upload input hides the gallery
  * on some phones, so only the take-photo input sets it. The upload input also
- * takes short videos.
+ * takes short videos. `.heic,.heif` lets desktop pickers show HEIC photos
+ * where the OS has no image type for them.
  */
 export type EventMediaFileInputKind = 'upload' | 'camera'
 
@@ -17,5 +18,5 @@ export function eventMediaFileInputAttributes(
   if (kind === 'camera') {
     return { accept: 'image/*', capture: 'environment' }
   }
-  return { accept: 'image/*,video/mp4,video/quicktime,video/webm', multiple: true }
+  return { accept: 'image/*,.heic,.heif,video/mp4,video/quicktime,video/webm', multiple: true }
 }
