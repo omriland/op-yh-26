@@ -3390,17 +3390,20 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 /* Search results: why the row matched, as a full-width line under it (same anatomy as
-   the completion meta row, without the alert rail). */
-.table--events tbody tr.table-row--found-by {
+   the completion meta row, without the alert rail). Events and archive tables alike. */
+.table--events tbody tr.table-row--found-by,
+.search-archive-table tbody tr.table-row--found-by {
   border-block-start: 1px dotted var(--stroke-hairline);
 }
 
-.table--events tbody tr.table-row--found-by td {
+.table--events tbody tr.table-row--found-by td,
+.search-archive-table tbody tr.table-row--found-by td {
   height: auto;
   padding-block: var(--space-2);
 }
 
-.events-table__found-by {
+.events-table__found-by,
+.search-archive-table__found-by {
   color: var(--text-primary);
 }
 
@@ -3726,7 +3729,9 @@ html[data-keyboard-open] .event-form__footer {
   }
 
   .table--events tbody tr:not(.table-row--done):hover + .table-row--found-by,
-  .table--events tbody tr:not(.table-row--done):has(+ .table-row--found-by:hover) {
+  .table--events tbody tr:not(.table-row--done):has(+ .table-row--found-by:hover),
+  .search-archive-table tbody tr:hover + .table-row--found-by,
+  .search-archive-table tbody tr:has(+ .table-row--found-by:hover) {
     background: var(--accent-subtle);
   }
 

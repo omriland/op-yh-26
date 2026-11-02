@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react'
+import { Fragment, type KeyboardEvent } from 'react'
 import { formatDate, monoClass } from '../../lib/format'
 import type { ArchiveRow } from '../../lib/smartSearchApi'
 import { HoverTip } from '../ui/HoverTip'
@@ -79,37 +79,43 @@ export function ArchiveResultsTable({
             <th scope="col">כוננים</th>
             <th scope="col">רכבים</th>
             <th scope="col">נזק</th>
-            <th scope="col">נמצא לפי</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr
-              key={row.event_fk}
-              tabIndex={0}
-              role="button"
-              aria-label={openLabel(row)}
-              onClick={() => onOpen(row.event_fk)}
-              onKeyDown={onKey(row)}
-            >
-              <td className="num mono table-cell--nowrap">{dateLabel(row)}</td>
-              <td className={`num ${monoClass(row.event_number)}`}>{row.event_number ?? '—'}</td>
-              <td>
-                <Truncated text={place(row)} />
-              </td>
-              <td>
-                <Truncated text={row.people} />
-              </td>
-              <td>
-                <Truncated text={row.cars} />
-              </td>
-              <td>
-                <Truncated text={row.damage} />
-              </td>
-              <td>
-                <Truncated text={row.found_by} />
-              </td>
-            </tr>
+            <Fragment key={row.event_fk}>
+              <tr
+                tabIndex={0}
+                role="button"
+                aria-label={openLabel(row)}
+                onClick={() => onOpen(row.event_fk)}
+                onKeyDown={onKey(row)}
+              >
+                <td className="num mono table-cell--nowrap">{dateLabel(row)}</td>
+                <td className={`num ${monoClass(row.event_number)}`}>{row.event_number || '—'}</td>
+                <td>
+                  <Truncated text={place(row)} />
+                </td>
+                <td>
+                  <Truncated text={row.people} />
+                </td>
+                <td>
+                  <Truncated text={row.cars} />
+                </td>
+                <td>
+                  <Truncated text={row.damage} />
+                </td>
+              </tr>
+              {row.found_by ? (
+                <tr className="table-row--found-by" onClick={() => onOpen(row.event_fk)}>
+                  <td colSpan={6}>
+                    <p className="t-caption search-archive-table__found-by">
+                      <span className="text-secondary">נמצא לפי:</span> {row.found_by}
+                    </p>
+                  </td>
+                </tr>
+              ) : null}
+            </Fragment>
           ))}
         </tbody>
       </table>

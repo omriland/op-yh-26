@@ -123,7 +123,7 @@ function archiveRow(i: number): ArchiveRow {
   return {
     event_fk: DEMO_FKS[i % DEMO_FKS.length],
     event_date: `2026-10-${String(30 - (i % 6)).padStart(2, '0')}`,
-    event_number: String(9001 + i),
+    event_number: i === 2 ? '' : String(9001 + i),
     road: '531',
     location: 'מחלף דוגמה צפון',
     people: '214 דני כהן, 318 רונית לוי',

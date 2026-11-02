@@ -27,7 +27,8 @@ One search box for admins (`admin`, `super_admin`) that finds events, old-site a
 EventsTable rows, each with a full-width line under it: נמצא לפי: …
 
 ארכיון האתר הישן · נמצאו 7 ──────────────────── [ייצוא ל־CSV]
-תאריך · מספר אירוע · כביש / מיקום · כוננים · רכבים · נזק · נמצא לפי
+תאריך · מספר אירוע · כביש / מיקום · כוננים · רכבים · נזק
+each row with a full-width line under it: נמצא לפי: …
 
 אנשים · נמצאו 1 ───────────────────────────────────────────
 שם מלא · או״ק · תפקיד · סטטוס · פעיל לאחרונה
@@ -40,7 +41,7 @@ EventsTable rows, each with a full-width line under it: נמצא לפי: …
 - **Section rule:** `--type-section` heading `{name} · נמצאו N`, then a hairline filling the row, then (events and archive only) secondary `ייצוא ל־CSV` at inline-end. On mobile the button sits under the heading. Loading: `מייצא…`.
 - **Sections and order:** `sectionOrder` — the targeted entity first; for `both`: events, archive, people; a date range that ends before the first new-system event puts the archive first. A section with zero rows is hidden (the page shows the empty state when all are empty).
 - **Events:** `EventsTable` with its 7 columns unchanged, plus a full-width meta row under each data row (`colSpan` 7, same anatomy as the completion-queue meta row: dotted hairline above, `--space-2` block padding, no alert rail). The line is `--type-caption`: label `נמצא לפי:` in `--text-secondary`, then the reason in `--text-primary` as plain text (the reason is one string; no separate mono parts). A `הושלם` row's meta row shares its `--status-done-tint`. Hovering either row highlights both; clicking either opens the event. No extra column and no horizontal scroll. Without `foundBy`, `EventsTable` renders exactly as before. Row → event detail.
-- **Archive:** standard table recipe, columns share the width equally (`table-layout: fixed`, so it always fits the content column — 938 px of 940 at a 1280 px viewport), long cells ellipsize with a `HoverTip`; `נמצא לפי` stays the last column. Date and event number mono. No stamps — the archive has no status. Rows are focusable (`Enter` / `Space`). Row → the legacy report (below).
+- **Archive:** standard table recipe with 6 columns that share the width equally (`table-layout: fixed`, so it always fits the content column at a 1280 px viewport), long cells ellipsize with a `HoverTip`. `נמצא לפי` is not a column: it is the same full-width meta row as the events table (`colSpan` 6, dotted hairline above, `--space-2` block padding, `--type-caption`, label in `--text-secondary`, reason in `--text-primary`). Hovering either row highlights both; clicking either opens the report; only the data row takes focus. Date and event number mono; a missing event number shows `—`. No stamps — the archive has no status. Rows are focusable (`Enter` / `Space`). Row → the legacy report (below).
 - **People:** the `משתמשים` row style — presence disc at inline-start of the name, או״ק (mono), one highest-role neutral chip, volunteer status, `פעיל לאחרונה` as `DD.MM.YYYY, HH:mm` (mono) or `—`. Rows focusable. Row → that user's edit dialog on `משתמשים`.
 - **Cap hit:** a section with exactly 200 rows gets `מוצגות 200 התוצאות הראשונות. צמצמו את החיפוש או ייצאו ל־CSV.` above its table (`--type-caption` / `--text-muted`).
 - **Export intent:** when the filter's intent is `export`, the events `ייצוא ל־CSV` (or the archive one when there are no events) becomes the page's single primary and `חיפוש` drops to secondary. Nothing downloads until it is clicked.
