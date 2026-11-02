@@ -301,6 +301,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     const fieldErrors = shiftBornCompleteErrors(draft, {
       ended_at: ctx?.event.ended_at,
       responders: ctx?.event.responders,
+      is_cancelled: ctx?.event.is_cancelled,
     })
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors)
@@ -427,7 +428,9 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             <TextAreaField
               label="פירוט הטיפול"
               required
-              counter={treatmentDetailCounter(draft.treatment_detail)}
+              counter={
+                ctx?.event.is_cancelled ? undefined : treatmentDetailCounter(draft.treatment_detail)
+              }
               error={errors.treatment_detail}
               value={draft.treatment_detail}
               disabled={readOnly}

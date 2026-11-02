@@ -43,6 +43,21 @@ describe('shiftBornCompleteErrors', () => {
     expect(longer.treatment_detail).toBeUndefined()
   })
 
+  it('drops the 40-character minimum when the event is cancelled', () => {
+    const cancelled = { is_cancelled: true }
+    const short = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'בוטל' }),
+      cancelled,
+    )
+    expect(short.treatment_detail).toBeUndefined()
+
+    const blank = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: '   ' }),
+      cancelled,
+    )
+    expect(blank.treatment_detail).toBe('יש להזין פירוט טיפול')
+  })
+
   it('accepts a complete record', () => {
     const errors = shiftBornCompleteErrors(
       draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(40) }),

@@ -53,12 +53,16 @@ export function shiftBornCompleteErrors(
   event?: {
     ended_at?: string | null
     responders?: KmBearingResponder[]
+    /** A cancelled event still needs a word on what happened, but not 40 characters. */
+    is_cancelled?: boolean
   },
 ): ShiftBornFillErrors {
   const errors: ShiftBornFillErrors = {}
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש'
   if (!draft.location.trim()) errors.location = 'יש להזין מיקום'
-  if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
+  if (event?.is_cancelled) {
+    if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש להזין פירוט טיפול'
+  } else if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
     errors.treatment_detail = TREATMENT_DETAIL_MIN_ERROR
   }
   if (event) {
