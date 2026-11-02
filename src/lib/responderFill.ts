@@ -278,6 +278,15 @@ export function odometerRangeError(
   return undefined
 }
 
+/** Display-only end − start. Null until both readings are numbers and end ≥ start. */
+export function odometerDelta(odometerStart: string, odometerEnd: string): number | null {
+  const start = parseOptionalNumber(odometerStart)
+  const end = parseOptionalNumber(odometerEnd)
+  if (typeof start !== 'number' || typeof end !== 'number') return null
+  if (end < start) return null
+  return end - start
+}
+
 export async function fetchResponderFillContext(
   eventId: string,
   userId: string,

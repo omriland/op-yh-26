@@ -204,4 +204,23 @@ describe('EventsTable incomplete pin', () => {
     expect(html).toContain('>1/2<')
     expect(html).toContain('>0/0<')
   })
+
+  it('shows an attachment mark only when the event has an image', () => {
+    const withImage = renderToStaticMarkup(
+      createElement(EventsTable, {
+        events: [event({ status: 'done', has_image: true })],
+        onOpen: () => undefined,
+      }),
+    )
+    const without = renderToStaticMarkup(
+      createElement(EventsTable, {
+        events: [event({ status: 'done' })],
+        onOpen: () => undefined,
+      }),
+    )
+
+    expect(withImage).toContain('יש תמונה מצורפת')
+    expect(withImage).toContain('הושלם')
+    expect(without).not.toContain('יש תמונה מצורפת')
+  })
 })

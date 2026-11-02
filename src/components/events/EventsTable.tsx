@@ -8,6 +8,7 @@ import { EventListLeadCaption } from './EventListLeadCaption'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
+import { EventAttachmentMark } from './EventAttachmentMark'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
 import { leadFacingMissingKm, missingFullyLoggedFieldLabels } from '../../lib/eventIncomplete'
 
@@ -161,20 +162,23 @@ export function EventsTable({
                     </HoverTip>
                   </td>
                   <td className="table-cell--status">
-                    <EventStatusTrail
-                      status={event.status}
-                      missingKm={leadFacingMissingKm(event, viewerId)}
-                      missingFields={
-                        event.status === 'partial' || event.status === 'in_progress'
-                          ? missingFullyLoggedFieldLabels(event, viewerId)
-                          : []
-                      }
-                      responders={event.responders.map((row) => ({
-                        id: row.id,
-                        status: row.status,
-                        name: responderDisplayName(row.profile),
-                      }))}
-                    />
+                    <div className="table-cell--status__row">
+                      <EventStatusTrail
+                        status={event.status}
+                        missingKm={leadFacingMissingKm(event, viewerId)}
+                        missingFields={
+                          event.status === 'partial' || event.status === 'in_progress'
+                            ? missingFullyLoggedFieldLabels(event, viewerId)
+                            : []
+                        }
+                        responders={event.responders.map((row) => ({
+                          id: row.id,
+                          status: row.status,
+                          name: responderDisplayName(row.profile),
+                        }))}
+                      />
+                      {event.has_image ? <EventAttachmentMark /> : null}
+                    </div>
                   </td>
                 </tr>
                 {incomplete && notice ? (

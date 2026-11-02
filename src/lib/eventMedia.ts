@@ -325,6 +325,27 @@ export async function updateEventMedia(input: {
   return replaceMediaPlates(input.id, input.treatedPlateIds)
 }
 
+/**
+ * Event ids that have at least one photo. Gallery uploads and responder-log
+ * uploads both write `event_media` for the event, and the table is JPEG only.
+ */
+export async function fetchEventIdsWithMedia(eventIds: readonly string[]): Promise<Set<string>> {
+  const unique = [...new Set(eventIds.filter(Boolean))]
+  const found = new Set<string>()
+  for (let index = 0; index < unique.length; index += 100) {
+    const chunk = unique.slice(index, index + 100)
+    const { data, error } = await supabase
+      .from('event_media')
+      .select('event_id')
+      .in('event_id', chunk)
+    if (error) continue
+    for (const row of data ?? []) {
+      if (typeof row.event_id === 'string' && row.event_id) found.add(row.event_id)
+    }
+  }
+  return found
+}
+
 export async function deleteEventMedia(input: {
   id: string
   storagePath: string

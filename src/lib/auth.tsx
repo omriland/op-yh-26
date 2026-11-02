@@ -41,6 +41,7 @@ import {
   isRememberLoginEnabled,
   isRememberSessionExpired,
 } from './rememberLogin'
+import { clearPersonalVehiclePromptDismissed } from './personalVehiclePrompt'
 import { supabase } from './supabase'
 
 export type AppRole = 'admin' | 'shift_lead' | 'responder' | 'super_admin'
@@ -549,6 +550,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    clearPersonalVehiclePromptDismissed()
     clearImpersonationStash()
     clearRolePreviewStash()
     clearPasswordSetupIntent()

@@ -12,6 +12,7 @@ import { policeEventLabel } from '../../lib/shiftBornEvents'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventFrozenNotice } from './EventFrozenNotice'
+import { EventAttachmentMark } from './EventAttachmentMark'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
 
 type EventCardProps = {
@@ -129,6 +130,7 @@ export function EventCard({
       <EventFrozenNotice event={event} viewer={viewer} />
       <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>
         <StampWithNote {...stamp} note={leadKmNote} tip={stampTip} />
+        {event.has_image ? <EventAttachmentMark /> : null}
       </button>
       {onFill && fillLabel ? (
         <div className="event-card__fill">

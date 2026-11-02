@@ -11,6 +11,7 @@ import { EventListSkeleton } from './components/ui/Skeleton'
 import { ToastProvider } from './components/ui/Toast'
 import { Button } from './components/ui/Button'
 import { AlertDialog } from './components/ui/AlertDialog'
+import { PersonalVehiclePrompt } from './components/profile/PersonalVehiclePrompt'
 import { OtpGate } from './components/otp/OtpGate'
 import { ShieldAlert } from 'lucide-react'
 import {
@@ -1324,6 +1325,10 @@ function Gate() {
           <p className="t-body">{missingKmAlertMessage(missingKmPopup.count)}</p>
         ) : null}
       </AlertDialog>
+      <PersonalVehiclePrompt
+        userId={user?.id ?? null}
+        enabled={missingKmPopup === null && !superAdminChrome.impersonating}
+      />
     </AppShell>
   )
 }

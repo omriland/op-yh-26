@@ -6,6 +6,7 @@ import {
   fillHeaderStatus,
   gateResponderFillWrite,
   mergeFillVehicleChoices,
+  odometerDelta,
   odometerRangeError,
   responderVehicleChoices,
   validateResponderFillDraft,
@@ -111,6 +112,21 @@ describe('odometerRangeError', () => {
   it('waits for both numbers', () => {
     expect(odometerRangeError('100', '')).toBeUndefined()
     expect(odometerRangeError('', '0')).toBeUndefined()
+  })
+})
+
+describe('odometerDelta', () => {
+  it('shows the difference when end is at least the start, including zero', () => {
+    expect(odometerDelta('100', '120')).toBe(20)
+    expect(odometerDelta('100', '100')).toBe(0)
+    expect(odometerDelta('0', '0')).toBe(0)
+  })
+
+  it('stays quiet until both readings are numbers, and on a reversed pair', () => {
+    expect(odometerDelta('', '')).toBeNull()
+    expect(odometerDelta('100', '')).toBeNull()
+    expect(odometerDelta('', '50')).toBeNull()
+    expect(odometerDelta('100', '99')).toBeNull()
   })
 })
 

@@ -70,6 +70,8 @@ export type EventListItem = {
   } | null
   shared_treated: { id: string }[]
   responders: EventResponderSummary[]
+  /** Unit list only: at least one image in `event_media` (event gallery or a responder log). */
+  has_image?: boolean
 }
 
 export const EVENT_LIST_SELECT = `

@@ -95,6 +95,7 @@ import {
   missingKmAlertMessage,
   shouldShowMissingKmAlert,
 } from '../lib/missingKmAlert'
+import { fetchEventIdsWithMedia } from '../lib/eventMedia'
 
 type EventsPageProps = {
   scope: 'unit' | 'mine'
@@ -144,6 +145,7 @@ export function EventsPage({
   const [confirmDelete, setConfirmDelete] = useState<EventListItem | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [missingKmCount, setMissingKmCount] = useState<number | null>(null)
+  const [imageEventIds, setImageEventIds] = useState<ReadonlySet<string>>(() => new Set())
   const showMissingKmBanner =
     scope === 'unit' &&
     canSeeMissingKmAlert(roles) &&
@@ -163,6 +165,25 @@ export function EventsPage({
       active = false
     }
   }, [scope, roles, reloadKey, events])
+
+  useEffect(() => {
+    if (scope !== 'unit') {
+      setImageEventIds(new Set())
+      return
+    }
+    const ids = [...(events ?? []), ...searchExtras].map((event) => event.id)
+    if (ids.length === 0) {
+      setImageEventIds(new Set())
+      return
+    }
+    let active = true
+    void fetchEventIdsWithMedia(ids).then((withMedia) => {
+      if (active) setImageEventIds(withMedia)
+    })
+    return () => {
+      active = false
+    }
+  }, [scope, events, searchExtras])
 
   function openDeleteMenu(event: EventListItem, pointer: { x: number; y: number }) {
     setDeleteMenu({ event, ...pointer })
@@ -347,7 +368,11 @@ export function EventsPage({
 
     if (scope === 'unit') {
       if (!unitWindow) return []
-      return filterUnitEventsForList(unitWindow.inWindow, { status: filter, searchIds })
+      const rows = filterUnitEventsForList(unitWindow.inWindow, { status: filter, searchIds })
+      if (imageEventIds.size === 0) return rows
+      return rows.map((event) =>
+        imageEventIds.has(event.id) ? { ...event, has_image: true } : event,
+      )
     }
 
     const needle = query.trim()
@@ -365,7 +390,7 @@ export function EventsPage({
       const bOpen = mineEventIsOpen(b) ? 0 : 1
       return aOpen - bOpen
     })
-  }, [events, filter, query, scope, user?.id, searchIds, unitWindow])
+  }, [events, filter, query, scope, user?.id, searchIds, unitWindow, imageEventIds])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
   const mineSections = useMemo(() => {

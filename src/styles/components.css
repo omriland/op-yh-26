@@ -184,6 +184,12 @@ textarea.field__input {
   font: 400 16px/24px var(--font-mono);
 }
 
+/* Revealed password only. Masked type=password does not get this attribute. */
+.field__input[data-revealed-password] {
+  direction: ltr;
+  text-align: left;
+}
+
 .field__input--with-affix,
 .field__select {
   padding-inline-end: var(--space-12);
@@ -720,6 +726,20 @@ p.alert--info {
   vertical-align: middle;
 }
 
+.table-cell--status__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.event-attachment {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  align-self: center;
+  color: var(--text-secondary);
+}
+
 @keyframes stamp-press {
   from {
     opacity: 0;
@@ -1001,6 +1021,7 @@ p.alert--info {
   display: inline-flex;
   align-items: flex-start;
   justify-content: flex-end;
+  gap: var(--space-2);
   min-width: 44px;
   min-height: 44px;
   border: 0;
@@ -1859,6 +1880,23 @@ p.alert--info {
 }
 
 .android-install-mark__hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.user-data-gap {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.user-data-gap__hit {
+  display: inline-flex;
+  align-items: center;
+  color: var(--status-alert);
+}
+
+.user-data-gap__hit:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -2790,10 +2828,24 @@ div.app-footer__brand {
   gap: var(--space-8);
 }
 
+/* The stage is the scrollport. Centering with margin:auto sized it to its
+   content, so a short visual viewport (mobile keyboard) clipped the fields
+   instead of scrolling them above the keys. */
 .login__portal .login__stage {
+  flex: 1 1 auto;
   min-height: 0;
-  margin-block: auto;
+  margin-block: 0;
   overflow: auto;
+  justify-content: safe center;
+  scroll-padding-block: var(--space-6);
+}
+
+html[data-keyboard-open] .login .app-footer {
+  display: none;
+}
+
+.login__stage .field__input {
+  scroll-margin-block: var(--space-8);
 }
 
 .login .app-footer {

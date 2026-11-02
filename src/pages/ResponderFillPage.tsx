@@ -7,6 +7,7 @@ import {
   fetchResponderVehicleChoices,
   fillHeaderStatus,
   mergeFillVehicleChoices,
+  odometerDelta,
   odometerRangeError,
   saveResponderFillDraft,
   type ResponderFillContext,
@@ -741,6 +742,11 @@ export function ResponderFillPage({
                   }
                   onBlur={checkOdometerRange}
                 />
+                <OdometerTotal
+                  start={draft.odometer_start}
+                  end={draft.odometer_end}
+                  fieldError={errors.odometer_end}
+                />
                 <TextAreaField
                   label="נתיב נסיעה"
                   required
@@ -834,5 +840,33 @@ export function ResponderFillPage({
         }}
       />
     </div>
+  )
+}
+
+/** Live end − start. Hidden until both readings are numbers. Reversed pairs show the order error until the field itself does. */
+function OdometerTotal({
+  start,
+  end,
+  fieldError,
+}: {
+  start: string
+  end: string
+  fieldError?: string
+}) {
+  const total = odometerDelta(start, end)
+  if (total != null) {
+    return (
+      <p className="t-body" aria-live="polite">
+        <span className="text-secondary">סה״כ</span>{' '}
+        <span className="mono">{formatNumber(total)}</span>
+      </p>
+    )
+  }
+  const reversed = odometerRangeError(start, end)
+  if (!reversed || fieldError === reversed) return null
+  return (
+    <p className="field__hint field__hint--error" role="alert">
+      {reversed}
+    </p>
   )
 }

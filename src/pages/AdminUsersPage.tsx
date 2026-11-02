@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArchiveRestore, Plus, RefreshCw, Search, Trash2, UserRound } from 'lucide-react'
+import { AlertCircle, ArchiveRestore, Plus, RefreshCw, Search, Trash2, UserRound } from 'lucide-react'
 import {
   archiveAdminVehicle,
   deleteAdminUser,
@@ -47,6 +47,7 @@ import {
   type AssignableRole,
 } from '../lib/appRoles'
 import { hasAvailability, isInvitePending } from '../lib/adminUserStatus'
+import { userListDataGap } from '../lib/userListDataGap'
 import { AndroidInstallMark } from '../components/admin/AndroidInstallMark'
 import { UserPresenceDot } from '../components/admin/UserPresenceDot'
 import {
@@ -100,6 +101,7 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { AlertDialog } from '../components/ui/AlertDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
+import { HoverTip } from '../components/ui/HoverTip'
 import { OverflowMenu, type OverflowMenuItem } from '../components/ui/OverflowMenu'
 import { SelectField } from '../components/ui/SelectField'
 import { PasswordField, TextField } from '../components/ui/TextField'
@@ -289,6 +291,25 @@ function UserAndroidInstallMark({
         latestVersionCode,
       })}
     />
+  )
+}
+
+function UserDataGapMark({ user }: { user: AdminUserRow }) {
+  const gap = userListDataGap(user)
+  if (!gap) return null
+  return (
+    <HoverTip
+      text={gap.tip}
+      mode="always"
+      className="user-data-gap"
+      tipClassName="hover-tip--overdue"
+      theme="field"
+    >
+      <span className="user-data-gap__hit">
+        <AlertCircle size={16} strokeWidth={1.75} aria-hidden="true" />
+        <span className="visually-hidden">{gap.tip}</span>
+      </span>
+    </HoverTip>
   )
 }
 
@@ -1227,6 +1248,7 @@ export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
                 >
                   <td>
                     <span className="user-name-with-presence">
+                      <UserDataGapMark user={user} />
                       {presence ? <UserPresenceDot status={presence} /> : null}
                       <UserAndroidInstallMark
                         user={user}
@@ -1350,6 +1372,7 @@ export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
               >
                 <div className="user-card__head">
                   <div className="user-card__identity-btn">
+                    <UserDataGapMark user={user} />
                     {presence ? <UserPresenceDot status={presence} /> : null}
                     {androidMark}
                     {canMutate ? (
