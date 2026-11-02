@@ -28,6 +28,41 @@ as $$
   select regexp_replace(p_value, '[0-9]{6,}([0-9]{3})', '******\1', 'g');
 $$;
 
+-- The text admin_search_archive's prefilter looks words up in: the columns its
+-- matching reads, joined by newlines, with quotes dropped and lowercased like
+-- the haystack of smart_search_word_in. Trigram indexes on them let a word
+-- find its rows and cars without scanning the archive, which is static
+-- imported data. Changing either function's body needs a reindex.
+create extension if not exists pg_trgm with schema extensions;
+
+create or replace function legacy.archive_event_text(p_event_number text, p_road_number text,
+  p_location text, p_call_sign text, p_coordinator text, p_actions_taken text, p_problems text)
+returns text
+language sql
+immutable
+as $$
+  select lower(translate(coalesce(p_event_number, '') || E'\n' || coalesce(p_road_number, '')
+    || E'\n' || coalesce(p_location, '') || E'\n' || coalesce(p_call_sign, '')
+    || E'\n' || coalesce(p_coordinator, '') || E'\n' || coalesce(p_actions_taken, '')
+    || E'\n' || coalesce(p_problems, ''), '״"׳''', ''));
+$$;
+
+-- A car's text and its digits, so 12-345-67 is found by 1234567.
+create or replace function legacy.archive_car_text(p_license_plate text)
+returns text
+language sql
+immutable
+as $$
+  select lower(translate(coalesce(p_license_plate, '') || E'\n'
+    || regexp_replace(coalesce(p_license_plate, ''), '\D', '', 'g'), '״"׳''', ''));
+$$;
+
+create index if not exists vol_events_search_trgm_idx on legacy.vol_events using gin (
+  legacy.archive_event_text(event_number, road_number, location, call_sign, coordinator, actions_taken, problems)
+  extensions.gin_trgm_ops);
+create index if not exists cars_in_hits_search_trgm_idx on legacy.cars_in_hits using gin (
+  legacy.archive_car_text(license_plate) extensions.gin_trgm_ops);
+
 create or replace function public.admin_search_archive(p_filter jsonb, p_limit int default 200)
 returns jsonb
 language plpgsql
@@ -86,6 +121,20 @@ declare
     order by h.hit_id);
   v_hit_id int := array_position(v_hit_labels, v_damage_location);
   v_has_key boolean;
+  -- Prefilter (see below). The events each costly key can match, or for
+  -- police_event_id and location_text the volunteer rows; null: key not set.
+  v_text_fks text[];
+  v_person_fks text[];
+  v_plate_fks text[];
+  v_vehicle_fks text[];
+  v_police_ids int[];
+  v_location_ids int[];
+  v_person_ids int[];
+  v_word text;
+  v_pats text[];
+  v_signs text[];
+  v_fks text[];
+  v_ids int[];
   v_rows jsonb := '[]'::jsonb;
 begin
   if public.has_role(v_uid, 'super_admin') then
@@ -126,6 +175,106 @@ begin
     or v_damaged or v_hit_id is not null;
 
   if v_has_key then
+    -- Prefilter. text, person, plate and vehicle_text are judged below per
+    -- event, over text built from every row, name and car of the event, and
+    -- each smart_search_* call costs a fraction of a millisecond, so on the
+    -- whole archive (64k rows, 215k cars) that took 20 s or more. So first,
+    -- per word, the trigram indexes on legacy.archive_event_text and
+    -- legacy.archive_car_text find the rows and cars the word can hit, and
+    -- legacy.users the call signs whose name it can hit:
+    -- - Those texts are the raw columns joined by newlines, quotes dropped and
+    --   lowercased, like the haystack of smart_search_word_in, which ilikes
+    --   the word and its variants. A word has no whitespace, so it cannot
+    --   span two columns.
+    -- - A pattern has no escape character (like_escape(…, '')), so % or _ in
+    --   a word only widens it.
+    -- So these sets are a superset of the matches. They only narrow the
+    -- candidates; the matching below is unchanged and still decides.
+    foreach v_word in array v_text_words loop
+      v_pats := array(select like_escape('%' || v.v || '%', '')
+        from unnest(public.smart_search_word_variants(v_word)) as v(v) where v.v <> '');
+      v_signs := array(select btrim(u.call_sign) from legacy.users u
+        where lower(translate(coalesce(u.first_name, '') || E'\n' || coalesce(u.last_name, ''), '״"׳''', ''))
+          like any (v_pats));
+      select coalesce(array_agg(distinct x.event_fk), '{}') into v_fks
+      from (
+        select ve.event_fk from legacy.vol_events ve
+        where legacy.archive_event_text(ve.event_number, ve.road_number, ve.location, ve.call_sign,
+          ve.coordinator, ve.actions_taken, ve.problems) like any (v_pats)
+        union all
+        select ve.event_fk from legacy.vol_events ve
+        where cardinality(v_signs) > 0
+          and (btrim(ve.call_sign) = any (v_signs) or btrim(ve.coordinator) = any (v_signs))
+        union all
+        select ve.event_fk from legacy.cars_in_hits ci
+        join legacy.vol_events ve on ve.auto_id = ci.event_fk
+        where legacy.archive_car_text(ci.license_plate) like any (v_pats)
+      ) as x;
+      -- Every word must hit the event.
+      v_text_fks := case when v_text_fks is null then v_fks
+        else array(select unnest(v_text_fks) intersect select unnest(v_fks)) end;
+    end loop;
+
+    -- person: rows whose call signs or names hold every word.
+    foreach v_word in array v_person_words loop
+      v_pats := array(select like_escape('%' || v.v || '%', '')
+        from unnest(public.smart_search_word_variants(v_word)) as v(v) where v.v <> '');
+      v_signs := array(select btrim(u.call_sign) from legacy.users u
+        where lower(translate(coalesce(u.first_name, '') || E'\n' || coalesce(u.last_name, ''), '״"׳''', ''))
+          like any (v_pats));
+      v_ids := array(
+        select ve.auto_id from legacy.vol_events ve
+        where legacy.archive_event_text(ve.event_number, ve.road_number, ve.location, ve.call_sign,
+          ve.coordinator, ve.actions_taken, ve.problems) like any (v_pats)
+        union
+        select ve.auto_id from legacy.vol_events ve
+        where cardinality(v_signs) > 0
+          and (btrim(ve.call_sign) = any (v_signs) or btrim(ve.coordinator) = any (v_signs)));
+      v_person_ids := case when v_person_ids is null then v_ids
+        else array(select unnest(v_person_ids) intersect select unnest(v_ids)) end;
+    end loop;
+    if v_person_ids is not null then
+      v_person_fks := array(select distinct ve.event_fk from legacy.vol_events ve
+        where ve.auto_id = any (v_person_ids));
+    end if;
+
+    -- location_text: rows whose text holds every word.
+    foreach v_word in array v_location_words loop
+      v_pats := array(select like_escape('%' || v.v || '%', '')
+        from unnest(public.smart_search_word_variants(v_word)) as v(v) where v.v <> '');
+      v_ids := array(select ve.auto_id from legacy.vol_events ve
+        where legacy.archive_event_text(ve.event_number, ve.road_number, ve.location, ve.call_sign,
+          ve.coordinator, ve.actions_taken, ve.problems) like any (v_pats));
+      v_location_ids := case when v_location_ids is null then v_ids
+        else array(select unnest(v_location_ids) intersect select unnest(v_ids)) end;
+    end loop;
+
+    if v_police_id is not null then
+      v_pats := array(select like_escape('%' || v.v || '%', '')
+        from unnest(public.smart_search_word_variants(v_police_id)) as v(v) where v.v <> '');
+      v_police_ids := array(select ve.auto_id from legacy.vol_events ve
+        where legacy.archive_event_text(ve.event_number, ve.road_number, ve.location, ve.call_sign,
+          ve.coordinator, ve.actions_taken, ve.problems) like any (v_pats));
+    end if;
+
+    if v_plate is not null then
+      -- v_plate is digits only, so it needs no escaping.
+      v_plate_fks := array(select distinct ve.event_fk from legacy.cars_in_hits ci
+        join legacy.vol_events ve on ve.auto_id = ci.event_fk
+        where legacy.archive_car_text(ci.license_plate) like '%' || v_plate || '%'
+          and regexp_replace(coalesce(ci.license_plate, ''), '\D', '', 'g') like '%' || v_plate || '%');
+    end if;
+
+    -- vehicle_text: cars that some word hits (the match below needs half).
+    foreach v_word in array v_vehicle_words loop
+      v_pats := array(select like_escape('%' || v.v || '%', '')
+        from unnest(public.smart_search_word_variants(v_word)) as v(v) where v.v <> '');
+      v_vehicle_fks := array(select unnest(v_vehicle_fks) union
+        select ve.event_fk from legacy.cars_in_hits ci
+        join legacy.vol_events ve on ve.auto_id = ci.event_fk
+        where legacy.archive_car_text(ci.license_plate) like any (v_pats));
+    end loop;
+
     with names as (
       -- "first last" per old call sign, for volunteers and coordinators.
       select distinct on (btrim(u.call_sign)) btrim(u.call_sign) as sign,
@@ -152,6 +301,12 @@ begin
         and (cardinality(v_location_words) = 0 or public.smart_search_all_words_in(ve.location, v_location_words))
         and (v_type_ids is null or ve.event_type = any (v_type_ids))
         and (v_branch_ids is null or ve.branch_id = any (v_branch_ids))
+        and (v_text_fks is null or ve.event_fk = any (v_text_fks))
+        and (v_person_fks is null or ve.event_fk = any (v_person_fks))
+        and (v_plate_fks is null or ve.event_fk = any (v_plate_fks))
+        and (v_vehicle_fks is null or ve.event_fk = any (v_vehicle_fks))
+        and (v_police_ids is null or ve.auto_id = any (v_police_ids))
+        and (v_location_ids is null or ve.auto_id = any (v_location_ids))
       group by ve.event_fk
     ),
     vol as (
@@ -380,5 +535,8 @@ $$;
 revoke all on function public.admin_search_archive(jsonb, int) from public, anon;
 grant execute on function public.admin_search_archive(jsonb, int) to authenticated;
 
--- Internal: only the definer function (as owner) uses it.
+-- Internal: only the definer function (as owner) uses them.
 revoke all on function legacy.mask_id_digits(text) from public, anon, authenticated;
+revoke all on function legacy.archive_event_text(text, text, text, text, text, text, text)
+  from public, anon, authenticated;
+revoke all on function legacy.archive_car_text(text) from public, anon, authenticated;

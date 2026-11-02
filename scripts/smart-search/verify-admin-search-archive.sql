@@ -70,6 +70,9 @@ select pg_temp.ok(not has_function_privilege('anon', 'public.admin_search_archiv
   'grants: anon cannot run admin_search_archive');
 select pg_temp.ok(has_function_privilege('authenticated', 'public.admin_search_archive(jsonb,int)', 'execute'),
   'grants: authenticated can run admin_search_archive (the role check is inside)');
+select pg_temp.ok(not has_function_privilege('authenticated', 'legacy.archive_event_text(text,text,text,text,text,text,text)', 'execute')
+    and not has_function_privilege('authenticated', 'legacy.archive_car_text(text)', 'execute'),
+  'grants: authenticated cannot run the prefilter text helpers');
 
 -- ---------------------------------------------------------------------------
 -- Non-admin: 42501 (Review Focus 5)
@@ -128,6 +131,25 @@ begin
   end loop;
   select percentile_disc(0.95) within group (order by m) into p95 from unnest(ms) as m;
   perform pg_temp.ok(p95 < 1000, 'dated query p95 ' || p95 || ' ms (< 1000)');
+end
+$$;
+reset role;
+
+-- The direct lane sends undated {text} for every plate or number; it took
+-- 19 s on the whole archive before the prefilter. Slowest of 5 runs under 1.5 s.
+set local role authenticated;
+select pg_temp.act_as('verify.admin');
+do $$
+declare
+  t0 timestamptz;
+  worst int := 0;
+begin
+  for i in 1..5 loop
+    t0 := clock_timestamp();
+    perform public.admin_search_archive('{"text":"531"}');
+    worst := greatest(worst, round(extract(epoch from clock_timestamp() - t0) * 1000)::int);
+  end loop;
+  perform pg_temp.ok(worst < 1500, 'undated text 531, slowest of 5: ' || worst || ' ms (< 1500)');
 end
 $$;
 reset role;

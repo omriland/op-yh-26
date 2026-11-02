@@ -93,6 +93,42 @@ describe('admin_search_archive migration', () => {
     expect(sql).not.toContain("'כביש ' || 'כביש")
   })
 
+  it('narrows the candidates with an indexed prefilter before the per-event matching', () => {
+    expect(sql).toContain('create extension if not exists pg_trgm with schema extensions;')
+    expect(sql).toContain(
+      'create index if not exists vol_events_search_trgm_idx on legacy.vol_events using gin (\n' +
+        '  legacy.archive_event_text(event_number, road_number, location, call_sign, coordinator, actions_taken, problems)\n' +
+        '  extensions.gin_trgm_ops);',
+    )
+    expect(sql).toContain(
+      'create index if not exists cars_in_hits_search_trgm_idx on legacy.cars_in_hits using gin (\n' +
+        '  legacy.archive_car_text(license_plate) extensions.gin_trgm_ops);',
+    )
+    expect(sql).toContain('revoke all on function legacy.archive_car_text(text) from public, anon, authenticated;')
+    expect(sql).toMatch(/revoke all on function legacy\.archive_event_text\(text(, text){6}\)\s+from public, anon, authenticated;/)
+
+    const pre = sql.slice(sql.indexOf('    -- Prefilter.'), sql.indexOf('    with names as ('))
+    for (const words of ['v_text_words', 'v_person_words', 'v_location_words', 'v_vehicle_words']) {
+      expect(pre).toContain(`foreach v_word in array ${words} loop`)
+    }
+    // A word's patterns are its variants with no escape character, so % and _ only widen them.
+    expect(pre).toContain("like_escape('%' || v.v || '%', '')")
+    expect(pre).toContain('from unnest(public.smart_search_word_variants(v_word)) as v(v)')
+    expect(pre).toContain('ve.coordinator, ve.actions_taken, ve.problems) like any (v_pats)')
+    expect(pre).toContain('where legacy.archive_car_text(ci.license_plate) like any (v_pats)')
+    // The prefilter never calls a per-row smart_search_* matcher.
+    expect(pre).not.toContain('smart_search_word_in(')
+    expect(pre).not.toContain('smart_search_all_words_in(')
+
+    const cand = sql.slice(sql.indexOf('    cand as ('), sql.indexOf('    vol as ('))
+    for (const v of ['v_text_fks', 'v_person_fks', 'v_plate_fks', 'v_vehicle_fks']) {
+      expect(cand).toContain(`and (${v} is null or ve.event_fk = any (${v}))`)
+    }
+    for (const v of ['v_police_ids', 'v_location_ids']) {
+      expect(cand).toContain(`and (${v} is null or ve.auto_id = any (${v}))`)
+    }
+  })
+
   it('returns the actions of every volunteer row, distinct, joined with | and masked', () => {
     expect(sql).toContain(
       "string_agg(distinct btrim(mv.actions_taken), ' | ' order by btrim(mv.actions_taken)) as actions",
