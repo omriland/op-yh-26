@@ -35,6 +35,19 @@ describe('admin smart search migration', () => {
     expect(sql).toContain("when v_road ~ '^\\d+$' then r.name ~ ('(^|\\D)' || v_road || '(\\D|$)')")
   })
 
+  it('plans admin_search per call, like the archive function', () => {
+    const header = sql.slice(
+      sql.indexOf('create or replace function public.admin_search('),
+      sql.indexOf('as $$', sql.indexOf('create or replace function public.admin_search(')),
+    )
+    expect(header).toContain('set plan_cache_mode = force_custom_plan')
+  })
+
+  it('does not double כביש in the road found_by label', () => {
+    expect(sql).not.toContain("'כביש ' || ev.road_name, ev.road_name")
+    expect(sql).toContain("case when ev.road_name ~ '^כביש' then ev.road_name else 'כביש ' || ev.road_name end")
+  })
+
   it('returns no events for a filter with no event-side key ({} or archive-only damage_location)', () => {
     const gate = sql.slice(
       sql.indexOf('v_has_event_key boolean :='),

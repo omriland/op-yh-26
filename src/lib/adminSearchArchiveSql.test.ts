@@ -56,7 +56,7 @@ describe('admin_search_archive migration', () => {
       sql.indexOf(';', sql.indexOf('v_has_key :=')),
     )
     for (const v of [
-      'v_from', 'v_to', 'v_police_id', 'v_road', 'v_location_words', 'v_event_type', 'v_branch_ids',
+      'v_from', 'v_to', 'v_police_id', 'v_road', 'v_location_words', 'v_type_ids', 'v_branch_ids',
       'v_plate', 'v_vehicle_words', 'v_person_words', 'v_text_words', 'v_damaged', 'v_hit_id',
     ]) {
       expect(gate).toContain(v)
@@ -64,6 +64,14 @@ describe('admin_search_archive migration', () => {
     expect(gate).not.toContain('status')
     expect(gate).not.toContain('cancelled')
     expect(sql).toContain("if v_entity = 'people' or v_source = 'new' then")
+  })
+
+  it('ignores an event_type that names no old event type, like district', () => {
+    expect(sql).not.toContain("coalesce(array_agg(et.event_id), '{}')")
+    expect(sql).toContain('select array_agg(et.event_id) into v_type_ids')
+    expect(sql).toContain('and (v_type_ids is null or ve.event_type = any (v_type_ids))')
+    expect(sql).toContain("case when v_type_ids is not null then 'סוג אירוע: '")
+    expect(sql).not.toMatch(/v_event_type is null or ve\.event_type/)
   })
 
   it('picks events by the event-level keys, then matches and summarizes every row of them', () => {

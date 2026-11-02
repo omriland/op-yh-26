@@ -116,6 +116,9 @@ language plpgsql
 stable
 security invoker
 set search_path = public
+-- One query serves every filter shape; a cached generic plan cannot drop the
+-- branches of the keys that are not set, so plan each call for its filter.
+set plan_cache_mode = force_custom_plan
 as $$
 declare
   v_empty constant jsonb := jsonb_build_object('events', '[]'::jsonb, 'people', '[]'::jsonb);
@@ -234,7 +237,10 @@ begin
       ) as p
 
       union all
-      select ev.id, 30, 'road', 'כביש ' || ev.road_name, ev.road_name, null, null
+      -- Some road names already say כביש.
+      select ev.id, 30, 'road',
+        case when ev.road_name ~ '^כביש' then ev.road_name else 'כביש ' || ev.road_name end,
+        ev.road_name, null, null
       from ev
       where ev.road_name is not null
 

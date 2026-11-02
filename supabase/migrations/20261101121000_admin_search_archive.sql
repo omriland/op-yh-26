@@ -101,8 +101,9 @@ begin
     return jsonb_build_object('rows', '[]'::jsonb);
   end if;
 
+  -- An event type that names no old event type is ignored, like district.
   if v_event_type is not null then
-    select coalesce(array_agg(et.event_id), '{}') into v_type_ids
+    select array_agg(et.event_id) into v_type_ids
     from legacy.event_types et
     where public.smart_search_all_words_in(et.event_description, public.smart_search_words(v_event_type));
   end if;
@@ -116,10 +117,10 @@ begin
 
   -- Without one of these keys a filter does not narrow the archive ({} or a
   -- status-only filter), so no rows are returned. The lookup is still audited.
-  -- district counts only when it names an old branch.
+  -- event_type and district count only when they name an old type or branch.
   v_has_key := v_from is not null or v_to is not null
     or v_police_id is not null or v_road is not null or cardinality(v_location_words) > 0
-    or v_event_type is not null or v_branch_ids is not null
+    or v_type_ids is not null or v_branch_ids is not null
     or v_plate is not null or cardinality(v_vehicle_words) > 0
     or cardinality(v_person_words) > 0 or cardinality(v_text_words) > 0
     or v_damaged or v_hit_id is not null;
@@ -149,7 +150,7 @@ begin
           else public.smart_search_word_in(ve.road_number, v_road)
         end)
         and (cardinality(v_location_words) = 0 or public.smart_search_all_words_in(ve.location, v_location_words))
-        and (v_event_type is null or ve.event_type = any (v_type_ids))
+        and (v_type_ids is null or ve.event_type = any (v_type_ids))
         and (v_branch_ids is null or ve.branch_id = any (v_branch_ids))
       group by ve.event_fk
     ),
@@ -348,7 +349,7 @@ begin
           end,
           case when v_hit_id is not null then 'נזק: ' || v_damage_location end,
           case when v_damaged then 'נזק: ' || s.damage end,
-          case when v_event_type is not null then 'סוג אירוע: ' || (
+          case when v_type_ids is not null then 'סוג אירוע: ' || (
             select btrim(et.event_description) from legacy.event_types et where et.event_id = s.event_type) end,
           case when v_branch_ids is not null then 'מחוז: ' || (
             select btrim(b.branch_name) from legacy.branches b where b.branch_id = s.branch_id) end,
