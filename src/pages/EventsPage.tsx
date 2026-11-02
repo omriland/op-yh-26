@@ -76,10 +76,13 @@ import { SelectField } from '../components/ui/SelectField'
 import { useToast } from '../components/ui/Toast'
 import {
   SHOW_OTHERS_CREATED_EVENTS_LABEL,
+  SHOW_SHIFT_EVENTS_LABEL,
   readShowOthersCreatedEvents,
+  readShowShiftEvents,
   shouldFilterUnitEventsToOwnCreated,
   unitEventsCreatedByFilter,
   writeShowOthersCreatedEvents,
+  writeShowShiftEvents,
 } from '../lib/unitEventsScope'
 import {
   incompleteLeadNoticeLabels,
@@ -123,6 +126,7 @@ export function EventsPage({
   const [query, setQuery] = useState('')
   const [showOthersCreated, setShowOthersCreated] = useState(readShowOthersCreatedEvents)
   const showOthersControl = shouldFilterUnitEventsToOwnCreated(roles)
+  const [showShiftEvents, setShowShiftEvents] = useState(readShowShiftEvents)
   const createdById = unitEventsCreatedByFilter({
     roles,
     showOthersCreated,
@@ -368,7 +372,11 @@ export function EventsPage({
 
     if (scope === 'unit') {
       if (!unitWindow) return []
-      const rows = filterUnitEventsForList(unitWindow.inWindow, { status: filter, searchIds })
+      const rows = filterUnitEventsForList(unitWindow.inWindow, {
+        status: filter,
+        searchIds,
+        showShiftEvents,
+      })
       if (imageEventIds.size === 0) return rows
       return rows.map((event) =>
         imageEventIds.has(event.id) ? { ...event, has_image: true } : event,
@@ -390,7 +398,7 @@ export function EventsPage({
       const bOpen = mineEventIsOpen(b) ? 0 : 1
       return aOpen - bOpen
     })
-  }, [events, filter, query, scope, user?.id, searchIds, unitWindow, imageEventIds])
+  }, [events, filter, query, scope, user?.id, searchIds, unitWindow, imageEventIds, showShiftEvents])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
   const mineSections = useMemo(() => {
@@ -499,6 +507,24 @@ export function EventsPage({
                 }}
               />
             </div>
+            <button
+              type="button"
+              className="chip events-toolbar__others"
+              aria-pressed={showShiftEvents}
+              aria-label={SHOW_SHIFT_EVENTS_LABEL}
+              onClick={() => {
+                const next = !showShiftEvents
+                setShowShiftEvents(next)
+                writeShowShiftEvents(next)
+              }}
+            >
+              <span className="events-toolbar__others-short" aria-hidden="true">
+                משמרות
+              </span>
+              <span className="events-toolbar__others-full" aria-hidden="true">
+                {SHOW_SHIFT_EVENTS_LABEL}
+              </span>
+            </button>
             {showOthersControl ? (
               <button
                 type="button"
