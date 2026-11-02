@@ -150,6 +150,18 @@ begin
     return jsonb_build_object('rows', '[]'::jsonb);
   end if;
 
+  -- A text, location_text or vehicle_text word of 1–2 characters (quotes
+  -- dropped, as smart_search_word_variants does) is ignored: it hits much of
+  -- the archive and no trigram index helps, so it took 3–21 s. A key of only
+  -- such words is unset, and with no other key there are no rows. person keeps
+  -- them: short names are common and stayed under 3 s.
+  v_text_words := array(select w from unnest(v_text_words) as w
+    where char_length(translate(w, '״"׳''', '')) >= 3);
+  v_location_words := array(select w from unnest(v_location_words) as w
+    where char_length(translate(w, '״"׳''', '')) >= 3);
+  v_vehicle_words := array(select w from unnest(v_vehicle_words) as w
+    where char_length(translate(w, '״"׳''', '')) >= 3);
+
   -- An event type that names no old event type is ignored, like district.
   if v_event_type is not null then
     select array_agg(et.event_id) into v_type_ids

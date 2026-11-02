@@ -129,6 +129,21 @@ describe('admin_search_archive migration', () => {
     }
   })
 
+  it('ignores text, location_text and vehicle_text words under 3 characters, before the key gate', () => {
+    const gate = sql.indexOf('v_has_key :=')
+    for (const words of ['v_text_words', 'v_location_words', 'v_vehicle_words']) {
+      const rule =
+        `  ${words} := array(select w from unnest(${words}) as w\n` +
+        `    where char_length(translate(w, '״"׳''', '')) >= 3);`
+      expect(sql).toContain(rule)
+      expect(sql.indexOf(rule)).toBeLessThan(gate)
+      expect(sql.indexOf(rule)).toBeGreaterThan(sql.indexOf("errcode = '42501'"))
+    }
+    // person keeps short words; the gate counts the filtered arrays.
+    expect(sql).not.toContain('  v_person_words := array(')
+    expect(sql.slice(gate)).toContain('cardinality(v_text_words) > 0')
+  })
+
   it('returns the actions of every volunteer row, distinct, joined with | and masked', () => {
     expect(sql).toContain(
       "string_agg(distinct btrim(mv.actions_taken), ' | ' order by btrim(mv.actions_taken)) as actions",
