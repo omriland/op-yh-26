@@ -6,7 +6,11 @@ export function isBlankQuery(q: string): boolean {
   return q.replace(/[\s\p{P}\p{S}\p{Cf}]/gu, '') === ''
 }
 
+/** Day-first numeric dates (`14.1`, `14/1/26`) need the model to become a date range. */
+const NUMERIC_DATE = /^\d{1,2}[./]\d{1,2}([./]\d{2,4})?$/
+
 export function isDirectQuery(q: string): boolean {
+  if (NUMERIC_DATE.test(q.trim())) return false
   return /^[\d\s\-/.]+$/.test(q) && /\d/.test(q)
 }
 

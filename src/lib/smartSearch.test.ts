@@ -31,6 +31,16 @@ describe('isDirectQuery / directFilter', () => {
     expect(isDirectQuery('4471')).toBe(true)
     expect(isDirectQuery('כביש 531')).toBe(false)
   })
+  it('keeps plates and police IDs direct', () => {
+    expect(isDirectQuery('1234567')).toBe(true)
+    expect(isDirectQuery(' 12-345-67 ')).toBe(true)
+    expect(isDirectQuery('123-45-678')).toBe(true)
+  })
+  it('sends numeric dates to the AI lane', () => {
+    for (const q of ['14.1', '14/1', '14/1/26', '14.1.26', '14.01.2026', ' 1/12/2026 ']) {
+      expect(isDirectQuery(q), q).toBe(false)
+    }
+  })
   it('builds a both/both text filter', () => {
     expect(directFilter(' 4471 ')).toEqual({ ...base, text: '4471' })
   })
