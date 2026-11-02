@@ -2,7 +2,7 @@ export const SHOW_OTHERS_CREATED_EVENTS_LABEL = 'הצג אירועים שנוצ�
 
 const SHOW_OTHERS_STORAGE_KEY = 'yahpaz:unitEventsShowOthers'
 
-export const SHOW_SHIFT_EVENTS_LABEL = 'הצג אירועי ממשמרות'
+export const SHOW_SHIFT_EVENTS_LABEL = 'הצג אירועים ממשמרות'
 
 const SHOW_SHIFT_EVENTS_STORAGE_KEY = 'yahpaz:unitEventsShowShiftEvents'
 

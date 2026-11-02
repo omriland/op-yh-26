@@ -141,7 +141,7 @@ function memoryStorage(): Storage {
 
 describe('show-shift-events session stash', () => {
   it('uses the requested Hebrew label', () => {
-    expect(SHOW_SHIFT_EVENTS_LABEL).toBe('הצג אירועי ממשמרות')
+    expect(SHOW_SHIFT_EVENTS_LABEL).toBe('הצג אירועים ממשמרות')
   })
 
   it('defaults off and persists only for the session store', () => {
