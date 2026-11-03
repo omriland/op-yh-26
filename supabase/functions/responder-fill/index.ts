@@ -653,9 +653,14 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
     }
   }
 
-  const { data: eventStatus } = await adminClient.rpc("apply_event_status_from_participations", {
-    p_event_id: assignment.event_id,
-  });
+  const { data: eventStatus, error: statusError } = await adminClient.rpc(
+    "apply_event_status_from_participations",
+    { p_event_id: assignment.event_id },
+  );
+  if (statusError) {
+    // The report itself is saved; only the event's status lags until the next save.
+    console.error("apply_event_status_from_participations failed", assignment.event_id, statusError.message);
+  }
 
   return json(200, {
     ok: true,
