@@ -69,6 +69,26 @@ export function shiftBornCompleteErrors(
   return errors
 }
 
+/** Device copy of the shared report, with the version the edits were typed over. */
+export type ShiftBornStash = ShiftBornFillDraft & { base_updated_at?: string }
+
+/**
+ * Prefer device edits over the server copy, but say when a teammate saved after
+ * they were typed: the page keeps the server's token, so the next save would
+ * otherwise replace the teammate's text without a word.
+ */
+export function resolveShiftBornStash(
+  server: { draft: ShiftBornFillDraft; expected_updated_at: string },
+  stashed: ShiftBornStash | null,
+): { draft: ShiftBornFillDraft; restored: boolean; serverMovedOn: boolean } {
+  if (!stashed) return { draft: server.draft, restored: false, serverMovedOn: false }
+  const { base_updated_at: base, ...typed } = stashed
+  if (JSON.stringify(typed) === JSON.stringify(server.draft)) {
+    return { draft: server.draft, restored: false, serverMovedOn: false }
+  }
+  return { draft: typed, restored: true, serverMovedOn: base !== server.expected_updated_at }
+}
+
 export function emptyShiftBornFillDraft(): ShiftBornFillDraft {
   return {
     police_event_id: '',

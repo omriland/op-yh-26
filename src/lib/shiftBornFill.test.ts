@@ -6,6 +6,7 @@ import {
   shiftBornCompleteErrors,
   shiftBornFillErrorMessage,
   bornRowsToSave,
+  resolveShiftBornStash,
   shiftBornEventFillRowsFrom,
   type ShiftBornFillDraft,
 } from './shiftBornFill'
@@ -139,6 +140,38 @@ describe('bornRowsToSave', () => {
     expect(bornRowsToSave([row])).toEqual([])
     const edited = { ...row, id: 'ev-2', draft: { ...row.draft, location: 'מחלף שורק' } }
     expect(bornRowsToSave([row, edited])).toEqual([edited])
+  })
+})
+
+describe('resolveShiftBornStash', () => {
+  const server = { draft: draft({ location: 'שרת' }), expected_updated_at: 't2' }
+
+  it('uses the server copy when the device holds nothing new', () => {
+    expect(resolveShiftBornStash(server, null)).toEqual({
+      draft: server.draft,
+      restored: false,
+      serverMovedOn: false,
+    })
+    expect(
+      resolveShiftBornStash(server, { ...server.draft, base_updated_at: 't1' }).restored,
+    ).toBe(false)
+  })
+
+  it('restores device edits typed over the current version without a warning', () => {
+    const result = resolveShiftBornStash(server, {
+      ...draft({ location: 'מכשיר' }),
+      base_updated_at: 't2',
+    })
+    expect(result).toEqual({ draft: draft({ location: 'מכשיר' }), restored: true, serverMovedOn: false })
+  })
+
+  it('flags device edits typed over an older version, so a teammate’s save is not overwritten silently', () => {
+    expect(
+      resolveShiftBornStash(server, { ...draft({ location: 'מכשיר' }), base_updated_at: 't1' })
+        .serverMovedOn,
+    ).toBe(true)
+    // A stash from before this field existed cannot prove it is current.
+    expect(resolveShiftBornStash(server, draft({ location: 'מכשיר' })).serverMovedOn).toBe(true)
   })
 })
 

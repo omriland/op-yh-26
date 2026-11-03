@@ -4,11 +4,13 @@ import { useAuth } from '../lib/auth'
 import { jerusalemToday } from '../lib/shifts'
 import {
   fetchShiftBornFillContext,
+  resolveShiftBornStash,
   saveShiftBornEventFill,
   type ShiftBornFillContext,
   shiftBornCompleteErrors,
   type ShiftBornFillDraft,
   type ShiftBornFillErrors,
+  type ShiftBornStash,
 } from '../lib/shiftBornFill'
 import {
   lastSavedByLabel,
@@ -82,6 +84,9 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [submitAttempt, setSubmitAttempt] = useState(0)
   const plateLookupTail = useRef(Promise.resolve())
   const draftRef = useRef<ShiftBornFillDraft | null>(null)
+  /** The server copy as of the last load or save, and the version it carries. */
+  const savedDraftRef = useRef<ShiftBornFillDraft | null>(null)
+  const expectedAtRef = useRef<string | null>(null)
   const stashLatest = useRef<(() => void) | null>(null)
   const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSavedAt, setLocalSavedAt] = useState<number | null>(null)
@@ -90,6 +95,9 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   useEffect(() => {
     draftRef.current = draft
   }, [draft])
+  useEffect(() => {
+    expectedAtRef.current = expectedAt
+  }, [expectedAt])
 
   useEffect(() => {
     let active = true
@@ -114,20 +122,20 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           return
         }
         setCtx(next)
-        const stashed = readFillDraft<ShiftBornFillDraft>(
+        savedDraftRef.current = next.draft
+        const stashed = readFillDraft<ShiftBornStash>(
           SHIFT_BORN_STASH_SCOPE,
           eventId,
           Date.now(),
         )
-        if (
-          stashed &&
-          JSON.stringify(stashed.draft) !== JSON.stringify(next.draft)
-        ) {
-          setDraft(stashed.draft)
+        const resolved = resolveShiftBornStash(next, stashed?.draft ?? null)
+        setDraft(resolved.draft)
+        if (resolved.restored && stashed) {
           setLocalSavedAt(stashed.savedAt)
           setRestoredFromDevice(true)
-        } else {
-          setDraft(next.draft)
+          // Same banner as a save that lost the race: the text is kept, and a
+          // deliberate save is what replaces the teammate's version.
+          setConflict(resolved.serverMovedOn)
         }
         setExpectedAt(next.expected_updated_at)
         setLoadState('ready')
@@ -159,7 +167,17 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     const flush = () => {
       const current = draftRef.current
       if (!current) return
-      stashFillDraft(SHIFT_BORN_STASH_SCOPE, eventId, current, Date.now())
+      // Nothing typed since the last load or save: a copy would only be restored
+      // later over a teammate's newer save.
+      if (JSON.stringify(current) === JSON.stringify(savedDraftRef.current)) {
+        clearFillDraft(SHIFT_BORN_STASH_SCOPE, eventId)
+        return
+      }
+      const stash: ShiftBornStash = {
+        ...current,
+        base_updated_at: expectedAtRef.current ?? undefined,
+      }
+      stashFillDraft(SHIFT_BORN_STASH_SCOPE, eventId, stash, Date.now())
       setLocalSavedAt(Date.now())
     }
     stashLatest.current = flush
@@ -292,6 +310,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
       }
       return false
     }
+    savedDraftRef.current = draft
     setExpectedAt(result.updated_at)
     setConflict(false)
     return true
