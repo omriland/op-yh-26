@@ -24,6 +24,8 @@ Cards: avatar + name + callsign, ledger rows for phone and email, full-width sec
 
 Table: same columns + icon-only actions (44×44, Hebrew `aria-label`).
 
+Sorting: click a column header (שם מלא · או״ק · טלפון · דוא״ל) to sort by it; click again to reverse. Default `שם מלא` A→Z. Hebrew collation, numbers in numeric order (`D2` before `D12`); a missing phone stays last either way. Active column shows ↑/↓ and `aria-sort`; the others show a faint ↕. Mobile cards keep the name order.
+
 ## States
 
 - Loading: card / row skeletons.

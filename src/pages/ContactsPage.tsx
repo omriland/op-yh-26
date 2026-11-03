@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Phone, Search, UserRound } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Phone, Search, UserRound } from 'lucide-react'
 import {
   fetchUnitContacts,
   filterContacts,
+  sortContacts,
   toTelHref,
   toWhatsAppHref,
+  type ContactSortKey,
+  type SortDirection,
   type UnitContact,
 } from '../lib/contacts'
 import { formatPhone, monoClass } from '../lib/format'
@@ -23,6 +26,10 @@ export function ContactsPage() {
   const [failed, setFailed] = useState(false)
   const [query, setQuery] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [sort, setSort] = useState<{ key: ContactSortKey; direction: SortDirection }>({
+    key: 'full_name',
+    direction: 'asc',
+  })
 
   useEffect(() => {
     let active = true
@@ -41,9 +48,16 @@ export function ContactsPage() {
   }, [reloadKey])
 
   const filtered = useMemo(
-    () => filterContacts(contacts ?? [], query),
-    [contacts, query],
+    () => sortContacts(filterContacts(contacts ?? [], query), sort.key, sort.direction),
+    [contacts, query, sort],
   )
+
+  const onSort = (key: ContactSortKey) =>
+    setSort((current) =>
+      current.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: 'asc' },
+    )
 
   return (
     <>
@@ -107,10 +121,14 @@ export function ContactsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>שם מלא</th>
-                <th>או״ק</th>
-                <th>טלפון</th>
-                <th>דוא״ל</th>
+                {SORT_COLUMNS.map((column) => (
+                  <SortHeader
+                    key={column.key}
+                    label={column.label}
+                    direction={sort.key === column.key ? sort.direction : null}
+                    onSort={() => onSort(column.key)}
+                  />
+                ))}
                 <th>
                   <span className="visually-hidden">פעולות</span>
                 </th>
@@ -202,6 +220,41 @@ export function ContactsPage() {
         </ul>
       ) : null}
     </>
+  )
+}
+
+const SORT_COLUMNS: { key: ContactSortKey; label: string }[] = [
+  { key: 'full_name', label: 'שם מלא' },
+  { key: 'callsign', label: 'או״ק' },
+  { key: 'phone', label: 'טלפון' },
+  { key: 'email', label: 'דוא״ל' },
+]
+
+function SortHeader({
+  label,
+  direction,
+  onSort,
+}: {
+  label: string
+  direction: SortDirection | null
+  onSort: () => void
+}) {
+  const Icon = direction === 'asc' ? ArrowUp : direction === 'desc' ? ArrowDown : ArrowUpDown
+  return (
+    <th
+      aria-sort={
+        direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'
+      }
+    >
+      <button
+        type="button"
+        className={direction ? 'table-sort table-sort--active' : 'table-sort'}
+        onClick={onSort}
+      >
+        {label}
+        <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
+      </button>
+    </th>
   )
 }
 
