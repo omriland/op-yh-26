@@ -3448,16 +3448,36 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 /* Events table: road/location must ellipsize; bare <td> max-width is unreliable. */
+/* Location is the column that gives way when space is tight: it wants 260px
+   but may shrink to 7rem (ellipsized) before the table starts to scroll.
+   width:0 + min-width:100% keeps the text out of the column's min-content. */
 .table--events .table-col--location {
   width: 260px;
-  max-width: 260px;
+  min-width: 7rem;
 }
 
 .table--events .table-col--location__text {
   display: block;
+  width: 0;
+  min-width: 100%;
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Events table: when the content column is narrower than the table (sidebar
+   open, small laptop), scroll sideways instead of clipping the status column.
+   Tooltips portal to <body>, so this does not clip them. */
+.table-wrap--events {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Keep each cell on one line (lead names were breaking word-by-word);
+   location keeps its own ellipsis; the full-width completion-notice and
+   "found by" meta rows may wrap. */
+.table--events tbody tr:not(.table-row--completion-meta):not(.table-row--found-by) > td {
   white-space: nowrap;
 }
 
