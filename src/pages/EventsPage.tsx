@@ -36,9 +36,15 @@ import {
   viewerStamp,
   overlayMissingKmOnDoneStamp,
   type EventStatus,
+  type ParticipationStatus,
   type StampDescriptor,
 } from '../lib/status'
-import { shiftBornFillStamp, mineShiftBornIsOpen } from '../lib/shiftBornEvents'
+import {
+  shiftBornBeforeShiftDate,
+  shiftBornFillCtaLabel,
+  shiftBornFillStamp,
+  mineShiftBornIsOpen,
+} from '../lib/shiftBornEvents'
 import {
   INCOMPLETE_FUEL_REFUND_NOTICE,
   shouldShowIncompleteFuelNotice,
@@ -349,6 +355,7 @@ export function EventsPage({
     if (!eventReleasedFromEvent(event)) {
       return false
     }
+    if (shiftBornBeforeShiftDate(event, jerusalemToday())) return false
     if (event.origin === 'shift') return mineShiftBornIsOpen(event)
     return mineInboxIsOpen(ownParticipation(event, user?.id), ownResponderKm(event, user?.id))
   }
@@ -406,7 +413,8 @@ export function EventsPage({
     return partitionMineList(events, {
       dateOf: (event) => event.event_date,
       bucket: (event) => {
-        if (!eventReleasedFromEvent(event)) {
+        // Not yet the crew's to document: neither pending nor logged.
+        if (!eventReleasedFromEvent(event) || shiftBornBeforeShiftDate(event, jerusalemToday())) {
           return 'hidden'
         }
         return mineEventIsOpen(event) ? 'pending' : 'logged'
@@ -866,6 +874,26 @@ function MineLoggedList({
   )
 }
 
+/** Shift-born events open the crew's shared report, so their CTA names that. */
+function mineFillLabel(
+  event: EventListItem,
+  mineStatus: ParticipationStatus | null,
+): string | null {
+  if (!mineStatus) return null
+  if (event.origin === 'shift') {
+    return shiftBornFillCtaLabel({
+      status: event.status,
+      police_event_id: event.police_event_id,
+      treatment_detail: event.treatment_detail,
+      treatment_notes: event.treatment_notes,
+      location: event.location,
+      road_id: event.road?.name,
+      treated_count: event.shared_treated?.length ?? 0,
+    })
+  }
+  return mineFillCtaLabel(mineStatus)
+}
+
 function EventCards({
   events,
   stampFor,
@@ -893,7 +921,7 @@ function EventCards({
         if (block.kind === 'shift') {
           const groupedCards = block.events.map((event) => {
             const mineStatus = userId ? ownParticipation(event, userId) : null
-            const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
+            const fillLabel = mineFillLabel(event, mineStatus)
             return (
               <EventCard
                 key={event.id}
@@ -949,7 +977,7 @@ function EventCards({
         }
         const event = block.event
         const mineStatus = userId ? ownParticipation(event, userId) : null
-        const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
+        const fillLabel = mineFillLabel(event, mineStatus)
         return (
           <EventCard
             key={event.id}

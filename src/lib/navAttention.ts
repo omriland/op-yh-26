@@ -18,6 +18,8 @@ type ParticipationRow = {
   patrolCallsignPrefix?: string | null
   patrolCallsign?: string | null
   roadId?: string | null
+  /** Shift date for a shift-born event (else its event date). */
+  documentDate?: string | null
 }
 
 type ShiftAttentionRow = {
@@ -28,10 +30,15 @@ type ShiftAttentionRow = {
 }
 
 /** True when the viewer still has event participations to complete. */
-export function hasOpenMineEvents(participations: ParticipationRow[]): boolean {
+export function hasOpenMineEvents(
+  participations: ParticipationRow[],
+  today: string = jerusalemToday(),
+): boolean {
   return participations.some(
     (row) =>
       row.status !== 'done' &&
+      // A shift-born event is not the crew's to document before its shift date.
+      !(row.origin === 'shift' && row.documentDate && row.documentDate > today) &&
       eventReleasedToResponders({
         origin: row.origin,
         policeEventId: row.policeEventId,
@@ -65,7 +72,7 @@ export async function fetchNavAttention(
     supabase
       .from('event_responders')
       .select(
-        'status, event:events!inner(police_event_id, origin, patrol_callsign, patrol_callsign_prefix, patrol_callsign_number, road_id)',
+        'status, event:events!inner(police_event_id, origin, patrol_callsign, patrol_callsign_prefix, patrol_callsign_number, road_id, event_date, shift:shifts!events_shift_id_fkey(shift_date))',
       )
       .eq('responder_id', userId),
     supabase
@@ -87,6 +94,8 @@ export async function fetchNavAttention(
         patrol_callsign_prefix?: string | null
         patrol_callsign_number?: string | null
         road_id?: string | null
+        event_date?: string | null
+        shift?: { shift_date: string } | { shift_date: string }[] | null
       } | {
         police_event_id?: string | null
         origin?: string | null
@@ -94,9 +103,12 @@ export async function fetchNavAttention(
         patrol_callsign_prefix?: string | null
         patrol_callsign_number?: string | null
         road_id?: string | null
+        event_date?: string | null
+        shift?: { shift_date: string } | { shift_date: string }[] | null
       }[]
     }).event
     const event = Array.isArray(eventRaw) ? eventRaw[0] : eventRaw
+    const shift = Array.isArray(event?.shift) ? event?.shift[0] : event?.shift
     return {
       status: (row as ParticipationRow).status,
       origin: event?.origin ?? null,
@@ -105,6 +117,7 @@ export async function fetchNavAttention(
       patrolCallsignPrefix: event?.patrol_callsign_prefix ?? null,
       patrolCallsignNumber: event?.patrol_callsign_number ?? null,
       roadId: event?.road_id ?? null,
+      documentDate: shift?.shift_date ?? event?.event_date ?? null,
     }
   })
   const shifts = (shiftsResult.data ?? [])

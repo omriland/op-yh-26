@@ -110,6 +110,12 @@ export function EventDetailPage({
   const [mapFailed, setMapFailed] = useState(false)
   const [geocodeCoords, setGeocodeCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [assignedEditBlockedOpen, setAssignedEditBlockedOpen] = useState(false)
+  // A shift-born event is one shared report: leads, admins and every crew member
+  // open it there, never the per-responder view.
+  const shiftBornHandover =
+    state === 'ready' &&
+    event?.origin === 'shift' &&
+    (canEdit || event.responders.some((row) => row.responder_id === user?.id))
 
   useEffect(() => {
     let active = true
@@ -190,7 +196,7 @@ export function EventDetailPage({
     </div>
   )
 
-  if (state === 'ready' && event?.origin === 'shift' && canEdit) {
+  if (shiftBornHandover) {
     return <ShiftBornFillPage eventId={eventId} onBack={onBack} onCompleted={onBack} />
   }
 

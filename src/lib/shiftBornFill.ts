@@ -7,7 +7,12 @@ import {
 import { fetchEventDetail, type EventDetail } from './events'
 import { policeEventIdForInput } from './format'
 import { refreshShiftLogStatus } from './shiftForm'
-import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
+import {
+  COUNT_DECREASE_BLOCKED,
+  SHIFT_BORN_DONE_LOCKED,
+  SHIFT_BORN_TOO_EARLY,
+  STALE_SAVE_MESSAGE,
+} from './shiftBornEvents'
 import type { EventStatus } from './status'
 import { supabase } from './supabase'
 import { mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
@@ -170,9 +175,12 @@ export async function fetchShiftBornFillContext(
   }
 }
 
-function mapFillError(message: string | undefined): string {
+/** The RPC's own Hebrew refusals say what to do; show them as they are. */
+export function shiftBornFillErrorMessage(message: string | undefined): string {
   if (message?.includes(STALE_SAVE_MESSAGE)) return STALE_SAVE_MESSAGE
   if (message?.includes(COUNT_DECREASE_BLOCKED)) return COUNT_DECREASE_BLOCKED
+  if (message?.includes(SHIFT_BORN_TOO_EARLY)) return SHIFT_BORN_TOO_EARLY
+  if (message?.includes(SHIFT_BORN_DONE_LOCKED)) return SHIFT_BORN_DONE_LOCKED
   if (message?.includes('אין הרשאה')) return 'אין הרשאה'
   if (message?.includes(EVENT_DONE_NEEDS_END_ERROR)) return EVENT_DONE_NEEDS_END_ERROR
   if (message?.includes(EVENT_DONE_NEEDS_KM_ERROR)) return EVENT_DONE_NEEDS_KM_ERROR
@@ -201,7 +209,7 @@ export async function saveShiftBornEventFill(input: {
   })
 
   if (error) {
-    return { ok: false, error: mapFillError(error.message) }
+    return { ok: false, error: shiftBornFillErrorMessage(error.message) }
   }
 
   const { data: parent } = await supabase

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { eventMissingLeadDoneDetails } from './eventStatus'
+import { SHIFT_BORN_DONE_LOCKED, SHIFT_BORN_TOO_EARLY, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import {
   emptyShiftBornFillDraft,
   shiftBornCompleteErrors,
+  shiftBornFillErrorMessage,
   type ShiftBornFillDraft,
 } from './shiftBornFill'
 
@@ -91,6 +93,24 @@ describe('shiftBornCompleteErrors', () => {
       { is_cancelled: false },
     )
     expect(errors).toEqual({})
+  })
+})
+
+describe('shiftBornFillErrorMessage', () => {
+  it('shows the save RPC refusals as-is, not as a connection error', () => {
+    expect(shiftBornFillErrorMessage(`P0001: ${SHIFT_BORN_TOO_EARLY}`)).toBe(SHIFT_BORN_TOO_EARLY)
+    expect(shiftBornFillErrorMessage(SHIFT_BORN_DONE_LOCKED)).toBe(SHIFT_BORN_DONE_LOCKED)
+    expect(shiftBornFillErrorMessage(STALE_SAVE_MESSAGE)).toBe(STALE_SAVE_MESSAGE)
+    expect(shiftBornFillErrorMessage('אין הרשאה')).toBe('אין הרשאה')
+  })
+
+  it('falls back to the connection message for anything else', () => {
+    expect(shiftBornFillErrorMessage('fetch failed')).toBe(
+      'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
+    )
+    expect(shiftBornFillErrorMessage(undefined)).toBe(
+      'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
+    )
   })
 })
 

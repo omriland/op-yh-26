@@ -34,6 +34,19 @@ describe('hasOpenMineEvents', () => {
     expect(hasOpenMineEvents([])).toBe(false)
   })
 
+  it('ignores a shift-born event until its shift date', () => {
+    const today = '2026-11-03'
+    expect(
+      hasOpenMineEvents(
+        [{ status: 'pending', origin: 'shift', documentDate: '2026-11-04' }],
+        today,
+      ),
+    ).toBe(false)
+    expect(
+      hasOpenMineEvents([{ status: 'pending', origin: 'shift', documentDate: today }], today),
+    ).toBe(true)
+  })
+
   it('ignores a manual assignment until או״ק, כביש, and מספר אירוע are filled', () => {
     expect(
       hasOpenMineEvents([

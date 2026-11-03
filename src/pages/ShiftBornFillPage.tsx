@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
-import { canEditShiftByDate } from '../lib/shifts'
+import { jerusalemToday } from '../lib/shifts'
 import {
   fetchShiftBornFillContext,
   saveShiftBornEventFill,
@@ -10,7 +10,12 @@ import {
   type ShiftBornFillDraft,
   type ShiftBornFillErrors,
 } from '../lib/shiftBornFill'
-import { lastSavedByLabel, SHIFT_BORN_CHIP } from '../lib/shiftBornEvents'
+import {
+  lastSavedByLabel,
+  SHIFT_BORN_CHIP,
+  shiftBornBeforeShiftDate,
+  shiftBornFillAccess,
+} from '../lib/shiftBornEvents'
 import { formatDate, plateDigits, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
 import { lookupPlate } from '../lib/plateLookup'
 import {
@@ -137,14 +142,17 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
-  const shiftDate = ctx?.event.shift?.shift_date ?? ctx?.event.event_date
-  const dateOk = shiftDate ? canEditShiftByDate(shiftDate) : false
-  const eventDone = ctx?.event.status === 'done'
-  const readOnly = eventDone ? !canManage : !(canManage || dateOk)
   const assigned = Boolean(
     user && ctx?.event.responders.some((row) => row.responder_id === user.id),
   )
-  const canWriteMedia = assigned && !ctx?.event.is_cancelled
+  const beforeShiftDate = ctx ? shiftBornBeforeShiftDate(ctx.event, jerusalemToday()) : false
+  const { readOnly, note: readOnlyNote } = shiftBornFillAccess({
+    canManage,
+    onCrew: assigned,
+    beforeShiftDate,
+    done: ctx?.event.status === 'done',
+  })
+  const canWriteMedia = assigned && !ctx?.event.is_cancelled && !beforeShiftDate
 
   useEffect(() => {
     if (!draft || loadState !== 'ready' || readOnly) return
@@ -371,6 +379,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             <StampChip label={SHIFT_BORN_CHIP} tone="draft" />
           </div>
         </div>
+
+        {readOnlyNote ? (
+          <p className="banner banner--info t-body" role="status">
+            {readOnlyNote}
+          </p>
+        ) : null}
 
         {conflict ? (
           <p className="banner banner--alert t-body" role="alert">

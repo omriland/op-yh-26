@@ -182,6 +182,10 @@ function Gate() {
             eventId: result.context.eventId,
             responderId: (result.context as { responderId?: string }).responderId,
           })
+        } else if (result.code === 'shift_born' && result.eventId) {
+          // A shared shift report has no per-person link: open it after login.
+          stashPostLoginFill(result.eventId)
+          setTokenFill({ status: 'idle' })
         } else {
           if (result.eventId) stashPostLoginFill(result.eventId)
           setTokenFill({

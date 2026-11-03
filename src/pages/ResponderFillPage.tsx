@@ -64,6 +64,7 @@ import {
   stashFillDraft,
 } from '../lib/fillDraftStash'
 import { shouldKeepLiveFormBoot } from '../lib/formDraftSurvival'
+import { ShiftBornFillPage } from './ShiftBornFillPage'
 
 const FILL_STASH_SCOPE = 'responder'
 /** Long enough to not thrash on every keystroke, short enough to survive a kill. */
@@ -97,7 +98,10 @@ export function ResponderFillPage({
   const { show } = useToast()
   const [ctx, setCtx] = useState<ResponderFillContext | null>(null)
   const [draft, setDraft] = useState<ResponderFillDraft | null>(null)
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied'>('loading')
+  /** `shift_born`: the crew documents this event once, in the shared report. */
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied' | 'shift_born'>(
+    'loading',
+  )
   const [errors, setErrors] = useState<ResponderFillErrors>({})
   const [savingDraft, setSavingDraft] = useState(false)
   const [completing, setCompleting] = useState(false)
@@ -177,6 +181,13 @@ export function ResponderFillPage({
         if (!active) return
         if (!next) {
           setLoadState('denied')
+          return
+        }
+        // The one guard for every route into a per-responder report (inbox CTA,
+        // own card, /fill URL, post-login link): a shift-born event never asks
+        // anyone for plate, odometer or route.
+        if (next.origin === 'shift') {
+          setLoadState('shift_born')
           return
         }
         setCtx(next)
@@ -547,6 +558,10 @@ export function ResponderFillPage({
       !completing &&
       !savingDraft,
   })
+
+  if (loadState === 'shift_born') {
+    return <ShiftBornFillPage eventId={eventId} onBack={onBack} onCompleted={onCompleted} />
+  }
 
   if (loadState === 'denied') {
     return (

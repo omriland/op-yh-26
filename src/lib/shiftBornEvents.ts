@@ -6,6 +6,9 @@ export const SHIFT_BORN_CHIP = 'ממשמרת'
 /** Shown in brackets next to the event type on list cards/tables. */
 export const SHIFT_BORN_TYPE_MARK = '(משמרת)'
 export const NO_POLICE_EVENT_ID = 'ללא מספר'
+/** Raised by save_shift_born_event_fill; also shown up front on the read-only report. */
+export const SHIFT_BORN_TOO_EARLY = 'ניתן לתעד החל מתאריך המשמרת.'
+export const SHIFT_BORN_DONE_LOCKED = 'התיעוד כבר הושלם. רק אחמ״ש יכול לערוך.'
 
 export type EventOrigin = 'manual' | 'shift'
 
@@ -58,6 +61,45 @@ export function mineShiftBornIsOpen(event: {
 }): boolean {
   if (blank(event.treatment_detail)) return true
   return event.status !== 'done'
+}
+
+/** Inbox CTA. One shared report for the crew, so never "שלי". */
+export function shiftBornFillCtaLabel(event: ShiftBornEventSnapshot): string | null {
+  if (!mineShiftBornIsOpen(event)) return null
+  return isShiftBornEventEmpty(event) ? 'השלמת התיעוד' : 'המשך התיעוד'
+}
+
+/**
+ * Crew may document a shift-born event from the shift date on. The save RPC checks
+ * the shift's date, so read that before the event's own copy of it.
+ */
+export function shiftBornBeforeShiftDate(
+  event: {
+    origin?: string | null
+    event_date: string
+    shift?: { shift_date: string } | null
+  },
+  today: string,
+): boolean {
+  if (event.origin !== 'shift') return false
+  return (event.shift?.shift_date ?? event.event_date) > today
+}
+
+/**
+ * Who gets the shared report as an editor. Mirrors save_shift_born_event_fill, so
+ * nobody types into a form the server will refuse: a lead or admin always, a crew
+ * member from the shift date until the report is complete.
+ */
+export function shiftBornFillAccess(input: {
+  canManage: boolean
+  onCrew: boolean
+  beforeShiftDate: boolean
+  done: boolean
+}): { readOnly: boolean; note: string | null } {
+  if (input.canManage) return { readOnly: false, note: null }
+  if (!input.onCrew || input.done) return { readOnly: true, note: null }
+  if (input.beforeShiftDate) return { readOnly: true, note: SHIFT_BORN_TOO_EARLY }
+  return { readOnly: false, note: null }
 }
 
 export function lastSavedByLabel(name: string | null | undefined): string | null {
