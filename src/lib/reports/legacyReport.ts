@@ -149,6 +149,17 @@ export function maskPid(pid: string | null | undefined): string {
   return value.length <= 3 ? '******' : `******${value.slice(-3)}`
 }
 
+/**
+ * Name for a saved PDF: `eventNumber_DD-MM-YYYY_callSign` (the browser adds .pdf).
+ * Missing parts are left out; characters a file name can't hold become `-`.
+ */
+export function legacyReportFileName(report: Pick<LegacyReport, 'eventNumber' | 'eventDate' | 'callSign'>): string {
+  const iso = report.eventDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const date = iso ? `${iso[3]}-${iso[2]}-${iso[1]}` : ''
+  const safe = (s: string) => s.trim().replace(/[\\/:*?"<>|\s]+/g, '-')
+  return [report.eventNumber, date, report.callSign].map((p) => safe(p ?? '')).filter(Boolean).join('_') || 'event'
+}
+
 const byDate = (a: LegacyReport, b: LegacyReport) => a.eventDate.localeCompare(b.eventDate)
 
 /** A report number or a call-sign+date can match several events — all are returned. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { maskPid } from './legacyReport'
+import { legacyReportFileName, maskPid } from './legacyReport'
 
 describe('maskPid', () => {
   it('keeps only the last 3 digits of an ID number', () => {
@@ -20,5 +20,18 @@ describe('maskPid', () => {
     expect(maskPid(null)).toBe('')
     expect(maskPid(undefined)).toBe('')
     expect(maskPid('   ')).toBe('')
+  })
+})
+
+describe('legacyReportFileName', () => {
+  it('is eventNumber_date_callSign', () => {
+    expect(legacyReportFileName({ eventNumber: '2439', eventDate: '2022-09-05', callSign: '752' })).toBe(
+      '2439_05-09-2022_752',
+    )
+  })
+
+  it('drops missing parts and unsafe characters', () => {
+    expect(legacyReportFileName({ eventNumber: '', eventDate: '2022-09-05', callSign: '7/52' })).toBe('05-09-2022_7-52')
+    expect(legacyReportFileName({ eventNumber: '', eventDate: '', callSign: '' })).toBe('event')
   })
 })
