@@ -69,7 +69,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [ctx, setCtx] = useState<ShiftBornFillContext | null>(null)
   const [draft, setDraft] = useState<ShiftBornFillDraft | null>(null)
   const [expectedAt, setExpectedAt] = useState<string | null>(null)
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied'>('loading')
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading')
   const [saving, setSaving] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [platePending, setPlatePending] = useState('')
@@ -141,7 +141,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
         setLoadState('ready')
       })
       .catch(() => {
-        if (active) setLoadState('denied')
+        if (active) setLoadState('error')
       })
     return () => {
       active = false
@@ -357,11 +357,15 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     enabled: loadState === 'ready' && Boolean(draft) && !readOnly && !saving && !completing,
   })
 
-  if (loadState === 'denied') {
+  if (loadState === 'denied' || loadState === 'error') {
     return (
       <EmptyState
         icon={<FileWarning size={40} strokeWidth={1.75} />}
-        title="אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים."
+        title={
+          loadState === 'error'
+            ? 'טעינת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
+            : 'אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.'
+        }
         action={
           <Button variant="secondary" onClick={onBack}>
             חזרה

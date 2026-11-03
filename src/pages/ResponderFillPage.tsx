@@ -99,9 +99,9 @@ export function ResponderFillPage({
   const [ctx, setCtx] = useState<ResponderFillContext | null>(null)
   const [draft, setDraft] = useState<ResponderFillDraft | null>(null)
   /** `shift_born`: the crew documents this event once, in the shared report. */
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied' | 'shift_born'>(
-    'loading',
-  )
+  const [loadState, setLoadState] = useState<
+    'loading' | 'ready' | 'denied' | 'error' | 'shift_born'
+  >('loading')
   const [errors, setErrors] = useState<ResponderFillErrors>({})
   const [savingDraft, setSavingDraft] = useState(false)
   const [completing, setCompleting] = useState(false)
@@ -164,7 +164,7 @@ export function ResponderFillPage({
           setLoadState('ready')
         })
         .catch(() => {
-          if (active) setLoadState('denied')
+          if (active) setLoadState('error')
         })
       return () => {
         active = false
@@ -195,7 +195,7 @@ export function ResponderFillPage({
         setLoadState('ready')
       })
       .catch(() => {
-        if (active) setLoadState('denied')
+        if (active) setLoadState('error')
       })
 
     return () => {
@@ -563,11 +563,15 @@ export function ResponderFillPage({
     return <ShiftBornFillPage eventId={eventId} onBack={onBack} onCompleted={onCompleted} />
   }
 
-  if (loadState === 'denied') {
+  if (loadState === 'denied' || loadState === 'error') {
     return (
       <EmptyState
         icon={<FileWarning size={40} strokeWidth={1.75} />}
-        title="אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים."
+        title={
+          loadState === 'error'
+            ? 'טעינת הדיווח נכשלה. בדקו את החיבור ונסו שוב.'
+            : 'אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.'
+        }
         action={
           <Button variant="secondary" onClick={onBack}>
             חזרה

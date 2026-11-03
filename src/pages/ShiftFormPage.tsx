@@ -81,7 +81,8 @@ type PersonalVehicleOption = {
 
 type FieldErrors = Partial<Record<ShiftSaveError['field'], string>> & { form?: string }
 
-type LoadState = 'loading' | 'ready' | 'denied' | 'too_early'
+/** `error`: the load itself failed (network), which is not a permission answer. */
+type LoadState = 'loading' | 'ready' | 'denied' | 'too_early' | 'error'
 
 const SHIFT_STASH_SCOPE = 'shiftForm'
 const SHIFT_STASH_DEBOUNCE_MS = 600
@@ -327,7 +328,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
         setLoadState('ready')
       })
       .catch(() => {
-        if (active) setLoadState('denied')
+        if (active) setLoadState('error')
       })
 
     return () => {
@@ -634,11 +635,15 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     )
   }
 
-  if (loadState === 'denied') {
+  if (loadState === 'denied' || loadState === 'error') {
     return (
       <EmptyState
         icon={<UserRound size={40} strokeWidth={1.75} />}
-        title="אין לך הרשאה לפעולה זו."
+        title={
+          loadState === 'error'
+            ? 'טעינת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
+            : 'אין לך הרשאה לפעולה זו.'
+        }
         action={
           <Button variant="secondary" onClick={onBack}>
             חזרה
