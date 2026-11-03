@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
-import { ImagePlus, Play } from 'lucide-react'
+import { Check, ImagePlus, Play } from 'lucide-react'
 import { compressEventImage } from '../../lib/compressEventImage'
 import { heicToJpegFile, isHeicFile } from '../../lib/heicImage'
 import { eventMediaFileInputAttributes } from '../../lib/eventMediaFileInput'
@@ -28,6 +28,7 @@ import {
   groupMediaByTakenWhen,
   listEventMedia,
   listEventMediaPlates,
+  replaceMediaPlates,
   slotsRemaining,
   updateEventMedia,
   uploadEventMedia,
@@ -38,12 +39,18 @@ import {
 } from '../../lib/eventMedia'
 import { formatDateTime, formatPlate } from '../../lib/format'
 import {
+  PLATE_LINK_ACTION,
+  PLATE_LINK_AUTO,
+  PLATE_LINK_HINT,
+  PLATE_LINK_SAVED,
+  PLATE_LINK_UNDONE,
   PLATE_SCAN_ADD,
   PLATE_SCAN_ADDED,
   PLATE_SCAN_DISMISS,
   PLATE_SCAN_HINT,
   PLATE_SCAN_TITLE,
   addPlateSuggestions,
+  autoLinkPlateIds,
   scanPlatesInMedia,
   visiblePlateSuggestions,
 } from '../../lib/plateScan'
@@ -124,7 +131,8 @@ function MediaPlateChoice({ plate }: { plate: EventMediaPlateOption }) {
   )
 }
 
-function MediaPlateSelect({
+/** One tap links the photo to a treated vehicle already on the event. */
+function MediaPlateChips({
   plates,
   value,
   disabled,
@@ -135,21 +143,37 @@ function MediaPlateSelect({
   disabled?: boolean
   onChange: (ids: string[]) => void
 }) {
+  const labelId = useId()
   if (plates.length === 0) return null
   return (
-    <SelectField
-      label="רכבים בתמונה"
-      multiple
-      placeholder="בחירה"
-      values={value}
-      disabled={disabled}
-      options={plates.map((plate) => ({
-        value: plate.id,
-        label: mediaPlateLabel(plate),
-        content: <MediaPlateChoice plate={plate} />,
-      }))}
-      onValuesChange={onChange}
-    />
+    <div className="field">
+      <p id={labelId} className="field__label">
+        רכבים בתמונה
+      </p>
+      <div className="media-plate-chips" role="group" aria-labelledby={labelId}>
+        {plates.map((plate) => {
+          const selected = value.includes(plate.id)
+          return (
+            <button
+              key={plate.id}
+              type="button"
+              className="media-plate-chip"
+              aria-pressed={selected}
+              aria-label={mediaPlateLabel(plate)}
+              disabled={disabled}
+              onClick={() =>
+                onChange(selected ? value.filter((id) => id !== plate.id) : [...value, plate.id])
+              }
+            >
+              {selected ? (
+                <Check size={16} strokeWidth={2} aria-hidden="true" className="media-plate-chip__check" />
+              ) : null}
+              <MediaPlateChoice plate={plate} />
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -193,6 +217,16 @@ export function EventMediaGallery({
   } | null>(null)
   const draftsRef = useRef(drafts)
   draftsRef.current = drafts
+  const itemsRef = useRef(items)
+  itemsRef.current = items
+  const platesRef = useRef(plates)
+  platesRef.current = plates
+  const [linkTarget, setLinkTarget] = useState<EventMedia | null>(null)
+  const [linkPlateIds, setLinkPlateIds] = useState<string[]>([])
+  const [linkError, setLinkError] = useState<string | undefined>()
+  const [savingLink, setSavingLink] = useState(false)
+  /** Links the plate scan made on its own, each with an undo. */
+  const [autoLinks, setAutoLinks] = useState<{ mediaId: string; plateId: string }[]>([])
 
   const inFlight = drafts.filter((draft) => draft.uploading).length
   const addEnabled = canWrite && canAddMoreMedia(items.length, inFlight)
@@ -281,11 +315,73 @@ export function EventMediaGallery({
     setDrafts((current) => current.filter((row) => row.key !== key))
     setItems((current) => [...current, result.media])
     show(draft.kind === 'video' ? EVENT_MEDIA_VIDEO_ADDED : EVENT_MEDIA_ADDED, 'done')
-    if (onAddScannedPlate && draft.kind === 'image') {
+    if (draft.kind === 'image' && (onAddScannedPlate || platesRef.current.length > 0)) {
       void scanPlatesInMedia(result.media.id).then((found) => {
-        if (found.length > 0) setPlateSuggestions((current) => addPlateSuggestions(current, found))
+        if (found.length === 0) return
+        if (onAddScannedPlate) setPlateSuggestions((current) => addPlateSuggestions(current, found))
+        void autoLinkScanned(result.media.id, found)
       })
     }
+  }
+
+  function setItemPlates(mediaId: string, plateIds: string[]) {
+    setItems((current) =>
+      current.map((row) => (row.id === mediaId ? { ...row, treated_plate_ids: plateIds } : row)),
+    )
+  }
+
+  async function autoLinkScanned(mediaId: string, found: string[]) {
+    const item = itemsRef.current.find((row) => row.id === mediaId)
+    if (!item) return
+    const added = autoLinkPlateIds(found, platesRef.current, item.treated_plate_ids)
+    if (added.length === 0) return
+    const next = [...item.treated_plate_ids, ...added]
+    const result = await replaceMediaPlates(mediaId, next)
+    if (!result.ok) return
+    setItemPlates(mediaId, next)
+    setAutoLinks((current) => [...current, ...added.map((plateId) => ({ mediaId, plateId }))])
+  }
+
+  async function undoAutoLink(link: { mediaId: string; plateId: string }) {
+    const item = itemsRef.current.find((row) => row.id === link.mediaId)
+    const forget = () =>
+      setAutoLinks((current) =>
+        current.filter((row) => row.mediaId !== link.mediaId || row.plateId !== link.plateId),
+      )
+    if (!item) {
+      forget()
+      return
+    }
+    const next = item.treated_plate_ids.filter((id) => id !== link.plateId)
+    const result = await replaceMediaPlates(link.mediaId, next)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    setItemPlates(link.mediaId, next)
+    forget()
+    show(PLATE_LINK_UNDONE, 'done')
+  }
+
+  function openLink(item: EventMedia) {
+    setLinkTarget(item)
+    setLinkPlateIds(item.treated_plate_ids)
+    setLinkError(undefined)
+  }
+
+  async function onSaveLink() {
+    if (!linkTarget) return
+    setSavingLink(true)
+    const result = await replaceMediaPlates(linkTarget.id, linkPlateIds)
+    setSavingLink(false)
+    if (!result.ok) {
+      setLinkError(result.error)
+      return
+    }
+    setItemPlates(linkTarget.id, linkPlateIds)
+    setAutoLinks((current) => current.filter((row) => row.mediaId !== linkTarget.id))
+    setLinkTarget(null)
+    show(PLATE_LINK_SAVED, 'done')
   }
 
   function addScannedPlate(digits: string) {
@@ -449,6 +545,7 @@ export function EventMediaGallery({
       caption: editCaption.trim() || null,
     }
     setItems((current) => current.map((row) => (row.id === next.id ? next : row)))
+    setAutoLinks((current) => current.filter((row) => row.mediaId !== next.id))
     setViewer(next)
     setEditing(false)
     show(EVENT_MEDIA_UPDATED, 'done')
@@ -475,6 +572,12 @@ export function EventMediaGallery({
     : []
 
   const viewerIsVideo = Boolean(viewer && isVideoMedia(viewer.mime_type))
+
+  const autoLinkRows = autoLinks.flatMap((link) => {
+    const plate = plates.find((row) => row.id === link.plateId)
+    const item = items.find((row) => row.id === link.mediaId)
+    return plate && item?.treated_plate_ids.includes(plate.id) ? [{ link, plate }] : []
+  })
 
   const shownPlateSuggestions =
     onAddScannedPlate && canWrite
@@ -551,7 +654,7 @@ export function EventMediaGallery({
                 <div className="event-media__draft-thumb event-media__draft-thumb--preparing" />
               )}
               <div className="event-media__draft-fields">
-                <MediaPlateSelect
+                <MediaPlateChips
                   plates={plates}
                   value={draft.treatedPlateIds}
                   disabled={draft.uploading}
@@ -616,6 +719,28 @@ export function EventMediaGallery({
           ))}
         </ul>
       ) : null}
+
+      <div aria-live="polite">
+        {autoLinkRows.length > 0 ? (
+          <ul className="plate-link-auto">
+            {autoLinkRows.map(({ link, plate }) => (
+              <li key={`${link.mediaId}:${link.plateId}`} className="plate-link-auto__item">
+                <span className="plate-link-auto__text">
+                  <span className="t-body">{PLATE_LINK_AUTO}</span>
+                  <LicensePlate plate={plate.plate_number} size="sm" />
+                </span>
+                <Button
+                  variant="ghost"
+                  aria-label={`ביטול השיוך לרכב ${formatPlate(plate.plate_number)}`}
+                  onClick={() => void undoAutoLink(link)}
+                >
+                  ביטול
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
 
       {shownPlateSuggestions.length > 0 ? (
         <section className="plate-scan" aria-live="polite">
@@ -686,6 +811,9 @@ export function EventMediaGallery({
           tileMenu
             ? [
                 { label: 'צפייה', onSelect: () => openViewer(tileMenu.item) },
+                ...(plates.length > 0
+                  ? [{ label: PLATE_LINK_ACTION, onSelect: () => openLink(tileMenu.item) }]
+                  : []),
                 { label: 'הסרה', danger: true, onSelect: () => removeFromTile(tileMenu.item) },
               ]
             : []
@@ -750,7 +878,7 @@ export function EventMediaGallery({
                     options={TAKEN_WHEN_OPTIONS}
                     onChange={(event) => setEditTakenWhen(event.target.value as EventMediaTakenWhen)}
                   />
-                  <MediaPlateSelect
+                  <MediaPlateChips
                     plates={plates}
                     value={editPlateIds}
                     onChange={setEditPlateIds}
@@ -801,6 +929,42 @@ export function EventMediaGallery({
             </div>
           </div>
         ) : null}
+      </Dialog>
+
+      <Dialog
+        open={Boolean(linkTarget)}
+        title={PLATE_LINK_ACTION}
+        onClose={() => {
+          if (!savingLink) setLinkTarget(null)
+        }}
+        footer={
+          <>
+            <Button loading={savingLink} loadingLabel="שומר…" onClick={() => void onSaveLink()}>
+              שמירה
+            </Button>
+            <Button variant="secondary" disabled={savingLink} onClick={() => setLinkTarget(null)}>
+              ביטול
+            </Button>
+          </>
+        }
+      >
+        <div className="stack-3">
+          <p className="t-body text-secondary">{PLATE_LINK_HINT}</p>
+          <MediaPlateChips
+            plates={plates}
+            value={linkPlateIds}
+            disabled={savingLink}
+            onChange={(ids) => {
+              setLinkPlateIds(ids)
+              setLinkError(undefined)
+            }}
+          />
+          {linkError ? (
+            <p className="field__hint field__hint--error" role="alert">
+              {linkError}
+            </p>
+          ) : null}
+        </div>
       </Dialog>
 
       <AlertDialog

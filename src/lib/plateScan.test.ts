@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addPlateSuggestions, visiblePlateSuggestions } from './plateScan'
+import { addPlateSuggestions, autoLinkPlateIds, visiblePlateSuggestions } from './plateScan'
 
 describe('addPlateSuggestions', () => {
   it('appends new digits once, keeping order', () => {
@@ -28,5 +28,31 @@ describe('visiblePlateSuggestions', () => {
         dismissed: [],
       }),
     ).toEqual([])
+  })
+})
+
+describe('autoLinkPlateIds', () => {
+  const plates = [
+    { id: 'a', plate_number: '12-345-67' },
+    { id: 'b', plate_number: '765-43-21' },
+    { id: 'c', plate_number: '1234567' },
+  ]
+
+  it('returns saved plates whose digits match a scanned plate, in list order', () => {
+    expect(autoLinkPlateIds(['7654321', '12-345-67'], plates, [])).toEqual(['a', 'b', 'c'])
+  })
+
+  it('skips plates the photo is already linked to', () => {
+    expect(autoLinkPlateIds(['1234567'], plates, ['a'])).toEqual(['c'])
+  })
+
+  it('returns nothing when no scanned plate is on the event', () => {
+    expect(autoLinkPlateIds(['9999999'], plates, [])).toEqual([])
+    expect(autoLinkPlateIds([], plates, [])).toEqual([])
+    expect(autoLinkPlateIds(['1234567'], [], [])).toEqual([])
+  })
+
+  it('ignores scanned values with no digits', () => {
+    expect(autoLinkPlateIds(['', '--'], [{ id: 'x', plate_number: '' }], [])).toEqual([])
   })
 })

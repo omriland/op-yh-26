@@ -234,7 +234,8 @@ async function withSignedUrl(row: EventMediaRow): Promise<EventMedia> {
   }
 }
 
-async function replaceMediaPlates(
+/** Sets exactly which treated plates the photo shows (uploader only, by RLS). */
+export async function replaceMediaPlates(
   mediaId: string,
   plateIds: readonly string[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {

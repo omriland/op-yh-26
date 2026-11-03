@@ -49,3 +49,27 @@ export function visiblePlateSuggestions(
   )
   return suggestions.filter((digits) => !hidden.has(plateDigits(digits)))
 }
+
+export const PLATE_LINK_ACTION = 'שיוך לרכב'
+export const PLATE_LINK_HINT = 'בחרו את הרכבים שמופיעים בתמונה.'
+export const PLATE_LINK_SAVED = 'השיוך נשמר.'
+export const PLATE_LINK_AUTO = 'התמונה שויכה לרכב'
+export const PLATE_LINK_UNDONE = 'השיוך בוטל.'
+
+/**
+ * Saved plates on the event that the scan read off the photo, so the photo can be
+ * linked to them without asking. Matched by digits; already-linked plates are skipped.
+ */
+export function autoLinkPlateIds(
+  scanned: readonly string[],
+  plates: readonly { id: string; plate_number: string }[],
+  linkedIds: readonly string[],
+): string[] {
+  const seen = new Set(scanned.map(plateDigits).filter(Boolean))
+  return plates
+    .filter((plate) => {
+      const digits = plateDigits(plate.plate_number)
+      return digits !== '' && seen.has(digits) && !linkedIds.includes(plate.id)
+    })
+    .map((plate) => plate.id)
+}

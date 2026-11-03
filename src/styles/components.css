@@ -8205,6 +8205,78 @@ html[data-keyboard-open] .event-form__footer {
   white-space: nowrap;
 }
 
+/* Treated vehicles on a photo: one tap links or unlinks. */
+.media-plate-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.media-plate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  max-width: 100%;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.media-plate-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.media-plate-chip__check {
+  flex: none;
+  color: var(--accent);
+}
+
+.media-plate-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (hover: hover) {
+  .media-plate-chip:not(:disabled):hover {
+    background: var(--accent-subtle);
+  }
+}
+
+/* Photos the plate scan linked on its own, each with an undo. */
+.plate-link-auto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-sm);
+  list-style: none;
+}
+
+.plate-link-auto__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.plate-link-auto__text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 @media (min-width: 1025px) {
   .event-media__lightbox {
     display: grid;
