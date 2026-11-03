@@ -128,7 +128,15 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           eventId,
           Date.now(),
         )
-        const resolved = resolveShiftBornStash(next, stashed?.draft ?? null)
+        // A report this user can no longer edit shows the server's text, never an
+        // old device copy (e.g. a teammate completed it after these edits).
+        const nextReadOnly = shiftBornFillAccess({
+          canManage,
+          onCrew: Boolean(user && next.event.responders.some((row) => row.responder_id === user.id)),
+          beforeShiftDate: shiftBornBeforeShiftDate(next.event, jerusalemToday()),
+          done: next.event.status === 'done',
+        }).readOnly
+        const resolved = resolveShiftBornStash(next, nextReadOnly ? null : (stashed?.draft ?? null))
         setDraft(resolved.draft)
         if (resolved.restored && stashed) {
           setLocalSavedAt(stashed.savedAt)
