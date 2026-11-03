@@ -302,6 +302,28 @@ reset role;
 select pg_temp.ok((select status from public.shifts where id = '5a5a5a5a-0000-4000-8000-000000000001') = 'closed',
   'odometer + every event done closes the shift');
 
+-- ------------------------------------- the deploy workflow's migration replay
+-- deploy-edge-functions.yml replays older files (e.g. 20260913090000, which
+-- recomputes every event's status) before this one. Completed shift-born
+-- events must come out of that still done.
+\o /dev/null
+\ir ../../../supabase/migrations/20260913090000_lead_km_not_required_without_vehicle.sql
+select pg_temp.ok((select status from public.events where id = (select id from ev where n = 1)) = 'done',
+  'the replayed 20260913090000 status backfill skips shift-born events');
+\ir ../../../supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql
+\ir ../../../supabase/migrations/20261103100000_shift_born_events_hardening.sql
+select pg_temp.ok((select status from public.events where id = (select id from ev where n = 1)) = 'done',
+  'a completed shift-born event survives the deploy workflow''s replay');
+select pg_temp.ok((select status from public.shifts where id = '5a5a5a5a-0000-4000-8000-000000000001') = 'closed',
+  'and its shift stays closed');
+-- An older replay already knocked one back: the repair restores it.
+update public.events set status = 'partial' where id = (select id from ev where n = 1);
+\ir ../../../supabase/migrations/20261103100000_shift_born_events_hardening.sql
+select pg_temp.ok((select status from public.events where id = (select id from ev where n = 1)) = 'done',
+  'the repair puts a fully-done shift-born event back to done');
+select pg_temp.ok((select status from public.events where shift_id = '5a5a5a5a-0000-4000-8000-000000000002') <> 'done',
+  'the repair leaves an open shift-born event open');
+
 -- ------------------------------------------------- regression: regular events
 select pg_temp.throws($$update public.events set status = 'done' where id = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1'$$,
   'לא ניתן להשלים אירוע ללא שעת סיום.', 'regression: a regular event still needs an end time');

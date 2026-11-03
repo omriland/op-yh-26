@@ -783,3 +783,16 @@ exception
 end;
 $function$
 ;
+
+-- Repair: a shift-born event whose whole crew is done was completed through the
+-- shared report. Older status backfills (replayed by the edge-function deploy)
+-- knocked such events back to partial; put them back. Idempotent.
+update public.events e
+set status = 'done', updated_at = now()
+where e.origin = 'shift'
+  and e.status is distinct from 'done'
+  and exists (select 1 from public.event_responders er where er.event_id = e.id)
+  and not exists (
+    select 1 from public.event_responders er
+    where er.event_id = e.id and er.status is distinct from 'done'
+  );
