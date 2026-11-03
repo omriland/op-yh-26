@@ -28,6 +28,8 @@ Card with form-section heading `פרטי האירוע` sitting on its rule. Cont
 
 **Shift-born only:** ledger row `מספרי כלי רכב` on this event block (shared crew list) — vertical stack of Israeli plate marks + optional model · color captions; empty → `—`. Not repeated on כונן cards.
 
+**Shift-born events (`origin = 'shift'`):** אחמ״ש, מנהל and every crew member are handed the shared report `תיעוד אירוע ממשמרת` (`responder-fill.md`) instead of this page. Anyone else who reaches this page sees one stamp only — the header's `shiftBornFillStamp` — and no `לוחית רישוי`, `מד אוץ`, `קילומטרים`, `נתיב נסיעה`, per-card stamps, done-fraction or missing-time marks. This page never writes a geocode pin under the shared report.
+
 Missing values → `—` muted (per ledger spec). Draft events show the dotted fill-in line on missing required rows for the lead viewing their own draft.
 
 ### Responder cards (כוננים)
@@ -53,4 +55,5 @@ When the last open responder completes (or the viewer completes their own sectio
 
 - **Loading:** ledger-row skeletons in the event block + 2 card skeletons.
 - **Not found / no permission:** empty state `אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.` + secondary `חזרה לאירועים`. (RLS denials are explicit — never render an empty record.)
+- **Fill screens that fail to load** (per-responder fill, shared shift report): say so — `טעינת הדיווח נכשלה. בדקו את החיבור ונסו שוב.` / `טעינת האירוע נכשלה. בדקו את החיבור ונסו שוב.` — never the permission copy.
 - **Delete confirm (admin / owning אחמ״ש):** dialog `למחוק את האירוע 12345?`. With assigned volunteers, body `יש מתנדבים משובצים באירוע. הפעולה תמחק גם את הנתונים שלהם. האם למחוק? לא ניתן לשחזר.`; without assignments, `לא ניתן לשחזר את האירוע לאחר המחיקה.` — destructive `מחיקה` / secondary `ביטול`. Success toast `האירוע נמחק`. An אחמ״ש may delete only an event they created.
