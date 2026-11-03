@@ -151,6 +151,29 @@ describe('missingEventFields', () => {
   })
 })
 
+describe('shift-born events', () => {
+  const born = event({
+    origin: 'shift',
+    shift_lead_id: 'lead',
+    police_event_id: null,
+    patrol_callsign: null,
+    district: null,
+    started_at: null,
+    ended_at: null,
+    responders: [responder({ total_km: null })],
+  })
+
+  it('are never listed as missing lead fields the shared report has no input for', () => {
+    expect(missingEventFields(born)).toEqual(new Set())
+    expect(partitionIncompleteEventsForViewer([born], 'lead').incomplete).toEqual([])
+  })
+
+  it('never carry a lead-facing missing KM mark', () => {
+    expect(eventHasMissingResponderKm(born)).toBe(false)
+    expect(leadFacingMissingKm(born, 'lead')).toBe(false)
+  })
+})
+
 describe('missingFullyLoggedFieldLabels', () => {
   const lead = 'lead-1'
 
@@ -230,9 +253,10 @@ describe('incomplete lead notice when responders are held', () => {
       ),
     ).toEqual(['אוק - מס', 'לא נשלח למתנדבים'])
     expect(incompleteLeadNoticeLabels(event(), 'lead')).toEqual([])
+    // Shift-born: never held, and never chipped for fields the shared report lacks.
     expect(
       incompleteLeadNoticeLabels(event({ origin: 'shift', police_event_id: null }), 'lead'),
-    ).toEqual(['מספר אירוע'])
+    ).toEqual([])
   })
 })
 
