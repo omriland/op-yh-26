@@ -73,7 +73,7 @@ export function EventsTable({
   const skipOpenUntil = useRef(0)
 
   return (
-    <div className="table-wrap">
+    <div className="table-wrap table-wrap--events">
       <table className="table table--events">
         {caption ? <caption className="events-incomplete-heading">{caption}</caption> : null}
         <thead>
