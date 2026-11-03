@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  EVENT_DONE_NEEDS_END_ERROR,
-  EVENT_DONE_NEEDS_KM_ERROR,
-  eventMissingLeadDoneDetails,
-} from './eventStatus'
+import { eventMissingLeadDoneDetails } from './eventStatus'
 import {
   emptyShiftBornFillDraft,
   shiftBornCompleteErrors,
@@ -89,23 +85,12 @@ describe('shiftBornCompleteErrors', () => {
     expect(errors).toEqual({})
   })
 
-  it('blocks complete when the event has no end time', () => {
+  it('completes with no event end time and no per-responder KM', () => {
     const errors = shiftBornCompleteErrors(
       draft({ road_id: 'r1', location: 'x', treatment_detail: 'א'.repeat(40) }),
-      { ended_at: null, responders: [{ total_km: 12 }] },
+      { is_cancelled: false },
     )
-    expect(errors.form).toBe(EVENT_DONE_NEEDS_END_ERROR)
-  })
-
-  it('blocks complete when any assigned responder is missing lead KM', () => {
-    const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'x', treatment_detail: 'א'.repeat(40) }),
-      {
-        ended_at: '2026-09-10T09:00:00',
-        responders: [{ total_km: 12 }, { total_km: null }],
-      },
-    )
-    expect(errors.form).toBe(EVENT_DONE_NEEDS_KM_ERROR)
+    expect(errors).toEqual({})
   })
 })
 

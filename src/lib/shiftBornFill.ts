@@ -1,8 +1,4 @@
-import {
-  EVENT_DONE_NEEDS_END_ERROR,
-  EVENT_DONE_NEEDS_KM_ERROR,
-  eventDoneGateError,
-} from './eventStatus'
+import { EVENT_DONE_NEEDS_END_ERROR, EVENT_DONE_NEEDS_KM_ERROR } from './eventStatus'
 import {
   fetchEventLookups,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
@@ -10,7 +6,6 @@ import {
 } from './eventForm'
 import { fetchEventDetail, type EventDetail } from './events'
 import { policeEventIdForInput } from './format'
-import { responderKmApplicable, type KmBearingResponder } from './responderVehicle'
 import { refreshShiftLogStatus } from './shiftForm'
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import type { EventStatus } from './status'
@@ -37,7 +32,7 @@ export type ShiftBornFillContext = {
 }
 
 export type ShiftBornFillErrors = Partial<
-  Record<'road_id' | 'location' | 'treatment_detail' | 'form', string>
+  Record<'road_id' | 'location' | 'treatment_detail', string>
 >
 
 /**
@@ -47,12 +42,13 @@ export type ShiftBornFillErrors = Partial<
  * responder must fill in five fields could be completed empty from here. The bar is
  * the subset of the responder rule that a shift-born event can actually answer:
  * where it happened and what was done. Draft saves are never blocked.
+ *
+ * No end time and no KM: the shift carries the one odometer pair, and this record
+ * has no field for either, so asking for them would block completion for good.
  */
 export function shiftBornCompleteErrors(
   draft: ShiftBornFillDraft,
   event?: {
-    ended_at?: string | null
-    responders?: KmBearingResponder[]
     /** A cancelled event still needs a word on what happened, but not 40 characters. */
     is_cancelled?: boolean
   },
@@ -64,17 +60,6 @@ export function shiftBornCompleteErrors(
     if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש להזין פירוט טיפול'
   } else if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
     errors.treatment_detail = TREATMENT_DETAIL_MIN_ERROR
-  }
-  if (event) {
-    const gate = eventDoneGateError({
-      endedAt: event.ended_at,
-      // A ללא-רכב teammate has no KM to enter — do not block completion on it.
-      responders: (event.responders ?? []).map((row) => ({
-        total_km: row.total_km,
-        kmApplicable: responderKmApplicable(row),
-      })),
-    })
-    if (gate) errors.form = gate
   }
   return errors
 }

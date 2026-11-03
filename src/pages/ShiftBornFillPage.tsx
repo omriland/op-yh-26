@@ -299,13 +299,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   async function onComplete() {
     if (!draft) return
     const fieldErrors = shiftBornCompleteErrors(draft, {
-      ended_at: ctx?.event.ended_at,
-      responders: ctx?.event.responders,
       is_cancelled: ctx?.event.is_cancelled,
     })
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors)
-      show(fieldErrors.form ?? 'יש להשלים את השדות המסומנים כדי לסיים את הדיווח.', 'alert')
+      show('יש להשלים את השדות המסומנים כדי לסיים את הדיווח.', 'alert')
       setSubmitAttempt((n) => n + 1)
       return
     }
