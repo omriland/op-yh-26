@@ -19,6 +19,7 @@ import { LegacyEventReport } from './LegacyEventReport'
 import './LegacyEventReport.css'
 import { isoDateToDisplay } from '../../lib/format'
 import {
+  legacyReportFileName,
   searchByCallSign,
   searchLegacyReports,
   toDisplayDate,
@@ -71,6 +72,29 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (selectedFk && found && found.length > 1) reportRef.current?.scrollIntoView({ block: 'start' })
   }, [selectedFk, found])
+
+  // The browser names a saved PDF after document.title: name it for the open
+  // report while printing (button or Ctrl+P), then put the app title back.
+  const printTitle = selected ? legacyReportFileName(selected) : null
+  useEffect(() => {
+    if (!printTitle) return
+    let appTitle: string | null = null
+    const before = () => {
+      appTitle = document.title
+      document.title = printTitle
+    }
+    const after = () => {
+      if (appTitle !== null) document.title = appTitle
+      appTitle = null
+    }
+    window.addEventListener('beforeprint', before)
+    window.addEventListener('afterprint', after)
+    return () => {
+      after()
+      window.removeEventListener('beforeprint', before)
+      window.removeEventListener('afterprint', after)
+    }
+  }, [printTitle])
 
   function switchMode(m: Mode) {
     setMode(m)

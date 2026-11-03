@@ -556,7 +556,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearPasswordSetupIntent()
     setPasswordSetupReason(null)
     resetPosthogUser()
-    await supabase.auth.signOut()
+    // This device only. A global sign-out would also end the member's other
+    // devices (and the App Review reviewer's session on the shared demo account).
+    await supabase.auth.signOut({ scope: 'local' })
   }, [])
 
   const reloadProfile = useCallback(async () => {
