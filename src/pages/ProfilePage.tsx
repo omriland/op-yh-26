@@ -23,6 +23,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { LicensePlate } from '../components/ui/LicensePlate'
 import { Button } from '../components/ui/Button'
 import { AlertDialog } from '../components/ui/AlertDialog'
+import { DeleteAccountSection } from '../components/DeleteAccountSection'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
@@ -391,6 +392,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
         >
           התנתקות
         </Button>
+        <DeleteAccountSection />
       </div>
 
       <AlertDialog
