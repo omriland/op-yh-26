@@ -37,6 +37,16 @@ import {
   type EventMediaTakenWhen,
 } from '../../lib/eventMedia'
 import { formatDateTime, formatPlate } from '../../lib/format'
+import {
+  PLATE_SCAN_ADD,
+  PLATE_SCAN_ADDED,
+  PLATE_SCAN_DISMISS,
+  PLATE_SCAN_HINT,
+  PLATE_SCAN_TITLE,
+  addPlateSuggestions,
+  scanPlatesInMedia,
+  visiblePlateSuggestions,
+} from '../../lib/plateScan'
 import { OVERFLOW_MENU_GAP, OVERFLOW_MENU_MIN_WIDTH } from '../../lib/overflowMenuPlacement'
 import { treatedPlateCaption } from '../../lib/treatedPlates'
 import { useIsDesktop } from '../../lib/useMediaQuery'
@@ -59,6 +69,13 @@ export type EventMediaGalleryProps = {
   onUnfinishedChange?: (count: number) => void
   /** Increment to drop the last unfinished, not-yet-uploading photo. */
   dropUnfinishedTick?: number
+  /** Plates in the form being filled (saved or not). Suggestions skip these. */
+  formPlates?: readonly string[]
+  /**
+   * When set, each uploaded photo is scanned for plates and new ones are offered here.
+   * Returns an error message, or null when the plate was added to the form.
+   */
+  onAddScannedPlate?: (digits: string) => string | null
 }
 
 type MediaDraft = {
@@ -144,7 +161,11 @@ export function EventMediaGallery({
   error,
   onUnfinishedChange,
   dropUnfinishedTick = 0,
+  formPlates = [],
+  onAddScannedPlate,
 }: EventMediaGalleryProps) {
+  const [plateSuggestions, setPlateSuggestions] = useState<string[]>([])
+  const [dismissedPlates, setDismissedPlates] = useState<string[]>([])
   const uploadInputId = useId()
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const { show } = useToast()
@@ -260,6 +281,25 @@ export function EventMediaGallery({
     setDrafts((current) => current.filter((row) => row.key !== key))
     setItems((current) => [...current, result.media])
     show(draft.kind === 'video' ? EVENT_MEDIA_VIDEO_ADDED : EVENT_MEDIA_ADDED, 'done')
+    if (onAddScannedPlate && draft.kind === 'image') {
+      void scanPlatesInMedia(result.media.id).then((found) => {
+        if (found.length > 0) setPlateSuggestions((current) => addPlateSuggestions(current, found))
+      })
+    }
+  }
+
+  function addScannedPlate(digits: string) {
+    if (!onAddScannedPlate) return
+    const failure = onAddScannedPlate(digits)
+    if (failure) {
+      show(failure, 'alert')
+      return
+    }
+    show(PLATE_SCAN_ADDED, 'done')
+  }
+
+  function dismissScannedPlate(digits: string) {
+    setDismissedPlates((current) => [...current, digits])
   }
 
   function addFiles(files: File[]) {
@@ -436,6 +476,15 @@ export function EventMediaGallery({
 
   const viewerIsVideo = Boolean(viewer && isVideoMedia(viewer.mime_type))
 
+  const shownPlateSuggestions =
+    onAddScannedPlate && canWrite
+      ? visiblePlateSuggestions(plateSuggestions, {
+          eventPlates: plates.map((plate) => plate.plate_number),
+          formPlates,
+          dismissed: dismissedPlates,
+        })
+      : []
+
   return (
     <div
       className={dragging ? 'event-media event-media--dragging' : 'event-media'}
@@ -566,6 +615,34 @@ export function EventMediaGallery({
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {shownPlateSuggestions.length > 0 ? (
+        <section className="plate-scan" aria-live="polite">
+          <div className="plate-scan__head">
+            <h4 className="t-label">{PLATE_SCAN_TITLE}</h4>
+            <p className="t-caption text-muted">{PLATE_SCAN_HINT}</p>
+          </div>
+          <ul className="plate-scan__list">
+            {shownPlateSuggestions.map((digits) => (
+              <li key={digits} className="plate-scan__item">
+                <LicensePlate plate={formatPlate(digits)} size="sm" />
+                <div className="plate-scan__actions">
+                  <Button variant="secondary" onClick={() => addScannedPlate(digits)}>
+                    {PLATE_SCAN_ADD}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    aria-label={`${PLATE_SCAN_DISMISS}: ${formatPlate(digits)}`}
+                    onClick={() => dismissScannedPlate(digits)}
+                  >
+                    {PLATE_SCAN_DISMISS}
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
 
       {canWrite ? (

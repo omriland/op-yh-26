@@ -280,6 +280,17 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     enqueuePlateLookup(result.plate.plate_number)
   }
 
+  /** A plate read off a photo and confirmed by the user. Leaves the typed field alone. */
+  function onAddScannedPlate(digits: string): string | null {
+    if (!draft || readOnly) return null
+    const result = commitTreatedPlate(digits, draft.treated_plates)
+    if (!result.ok) return result.error
+    patchDraft({ treated_plates: result.plates })
+    setPlateError(undefined)
+    enqueuePlateLookup(result.plate.plate_number)
+    return null
+  }
+
   function onRemoveTreatedPlate(plateDigitsKey: string) {
     if (!draft || readOnly) return
     patchDraft({
@@ -500,6 +511,8 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               viewerId={user?.id ?? null}
               error={mediaError}
               dropUnfinishedTick={dropUnfinishedTick}
+              formPlates={draft.treated_plates.map((plate) => plate.plate_number)}
+              onAddScannedPlate={readOnly ? undefined : onAddScannedPlate}
               onUnfinishedChange={(count) => {
                 setUnfinishedMediaDrafts(count)
                 if (count === 0) setMediaError(undefined)
