@@ -32,6 +32,9 @@ on:
       - "supabase/migrations/20261101121000_admin_search_archive.sql"
       - "supabase/migrations/20261102120000_contacts_include_self_and_pending.sql"
       - "supabase/migrations/20261102121000_event_media_short_videos.sql"
+      - "supabase/migrations/20261103100000_shift_born_events_hardening.sql"
+      - "supabase/migrations/20261103101000_map_pins_require_vehicle.sql"
+      - "supabase/migrations/20261103110000_apply_event_status_service_role.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -141,6 +144,21 @@ jobs:
           # Must land before the frontend offers video uploads.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261102121000_event_media_short_videos.sql
+          # Keep these three LAST. The replays above restore older bodies of
+          # guard_event_done_requirements, derived_event_status,
+          # event_missing_lead_km, count_events_missing_lead_km,
+          # event_is_open_for_responder_edit, set_locked_event_lead_km, both
+          # partner-webhook triggers, list_unit_map_pins and
+          # apply_event_status_from_participations; these files put back the
+          # shift-born exemptions, the map's vehicle rule and the email-link
+          # status recompute. Without them every edge-function push silently
+          # undid those fixes (it did on 2026-11-03).
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261103100000_shift_born_events_hardening.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261103101000_map_pins_require_vehicle.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261103110000_apply_event_status_service_role.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
