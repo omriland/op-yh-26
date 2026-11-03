@@ -8,6 +8,7 @@ import {
   EVENT_MEDIA_VIDEO_MAX_BYTES,
   EVENT_MEDIA_VIDEO_TOO_LARGE,
   canAddMoreMedia,
+  canDeleteEventMedia,
   eventMediaKind,
   isVideoMedia,
   pickEventMediaFiles,
@@ -216,5 +217,23 @@ describe('mergeMediaPlates', () => {
       { id: 'a', plate_number: '12-345-67', model: 'REXTON', color: 'שחור', logo_slug: 'ssangyong' },
       { id: 'b', plate_number: '123-45-678', model: null, color: null, logo_slug: null },
     ])
+  })
+})
+
+describe('canDeleteEventMedia', () => {
+  it('lets the uploader delete while they may write', () => {
+    expect(canDeleteEventMedia(media({ uploaded_by: 'u1' }), 'u1', true)).toBe(true)
+  })
+
+  it('keeps media uploaded by someone else view-only', () => {
+    expect(canDeleteEventMedia(media({ uploaded_by: 'u2' }), 'u1', true)).toBe(false)
+  })
+
+  it('keeps the uploader view-only when the event is read-only', () => {
+    expect(canDeleteEventMedia(media({ uploaded_by: 'u1' }), 'u1', false)).toBe(false)
+  })
+
+  it('denies a signed-out viewer', () => {
+    expect(canDeleteEventMedia(media({ uploaded_by: 'u1' }), null, true)).toBe(false)
   })
 })

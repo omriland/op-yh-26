@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
-import { Camera, ImagePlus, Play } from 'lucide-react'
+import { ImagePlus, Play } from 'lucide-react'
 import { compressEventImage } from '../../lib/compressEventImage'
 import { heicToJpegFile, isHeicFile } from '../../lib/heicImage'
 import { eventMediaFileInputAttributes } from '../../lib/eventMediaFileInput'
@@ -18,6 +18,7 @@ import {
   EVENT_MEDIA_VIDEO_ADDED,
   EVENT_MEDIA_VIDEO_DELETED,
   canAddMoreMedia,
+  canDeleteEventMedia,
   captionError,
   deleteEventMedia,
   eventMediaKind,
@@ -36,12 +37,14 @@ import {
   type EventMediaTakenWhen,
 } from '../../lib/eventMedia'
 import { formatDateTime, formatPlate } from '../../lib/format'
+import { OVERFLOW_MENU_GAP, OVERFLOW_MENU_MIN_WIDTH } from '../../lib/overflowMenuPlacement'
 import { treatedPlateCaption } from '../../lib/treatedPlates'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 import { Button } from '../ui/Button'
 import { AlertDialog } from '../ui/AlertDialog'
 import { Dialog } from '../ui/Dialog'
 import { LicensePlate } from '../ui/LicensePlate'
+import { PointerContextMenu } from '../ui/PointerContextMenu'
 import { SelectField } from '../ui/SelectField'
 import { TextField } from '../ui/TextField'
 import { useToast } from '../ui/Toast'
@@ -143,9 +146,7 @@ export function EventMediaGallery({
   dropUnfinishedTick = 0,
 }: EventMediaGalleryProps) {
   const uploadInputId = useId()
-  const cameraInputId = useId()
   const uploadInputRef = useRef<HTMLInputElement>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
   const { show } = useToast()
   const isDesktop = useIsDesktop()
   const [dragging, setDragging] = useState(false)
@@ -162,6 +163,13 @@ export function EventMediaGallery({
   const [savingEdit, setSavingEdit] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteFromTile, setDeleteFromTile] = useState(false)
+  const [tileMenu, setTileMenu] = useState<{
+    item: EventMedia
+    tile: HTMLButtonElement
+    x: number
+    y: number
+  } | null>(null)
   const draftsRef = useRef(drafts)
   draftsRef.current = drafts
 
@@ -340,10 +348,38 @@ export function EventMediaGallery({
     setViewer(item)
     setEditing(false)
     setConfirmDelete(false)
+    setDeleteFromTile(false)
     setEditTakenWhen(item.taken_when)
     setEditPlateIds(item.treated_plate_ids)
     setEditCaption(item.caption ?? '')
     setEditError(undefined)
+  }
+
+  function openTile(item: EventMedia, tile: HTMLButtonElement) {
+    if (!canDeleteEventMedia(item, viewerId, canWrite)) {
+      openViewer(item)
+      return
+    }
+    // Anchor under the tile, flush with its inline-start (right) edge.
+    const rect = tile.getBoundingClientRect()
+    setTileMenu({
+      item,
+      tile,
+      x: rect.right - OVERFLOW_MENU_MIN_WIDTH,
+      y: rect.bottom + OVERFLOW_MENU_GAP,
+    })
+  }
+
+  function removeFromTile(item: EventMedia) {
+    openViewer(item)
+    setDeleteFromTile(true)
+    setConfirmDelete(true)
+  }
+
+  function cancelDelete() {
+    setConfirmDelete(false)
+    // From the tile menu, cancelling goes back to the grid, not into the viewer.
+    if (deleteFromTile) setViewer(null)
   }
 
   async function onSaveEdit() {
@@ -393,7 +429,7 @@ export function EventMediaGallery({
     show(isVideoMedia(viewer.mime_type) ? EVENT_MEDIA_VIDEO_DELETED : EVENT_MEDIA_DELETED, 'done')
   }
 
-  const ownViewer = Boolean(viewer && viewerId && viewer.uploaded_by === viewerId && canWrite)
+  const ownViewer = Boolean(viewer && canDeleteEventMedia(viewer, viewerId, canWrite))
   const linkedPlates = viewer
     ? plates.filter((plate) => viewer.treated_plate_ids.includes(plate.id))
     : []
@@ -432,12 +468,16 @@ export function EventMediaGallery({
       <MediaBand
         heading={EVENT_MEDIA_TAKEN_WHEN_LABEL.before_treatment}
         items={grouped.before}
-        onOpen={openViewer}
+        hasMenu={(item) => canDeleteEventMedia(item, viewerId, canWrite)}
+        menuOpenFor={tileMenu?.item.id ?? null}
+        onOpen={openTile}
       />
       <MediaBand
         heading={EVENT_MEDIA_TAKEN_WHEN_LABEL.during_after_treatment}
         items={grouped.during}
-        onOpen={openViewer}
+        hasMenu={(item) => canDeleteEventMedia(item, viewerId, canWrite)}
+        menuOpenFor={tileMenu?.item.id ?? null}
+        onOpen={openTile}
       />
 
       {drafts.length > 0 ? (
@@ -537,16 +577,7 @@ export function EventMediaGallery({
             type="file"
             disabled={!addEnabled}
             onChange={(event) => onPick(event.target.files, event.target)}
-            {...eventMediaFileInputAttributes('upload')}
-          />
-          <input
-            id={cameraInputId}
-            ref={cameraInputRef}
-            className="visually-hidden"
-            type="file"
-            disabled={!addEnabled}
-            onChange={(event) => onPick(event.target.files, event.target)}
-            {...eventMediaFileInputAttributes('camera')}
+            {...eventMediaFileInputAttributes}
           />
           <div className="event-media__add-actions">
             <Button
@@ -557,14 +588,6 @@ export function EventMediaGallery({
             >
               הוספת תמונות וסרטונים
             </Button>
-            <Button
-              variant="secondary"
-              disabled={!addEnabled}
-              icon={<Camera size={20} strokeWidth={1.75} />}
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              צילום תמונה
-            </Button>
           </div>
           {!addEnabled ? (
             <p className="field__hint">{EVENT_MEDIA_CAP_ERROR}</p>
@@ -573,6 +596,24 @@ export function EventMediaGallery({
           ) : null}
         </div>
       ) : null}
+
+      <PointerContextMenu
+        open={Boolean(tileMenu)}
+        pointer={tileMenu}
+        label={tileMenu && isVideoMedia(tileMenu.item.mime_type) ? 'פעולות לסרטון' : 'פעולות לתמונה'}
+        onClose={() => {
+          tileMenu?.tile.focus()
+          setTileMenu(null)
+        }}
+        items={
+          tileMenu
+            ? [
+                { label: 'צפייה', onSelect: () => openViewer(tileMenu.item) },
+                { label: 'הסרה', danger: true, onSelect: () => removeFromTile(tileMenu.item) },
+              ]
+            : []
+        }
+      />
 
       <Dialog
         open={Boolean(viewer) && !confirmDelete}
@@ -691,14 +732,14 @@ export function EventMediaGallery({
         title={viewerIsVideo ? 'למחוק את הסרטון?' : 'למחוק את התמונה?'}
         busy={deleting}
         onClose={() => {
-          if (!deleting) setConfirmDelete(false)
+          if (!deleting) cancelDelete()
         }}
         footer={
           <>
             <Button variant="destructive" loading={deleting} loadingLabel="מוחק…" onClick={() => void onDelete()}>
               מחיקה
             </Button>
-            <Button variant="secondary" disabled={deleting} onClick={() => setConfirmDelete(false)}>
+            <Button variant="secondary" disabled={deleting} onClick={cancelDelete}>
               ביטול
             </Button>
           </>
@@ -713,11 +754,15 @@ export function EventMediaGallery({
 function MediaBand({
   heading,
   items,
+  hasMenu,
+  menuOpenFor,
   onOpen,
 }: {
   heading: string
   items: EventMedia[]
-  onOpen: (item: EventMedia) => void
+  hasMenu: (item: EventMedia) => boolean
+  menuOpenFor: string | null
+  onOpen: (item: EventMedia, tile: HTMLButtonElement) => void
 }) {
   if (items.length === 0) return null
   return (
@@ -730,7 +775,9 @@ function MediaBand({
               type="button"
               className="event-media__thumb"
               aria-label={isVideoMedia(item.mime_type) ? `סרטון: ${item.caption ?? heading}` : undefined}
-              onClick={() => onOpen(item)}
+              aria-haspopup={hasMenu(item) ? 'menu' : undefined}
+              aria-expanded={hasMenu(item) ? menuOpenFor === item.id : undefined}
+              onClick={(event) => onOpen(item, event.currentTarget)}
             >
               {item.signed_url && isVideoMedia(item.mime_type) ? (
                 <>

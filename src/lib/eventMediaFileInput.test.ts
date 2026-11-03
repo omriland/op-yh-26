@@ -2,17 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { eventMediaFileInputAttributes } from './eventMediaFileInput'
 
 describe('eventMediaFileInputAttributes', () => {
-  it('keeps the upload input free of capture', () => {
-    const upload = eventMediaFileInputAttributes('upload')
-    expect(upload.accept).toBe('image/*,.heic,.heif,video/mp4,video/quicktime,video/webm')
-    expect(upload.multiple).toBe(true)
-    expect(upload.capture).toBeUndefined()
+  it('accepts photos, HEIC and short videos, several at once', () => {
+    expect(eventMediaFileInputAttributes.accept).toBe(
+      'image/*,.heic,.heif,video/mp4,video/quicktime,video/webm',
+    )
+    expect(eventMediaFileInputAttributes.multiple).toBe(true)
   })
 
-  it('sets capture on the camera input', () => {
-    const camera = eventMediaFileInputAttributes('camera')
-    expect(camera.accept).toBe('image/*')
-    expect(camera.capture).toBe('environment')
-    expect(camera.multiple).toBeUndefined()
+  it('has no capture, so the phone picker offers camera and gallery', () => {
+    expect('capture' in eventMediaFileInputAttributes).toBe(false)
   })
 })

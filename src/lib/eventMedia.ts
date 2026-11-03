@@ -107,6 +107,15 @@ export function canAddMoreMedia(savedCount: number, inFlightCount: number): bool
   return slotsRemaining(savedCount, inFlightCount) > 0
 }
 
+/** Mirrors the event_media_delete RLS policy: only the uploader, while they may write. */
+export function canDeleteEventMedia(
+  item: Pick<EventMedia, 'uploaded_by'>,
+  viewerId: string | null,
+  canWrite: boolean,
+): boolean {
+  return canWrite && Boolean(viewerId) && item.uploaded_by === viewerId
+}
+
 export function groupMediaByTakenWhen(items: readonly EventMedia[]): {
   before: EventMedia[]
   during: EventMedia[]
