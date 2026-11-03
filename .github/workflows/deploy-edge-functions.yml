@@ -164,7 +164,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          for fn in admin-users phone-otp send-email smart-search unit-broadcast user-feedback; do
+          for fn in admin-users phone-otp plate-scan send-email smart-search unit-broadcast user-feedback; do
             echo "Deploying $fn"
             supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns
           done

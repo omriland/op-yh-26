@@ -396,6 +396,17 @@ export function ResponderFillPage({
     enqueuePlateLookup(result.plate.plate_number)
   }
 
+  /** A plate read off a photo and confirmed by the responder. Leaves the typed field alone. */
+  function onAddScannedPlate(digits: string): string | null {
+    if (!draft || readOnly) return null
+    const result = commitTreatedPlate(digits, draft.treated_plates)
+    if (!result.ok) return result.error
+    patchDraft({ treated_plates: result.plates })
+    setErrors((current) => ({ ...current, treated_plates: undefined }))
+    enqueuePlateLookup(result.plate.plate_number)
+    return null
+  }
+
   function onRemoveTreatedPlate(plateDigitsKey: string) {
     if (!draft || readOnly) return
     patchDraft({
@@ -811,6 +822,8 @@ export function ResponderFillPage({
                     error={errors.event_media}
                     onUnfinishedChange={setUnfinishedMediaDrafts}
                     dropUnfinishedTick={dropUnfinishedTick}
+                    formPlates={draft.treated_plates.map((plate) => plate.plate_number)}
+                    onAddScannedPlate={onAddScannedPlate}
                   />
                 )}
                 <TextAreaField
