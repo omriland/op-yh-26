@@ -5,6 +5,8 @@ import {
   emptyShiftBornFillDraft,
   shiftBornCompleteErrors,
   shiftBornFillErrorMessage,
+  bornRowsToSave,
+  shiftBornEventFillRowsFrom,
   type ShiftBornFillDraft,
 } from './shiftBornFill'
 
@@ -111,6 +113,32 @@ describe('shiftBornFillErrorMessage', () => {
     expect(shiftBornFillErrorMessage(undefined)).toBe(
       'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
     )
+  })
+})
+
+describe('bornRowsToSave', () => {
+  const [row] = shiftBornEventFillRowsFrom([
+    {
+      id: 'ev-1',
+      status: 'in_progress',
+      police_event_id: null,
+      treatment_detail: 'נשמר',
+      treatment_notes: null,
+      updated_at: 't1',
+      event_type: { name: 'פנצ׳ר' },
+      treated: [],
+      treated_plates: [{ plate_number: '1234567', sort_order: 0 }],
+    },
+  ])
+
+  it('keeps the loaded plates on the row, so saving it does not wipe them', () => {
+    expect(row.draft.treated_plates.map((plate) => plate.plate_number)).toEqual(['1234567'])
+  })
+
+  it('saves only the rows edited since the last load or save', () => {
+    expect(bornRowsToSave([row])).toEqual([])
+    const edited = { ...row, id: 'ev-2', draft: { ...row.draft, location: 'מחלף שורק' } }
+    expect(bornRowsToSave([row, edited])).toEqual([edited])
   })
 })
 

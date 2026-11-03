@@ -62,6 +62,16 @@ export type ShiftBornEventSummary = {
   }[]
   updated_at?: string
   treated: { id?: string; vehicle_kind_id?: string; quantity?: number }[]
+  /** Shift detail only: the shift form re-sends these, and the save RPC replaces them. */
+  treated_plates?: {
+    plate_number: string | null
+    model: string | null
+    color: string | null
+    left_where: string | null
+    manufacturer: string | null
+    logo_slug: string | null
+    sort_order: number | null
+  }[]
 }
 
 export type ShiftListItem = {
@@ -347,7 +357,8 @@ const SHIFT_DETAIL_SELECT = `
     responders:event_responders(${RESPONDER_FREEZE_FIELDS} responder_id),
     event_type:event_types(name),
     last_saved:profiles!events_last_saved_by_fkey(full_name),
-    treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(vehicle_kind_id, quantity)
+    treated:event_treated_vehicles!event_treated_vehicles_event_id_fkey(vehicle_kind_id, quantity),
+    treated_plates:event_treated_plates!event_treated_plates_event_id_fkey(plate_number, model, color, left_where, manufacturer, logo_slug, sort_order)
   ),
   responders:shift_responders(
     id,

@@ -87,6 +87,13 @@ export type ShiftBornEventFillRow = {
   status: EventStatus
   expected_updated_at: string
   draft: ShiftBornFillDraft
+  /** The server copy as of the last load or save; `draft` differs only after an edit. */
+  saved: ShiftBornFillDraft
+}
+
+/** Inline rows the user edited. Saving an untouched row would collide with teammates. */
+export function bornRowsToSave(rows: ShiftBornEventFillRow[]): ShiftBornEventFillRow[] {
+  return rows.filter((row) => JSON.stringify(row.draft) !== JSON.stringify(row.saved))
 }
 
 export function shiftBornEventFillRowsFrom(
@@ -114,24 +121,26 @@ export function shiftBornEventFillRowsFrom(
 ): ShiftBornEventFillRow[] {
   return events.flatMap((event) => {
     if (!event.updated_at) return []
+    const draft: ShiftBornFillDraft = {
+      police_event_id: event.police_event_id ?? '',
+      treatment_detail: event.treatment_detail ?? '',
+      treatment_notes: event.treatment_notes ?? '',
+      road_id: event.road_id ?? '',
+      location: event.location ?? '',
+      treated: event.treated.flatMap((row) => {
+        if (!row.vehicle_kind_id || !row.quantity || row.quantity <= 0) return []
+        return [{ vehicle_kind_id: row.vehicle_kind_id, quantity: row.quantity }]
+      }),
+      treated_plates: mapTreatedPlateRows(event.treated_plates),
+    }
     return [
       {
         id: event.id,
         typeName: event.event_type?.name ?? 'אירוע',
         status: event.status,
         expected_updated_at: event.updated_at,
-        draft: {
-          police_event_id: event.police_event_id ?? '',
-          treatment_detail: event.treatment_detail ?? '',
-          treatment_notes: event.treatment_notes ?? '',
-          road_id: event.road_id ?? '',
-          location: event.location ?? '',
-          treated: event.treated.flatMap((row) => {
-            if (!row.vehicle_kind_id || !row.quantity || row.quantity <= 0) return []
-            return [{ vehicle_kind_id: row.vehicle_kind_id, quantity: row.quantity }]
-          }),
-          treated_plates: mapTreatedPlateRows(event.treated_plates),
-        },
+        draft,
+        saved: draft,
       },
     ]
   })

@@ -1,9 +1,15 @@
 import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import { ODOMETER_ORDER_ERROR } from './odometer'
 import { supabase } from './supabase'
+import type { ShiftBornEventFillRow, ShiftBornFillDraft } from './shiftBornFill'
 import { deriveShiftLogStatus, eventToLogSnapshot } from './shiftLogStatus'
 import type { EventStatus, ShiftStatus } from './status'
-import type { ShiftKind, ShiftVehicleType } from './shifts'
+import {
+  isShiftFuture,
+  SHIFT_TOO_EARLY_MESSAGE,
+  type ShiftKind,
+  type ShiftVehicleType,
+} from './shifts'
 
 export type ShiftFormDraft = {
   id?: string
@@ -77,6 +83,71 @@ export function suggestRollupsFromLinkedEvents(input: {
       count,
     })),
     cancelled_count,
+  }
+}
+
+/**
+ * Device copy of the shift form. Each part keeps the server version it was typed
+ * over, so a restore can tell whether a teammate saved since.
+ */
+export type ShiftFormStash = ShiftFormDraft & {
+  /** Inline shift-born rows edited here and not saved yet. */
+  born_drafts?: { id: string; base_updated_at: string; draft: ShiftBornFillDraft }[]
+}
+
+export function shiftFormStashFrom(
+  draft: ShiftFormDraft,
+  bornRows: ShiftBornEventFillRow[],
+): ShiftFormStash {
+  return {
+    ...draft,
+    born_drafts: bornRows
+      .filter((row) => JSON.stringify(row.draft) !== JSON.stringify(row.saved))
+      .map((row) => ({ id: row.id, base_updated_at: row.expected_updated_at, draft: row.draft })),
+  }
+}
+
+/**
+ * Put device-only edits back on top of what the server has now. The result always
+ * carries the server's tokens: keeping the stashed one would refuse every save as
+ * stale, forever. `serverMovedOn` says a teammate saved after the edits were typed,
+ * so the screen can say so instead of overwriting them silently.
+ */
+export function resolveShiftFormStash(
+  server: { draft: ShiftFormDraft; bornRows: ShiftBornEventFillRow[] },
+  stashed: ShiftFormStash | null,
+): {
+  draft: ShiftFormDraft
+  bornRows: ShiftBornEventFillRow[]
+  restored: boolean
+  serverMovedOn: boolean
+} {
+  const unchanged = { ...server, restored: false, serverMovedOn: false }
+  if (!stashed) return unchanged
+  const { born_drafts: bornDrafts = [], ...stashedDraft } = stashed
+  const draft: ShiftFormDraft = {
+    ...stashedDraft,
+    id: server.draft.id,
+    status: server.draft.status,
+    expected_updated_at: server.draft.expected_updated_at,
+  }
+  let bornMovedOn = false
+  let bornRestored = false
+  const bornRows = server.bornRows.map((row) => {
+    const typed = bornDrafts.find((item) => item.id === row.id)
+    if (!typed || JSON.stringify(typed.draft) === JSON.stringify(row.draft)) return row
+    bornRestored = true
+    if (typed.base_updated_at !== row.expected_updated_at) bornMovedOn = true
+    return { ...row, draft: typed.draft }
+  })
+  if (!bornRestored && JSON.stringify(draft) === JSON.stringify(server.draft)) return unchanged
+  return {
+    draft,
+    bornRows,
+    restored: true,
+    serverMovedOn:
+      bornMovedOn ||
+      (stashed.expected_updated_at ?? null) !== (server.draft.expected_updated_at ?? null),
   }
 }
 
@@ -168,7 +239,16 @@ async function verifyPersonalVehicle(draft: ShiftFormDraft): Promise<string | nu
     return 'הרכב הפרטי חייב להיות של מתנדב משובץ למשמרת'
   }
   if (data.archived) {
-    return 'לא ניתן לשייך רכב בארכיון למשמרת חדשה'
+    // A vehicle archived after the shift was logged stays on that shift's record.
+    if (draft.id) {
+      const { data: shift } = await supabase
+        .from('shifts')
+        .select('personal_vehicle_id')
+        .eq('id', draft.id)
+        .maybeSingle()
+      if (shift?.personal_vehicle_id === draft.personal_vehicle_id) return null
+    }
+    return 'לא ניתן לשייך רכב בארכיון למשמרת. יש לבחור לוחית אחרת.'
   }
   return null
 }
@@ -283,6 +363,8 @@ async function syncEventTypeCounts(
 }
 
 const SHIFT_IDENTITY_FORBIDDEN = 'אין הרשאה לשנות פרטי משמרת'
+/** sync_shift_born_events: a lead lowering a count on another lead's shift. */
+const SHIFT_BORN_DELETE_FORBIDDEN = 'אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.'
 
 export type ShiftUpdatePayload = {
   shift_date?: string
@@ -331,6 +413,9 @@ function mapShiftUpdateError(error: { message?: string }): string {
   }
   if (error.message?.includes(COUNT_DECREASE_BLOCKED)) {
     return COUNT_DECREASE_BLOCKED
+  }
+  if (error.message?.includes(SHIFT_BORN_DELETE_FORBIDDEN)) {
+    return SHIFT_BORN_DELETE_FORBIDDEN
   }
   return 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
 }
@@ -385,7 +470,16 @@ export async function saveShiftForm(
   },
 ): Promise<
   | { ok: true; shiftId: string; status: ShiftStatus }
-  | { ok: false; error: string; fieldErrors?: ShiftSaveError[] }
+  | {
+      ok: false
+      error: string
+      fieldErrors?: ShiftSaveError[]
+      /**
+       * Set when the shift row itself was written before a later step failed.
+       * The caller must adopt it, or every retry is refused as stale.
+       */
+      saved?: { shiftId: string; updated_at: string }
+    }
 > {
   const fieldErrors = validateShiftSave(draft)
   if (fieldErrors.length > 0) {
@@ -399,6 +493,12 @@ export async function saveShiftForm(
   }
 
   const canEditIdentity = options?.canEditIdentity ?? true
+
+  // Crew may write a shift only from its date on; the server answers a refusal
+  // with zero rows, which must not read as someone else's save.
+  if (!canEditIdentity && isShiftFuture(draft.shift_date)) {
+    return { ok: false, error: SHIFT_TOO_EARLY_MESSAGE }
+  }
 
   if (canEditIdentity) {
     const personalVehicleError = await verifyPersonalVehicle(draft)
@@ -415,6 +515,7 @@ export async function saveShiftForm(
   }
 
   let shiftId = draft.id
+  let written: { shiftId: string; updated_at: string }
   const syncResponders = options?.syncResponders ?? true
 
   if (shiftId) {
@@ -426,13 +527,25 @@ export async function saveShiftForm(
     if (draft.expected_updated_at) {
       query = query.eq('updated_at', draft.expected_updated_at)
     }
-    const { data, error } = await query.select('id').maybeSingle()
+    const { data, error } = await query.select('id, updated_at').maybeSingle()
     if (error) {
       return { ok: false, error: mapShiftUpdateError(error) }
     }
     if (!data) {
+      if (!canEditIdentity) {
+        // A lead may have moved the shift ahead while this form was open.
+        const { data: current } = await supabase
+          .from('shifts')
+          .select('shift_date')
+          .eq('id', shiftId)
+          .maybeSingle()
+        if (current?.shift_date && isShiftFuture(current.shift_date as string)) {
+          return { ok: false, error: SHIFT_TOO_EARLY_MESSAGE }
+        }
+      }
       return { ok: false, error: STALE_SAVE_MESSAGE }
     }
+    written = { shiftId, updated_at: data.updated_at as string }
   } else {
     const shiftPayload = {
       ...buildShiftUpdatePayload(draft, { canEditIdentity: true }),
@@ -441,28 +554,29 @@ export async function saveShiftForm(
     const { data, error } = await supabase
       .from('shifts')
       .insert({ ...shiftPayload, shift_lead_id: shiftLeadId, status: 'in_progress' })
-      .select('id')
+      .select('id, updated_at')
       .single()
 
     if (error || !data) {
       return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
     }
     shiftId = data.id as string
+    written = { shiftId, updated_at: data.updated_at as string }
   }
 
   if (syncResponders) {
     const respondersSync = await syncShiftResponders(shiftId, draft.responder_ids)
-    if (!respondersSync.ok) return respondersSync
+    if (!respondersSync.ok) return { ...respondersSync, saved: written }
   }
 
   const typeCountsSync = await syncEventTypeCounts(shiftId, draft.event_type_counts)
-  if (!typeCountsSync.ok) return typeCountsSync
+  if (!typeCountsSync.ok) return { ...typeCountsSync, saved: written }
 
   const { error: syncError } = await supabase.rpc('sync_shift_born_events', {
     p_shift_id: shiftId,
   })
   if (syncError) {
-    return { ok: false, error: mapShiftUpdateError(syncError) }
+    return { ok: false, error: mapShiftUpdateError(syncError), saved: written }
   }
 
   const status = (await refreshShiftLogStatus(shiftId)) ?? 'in_progress'
