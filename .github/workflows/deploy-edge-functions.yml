@@ -26,6 +26,7 @@ on:
       - "supabase/migrations/20261029190000_prelaunch_native_block.sql"
       - "supabase/migrations/20261029200000_vehicles_member_write_error.sql"
       - "supabase/migrations/20261030120000_legacy_event_archive.sql"
+      - "supabase/migrations/20261103180000_account_deletion.sql"
       - "supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql"
       - "supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql"
       - "supabase/migrations/20261101120000_admin_smart_search.sql"
@@ -159,12 +160,17 @@ jobs:
             -f supabase/migrations/20261103101000_map_pins_require_vehicle.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261103110000_apply_event_status_service_role.sql
+          # Self-service account deletion (App Store 5.1.1(v)). Independent of the
+          # replays above; must land before delete-account and admin-users, which
+          # call delete_user_account and write impersonation_audit.session_id.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261103180000_account_deletion.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          for fn in admin-users phone-otp send-email smart-search unit-broadcast user-feedback; do
+          for fn in admin-users delete-account phone-otp send-email smart-search unit-broadcast user-feedback; do
             echo "Deploying $fn"
             supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns
           done

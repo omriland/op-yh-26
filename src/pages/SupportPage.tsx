@@ -83,7 +83,7 @@ export function SupportPage({ onBack }: SupportPageProps) {
             <a href={PRIVACY_PATH}>מדיניות פרטיות</a>
           </li>
           <li className="t-body">
-            <a href={DELETE_DATA_PATH}>בקשת מחיקת נתונים</a>
+            <a href={DELETE_DATA_PATH}>מחיקת חשבון ונתונים</a>
           </li>
         </ul>
       </section>
