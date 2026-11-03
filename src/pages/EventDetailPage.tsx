@@ -143,7 +143,10 @@ export function EventDetailPage({
   }, [eventId])
 
   useEffect(() => {
-    if (state !== 'ready' || !event || event.id !== eventId || geocodeCoords) return
+    // The shared report saves this row; a pin write here would make its first save stale.
+    if (state !== 'ready' || !event || event.id !== eventId || geocodeCoords || shiftBornHandover) {
+      return
+    }
     const placesAssisted =
       isUrbanRoadName(event.road?.name) ||
       event.district?.name === SYSTEM_DISTRICT_NAMES.station_other_duplicated
@@ -186,7 +189,7 @@ export function EventDetailPage({
     return () => {
       active = false
     }
-  }, [canEdit, event, eventId, geocodeCoords, state])
+  }, [canEdit, event, eventId, geocodeCoords, shiftBornHandover, state])
 
   const backButton = (
     <div className="detail__back">
@@ -260,8 +263,9 @@ export function EventDetailPage({
   const managesEvent = viewerManagesEvent({ isEventLead: eventLead, isAdmin })
   const showLeadKm = responderCardShowsLeadKm({ hasLeadRole: canSeeLeadKm })
   const missingLeadFields = missingEventFields(event)
-  const missingLeadStart = !event.started_at?.trim()
-  const missingLeadEnd = !event.ended_at?.trim()
+  // A shift-born event has no times of its own; the shift carries them.
+  const missingLeadStart = event.origin !== 'shift' && !event.started_at?.trim()
+  const missingLeadEnd = event.origin !== 'shift' && !event.ended_at?.trim()
   const missingLeadDetails =
     event.origin !== 'shift' && eventMissingLeadDoneDetails(event.ended_at)
   const mineLeadKmNote = leadKmPendingNote(mine, mineKm, event.origin, missingLeadDetails)
@@ -523,12 +527,14 @@ export function EventDetailPage({
         <section className="stack-4">
           <div className="row-between">
             <h2 className="t-section">מתנדבים ({event.responders.length})</h2>
-            <p className="t-caption text-muted">
-              <span className="mono">
-                {doneCount}/{event.responders.length}
-              </span>{' '}
-              הושלמו
-            </p>
+            {event.origin === 'shift' ? null : (
+              <p className="t-caption text-muted">
+                <span className="mono">
+                  {doneCount}/{event.responders.length}
+                </span>{' '}
+                הושלמו
+              </p>
+            )}
           </div>
 
           {eventLead && !eventReleasedFromEvent(event) ? (
@@ -653,12 +659,11 @@ function ResponderCard({
     .map((row) => `${row.kind?.name ?? 'רכב'} × ${row.quantity}`)
     .join(', ')
   const bodyId = `responder-card-${responder.id}`
-  const viewerStampValue =
-    origin === 'shift'
-      ? participationStamp(responder.status, true)
-      : mineParticipationStamp(responder.status, responder.total_km, {
-          missingLeadDetails,
-        })
+  const viewerStampValue = mineParticipationStamp(responder.status, responder.total_km, {
+    missingLeadDetails,
+  })
+  // The shift carries the one odometer pair; its events never show plate, KM or route.
+  const perResponderVehicle = origin !== 'shift'
 
   return (
     <article className={['card', open ? 'stack-3' : ''].join(' ')}>
@@ -681,14 +686,17 @@ function ResponderCard({
               </span>
             </span>
           </span>
-          <StampWithNote
-            {...(isViewer ? viewerStampValue : participationStamp(responder.status, false))}
-            note={
-              isViewer
-                ? leadKmPendingNote(responder.status, responder.total_km, origin, missingLeadDetails)
-                : null
-            }
-          />
+          {/* Shift-born: the header carries the shared report's stamp, nothing per person. */}
+          {origin === 'shift' ? null : (
+            <StampWithNote
+              {...(isViewer ? viewerStampValue : participationStamp(responder.status, false))}
+              note={
+                isViewer
+                  ? leadKmPendingNote(responder.status, responder.total_km, origin, missingLeadDetails)
+                  : null
+              }
+            />
+          )}
           <ChevronDown
             size={20}
             strokeWidth={1.75}
@@ -703,7 +711,7 @@ function ResponderCard({
       {open ? (
         <div id={bodyId} className="responder-card__body stack-3">
           <Ledger>
-            {showLeadKm ? (
+            {showLeadKm && perResponderVehicle ? (
               <LedgerRow
                 label={LEAD_KM_VIEW_LABEL}
                 value={
@@ -728,13 +736,15 @@ function ResponderCard({
                 }
               />
             ) : null}
-            <LedgerRow
-              label="לוחית רישוי"
-              value={responder.vehicle_plate ? formatPlate(responder.vehicle_plate) : undefined}
-              numeric
-              isolate
-            />
-            {showOdometers ? (
+            {perResponderVehicle ? (
+              <LedgerRow
+                label="לוחית רישוי"
+                value={responder.vehicle_plate ? formatPlate(responder.vehicle_plate) : undefined}
+                numeric
+                isolate
+              />
+            ) : null}
+            {showOdometers && perResponderVehicle ? (
               <>
                 <LedgerRow
                   label='מד אוץ התחלה'
@@ -748,7 +758,9 @@ function ResponderCard({
                 />
               </>
             ) : null}
-            <LedgerRow label="נתיב נסיעה" value={responder.route ?? undefined} />
+            {perResponderVehicle ? (
+              <LedgerRow label="נתיב נסיעה" value={responder.route ?? undefined} />
+            ) : null}
           </Ledger>
 
           {responder.treatment_detail ? (
