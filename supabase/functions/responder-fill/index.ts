@@ -291,6 +291,18 @@ async function findAssignmentByToken(
   return data as AssignmentRow;
 }
 
+const SHIFT_BORN_MESSAGE = "אירוע ממשמרת מתועד בדוח המשמרת המשותף.";
+
+/** Shift-born events are documented once for the crew, never through a per-responder link. */
+function shiftBornResponse(eventId: string) {
+  return json(400, { error: SHIFT_BORN_MESSAGE, code: "shift_born", event_id: eventId });
+}
+
+async function isShiftBornEvent(adminClient: SupabaseClient, eventId: string): Promise<boolean> {
+  const { data } = await adminClient.from("events").select("origin").eq("id", eventId).maybeSingle();
+  return (data as { origin?: string } | null)?.origin === "shift";
+}
+
 async function handleLoadByToken(adminClient: SupabaseClient, body: LoadBody) {
   const fillToken = trim(body.fill_token);
   if (!fillToken) {
@@ -303,6 +315,10 @@ async function handleLoadByToken(adminClient: SupabaseClient, body: LoadBody) {
   }
   if (await isPrelaunchBlocked(adminClient, assignment.responder_id)) {
     return json(403, { error: PRELAUNCH_BLOCKED_MESSAGE, code: "prelaunch" });
+  }
+
+  if (await isShiftBornEvent(adminClient, assignment.event_id)) {
+    return shiftBornResponse(assignment.event_id);
   }
 
   // Opening or refreshing the same email link must keep working — do not
@@ -473,12 +489,15 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
 
   const { data: event } = await adminClient
     .from("events")
-    .select("id, status, is_cancelled")
+    .select("id, status, is_cancelled, origin")
     .eq("id", assignment.event_id)
     .maybeSingle();
 
   if (!event) {
     return json(400, { error: "האירוע לא נמצא.", code: "gone", event_id: assignment.event_id });
+  }
+  if (event.origin === "shift") {
+    return shiftBornResponse(assignment.event_id);
   }
 
   if (assignment.status === "done") {
@@ -698,7 +717,7 @@ async function handleNotifyFillReady(
     .from("event_responders")
     .select(
       `id, event_id, responder_id, total_km, status, fill_token_hash, fill_token_expires_at, fill_ready_emailed_at,
-       event:events!inner(id, is_cancelled, event_date, status,
+       event:events!inner(id, is_cancelled, event_date, status, origin,
          event_type:event_types(name),
          road:roads(name)
        ),
@@ -734,6 +753,7 @@ async function handleNotifyFillReady(
         is_cancelled: boolean;
         event_date: string;
         status: string;
+        origin: string | null;
         event_type: { name: string } | null;
         road: { name: string } | null;
       };
@@ -755,6 +775,10 @@ async function handleNotifyFillReady(
     }
     if (assignment.event?.is_cancelled) {
       skipped.push({ id: assignment.id, reason: "cancelled" });
+      continue;
+    }
+    if (assignment.event?.origin === "shift") {
+      skipped.push({ id: assignment.id, reason: "shift_born" });
       continue;
     }
     if (!assignment.profile || assignment.profile.active !== true) {
@@ -928,7 +952,7 @@ async function handleNotifyOverdueFills(
     .select(
       `id, responder_id, status, fill_completable_at, overdue_48h_emailed_at, overdue_7d_emailed_at,
        fill_token_hash, fill_token_expires_at,
-       event:events!inner(id, is_cancelled, event_date,
+       event:events!inner(id, is_cancelled, event_date, origin,
          event_type:event_types(name),
          road:roads(name)
        ),
@@ -959,6 +983,7 @@ async function handleNotifyOverdueFills(
         id: string;
         is_cancelled: boolean;
         event_date: string;
+        origin: string | null;
         event_type: { name: string } | null;
         road: { name: string } | null;
       };
@@ -976,6 +1001,10 @@ async function handleNotifyOverdueFills(
     }
     if (assignment.event?.is_cancelled) {
       skipped.push({ id: assignment.id, reason: "cancelled" });
+      continue;
+    }
+    if (assignment.event?.origin === "shift") {
+      skipped.push({ id: assignment.id, reason: "shift_born" });
       continue;
     }
     if (!assignment.profile || assignment.profile.active !== true) {
