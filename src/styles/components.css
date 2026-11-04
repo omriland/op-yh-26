@@ -8370,50 +8370,6 @@ html[data-keyboard-open] .event-form__footer {
   transform: translateY(0);
 }
 
-.feedback-fab__menu {
-  position: absolute;
-  z-index: 1;
-  inset-block-end: calc(100% + var(--space-2));
-  inset-inline-end: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  width: max-content;
-  max-width: calc(100vw - var(--space-4) * 2);
-  padding: var(--space-1);
-  border: 1px solid var(--stroke-hairline);
-  border-radius: var(--radius-md);
-  background: var(--surface-overlay);
-  box-shadow: var(--shadow-overlay);
-  pointer-events: auto;
-}
-
-.feedback-fab__option {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-primary);
-  font: 600 16px/24px var(--font-ui);
-  text-align: start;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.feedback-fab__option:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-@media (hover: hover) {
-  .feedback-fab__option:hover {
-    background: var(--accent-subtle);
-  }
-}
-
 .feedback-form {
   display: flex;
   flex-direction: column;

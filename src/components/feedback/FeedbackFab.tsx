@@ -11,9 +11,6 @@ import {
 } from '../../lib/feedbackRecorder'
 import {
   SUPPORT_FAB_LABEL,
-  SUPPORT_FEEDBACK_MENU_LABEL,
-  SUPPORT_WHATSAPP_HREF,
-  SUPPORT_WHATSAPP_MENU_LABEL,
 } from '../../lib/supportWhatsapp'
 import {
   FEEDBACK_ATTACH_HINT,
@@ -34,9 +31,7 @@ type FeedbackFabProps = {
 
 export function FeedbackFab({ pagePath }: FeedbackFabProps) {
   const { show } = useToast()
-  const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [hiddenUntilRefresh, setHiddenUntilRefresh] = useState(false)
   const [kind, setKind] = useState<FeedbackKind | null>(null)
   const [body, setBody] = useState('')
@@ -59,22 +54,6 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
       if (audioUrl) URL.revokeObjectURL(audioUrl)
     }
   }, [audioUrl])
-
-  useEffect(() => {
-    if (!menuOpen) return
-    function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setMenuOpen(false)
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
 
   useEffect(() => {
     if (!recording) return
@@ -194,46 +173,20 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
   return (
     <>
       {open || hiddenUntilRefresh ? null : (
-        <div className="feedback-fab" ref={rootRef}>
+        <div className="feedback-fab">
           <IconButton
             className="feedback-fab__btn"
             variant="primary"
             label={SUPPORT_FAB_LABEL}
             title={SUPPORT_FAB_LABEL}
-            aria-expanded={menuOpen}
-            aria-controls={menuOpen ? 'support-choices' : undefined}
-            aria-haspopup="true"
-            onClick={() => setMenuOpen((current) => !current)}
+            aria-haspopup="dialog"
+            onClick={() => setOpen(true)}
           >
             <MessageSquarePlus size={20} strokeWidth={1.75} aria-hidden="true" />
           </IconButton>
-          {menuOpen ? (
-            <div className="feedback-fab__menu" id="support-choices" aria-label={SUPPORT_FAB_LABEL}>
-              <a
-                className="feedback-fab__option"
-                href={SUPPORT_WHATSAPP_HREF}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setMenuOpen(false)}
-              >
-                {SUPPORT_WHATSAPP_MENU_LABEL}
-              </a>
-              <button
-                type="button"
-                className="feedback-fab__option"
-                onClick={() => {
-                  setMenuOpen(false)
-                  setOpen(true)
-                }}
-              >
-                {SUPPORT_FEEDBACK_MENU_LABEL}
-              </button>
-            </div>
-          ) : (
-            <span className="feedback-fab__tooltip" role="tooltip" aria-hidden="true">
-              {SUPPORT_FAB_LABEL}
-            </span>
-          )}
+          <span className="feedback-fab__tooltip" role="tooltip" aria-hidden="true">
+            {SUPPORT_FAB_LABEL}
+          </span>
         </div>
       )}
       <Dialog

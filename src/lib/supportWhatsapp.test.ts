@@ -1,16 +1,27 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import {
-  SUPPORT_FEEDBACK_MENU_LABEL,
-  SUPPORT_WHATSAPP_DISPLAY,
-  SUPPORT_WHATSAPP_HREF,
-  SUPPORT_WHATSAPP_MENU_LABEL,
-} from './supportWhatsapp'
+import { SUPPORT_WHATSAPP_HREF } from './supportWhatsapp'
+
+const here = dirname(fileURLToPath(import.meta.url))
+const read = (path: string) => readFileSync(resolve(here, path), 'utf8')
 
 describe('support WhatsApp', () => {
-  it('publishes the Israeli number and the wa.me link', () => {
-    expect(SUPPORT_WHATSAPP_DISPLAY).toBe('054-865-4223')
+  it('keeps the wa.me link for the personal-vehicle request only', () => {
     expect(SUPPORT_WHATSAPP_HREF).toBe('https://wa.me/972548654223')
-    expect(SUPPORT_WHATSAPP_MENU_LABEL).toBe('לתמיכה ישירה בוואטסאפ')
-    expect(SUPPORT_FEEDBACK_MENU_LABEL).toBe('לשליחת פידבק או דיווח על תקלה')
+  })
+
+  it('shows the support number nowhere on the site', () => {
+    for (const path of [
+      '../components/shell/SnykBadge.tsx',
+      '../components/feedback/FeedbackFab.tsx',
+      '../pages/SupportPage.tsx',
+    ]) {
+      const src = read(path)
+      expect(src, path).not.toContain('SUPPORT_WHATSAPP')
+      expect(src, path).not.toContain('054-865-4223')
+    }
+    expect(read('./supportWhatsapp.ts')).not.toContain('054-865-4223')
   })
 })

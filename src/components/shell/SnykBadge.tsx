@@ -1,10 +1,5 @@
 import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
 import {
-  SUPPORT_FOOTER_LABEL,
-  SUPPORT_WHATSAPP_DISPLAY,
-  SUPPORT_WHATSAPP_HREF,
-} from '../../lib/supportWhatsapp'
-import {
   ANDROID_BETA_LABEL,
   ANDROID_FOOTER_LINK,
   showLoginAndroidDownload,
@@ -111,19 +106,6 @@ export function SnykBadge({
           <button type="button" className="app-footer__link t-caption" onClick={onOpenPrivacy}>
             {PRIVACY_FOOTER_LINK.label}
           </button>
-        </div>
-        <div className="app-footer__group">
-          <a
-            className="app-footer__link t-caption"
-            href={SUPPORT_WHATSAPP_HREF}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {SUPPORT_FOOTER_LABEL}
-            <span className="mono" dir="ltr">
-              {SUPPORT_WHATSAPP_DISPLAY}
-            </span>
-          </a>
         </div>
       </div>
       <div className="app-footer__line">

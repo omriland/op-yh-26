@@ -232,15 +232,14 @@ describe('FeedbackFab tooltip and popup layout', () => {
   const fabSrc = readFileSync(resolve(here, '../components/feedback/FeedbackFab.tsx'), 'utf8')
   const css = readFileSync(resolve(here, '../styles/components.css'), 'utf8')
 
-  it('renders a Hebrew support control that offers WhatsApp or feedback', () => {
+  it('renders a Hebrew support control that opens feedback directly, with no WhatsApp', () => {
     expect(fabSrc).not.toContain('Submit feedback')
     expect(fabSrc).toContain('title={SUPPORT_FAB_LABEL}')
-    expect(fabSrc).toContain('SUPPORT_WHATSAPP_MENU_LABEL')
-    expect(fabSrc).toContain('SUPPORT_FEEDBACK_MENU_LABEL')
+    expect(fabSrc).not.toContain('WHATSAPP')
+    expect(fabSrc).not.toContain('feedback-fab__menu')
     expect(fabSrc).toContain('className="feedback-fab__tooltip"')
-    expect(fabSrc).toContain('className="feedback-fab__menu"')
     expect(css).toContain('.feedback-fab__tooltip')
-    expect(css).toContain('.feedback-fab__menu')
+    expect(css).not.toContain('.feedback-fab__menu')
     expect(css).toContain('.feedback-fab:hover .feedback-fab__tooltip')
     expect(css).toContain('.feedback-fab__btn:focus-visible + .feedback-fab__tooltip')
   })
