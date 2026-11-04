@@ -20,20 +20,20 @@ describe('shiftBornCompleteErrors', () => {
     const errors = shiftBornCompleteErrors(draft())
     expect(errors.road_id).toBe('יש לבחור כביש')
     expect(errors.location).toBe('יש להזין מיקום')
-    expect(errors.treatment_detail).toBe('יש להזין לפחות 40 תווים בפירוט הטיפול.')
+    expect(errors.treatment_detail).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
   })
 
-  it('requires at least 40 characters in פירוט טיפול and allows more', () => {
+  it('requires at least 25 characters in פירוט טיפול and allows more', () => {
     const short = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(39) }),
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(24) }),
     )
-    expect(short.treatment_detail).toBe('יש להזין לפחות 40 תווים בפירוט הטיפול.')
+    expect(short.treatment_detail).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
 
     const exact = shiftBornCompleteErrors(
       draft({
         road_id: 'r1',
         location: 'מחלף שורק',
-        treatment_detail: `  ${'א'.repeat(40)}  `,
+        treatment_detail: `  ${'א'.repeat(25)}  `,
       }),
     )
     expect(exact.treatment_detail).toBeUndefined()
@@ -44,7 +44,7 @@ describe('shiftBornCompleteErrors', () => {
     expect(longer.treatment_detail).toBeUndefined()
   })
 
-  it('drops the 40-character minimum when the event is cancelled', () => {
+  it('drops the 25-character minimum when the event is cancelled', () => {
     const cancelled = { is_cancelled: true }
     const short = shiftBornCompleteErrors(
       draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'בוטל' }),

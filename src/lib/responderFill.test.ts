@@ -143,20 +143,20 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
     expect(errors.treatment_detail).toBeUndefined()
   })
 
-  it('complete mode requires at least 40 characters in פירוט הטיפול', () => {
+  it('complete mode requires at least 25 characters in פירוט הטיפול', () => {
     const short = validateResponderFillDraft(
       draft({
         vehicle_plate: '1234567',
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'א'.repeat(39),
+        treatment_detail: 'א'.repeat(24),
       }),
       'complete',
       plates,
       12,
     )
-    expect(short.treatment_detail).toBe('יש להזין לפחות 40 תווים בפירוט הטיפול.')
+    expect(short.treatment_detail).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
 
     const exact = validateResponderFillDraft(
       draft({
@@ -164,7 +164,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: `  ${'א'.repeat(40)}  `,
+        treatment_detail: `  ${'א'.repeat(25)}  `,
       }),
       'complete',
       plates,

@@ -54,7 +54,7 @@ export type ShiftBornFillErrors = Partial<
 export function shiftBornCompleteErrors(
   draft: ShiftBornFillDraft,
   event?: {
-    /** A cancelled event still needs a word on what happened, but not 40 characters. */
+    /** A cancelled event still needs a word on what happened, but not 25 characters. */
     is_cancelled?: boolean
   },
 ): ShiftBornFillErrors {

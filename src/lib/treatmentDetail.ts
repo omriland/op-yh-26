@@ -1,7 +1,7 @@
 /** Minimum trimmed length for פירוט הטיפול on complete. Typing past this is allowed. */
-export const TREATMENT_DETAIL_MIN_CHARS = 40
+export const TREATMENT_DETAIL_MIN_CHARS = 25
 
-export const TREATMENT_DETAIL_MIN_ERROR = 'יש להזין לפחות 40 תווים בפירוט הטיפול.'
+export const TREATMENT_DETAIL_MIN_ERROR = 'יש להזין לפחות 25 תווים בפירוט הטיפול.'
 
 /** Characters that count toward the minimum. Leading and trailing whitespace do not. */
 export function treatmentDetailCharCount(value: string): number {
