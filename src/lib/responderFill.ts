@@ -18,7 +18,7 @@ import { deriveStoredEventStatus, eventMissingLeadDoneDetails } from './eventSta
 import { ODOMETER_ORDER_ERROR } from './odometer'
 import type { EventOrigin } from './shiftBornEvents'
 import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
-import { TREATMENT_DETAIL_MIN_ERROR, treatmentDetailMeetsMinimum } from './treatmentDetail'
+import { treatmentDetailCompleteError } from './treatmentDetail'
 
 export { plateDigits }
 
@@ -219,6 +219,7 @@ export function validateResponderFillDraft(
   allowedPlates: string[] = [],
   _totalKm: number | null = null,
   unfinishedMediaDraftCount = 0,
+  cancelled = false,
 ): ResponderFillErrors {
   const errors: ResponderFillErrors = {}
   const start = parseOptionalNumber(draft.odometer_start)
@@ -239,9 +240,8 @@ export function validateResponderFillDraft(
     if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא מד אוץ התחלה.'
     if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא מד אוץ סיום.'
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
-    if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
-      errors.treatment_detail = TREATMENT_DETAIL_MIN_ERROR
-    }
+    const detailError = treatmentDetailCompleteError(draft.treatment_detail, cancelled)
+    if (detailError) errors.treatment_detail = detailError
     const settled = settleTreatedPlatePending(
       draft.treated_plate_pending,
       draft.treated_plates,
@@ -677,6 +677,7 @@ export async function saveResponderFillDraft(input: {
   draft: ResponderFillDraft
   allowedPlates: string[]
   totalKm: number | null
+  cancelled?: boolean
 }): Promise<
   | { ok: true; eventStatus: EventStatus | null }
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors }
@@ -686,6 +687,8 @@ export async function saveResponderFillDraft(input: {
     'draft',
     input.allowedPlates,
     input.totalKm,
+    0,
+    input.cancelled ?? false,
   )
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'בדקו את השדות המסומנים.', fieldErrors }
@@ -700,6 +703,7 @@ export async function completeResponderFill(input: {
   allowedPlates: string[]
   totalKm: number | null
   unfinishedMediaDraftCount?: number
+  cancelled?: boolean
 }): Promise<
   | { ok: true; eventStatus: EventStatus | null }
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors }
@@ -727,6 +731,7 @@ export async function completeResponderFill(input: {
     input.allowedPlates,
     input.totalKm,
     input.unfinishedMediaDraftCount ?? 0,
+    input.cancelled ?? false,
   )
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'יש למלא את כל שדות החובה לפני סיום הדיווח.', fieldErrors }

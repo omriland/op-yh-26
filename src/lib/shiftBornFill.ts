@@ -16,7 +16,7 @@ import {
 import type { EventStatus } from './status'
 import { supabase } from './supabase'
 import { mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
-import { TREATMENT_DETAIL_MIN_ERROR, treatmentDetailMeetsMinimum } from './treatmentDetail'
+import { treatmentDetailCompleteError } from './treatmentDetail'
 
 export type ShiftBornFillDraft = {
   police_event_id: string
@@ -47,18 +47,21 @@ export type ShiftBornFillErrors = Partial<
  * responder must fill in five fields could be completed empty from here. The bar is
  * the subset of the responder rule that a shift-born event can actually answer:
  * where it happened and what was done. Draft saves are never blocked.
- * A cancelled event uses the same bar, including the 25-character פירוט minimum.
+ * A cancelled event keeps the place fields and has no פירוט minimum:
+ * blank and short text are both valid.
  *
  * No end time and no KM: the shift carries the one odometer pair, and this record
  * has no field for either, so asking for them would block completion for good.
  */
-export function shiftBornCompleteErrors(draft: ShiftBornFillDraft): ShiftBornFillErrors {
+export function shiftBornCompleteErrors(
+  draft: ShiftBornFillDraft,
+  cancelled = false,
+): ShiftBornFillErrors {
   const errors: ShiftBornFillErrors = {}
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש'
   if (!draft.location.trim()) errors.location = 'יש להזין מיקום'
-  if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
-    errors.treatment_detail = TREATMENT_DETAIL_MIN_ERROR
-  }
+  const detailError = treatmentDetailCompleteError(draft.treatment_detail, cancelled)
+  if (detailError) errors.treatment_detail = detailError
   return errors
 }
 

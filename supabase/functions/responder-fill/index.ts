@@ -166,6 +166,7 @@ function validateDraft(
   mode: "draft" | "complete",
   allowedPlates: string[],
   totalKm: number | null,
+  cancelled = false,
 ): FieldErrors {
   const errors: FieldErrors = {};
   const start = parseOptionalNumber(draft.odometer_start);
@@ -186,7 +187,11 @@ function validateDraft(
     if (start == null || start === "invalid") errors.odometer_start = "יש למלא מד אוץ התחלה.";
     if (end == null || end === "invalid") errors.odometer_end = "יש למלא מד אוץ סיום.";
     if (!draft.route.trim()) errors.route = "יש למלא נתיב נסיעה.";
-    if (!draft.treatment_detail.trim()) errors.treatment_detail = "יש למלא פירוט הטיפול.";
+    // Cancelled events have no פירוט minimum. A live event still needs some text;
+    // the 25-character bar is enforced by the logged-in clients, not this link.
+    if (!cancelled && !draft.treatment_detail.trim()) {
+      errors.treatment_detail = "יש למלא פירוט הטיפול.";
+    }
     const leftover = leftoverTreatedPlateError(draft.treated_plate_pending, mode);
     if (leftover) errors.treated_plates = leftover;
   }
@@ -551,7 +556,13 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
         : "",
   };
 
-  const fieldErrors = validateDraft(draft, mode, allowedPlates, totalKm);
+  const fieldErrors = validateDraft(
+    draft,
+    mode,
+    allowedPlates,
+    totalKm,
+    Boolean(event.is_cancelled),
+  );
   if (Object.keys(fieldErrors).length > 0) {
     return json(400, {
       error:

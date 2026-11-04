@@ -149,7 +149,12 @@ type Draft = {
   treatment_notes: string;
 };
 
-function validateDraft(draft: Draft, mode: "draft" | "complete", allowedPlates: string[]): FieldErrors {
+function validateDraft(
+  draft: Draft,
+  mode: "draft" | "complete",
+  allowedPlates: string[],
+  cancelled = false,
+): FieldErrors {
   const errors: FieldErrors = {};
   const start = parseOptionalNumber(draft.odometer_start);
   const end = parseOptionalNumber(draft.odometer_end);
@@ -169,7 +174,11 @@ function validateDraft(draft: Draft, mode: "draft" | "complete", allowedPlates: 
     if (start == null || start === "invalid") errors.odometer_start = "יש למלא מד אוץ התחלה.";
     if (end == null || end === "invalid") errors.odometer_end = "יש למלא מד אוץ סיום.";
     if (!draft.route.trim()) errors.route = "יש למלא נתיב נסיעה.";
-    if (!draft.treatment_detail.trim()) errors.treatment_detail = "יש למלא פירוט הטיפול.";
+    // Cancelled events have no פירוט minimum. A live event still needs some text;
+    // the 25-character bar is enforced by the logged-in clients, not this API.
+    if (!cancelled && !draft.treatment_detail.trim()) {
+      errors.treatment_detail = "יש למלא פירוט הטיפול.";
+    }
   }
 
   // An equal pair is allowed (0/0 included); only a reversed pair is a typo.
@@ -636,7 +645,7 @@ async function handleSave(
   };
   const draft = draftFromBody(body.draft, stored);
   const plates = await allowedPlates(admin, userId, assignment.vehicle_plate);
-  const fieldErrors = validateDraft(draft, mode, plates);
+  const fieldErrors = validateDraft(draft, mode, plates, Boolean(assignment.event.is_cancelled));
   if (Object.keys(fieldErrors).length > 0) {
     return json(400, {
       error:

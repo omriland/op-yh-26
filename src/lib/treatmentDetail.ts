@@ -12,6 +12,19 @@ export function treatmentDetailMeetsMinimum(value: string): boolean {
   return treatmentDetailCharCount(value) >= TREATMENT_DETAIL_MIN_CHARS
 }
 
+/**
+ * Complete-mode error for פירוט הטיפול.
+ * A cancelled event has no minimum: blank and short text are both valid.
+ * Any other event still needs TREATMENT_DETAIL_MIN_CHARS trimmed characters.
+ */
+export function treatmentDetailCompleteError(
+  value: string,
+  cancelled = false,
+): string | undefined {
+  if (cancelled) return undefined
+  return treatmentDetailMeetsMinimum(value) ? undefined : TREATMENT_DETAIL_MIN_ERROR
+}
+
 /** Compact Hebrew counter: current trimmed length against the minimum. */
 export function treatmentDetailCounter(value: string): { text: string; met: boolean } {
   const count = treatmentDetailCharCount(value)

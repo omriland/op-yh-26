@@ -13,7 +13,6 @@ import {
   validateResponderFillDraft,
   type ResponderFillDraft,
 } from './responderFill'
-import { TREATMENT_DETAIL_MIN_ERROR } from './treatmentDetail'
 import { ODOMETER_ORDER_ERROR } from './odometer'
 
 function draft(patch: Partial<ResponderFillDraft> = {}): ResponderFillDraft {
@@ -430,7 +429,7 @@ describe('gateResponderFillWrite', () => {
     ).toBe('proceed')
   })
 
-  it('requires the same 25-character פירוט on a cancelled event', () => {
+  it('allows a blank or short פירוט on a cancelled event', () => {
     const plates = ['1234567']
     const fields = {
       vehicle_plate: '1234567',
@@ -438,30 +437,28 @@ describe('gateResponderFillWrite', () => {
       odometer_end: '112',
       route: 'כביש 1',
     }
+    for (const treatment_detail of ['', '   ', 'בוטל', 'א'.repeat(24)]) {
+      expect(
+        validateResponderFillDraft(
+          draft({ ...fields, treatment_detail }),
+          'complete',
+          plates,
+          12,
+          0,
+          true,
+        ).treatment_detail,
+      ).toBeUndefined()
+    }
     expect(
       validateResponderFillDraft(
         draft({ ...fields, treatment_detail: 'בוטל' }),
         'complete',
         plates,
         12,
+        0,
+        false,
       ).treatment_detail,
-    ).toBe(TREATMENT_DETAIL_MIN_ERROR)
-    expect(
-      validateResponderFillDraft(
-        draft({ ...fields, treatment_detail: 'א'.repeat(25) }),
-        'complete',
-        plates,
-        12,
-      ).treatment_detail,
-    ).toBeUndefined()
-    expect(
-      validateResponderFillDraft(
-        draft({ ...fields, treatment_detail: 'בוטל' }),
-        'draft',
-        plates,
-        12,
-      ).treatment_detail,
-    ).toBeUndefined()
+    ).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
   })
 
   it('still reports an already-finished participation as success on a cancelled event', () => {

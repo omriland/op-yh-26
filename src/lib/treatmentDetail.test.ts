@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   TREATMENT_DETAIL_MIN_ERROR,
+  treatmentDetailCompleteError,
   treatmentDetailCounter,
   treatmentDetailMeetsMinimum,
 } from './treatmentDetail'
@@ -20,6 +21,15 @@ describe('treatmentDetailCounter', () => {
   it('uses the same 25-character bar as the complete-mode error', () => {
     expect(treatmentDetailMeetsMinimum('א'.repeat(24))).toBe(false)
     expect(treatmentDetailMeetsMinimum('א'.repeat(25))).toBe(true)
+    expect(treatmentDetailCompleteError('א'.repeat(24))).toBe(TREATMENT_DETAIL_MIN_ERROR)
+    expect(treatmentDetailCompleteError('א'.repeat(25))).toBeUndefined()
     expect(TREATMENT_DETAIL_MIN_ERROR).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
+  })
+
+  it('has no minimum when the event is cancelled', () => {
+    expect(treatmentDetailCompleteError('', true)).toBeUndefined()
+    expect(treatmentDetailCompleteError('   ', true)).toBeUndefined()
+    expect(treatmentDetailCompleteError('בוטל', true)).toBeUndefined()
+    expect(treatmentDetailCompleteError('א'.repeat(24), true)).toBeUndefined()
   })
 })

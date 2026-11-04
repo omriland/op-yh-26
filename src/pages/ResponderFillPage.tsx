@@ -432,6 +432,7 @@ export function ResponderFillPage({
       unfinishedMediaDraftCount: unfinishedMediaDrafts,
       coveredPlateDigits: coverage.coveredDigits,
       photoNotifyOk: photoNotifyOkRef.current,
+      cancelled: ctx.is_cancelled,
     })
     if (rules.blocks.length > 0) {
       setErrors(mergeFieldErrors(rules.blocks))
@@ -467,6 +468,7 @@ export function ResponderFillPage({
           draft,
           allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
           totalKm: ctx.totalKm,
+          cancelled: ctx.is_cancelled,
         })
     setSavingDraft(false)
     if (!result.ok) {
@@ -524,6 +526,7 @@ export function ResponderFillPage({
           allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
           totalKm: ctx.totalKm,
           unfinishedMediaDraftCount: unfinishedMediaDrafts,
+          cancelled: ctx.is_cancelled,
         })
     setCompleting(false)
     if (!result.ok) {
@@ -788,8 +791,10 @@ export function ResponderFillPage({
                 />
                 <TextAreaField
                   label="פירוט הטיפול"
-                  required
-                  counter={treatmentDetailCounter(draft.treatment_detail)}
+                  required={!ctx.is_cancelled}
+                  counter={
+                    ctx.is_cancelled ? undefined : treatmentDetailCounter(draft.treatment_detail)
+                  }
                   value={draft.treatment_detail}
                   error={errors.treatment_detail}
                   rows={5}

@@ -162,6 +162,7 @@ export function evaluateResponderFillSaveRules(input: {
   unfinishedMediaDraftCount?: number
   coveredPlateDigits: Set<string>
   photoNotifyOk?: boolean
+  cancelled?: boolean
 }): SaveRulesResult {
   const blocks: SaveRuleIssue[] = []
   const notifies: SaveRuleIssue[] = []
@@ -172,6 +173,7 @@ export function evaluateResponderFillSaveRules(input: {
     input.allowedPlates,
     input.totalKm,
     input.unfinishedMediaDraftCount ?? 0,
+    input.cancelled ?? false,
   )
   if (Object.keys(fieldErrors).length > 0) {
     const message =

@@ -344,7 +344,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
 
   async function onComplete() {
     if (!draft) return
-    const fieldErrors = shiftBornCompleteErrors(draft)
+    const fieldErrors = shiftBornCompleteErrors(draft, Boolean(ctx?.event.is_cancelled))
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors)
       show('יש להשלים את השדות המסומנים כדי לסיים את הדיווח.', 'alert')
@@ -479,8 +479,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             />
             <TextAreaField
               label="פירוט הטיפול"
-              required
-              counter={treatmentDetailCounter(draft.treatment_detail)}
+              required={!ctx.event.is_cancelled}
+              counter={
+                ctx.event.is_cancelled
+                  ? undefined
+                  : treatmentDetailCounter(draft.treatment_detail)
+              }
               error={errors.treatment_detail}
               value={draft.treatment_detail}
               disabled={readOnly}
