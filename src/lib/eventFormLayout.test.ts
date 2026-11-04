@@ -99,7 +99,7 @@ describe('event form standalone layout', () => {
     expect(eventFormSource).toContain('שמירה כטיוטה')
   })
 
-  it('orders identity rows: type+id, callsign, date, times, district+place+road', () => {
+  it('orders identity rows: type+id, callsign, date, times, district+road+place', () => {
     const typeRow = eventFormSource.indexOf('event-form__f-type-id')
     const typeField = eventFormSource.indexOf('label="סוג אירוע"')
     const policeField = eventFormSource.indexOf('label="מספר אירוע"')
@@ -108,6 +108,7 @@ describe('event form standalone layout', () => {
     const timesNote = eventFormSource.indexOf('event-form__f-times-note')
     const times = eventFormSource.indexOf('className="event-form__f-times"')
     const districtPlace = eventFormSource.indexOf('event-form__f-district-place')
+    const locationNote = eventFormSource.indexOf('<FieldNote field="location"')
     const locationField = eventFormSource.indexOf("placesLocation ? 'event-form__f-places' : 'event-form__f-location'")
     const roadField = eventFormSource.indexOf('<div className="event-form__f-road">')
 
@@ -119,8 +120,11 @@ describe('event form standalone layout', () => {
     expect(dateField).toBeGreaterThan(timesNote)
     expect(times).toBeGreaterThan(dateField)
     expect(districtPlace).toBeGreaterThan(times)
-    expect(locationField).toBeGreaterThan(districtPlace)
-    expect(roadField).toBeGreaterThan(locationField)
+    expect(roadField).toBeGreaterThan(districtPlace)
+    expect(locationNote).toBeGreaterThan(roadField)
+    expect(locationField).toBeGreaterThan(locationNote)
+    expect(ruleBody('.event-district-place')).toMatch(/'district'\s*'road'\s*'note'\s*'place'/)
+    expect(css).toMatch(/grid-template-areas:\s*'note note note'\s*'district road place'/)
 
     const identityGrid = ruleBody('.event-form__grid.event-form__identity')
     expect(identityGrid).toMatch(/grid-template-columns:\s*1fr/)
@@ -137,7 +141,7 @@ describe('event form standalone layout', () => {
       /grid-template-areas:\s*'typeId typeId typeId'\s*'callsign callsign callsign'\s*'timesNote timesNote timesNote'\s*'date times times'/,
     )
     expect(css).toMatch(
-      /\.event-district-place \{\s*grid-template-columns:\s*minmax\(0, 0\.7fr\) minmax\(0, 1\.6fr\) minmax\(0, 0\.7fr\)/,
+      /\.event-district-place \{\s*grid-template-columns:\s*minmax\(0, 0\.7fr\) minmax\(0, 0\.7fr\) minmax\(0, 1\.6fr\)/,
     )
   })
 })

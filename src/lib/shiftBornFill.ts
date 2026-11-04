@@ -47,23 +47,16 @@ export type ShiftBornFillErrors = Partial<
  * responder must fill in five fields could be completed empty from here. The bar is
  * the subset of the responder rule that a shift-born event can actually answer:
  * where it happened and what was done. Draft saves are never blocked.
+ * A cancelled event uses the same bar, including the 25-character פירוט minimum.
  *
  * No end time and no KM: the shift carries the one odometer pair, and this record
  * has no field for either, so asking for them would block completion for good.
  */
-export function shiftBornCompleteErrors(
-  draft: ShiftBornFillDraft,
-  event?: {
-    /** A cancelled event still needs a word on what happened, but not 25 characters. */
-    is_cancelled?: boolean
-  },
-): ShiftBornFillErrors {
+export function shiftBornCompleteErrors(draft: ShiftBornFillDraft): ShiftBornFillErrors {
   const errors: ShiftBornFillErrors = {}
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש'
   if (!draft.location.trim()) errors.location = 'יש להזין מיקום'
-  if (event?.is_cancelled) {
-    if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש להזין פירוט טיפול'
-  } else if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
+  if (!treatmentDetailMeetsMinimum(draft.treatment_detail)) {
     errors.treatment_detail = TREATMENT_DETAIL_MIN_ERROR
   }
   return errors

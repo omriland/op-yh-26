@@ -319,6 +319,7 @@ select pg_temp.ok((select status from public.shifts where id = '5a5a5a5a-0000-40
 -- An older replay already knocked one back: the repair restores it.
 update public.events set status = 'partial' where id = (select id from ev where n = 1);
 \ir ../../../supabase/migrations/20261103100000_shift_born_events_hardening.sql
+\ir ../../../supabase/migrations/20261104193000_cancelled_zero_responders_done_after_lead_end.sql
 select pg_temp.ok((select status from public.events where id = (select id from ev where n = 1)) = 'done',
   'the repair puts a fully-done shift-born event back to done');
 select pg_temp.ok((select status from public.events where shift_id = '5a5a5a5a-0000-4000-8000-000000000002') <> 'done',
@@ -327,6 +328,38 @@ select pg_temp.ok((select status from public.events where shift_id = '5a5a5a5a-0
 -- ------------------------------------------------- regression: regular events
 select pg_temp.throws($$update public.events set status = 'done' where id = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1'$$,
   'לא ניתן להשלים אירוע ללא שעת סיום.', 'regression: a regular event still needs an end time');
+
+insert into public.events (id, shift_lead_id, police_event_id, is_cancelled) values
+  ('c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0', '33333333-3333-4333-8333-333333333333', '9101', true),
+  ('c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1', '33333333-3333-4333-8333-333333333333', '9102', true),
+  ('c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2', '33333333-3333-4333-8333-333333333333', '9103', false);
+insert into public.event_responders (event_id, responder_id, status) values
+  ('c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1', '22222222-2222-4222-8222-222222222222', 'pending');
+select pg_temp.ok(
+  public.derived_event_status('c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0', null) = 'draft',
+  'cancelled with nobody assigned stays draft until the lead sets an end time');
+select pg_temp.throws(
+  $$update public.events set status = 'done' where id = 'c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0'$$,
+  'לא ניתן להשלים אירוע ללא שעת סיום.',
+  'cancelled with nobody assigned cannot be done without an end time');
+update public.events set ended_at = timestamp '2026-11-04 10:00:00'
+  where id = 'c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0';
+select pg_temp.ok(
+  public.derived_event_status('c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0', timestamp '2026-11-04 10:00:00') = 'done',
+  'cancelled with nobody assigned is done once the lead set an end time');
+select pg_temp.lives(
+  $$update public.events set status = 'done' where id = 'c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0'$$,
+  'the done guard allows a cancelled event with nobody assigned after the end time');
+update public.events set ended_at = timestamp '2026-11-04 10:00:00'
+  where id = 'c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1';
+select pg_temp.ok(
+  public.derived_event_status('c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1', timestamp '2026-11-04 10:00:00') = 'in_progress',
+  'cancelled with an open responder is not done');
+update public.events set ended_at = timestamp '2026-11-04 10:00:00'
+  where id = 'c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2';
+select pg_temp.ok(
+  public.derived_event_status('c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2', timestamp '2026-11-04 10:00:00') = 'draft',
+  'a normal event with nobody assigned does not become done');
 
 -- ------------------------------------------------------------------ the map
 set local role authenticated;

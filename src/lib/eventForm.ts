@@ -1479,10 +1479,15 @@ export function buildLocationPayload(draft: EventFormDraft): {
  * Derive stored event status from current assignments.
  * Adding a new pending responder after `done` must reopen to `partial` —
  * never freeze the previous status. `done` also requires event end + every lead KM.
- * A cancelled event with no responders is `done` even without those.
+ * A cancelled event with nobody assigned is `done` once the lead has set שעת סיום
+ * (the same end-time half of that rule). KM does not apply with no responders.
+ * A normal event with nobody assigned stays `draft`.
  */
 export function deriveEventStatus(draft: EventFormDraft): EventStatus {
-  if (draft.is_cancelled && draft.responders.length === 0) return 'done'
+  if (draft.responders.length === 0) {
+    if (draft.is_cancelled && Boolean(draft.end_time?.trim())) return 'done'
+    return 'draft'
+  }
   return deriveStoredEventStatus({
     endedAt: draft.end_time,
     responders: draft.responders.map((row) => {

@@ -9,9 +9,11 @@ import {
   odometerDelta,
   odometerRangeError,
   responderVehicleChoices,
+  RESPONDER_FILL_CANCELLED_NOTE,
   validateResponderFillDraft,
   type ResponderFillDraft,
 } from './responderFill'
+import { TREATMENT_DETAIL_MIN_ERROR } from './treatmentDetail'
 import { ODOMETER_ORDER_ERROR } from './odometer'
 
 function draft(patch: Partial<ResponderFillDraft> = {}): ResponderFillDraft {
@@ -410,25 +412,56 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
 })
 
 describe('gateResponderFillWrite', () => {
-  it('locks a cancelled event for both draft and complete', () => {
-    // Media upload already refuses on a cancelled event; the fill form and the
-    // סיום דיווח button did not, so a כונן could still document one.
+  it('lets a responder draft and complete a cancelled event', () => {
+    expect(RESPONDER_FILL_CANCELLED_NOTE).toBe('האירוע בוטל.')
     expect(
       gateResponderFillWrite({
         complete: false,
         participationStatus: 'in_progress',
         eventStatus: 'in_progress',
-        isCancelled: true,
       }),
-    ).toBe('cancelled')
+    ).toBe('proceed')
     expect(
       gateResponderFillWrite({
         complete: true,
         participationStatus: 'in_progress',
         eventStatus: 'in_progress',
-        isCancelled: true,
       }),
-    ).toBe('cancelled')
+    ).toBe('proceed')
+  })
+
+  it('requires the same 25-character פירוט on a cancelled event', () => {
+    const plates = ['1234567']
+    const fields = {
+      vehicle_plate: '1234567',
+      odometer_start: '100',
+      odometer_end: '112',
+      route: 'כביש 1',
+    }
+    expect(
+      validateResponderFillDraft(
+        draft({ ...fields, treatment_detail: 'בוטל' }),
+        'complete',
+        plates,
+        12,
+      ).treatment_detail,
+    ).toBe(TREATMENT_DETAIL_MIN_ERROR)
+    expect(
+      validateResponderFillDraft(
+        draft({ ...fields, treatment_detail: 'א'.repeat(25) }),
+        'complete',
+        plates,
+        12,
+      ).treatment_detail,
+    ).toBeUndefined()
+    expect(
+      validateResponderFillDraft(
+        draft({ ...fields, treatment_detail: 'בוטל' }),
+        'draft',
+        plates,
+        12,
+      ).treatment_detail,
+    ).toBeUndefined()
   })
 
   it('still reports an already-finished participation as success on a cancelled event', () => {
@@ -438,7 +471,6 @@ describe('gateResponderFillWrite', () => {
         complete: true,
         participationStatus: 'done',
         eventStatus: 'partial',
-        isCancelled: true,
       }),
     ).toBe('already_complete')
   })
@@ -449,7 +481,6 @@ describe('gateResponderFillWrite', () => {
         complete: false,
         participationStatus: 'in_progress',
         eventStatus: 'in_progress',
-        isCancelled: false,
       }),
     ).toBe('proceed')
   })

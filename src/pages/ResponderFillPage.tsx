@@ -7,6 +7,7 @@ import {
   fetchResponderVehicleChoices,
   fillHeaderStatus,
   mergeFillVehicleChoices,
+  RESPONDER_FILL_CANCELLED_NOTE,
   odometerDelta,
   odometerRangeError,
   saveResponderFillDraft,
@@ -206,13 +207,9 @@ export function ResponderFillPage({
   }, [eventId, userId, fillToken])
 
   const readOnly =
-    ctx?.participationStatus === 'done' ||
-    ctx?.eventStatus === 'done' ||
-    Boolean(ctx?.is_cancelled)
+    ctx?.participationStatus === 'done' || ctx?.eventStatus === 'done'
   const eventClosedWhileOpen =
     ctx?.eventStatus === 'done' && ctx.participationStatus !== 'done'
-  // Surfaced up front so the כונן does not fill the whole form and only then
-  // hit the write gate.
   const eventCancelledWhileOpen =
     Boolean(ctx?.is_cancelled) && ctx?.participationStatus !== 'done'
 
@@ -647,7 +644,7 @@ export function ResponderFillPage({
 
         {eventCancelledWhileOpen ? (
           <p className="banner banner--info t-body" role="status">
-            האירוע בוטל. לא ניתן לעדכן את התיעוד.
+            {RESPONDER_FILL_CANCELLED_NOTE}
           </p>
         ) : eventClosedWhileOpen ? (
           <p className="banner banner--info t-body" role="status">

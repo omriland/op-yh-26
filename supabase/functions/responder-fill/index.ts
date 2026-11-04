@@ -512,12 +512,8 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
       error: "לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.",
     });
   }
-  // Matches gateResponderFillWrite on the web client: a cancelled event is
-  // closed to further documentation, but an already-finished participation
-  // still reports success so a retried save is not an error.
-  if (event.is_cancelled) {
-    return json(400, { error: "האירוע בוטל. לא ניתן לעדכן את התיעוד." });
-  }
+  // A cancelled event is still logged like any other. Photos stay frozen
+  // in the database; this write is the report only.
   if (event.status === "done") {
     return json(400, {
       error: "לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.",

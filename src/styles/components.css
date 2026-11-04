@@ -6380,9 +6380,9 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-3);
   grid-template-areas:
     'district'
+    'road'
     'note'
-    'place'
-    'road';
+    'place';
 }
 
 .event-district-place > .event-form__f-district { grid-area: district; }
@@ -6414,11 +6414,11 @@ html[data-keyboard-open] .event-form__footer {
   }
 
   .event-district-place {
-    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.6fr) minmax(0, 0.7fr);
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1.6fr);
     gap: var(--space-4);
     grid-template-areas:
       'note note note'
-      'district place road';
+      'district road place';
   }
 }
 

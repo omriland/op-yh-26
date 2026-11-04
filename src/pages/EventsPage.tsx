@@ -91,6 +91,15 @@ import {
   writeShowShiftEvents,
 } from '../lib/unitEventsScope'
 import {
+  SHIFT_LEAD_EVENTS_RECENT_EMPTY_TITLE,
+  SHIFT_LEAD_EVENTS_RECENT_HINT,
+  SHOW_OLDER_UNIT_EVENTS_LABEL,
+  keepShiftLeadRecentEvent,
+  readShowOlderUnitEvents,
+  shouldApplyShiftLeadRecentWindow,
+  writeShowOlderUnitEvents,
+} from '../lib/shiftLeadEventsWindow'
+import {
   incompleteLeadNoticeLabels,
   leadFacingMissingKm,
   partitionIncompleteEventsForViewer,
@@ -133,6 +142,9 @@ export function EventsPage({
   const [showOthersCreated, setShowOthersCreated] = useState(readShowOthersCreatedEvents)
   const showOthersControl = shouldFilterUnitEventsToOwnCreated(roles)
   const [showShiftEvents, setShowShiftEvents] = useState(readShowShiftEvents)
+  const [showOlderEvents, setShowOlderEvents] = useState(readShowOlderUnitEvents)
+  const recentList =
+    scope === 'unit' && shouldApplyShiftLeadRecentWindow(roles) && !showOlderEvents
   const createdById = unitEventsCreatedByFilter({
     roles,
     showOthersCreated,
@@ -366,13 +378,20 @@ export function EventsPage({
     if (searchIds !== null) {
       return { inWindow: source, hasMore: false }
     }
+    if (recentList) {
+      const now = new Date()
+      return {
+        inWindow: source.filter((event) => keepShiftLeadRecentEvent(event, user?.id, now)),
+        hasMore: false,
+      }
+    }
     const partitioned = partitionUnitEventsByWindow(source, {
       dateOf: (event) => event.event_date,
       today: jerusalemToday(),
       windowsLoaded: unitWindows,
     })
     return { inWindow: partitioned.visible, hasMore: partitioned.hasMore }
-  }, [events, scope, searchExtras, searchIds, unitWindows])
+  }, [events, recentList, scope, searchExtras, searchIds, unitWindows, user?.id])
 
   const visible = useMemo(() => {
     if (!events) return []
@@ -459,7 +478,9 @@ export function EventsPage({
         <div className="page-head">
           <div className="page-head__intro">
             <h1 className="t-title">אירועים</h1>
-            <p className="t-caption text-muted">{unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}</p>
+            <p className="t-caption text-muted">
+              {recentList ? SHIFT_LEAD_EVENTS_RECENT_HINT : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}
+            </p>
           </div>
           {canCreate && onCreate ? (
             <div className="page-head__actions">
@@ -533,6 +554,26 @@ export function EventsPage({
                 {SHOW_SHIFT_EVENTS_LABEL}
               </span>
             </button>
+            {shouldApplyShiftLeadRecentWindow(roles) ? (
+              <button
+                type="button"
+                className="chip events-toolbar__others"
+                aria-pressed={showOlderEvents}
+                aria-label={SHOW_OLDER_UNIT_EVENTS_LABEL}
+                onClick={() => {
+                  const next = !showOlderEvents
+                  setShowOlderEvents(next)
+                  writeShowOlderUnitEvents(next)
+                }}
+              >
+                <span className="events-toolbar__others-short" aria-hidden="true">
+                  ישנים יותר
+                </span>
+                <span className="events-toolbar__others-full" aria-hidden="true">
+                  {SHOW_OLDER_UNIT_EVENTS_LABEL}
+                </span>
+              </button>
+            ) : null}
             {showOthersControl ? (
               <button
                 type="button"
@@ -625,6 +666,13 @@ export function EventsPage({
       ) : visible.length === 0 ? (
         <ListEmptyState
           filtered={filter !== 'all' || query.trim() !== ''}
+          recentHoursEmpty={
+            scope === 'unit' &&
+            recentList &&
+            searchIds === null &&
+            (events?.length ?? 0) > 0 &&
+            (unitWindow?.inWindow.length ?? 0) === 0
+          }
           recentWindowEmpty={
             scope === 'unit' &&
             unitWindow != null &&
@@ -636,6 +684,10 @@ export function EventsPage({
           onClear={() => {
             setFilter('all')
             setQuery('')
+          }}
+          onShowOlder={() => {
+            setShowOlderEvents(true)
+            writeShowOlderUnitEvents(true)
           }}
           onLoadMore={() => setUnitWindows((windows) => windows + 1)}
         />
@@ -731,19 +783,39 @@ function SearchLoadingState() {
 
 function ListEmptyState({
   filtered,
+  recentHoursEmpty = false,
   recentWindowEmpty = false,
   canCreate,
   onCreate,
   onClear,
+  onShowOlder,
   onLoadMore,
 }: {
   filtered: boolean
+  recentHoursEmpty?: boolean
   recentWindowEmpty?: boolean
   canCreate: boolean
   onCreate?: () => void
   onClear: () => void
+  onShowOlder?: () => void
   onLoadMore?: () => void
 }) {
+  if (recentHoursEmpty) {
+    return (
+      <EmptyState
+        icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+        title={SHIFT_LEAD_EVENTS_RECENT_EMPTY_TITLE}
+        action={
+          onShowOlder ? (
+            <Button variant="secondary" onClick={onShowOlder}>
+              {SHOW_OLDER_UNIT_EVENTS_LABEL}
+            </Button>
+          ) : undefined
+        }
+      />
+    )
+  }
+
   if (recentWindowEmpty) {
     return (
       <EmptyState

@@ -172,23 +172,22 @@ export function fillHeaderStatus(ctx: {
 }
 
 export const RESPONDER_FILL_LOCKED_ERROR = 'לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.'
-export const RESPONDER_FILL_CANCELLED_ERROR = 'האירוע בוטל. לא ניתן לעדכן את התיעוד.'
+/** Shown on the fill while the event is cancelled. The report itself stays editable. */
+export const RESPONDER_FILL_CANCELLED_NOTE = 'האירוע בוטל.'
 export const RESPONDER_FILL_NETWORK_ERROR = 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.'
 
-export type FillWriteGate = 'proceed' | 'locked' | 'already_complete' | 'cancelled'
+export type FillWriteGate = 'proceed' | 'locked' | 'already_complete'
 
 /** Completing an already-done assignment is success; draft saves stay locked. */
 export function gateResponderFillWrite(input: {
   complete: boolean
   participationStatus: ParticipationStatus
   eventStatus: EventStatus | null | undefined
-  isCancelled?: boolean
 }): FillWriteGate {
   // Checked first so retrying a save that already landed still reads as success.
   if (input.participationStatus === 'done') {
     return input.complete ? 'already_complete' : 'locked'
   }
-  if (input.isCancelled) return 'cancelled'
   if (input.eventStatus === 'done') return 'locked'
   return 'proceed'
 }
@@ -555,7 +554,7 @@ async function saveParticipation(input: {
 
   const { data: current, error: currentError } = await supabase
     .from('event_responders')
-    .select('status, event:events!inner(status, is_cancelled)')
+    .select('status, event:events!inner(status)')
     .eq('id', input.assignmentId)
     .maybeSingle()
 
@@ -568,7 +567,7 @@ async function saveParticipation(input: {
 
   const complete = input.status === 'done'
   const participationStatus = current.status as ParticipationStatus
-  type NestedEvent = { status: EventStatus; is_cancelled: boolean | null }
+  type NestedEvent = { status: EventStatus }
   const nestedEvent = (current as { event?: NestedEvent | NestedEvent[] | null }).event
   const resolvedEvent = Array.isArray(nestedEvent) ? nestedEvent[0] : nestedEvent
   const eventStatusRaw = resolvedEvent?.status
@@ -576,13 +575,9 @@ async function saveParticipation(input: {
     complete,
     participationStatus,
     eventStatus: eventStatusRaw,
-    isCancelled: Boolean(resolvedEvent?.is_cancelled),
   })
   if (gate === 'already_complete') {
     return { ok: true, eventStatus: eventStatusRaw ?? null }
-  }
-  if (gate === 'cancelled') {
-    return { ok: false, error: RESPONDER_FILL_CANCELLED_ERROR }
   }
   if (gate === 'locked') {
     return { ok: false, error: RESPONDER_FILL_LOCKED_ERROR }

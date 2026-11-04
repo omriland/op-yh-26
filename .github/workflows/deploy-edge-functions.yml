@@ -169,6 +169,11 @@ jobs:
           # משוב voice transcripts. Additive columns; safe to re-apply.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261104170000_user_feedback_transcript.sql
+          # After the shift-born replay above, which restores the older
+          # "cancelled + nobody assigned = done immediately" bodies.
+          # A cancelled event with nobody assigned is done only once שעת סיום is set.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261104193000_cancelled_zero_responders_done_after_lead_end.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

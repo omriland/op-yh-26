@@ -270,11 +270,17 @@ async function loadAssignment(
   return { ...(data as Omit<Assignment, "event">), event };
 }
 
-function standaloneOrError(assignment: Assignment, forWrite: boolean): Response | null {
+function standaloneOrError(
+  assignment: Assignment,
+  forWrite: boolean,
+  options: { allowCancelled?: boolean } = {},
+): Response | null {
   if (assignment.event.origin !== "manual") {
     return json(400, { error: "אירוע זה אינו זמין דרך ה-API.", code: "shift_born" });
   }
-  if (forWrite && assignment.event.is_cancelled) {
+  // save_draft / complete pass allowCancelled. Live tracking and plates stay
+  // closed, and media writes are refused in mediaAssignment.
+  if (forWrite && assignment.event.is_cancelled && !options.allowCancelled) {
     return json(400, { error: "האירוע בוטל.", code: "cancelled" });
   }
   if (forWrite && (assignment.status === "done" || assignment.event.status === "done")) {
@@ -617,7 +623,7 @@ async function handleSave(
   if (!assignment) {
     return json(404, { error: "אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים." });
   }
-  const blocked = standaloneOrError(assignment, true);
+  const blocked = standaloneOrError(assignment, true, { allowCancelled: true });
   if (blocked) return blocked;
 
   const stored: Draft = {
