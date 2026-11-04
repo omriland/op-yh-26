@@ -11,8 +11,10 @@ import {
   FEEDBACK_KIND_LABEL,
   FEEDBACK_STATUS_STAMP,
   deleteUserFeedback,
+  feedbackRowsNeedingTranscript,
   feedbackTreatedToast,
   listUserFeedback,
+  transcribeUserFeedback,
   updateUserFeedbackStatus,
   type FeedbackStatus,
   type UserFeedback,
@@ -33,14 +35,31 @@ export function FeedbackInboxPage() {
   const [reloadKey, setReloadKey] = useState(0)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<UserFeedback | null>(null)
+  const [transcriptErrors, setTranscriptErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     let active = true
     setItems(null)
     setFailed(false)
+    setTranscriptErrors({})
     listUserFeedback(filter)
       .then((rows) => {
-        if (active) setItems(rows)
+        if (!active) return
+        setItems(rows)
+        for (const id of feedbackRowsNeedingTranscript(rows)) {
+          void transcribeUserFeedback(id).then((result) => {
+            if (!active) return
+            if (result.ok) {
+              setItems((current) =>
+                current?.map((item) =>
+                  item.id === id ? { ...item, transcript: result.transcript } : item,
+                ) ?? null,
+              )
+              return
+            }
+            setTranscriptErrors((current) => ({ ...current, [id]: result.error }))
+          })
+        }
       })
       .catch(() => {
         if (active) setFailed(true)
@@ -157,6 +176,18 @@ export function FeedbackInboxPage() {
               {item.body ? <p className="t-body feedback-inbox__body">{item.body}</p> : null}
               {item.signed_url ? (
                 <audio className="feedback-record__audio" controls src={item.signed_url} />
+              ) : null}
+              {item.audio_storage_path ? (
+                <div className="feedback-inbox__transcript">
+                  <p className="t-caption text-muted">תמלול</p>
+                  {item.transcript ? (
+                    <p className="t-body feedback-inbox__body">{item.transcript}</p>
+                  ) : transcriptErrors[item.id] ? (
+                    <p className="t-caption text-muted">{transcriptErrors[item.id]}</p>
+                  ) : (
+                    <p className="t-caption text-muted">מתמלל…</p>
+                  )}
+                </div>
               ) : null}
               {item.attachments.length > 0 ? (
                 <ul className="feedback-inbox__files">

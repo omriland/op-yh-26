@@ -8593,6 +8593,12 @@ fieldset.field {
   white-space: pre-wrap;
 }
 
+.feedback-inbox__transcript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .feedback-attach {
   margin-block-start: auto;
   display: flex;

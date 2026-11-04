@@ -1,3 +1,8 @@
+import {
+  feedbackIdsNeedingTranscript,
+  transcriptionFailureMessage,
+  type TranscriptCandidate,
+} from '../../supabase/functions/_shared/feedbackTranscript.ts'
 import type { AppRole } from './auth'
 import { isImpersonating } from './impersonationStash'
 import type { StampDescriptor } from './status'
@@ -124,6 +129,8 @@ export type UserFeedback = {
   audio_storage_path: string | null
   audio_mime_type: string | null
   audio_byte_size: number | null
+  transcript: string | null
+  transcribed_at: string | null
   attachments: FeedbackAttachmentView[]
   created_at: string
   signed_url: string | null
@@ -139,6 +146,8 @@ type FeedbackRow = {
   audio_storage_path: string | null
   audio_mime_type: string | null
   audio_byte_size: number | null
+  transcript?: string | null
+  transcribed_at?: string | null
   attachments?: unknown
   created_at: string
   author?:
@@ -147,11 +156,23 @@ type FeedbackRow = {
     | null
 }
 
+const FEEDBACK_SELECT_BASE =
+  'id, user_id, kind, body, page_path, status, audio_storage_path, audio_mime_type, audio_byte_size'
+
+const FEEDBACK_SELECT_AUTHOR =
+  'created_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
+
 const FEEDBACK_SELECT =
-  'id, user_id, kind, body, page_path, status, audio_storage_path, audio_mime_type, audio_byte_size, attachments, created_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
+  `${FEEDBACK_SELECT_BASE}, attachments, ${FEEDBACK_SELECT_AUTHOR}`
 
 const FEEDBACK_SELECT_NO_ATTACH =
-  'id, user_id, kind, body, page_path, status, audio_storage_path, audio_mime_type, audio_byte_size, created_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
+  `${FEEDBACK_SELECT_BASE}, ${FEEDBACK_SELECT_AUTHOR}`
+
+const FEEDBACK_SELECT_WITH_TRANSCRIPT =
+  `${FEEDBACK_SELECT_BASE}, transcript, transcribed_at, attachments, ${FEEDBACK_SELECT_AUTHOR}`
+
+const FEEDBACK_SELECT_TRANSCRIPT_NO_ATTACH =
+  `${FEEDBACK_SELECT_BASE}, transcript, transcribed_at, ${FEEDBACK_SELECT_AUTHOR}`
 
 const FEEDBACK_IMAGE_MIMES = new Set([
   'image/jpeg',
@@ -235,6 +256,17 @@ export function isMissingFeedbackAttachmentsColumn(
   return (
     (error.code === '42703' && /user_feedback\.attachments/.test(message)) ||
     (error.code === 'PGRST204' && /attachments/.test(message))
+  )
+}
+
+export function isMissingFeedbackTranscriptColumn(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false
+  const message = error.message ?? ''
+  return (
+    (error.code === '42703' && /user_feedback\.transcript/.test(message)) ||
+    (error.code === 'PGRST204' && /transcript/.test(message))
   )
 }
 
@@ -404,6 +436,8 @@ async function withSignedUrl(row: FeedbackRow): Promise<UserFeedback> {
     audio_storage_path: row.audio_storage_path,
     audio_mime_type: row.audio_mime_type,
     audio_byte_size: row.audio_byte_size,
+    transcript: row.transcript ?? null,
+    transcribed_at: row.transcribed_at ?? null,
     attachments,
     created_at: row.created_at,
     signed_url,
@@ -527,9 +561,18 @@ export async function listUserFeedback(status?: FeedbackStatus | 'all'): Promise
     if (status && status !== 'all') query = query.eq('status', status)
     return query
   }
-  let { data, error } = await run(FEEDBACK_SELECT)
+  let select = FEEDBACK_SELECT_WITH_TRANSCRIPT
+  let { data, error } = await run(select)
   if (error && isMissingFeedbackAttachmentsColumn(error)) {
-    ;({ data, error } = await run(FEEDBACK_SELECT_NO_ATTACH))
+    select = FEEDBACK_SELECT_TRANSCRIPT_NO_ATTACH
+    ;({ data, error } = await run(select))
+  }
+  if (error && isMissingFeedbackTranscriptColumn(error)) {
+    select = FEEDBACK_SELECT
+    ;({ data, error } = await run(select))
+    if (error && isMissingFeedbackAttachmentsColumn(error)) {
+      ;({ data, error } = await run(FEEDBACK_SELECT_NO_ATTACH))
+    }
   }
   if (error) throw new Error(error.message)
   return Promise.all(((data ?? []) as unknown as FeedbackRow[]).map(withSignedUrl))
@@ -592,6 +635,58 @@ async function markFeedbackTreatedViaEdge(
   const payload = data as { error?: string; sms?: FeedbackSmsResult }
   if (payload?.error) return { ok: false, error: payload.error }
   return { ok: true, sms: payload.sms ?? 'sent' }
+}
+
+const transcriptInflight = new Map<string, Promise<{ ok: true; transcript: string } | { ok: false; error: string }>>()
+
+export function feedbackRowsNeedingTranscript(
+  rows: readonly Pick<UserFeedback, 'id' | 'audio_storage_path' | 'transcript'>[],
+): string[] {
+  const candidates: TranscriptCandidate[] = rows.map((row) => ({
+    id: row.id,
+    audioStoragePath: row.audio_storage_path,
+    transcript: row.transcript,
+  }))
+  return feedbackIdsNeedingTranscript(candidates)
+}
+
+async function requestFeedbackTranscript(
+  id: string,
+): Promise<{ ok: true; transcript: string } | { ok: false; error: string }> {
+  const { data, error } = await supabase.functions.invoke('transcribe-feedback', {
+    body: { id },
+  })
+  if (error) {
+    const ctx = (error as { context?: Response }).context
+    if (ctx) {
+      try {
+        const payload = (await ctx.json()) as { error?: string }
+        if (payload.error) return { ok: false, error: payload.error }
+      } catch {
+        /* gateway body is not JSON */
+      }
+      return { ok: false, error: transcriptionFailureMessage(ctx.status) }
+    }
+    return { ok: false, error: transcriptionFailureMessage(null) }
+  }
+  const payload = data as { error?: string; transcript?: string }
+  if (payload?.error) return { ok: false, error: payload.error }
+  const transcript = typeof payload?.transcript === 'string' ? payload.transcript.trim() : ''
+  if (!transcript) return { ok: false, error: transcriptionFailureMessage(null) }
+  return { ok: true, transcript }
+}
+
+/** One in-flight request per id. A later load retries only after this settles. */
+export function transcribeUserFeedback(
+  id: string,
+): Promise<{ ok: true; transcript: string } | { ok: false; error: string }> {
+  const existing = transcriptInflight.get(id)
+  if (existing) return existing
+  const pending = requestFeedbackTranscript(id).finally(() => {
+    transcriptInflight.delete(id)
+  })
+  transcriptInflight.set(id, pending)
+  return pending
 }
 
 export async function updateUserFeedbackStatus(

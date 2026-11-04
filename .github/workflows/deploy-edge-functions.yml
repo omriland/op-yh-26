@@ -36,6 +36,7 @@ on:
       - "supabase/migrations/20261103100000_shift_born_events_hardening.sql"
       - "supabase/migrations/20261103101000_map_pins_require_vehicle.sql"
       - "supabase/migrations/20261103110000_apply_event_status_service_role.sql"
+      - "supabase/migrations/20261104170000_user_feedback_transcript.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -165,12 +166,15 @@ jobs:
           # call delete_user_account and write impersonation_audit.session_id.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261103180000_account_deletion.sql
+          # משוב voice transcripts. Additive columns; safe to re-apply.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261104170000_user_feedback_transcript.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          for fn in admin-users delete-account phone-otp plate-scan send-email smart-search unit-broadcast user-feedback; do
+          for fn in admin-users delete-account phone-otp plate-scan send-email smart-search transcribe-feedback unit-broadcast user-feedback; do
             echo "Deploying $fn"
             supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns
           done
