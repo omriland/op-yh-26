@@ -10,6 +10,9 @@ import { createRoot } from 'react-dom/client'
 import { ToastProvider } from '../components/ui/Toast'
 import { FeedbackInboxPage, type FeedbackInboxApi } from '../pages/FeedbackInboxPage'
 import {
+  FEEDBACK_DELETE_ERROR,
+  FEEDBACK_TASK_SAVE_ERROR,
+  FEEDBACK_UPDATE_ERROR,
   feedbackMatchesFilter,
   sortFeedbackForBoard,
   type FeedbackAssignee,
@@ -108,7 +111,7 @@ let rows: UserFeedback[] =
 const never = new Promise<never>(() => {})
 const wait = () => new Promise((resolve) => setTimeout(resolve, 300))
 const saveFails = state === 'save_error'
-const SAVE_ERROR = { ok: false as const, error: 'השליחה נכשלה. בדקו את החיבור ונסו שוב.' }
+const fail = (error: string) => ({ ok: false as const, error })
 
 const api: FeedbackInboxApi = {
   async listUserFeedback(status) {
@@ -122,13 +125,13 @@ const api: FeedbackInboxApi = {
   },
   async updateUserFeedbackStatus(id, status) {
     await wait()
-    if (saveFails) return SAVE_ERROR
+    if (saveFails) return fail(FEEDBACK_UPDATE_ERROR)
     rows = rows.map((item) => (item.id === id ? { ...item, status } : item))
     return { ok: true, sms: 'skipped' }
   },
   async deleteUserFeedback({ id }) {
     await wait()
-    if (saveFails) return SAVE_ERROR
+    if (saveFails) return fail(FEEDBACK_DELETE_ERROR)
     rows = rows.filter((item) => item.id !== id)
     return { ok: true }
   },
@@ -137,13 +140,13 @@ const api: FeedbackInboxApi = {
   },
   async setUserFeedbackAssignee(id, assigneeId) {
     await wait()
-    if (saveFails) return SAVE_ERROR
+    if (saveFails) return fail(FEEDBACK_UPDATE_ERROR)
     rows = rows.map((item) => (item.id === id ? { ...item, assignee_id: assigneeId } : item))
     return { ok: true }
   },
   async updateFeedbackTask(id, { title, body }) {
     await wait()
-    if (saveFails) return SAVE_ERROR
+    if (saveFails) return fail(FEEDBACK_TASK_SAVE_ERROR)
     rows = rows.map((item) =>
       item.id === id ? { ...item, title: title.trim(), body: body.trim() || null } : item,
     )
@@ -151,7 +154,7 @@ const api: FeedbackInboxApi = {
   },
   async createFeedbackTask({ title, body, assigneeId }) {
     await wait()
-    if (saveFails) return SAVE_ERROR
+    if (saveFails) return fail(FEEDBACK_TASK_SAVE_ERROR)
     rows = [
       row({
         id: `t${Date.now()}`,

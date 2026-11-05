@@ -17,6 +17,7 @@ import {
   FEEDBACK_ASSIGNEE_NONE,
   FEEDBACK_BODY_MAX,
   FEEDBACK_STATUS_STAMP,
+  FEEDBACK_TASK_TITLE_LEN_ERROR,
   FEEDBACK_TASK_TITLE_MAX,
   feedbackAssigneeFilterOptions,
   feedbackAssigneeOptions,
@@ -27,7 +28,6 @@ import {
   feedbackTreatedToast,
   filterFeedbackByAssignee,
   isFeedbackTask,
-  sortFeedbackForBoard,
   type FeedbackAssignee,
   type FeedbackListFilter,
   type FeedbackStatus,
@@ -48,7 +48,8 @@ export type FeedbackInboxApi = Pick<
 >
 
 const FILTERS: { id: FeedbackListFilter; label: string }[] = [
-  { id: 'active', label: 'פתוח' },
+  { id: 'active', label: 'פעיל' },
+  { id: 'open', label: 'פתוח' },
   { id: 'in_progress', label: 'בטיפול' },
   { id: 'fixed', label: 'טופל' },
   { id: 'wont_do', label: 'לא יטופל' },
@@ -69,7 +70,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
   const [items, setItems] = useState<UserFeedback[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set())
   const [confirmDelete, setConfirmDelete] = useState<UserFeedback | null>(null)
   const [transcriptErrors, setTranscriptErrors] = useState<Record<string, string>>({})
   const [draft, setDraft] = useState<TaskDraft | null>(null)
@@ -79,8 +80,19 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
+  const assigneeFilterRef = useRef<HTMLDivElement>(null)
   const cardRefs = useRef(new Map<string, HTMLLIElement>())
+  /** Saving rows, read synchronously so a second click on the same card is ignored. */
+  const busyRef = useRef(new Set<string>())
+  /** Bumped on every full load, so a slower silent refresh for an older filter is dropped. */
+  const loadGeneration = useRef(0)
   const draftOpen = draft !== null
+
+  function setBusy(id: string, busy: boolean) {
+    if (busy) busyRef.current.add(id)
+    else busyRef.current.delete(id)
+    setBusyIds(new Set(busyRef.current))
+  }
 
   useEffect(() => {
     let active = true
@@ -99,6 +111,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
 
   useEffect(() => {
     let active = true
+    loadGeneration.current += 1
     setItems(null)
     setFailed(false)
     setTranscriptErrors({})
@@ -137,8 +150,8 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
 
   useEffect(() => {
     if (!pendingFocus) return
-    if (pendingFocus === HEADING) headingRef.current?.focus()
-    else cardRefs.current.get(pendingFocus)?.focus()
+    const card = pendingFocus === HEADING ? null : cardRefs.current.get(pendingFocus)
+    ;(card ?? headingRef.current)?.focus()
     setPendingFocus(null)
   }, [pendingFocus])
 
@@ -151,44 +164,55 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
 
   const emptyCaption = useMemo(() => {
     if (assigneeFilter !== FEEDBACK_ASSIGNEE_ALL) return 'אין פריטים שתואמים לסינון.'
-    if (filter === 'active') return 'אין משוב פתוח.'
+    if (filter === 'active') return 'אין משוב פעיל.'
+    if (filter === 'open') return 'אין משוב פתוח.'
     if (filter === 'all') return 'עדיין לא התקבל משוב.'
     return 'אין פריטים במצב הזה.'
   }, [assigneeFilter, filter])
 
   /**
-   * Applies a saved change to the list in place (`next` null removes the row), keeps
-   * the board order, and moves focus off a control that may have just disappeared.
+   * Patches one saved row into the current list (`patch` null removes it) without
+   * re-sorting, so the card stays where it was until the next load. Moves focus off a
+   * control that may have just disappeared. A save that outlived a reload changes nothing.
    */
-  function settle(id: string, next: UserFeedback | null, keepFocus = false) {
-    const nextItems = sortFeedbackForBoard(
-      (items ?? []).flatMap((row) => {
-        if (row.id !== id) return [row]
-        return next && feedbackMatchesFilter(next.status, filter) ? [next] : []
-      }),
+  function settle(
+    id: string,
+    patch: Partial<UserFeedback> | null,
+    generation: number,
+    keepFocus = false,
+  ) {
+    if (generation !== loadGeneration.current) return
+    const keep = (row: UserFeedback) =>
+      feedbackMatchesFilter(row.status, filter) &&
+      filterFeedbackByAssignee([row], assigneeFilter).length > 0
+    setItems(
+      (current) =>
+        current?.flatMap((row) => {
+          if (row.id !== id) return [row]
+          if (!patch) return []
+          const next = { ...row, ...patch }
+          return feedbackMatchesFilter(next.status, filter) ? [next] : []
+        }) ?? null,
     )
-    setItems(nextItems)
-    const after = filterFeedbackByAssignee(nextItems, assigneeFilter)
-    const stillShown = after.some((row) => row.id === id)
-    if (stillShown && keepFocus) return
+    const before = visibleItems ?? []
+    const saved = before.find((row) => row.id === id)
+    const stillShown = Boolean(saved && patch && keep({ ...saved, ...patch }))
     if (stillShown) {
-      setPendingFocus(id)
+      if (!keepFocus) setPendingFocus(id)
       return
     }
-    const before = visibleItems ?? []
     const index = before.findIndex((row) => row.id === id)
-    const neighbour = [...before.slice(index + 1), ...before.slice(0, index).reverse()].find(
-      (row) => after.some((shown) => shown.id === row.id),
-    )
+    const neighbour = index < 0 ? undefined : (before[index + 1] ?? before[index - 1])
     setPendingFocus(neighbour?.id ?? HEADING)
   }
 
   async function setStatus(item: UserFeedback, status: FeedbackStatus) {
-    if (busyId) return
-    setBusyId(item.id)
+    if (busyRef.current.has(item.id)) return
+    const generation = loadGeneration.current
+    setBusy(item.id, true)
     const task = isFeedbackTask(item)
     const result = await api.updateUserFeedbackStatus(item.id, status, { notifyAuthor: !task })
-    setBusyId(null)
+    setBusy(item.id, false)
     if (!result.ok) {
       show(result.error, 'alert')
       return
@@ -198,47 +222,56 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
         ? feedbackTreatedToast(result.sms)
         : { message: 'הסטטוס עודכן.', tone: 'done' as const }
     show(toast.message, toast.tone)
-    settle(item.id, { ...item, status })
+    settle(item.id, { status }, generation)
   }
 
   async function assign(item: UserFeedback, value: string) {
     const assigneeId = value === FEEDBACK_ASSIGNEE_NONE ? null : value
-    if (busyId || assigneeId === item.assignee_id) return
-    setBusyId(item.id)
+    if (busyRef.current.has(item.id) || assigneeId === item.assignee_id) return
+    const generation = loadGeneration.current
+    setBusy(item.id, true)
     const result = await api.setUserFeedbackAssignee(item.id, assigneeId)
-    setBusyId(null)
+    setBusy(item.id, false)
     if (!result.ok) {
       show(result.error, 'alert')
       return
     }
     show('האחראי עודכן.', 'done')
-    settle(item.id, { ...item, assignee_id: assigneeId }, true)
+    settle(item.id, { assignee_id: assigneeId }, generation, true)
   }
 
   async function remove(item: UserFeedback) {
-    if (busyId) return
-    setBusyId(item.id)
+    if (busyRef.current.has(item.id)) return
+    const generation = loadGeneration.current
+    setBusy(item.id, true)
     const result = await api.deleteUserFeedback({
       id: item.id,
       audioStoragePath: item.audio_storage_path,
       attachmentPaths: item.attachments.map((file) => file.path),
     })
-    setBusyId(null)
+    setBusy(item.id, false)
     setConfirmDelete(null)
     if (!result.ok) {
       show(result.error, 'alert')
       return
     }
     show(isFeedbackTask(item) ? 'המשימה נמחקה.' : 'המשוב נמחק.', 'done')
-    settle(item.id, null)
+    settle(item.id, null, generation)
   }
 
   async function refreshSilently() {
+    const generation = loadGeneration.current
     try {
-      setItems(await api.listUserFeedback(filter))
+      const rows = await api.listUserFeedback(filter)
+      if (generation === loadGeneration.current) setItems(rows)
     } catch {
-      setReloadKey((key) => key + 1)
+      if (generation === loadGeneration.current) setReloadKey((key) => key + 1)
     }
+  }
+
+  function clearAssigneeFilter() {
+    setAssigneeFilter(FEEDBACK_ASSIGNEE_ALL)
+    assigneeFilterRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
   }
 
   function openDraft(item?: UserFeedback) {
@@ -276,6 +309,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
     setSavingDraft(false)
     if (!result.ok) {
       setDraftSaveError(result.error)
+      titleRef.current?.focus()
       return
     }
     const editedId = draft.id
@@ -328,7 +362,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
             </button>
           ))}
         </div>
-        <div className="feedback-inbox__filter">
+        <div className="feedback-inbox__filter" ref={assigneeFilterRef}>
           <SelectField
             label="אחראי"
             value={assigneeFilter}
@@ -358,7 +392,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
           title={emptyCaption}
           action={
             assigneeFilter !== FEEDBACK_ASSIGNEE_ALL ? (
-              <Button variant="secondary" onClick={() => setAssigneeFilter(FEEDBACK_ASSIGNEE_ALL)}>
+              <Button variant="secondary" onClick={clearAssigneeFilter}>
                 ניקוי סינון
               </Button>
             ) : undefined
@@ -370,7 +404,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
         <ul className="stack-4 feedback-inbox">
           {visibleItems.map((item) => {
             const task = isFeedbackTask(item)
-            const busy = busyId === item.id
+            const busy = busyIds.has(item.id)
             return (
               <li
                 key={item.id}
@@ -380,7 +414,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
                 }}
                 tabIndex={-1}
                 aria-busy={busy}
-                className="card feedback-inbox__card"
+                className={busy ? 'card feedback-inbox__card feedback-inbox__card--saving' : 'card feedback-inbox__card'}
               >
                 <div className="feedback-inbox__head">
                   <p className="t-section">{feedbackHeading(item)}</p>
@@ -464,7 +498,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
                     <Button
                       type="button"
                       variant="secondary"
-                      aria-busy={busy}
+                      aria-disabled={busy}
                       onClick={() => void setStatus(item, 'in_progress')}
                     >
                       בטיפול
@@ -474,7 +508,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
                     <Button
                       type="button"
                       variant="secondary"
-                      aria-busy={busy}
+                      aria-disabled={busy}
                       onClick={() => void setStatus(item, 'fixed')}
                     >
                       טופל
@@ -484,7 +518,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
                     <Button
                       type="button"
                       variant="secondary"
-                      aria-busy={busy}
+                      aria-disabled={busy}
                       onClick={() => void setStatus(item, 'wont_do')}
                     >
                       לא יטופל
@@ -494,25 +528,39 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
                     <Button
                       type="button"
                       variant="ghost"
-                      aria-busy={busy}
+                      aria-disabled={busy}
                       onClick={() => void setStatus(item, 'open')}
                     >
                       {item.status === 'in_progress' ? 'החזרה לפתוח' : 'פתיחה מחדש'}
                     </Button>
                   ) : null}
                   {task ? (
-                    <Button type="button" variant="ghost" onClick={() => openDraft(item)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-disabled={busy}
+                      onClick={() => {
+                        if (!busy) openDraft(item)
+                      }}
+                    >
                       עריכה
                     </Button>
                   ) : null}
                   <Button
                     type="button"
                     variant="destructive"
-                    aria-busy={busy}
-                    onClick={() => setConfirmDelete(item)}
+                    aria-disabled={busy}
+                    onClick={() => {
+                      if (!busy) setConfirmDelete(item)
+                    }}
                   >
                     מחיקה
                   </Button>
+                  {busy ? (
+                    <p className="t-caption text-muted" role="status">
+                      שומר…
+                    </p>
+                  ) : null}
                 </div>
               </li>
             )
@@ -555,12 +603,17 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
               label="כותרת"
               required
               inputRef={titleRef}
-              maxLength={FEEDBACK_TASK_TITLE_MAX}
               value={draft.title}
               hint={`${draft.title.length} מתוך ${FEEDBACK_TASK_TITLE_MAX} תווים`}
-              error={draftError}
+              error={
+                draftError ??
+                (draft.title.trim().length > FEEDBACK_TASK_TITLE_MAX
+                  ? FEEDBACK_TASK_TITLE_LEN_ERROR
+                  : undefined)
+              }
               onChange={(event) => {
                 setDraftError(undefined)
+                setDraftSaveError(undefined)
                 setDraft({ ...draft, title: event.target.value })
               }}
             />
@@ -592,7 +645,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
         open={Boolean(confirmDelete)}
         status="danger"
         title={confirmDelete && isFeedbackTask(confirmDelete) ? 'למחוק את המשימה?' : 'למחוק את המשוב?'}
-        busy={Boolean(confirmDelete && busyId === confirmDelete.id)}
+        busy={Boolean(confirmDelete && busyIds.has(confirmDelete.id))}
         onClose={() => setConfirmDelete(null)}
         footer={
           <>
@@ -602,7 +655,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
             <Button
               type="button"
               variant="destructive"
-              loading={Boolean(confirmDelete && busyId === confirmDelete.id)}
+              loading={Boolean(confirmDelete && busyIds.has(confirmDelete.id))}
               loadingLabel="מוחק…"
               onClick={() => confirmDelete && void remove(confirmDelete)}
             >

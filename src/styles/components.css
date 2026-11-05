@@ -8633,6 +8633,17 @@ fieldset.field {
   flex-shrink: 0;
 }
 
+/* A card mid-save keeps focus on its controls, so they are aria-disabled, not
+   disabled; same dimming as .btn:disabled. */
+.feedback-inbox .btn[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.feedback-inbox__actions > .t-caption {
+  align-self: center;
+}
+
 .feedback-inbox__transcript {
   display: flex;
   flex-direction: column;
