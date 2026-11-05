@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useFreezeViewer } from '../lib/freezeViewer'
-import { textIncludesQuery } from '../lib/searchQuery'
 import {
   UNIT_EVENTS_LIST_LIMIT,
   UNIT_EVENTS_LOAD_MORE_LABEL,
@@ -55,6 +54,7 @@ import {
   MINE_PENDING_EMPTY_TITLE,
   MINE_PENDING_EMPTY_VIEW_LOGGED,
   MINE_PENDING_TAB_LABEL,
+  mineEventMatchesQuery,
   mineLoggedNoResultsTitle,
   shiftGroupPendingCaption,
   shiftGroupShouldStartOpen,
@@ -553,10 +553,7 @@ export function EventsPage({
     const needle = query.trim()
     const filtered = events.filter((event) => {
       const matchesStatus = filter === 'all' || event.status === filter
-      const haystack = [event.police_event_id, event.road?.name, event.location]
-        .filter(Boolean)
-        .join(' ')
-      return matchesStatus && (!needle || textIncludesQuery(haystack, needle))
+      return matchesStatus && (!needle || mineEventMatchesQuery(event, needle))
     })
 
     // Open assignments first — the responder's list is a to-do list.

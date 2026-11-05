@@ -1366,19 +1366,6 @@ function RulePanel({
     case 'event_id':
       body = (
         <div className="fpanel__fields">
-          <div className="fseg" role="radiogroup" aria-label="תנאי" onKeyDown={onRadioKeys}>
-            {def.ops.map((row) => (
-              <button
-                key={row.op}
-                type="button"
-                role="radio"
-                aria-checked={rule.op === row.op}
-                onClick={() => onChange({ ...rule, op: row.op as 'is' | 'contains' })}
-              >
-                {row.label}
-              </button>
-            ))}
-          </div>
           <TextField
             label="מספר אירוע"
             numeric

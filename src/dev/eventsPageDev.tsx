@@ -11,6 +11,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AuthContext, type AuthState } from '../lib/auth'
 import { mergeRuleHits, ruleQueryPlans, type FilterRule, type QueryFilter } from '../lib/eventFilters'
+import { listSearchMatches } from '../lib/searchQuery'
 import { readLocalPresets, writeLocalPresets } from '../lib/eventFilterPresets'
 import type { EventListItem } from '../lib/events'
 import { useIsDesktop } from '../lib/useMediaQuery'
@@ -141,6 +142,8 @@ function columnValues(event: EventListItem, column: string): (string | null)[] {
   switch (column) {
     case 'sl.user_id':
       return ((event.secondary_leads ?? []) as { user_id: string }[]).map((row) => row.user_id)
+    case 'rf.rp.callsign':
+      return event.responders.map((row) => row.profile?.callsign ?? null)
     case 'pe.plate_digits':
       return shiftBorn ? meta.plates : []
     case 'pr.tp.plate_digits':
@@ -252,12 +255,20 @@ const api: EventsPageApi = {
   async searchUnitEventIds(needle) {
     await wait(200)
     return EVENTS.filter((event) =>
-      [
-        event.police_event_id,
-        event.road?.name,
-        event.location,
-        ...event.responders.map((row) => row.profile?.full_name),
-      ].some((text) => text?.includes(needle)),
+      listSearchMatches(
+        {
+          policeEventId: event.police_event_id,
+          roadName: event.road?.name,
+          location: event.location,
+          patrolNumber: event.patrol_callsign_number,
+          names: [event.shift_lead?.full_name, ...event.responders.map((row) => row.profile?.full_name)],
+          callsigns: [
+            event.shift_lead?.callsign,
+            ...event.responders.map((row) => row.profile?.callsign),
+          ],
+        },
+        needle,
+      ),
     ).map((event) => event.id)
   },
   async deleteEvent() {

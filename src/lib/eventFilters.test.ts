@@ -305,7 +305,7 @@ describe('rule chips', () => {
     expect(ruleSummary({ field: 'vehicle_kind', op: 'any_of', value: ['truck'] }, labels)).toBe('סוג רכב שטופל: משאית')
     expect(ruleSummary({ field: 'responder', op: 'contains', value: 'רונית' }, labels)).toBe('כונן: רונית')
     expect(ruleSummary({ field: 'event_id', op: 'is', value: '48210' }, labels)).toBe('מספר אירוע: 48210')
-    expect(ruleSummary({ field: 'event_id', op: 'contains', value: '482' }, labels)).toBe('מספר אירוע: מכיל 482')
+    expect(ruleSummary({ field: 'event_id', op: 'is', value: '482' }, labels)).toBe('מספר אירוע: 482')
     expect(ruleValueLabel({ field: 'treated_plate', op: 'contains', value: '12345' }, labels)).toBe('12345')
     expect(ruleValueLabel({ field: 'shift_lead', op: 'any_of', value: ['gone'] }, labels)).toBe('לא ידוע')
     expect(
@@ -329,7 +329,7 @@ describe('ruleQueryPlans', () => {
   it('combines event-level rules with AND in a single id query', () => {
     const plans = ruleQueryPlans(
       [
-        { field: 'event_id', op: 'contains', value: '482' },
+        { field: 'event_id', op: 'is', value: '482' },
         { field: 'event_date', op: 'between', value: { from: '2026-11-01', to: '2026-11-05' } },
       ],
       { shiftLeadId: 'lead', status: 'partial', hideShiftEvents: true },
@@ -341,7 +341,7 @@ describe('ruleQueryPlans', () => {
           { op: 'eq', column: 'shift_lead_id', value: 'lead' },
           { op: 'eq', column: 'status', value: 'partial' },
           { op: 'neq', column: 'origin', value: 'shift' },
-          { op: 'ilike', column: 'police_event_id', value: '%482%' },
+          { op: 'eq', column: 'police_event_id', value: '482' },
           { op: 'gte', column: 'event_date', value: '2026-11-01' },
           { op: 'lte', column: 'event_date', value: '2026-11-05' },
         ],
@@ -353,13 +353,13 @@ describe('ruleQueryPlans', () => {
     const plans = ruleQueryPlans(
       [
         { field: 'shift_lead', op: 'any_of', value: ['dan', 'ron'] },
-        { field: 'event_id', op: 'contains', value: '482' },
+        { field: 'event_id', op: 'is', value: '482' },
       ],
       { shiftLeadId: null, status: 'all', hideShiftEvents: true },
     )
     const shared = [
       { op: 'neq', column: 'origin', value: 'shift' },
-      { op: 'ilike', column: 'police_event_id', value: '%482%' },
+      { op: 'eq', column: 'police_event_id', value: '482' },
     ]
     expect(plans).toEqual([
       {
@@ -400,6 +400,11 @@ describe('ruleQueryPlans', () => {
   it('a single date is an exact match on event_date', () => {
     const [plan] = ruleQueryPlans([{ field: 'event_date', op: 'on', value: { from: '2026-11-01', to: '' } }], base)
     expect(plan!.filters).toEqual([{ op: 'eq', column: 'event_date', value: '2026-11-01' }])
+  })
+
+  it('matches a numeric callsign exactly and a name as a substring', () => {
+    const [digits] = ruleQueryPlans([{ field: 'responder', op: 'contains', value: '318' }], base)
+    expect(digits!.filters).toEqual([{ op: 'eq', column: 'rf.rp.callsign', value: '318' }])
   })
 
   it('matches a responder by name or callsign through an inner join', () => {
@@ -504,6 +509,9 @@ describe('stored views', () => {
         ],
       }),
     ).toEqual({ ...DEFAULT_EVENT_LIST_VIEW, rules: [{ field: 'event_id', op: 'is', value: '48210' }] })
+    expect(
+      parseView({ rules: [{ field: 'event_id', op: 'contains', value: '482' }] }),
+    ).toEqual({ ...DEFAULT_EVENT_LIST_VIEW, rules: [{ field: 'event_id', op: 'is', value: '482' }] })
     expect(parseView(null)).toBeNull()
   })
 

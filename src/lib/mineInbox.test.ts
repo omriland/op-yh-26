@@ -75,9 +75,12 @@ describe('mineEventMatchesQuery', () => {
       road: { name: 'כביש 6' },
       location: 'מחלף אייל',
     }
-    expect(mineEventMatchesQuery(event, '123')).toBe(true)
+    expect(mineEventMatchesQuery(event, '123')).toBe(false)
+    expect(mineEventMatchesQuery(event, '12345')).toBe(true)
     expect(mineEventMatchesQuery(event, 'אייל')).toBe(true)
-    expect(mineEventMatchesQuery(event, '6')).toBe(true)
+    expect(mineEventMatchesQuery(event, '6')).toBe(false)
+    expect(mineEventMatchesQuery({ ...event, shift_lead: { callsign: '363' } }, '363')).toBe(true)
+    expect(mineEventMatchesQuery({ ...event, shift_lead: { callsign: '363' } }, '36')).toBe(false)
     expect(mineEventMatchesQuery(event, 'חיפה')).toBe(false)
   })
 })
