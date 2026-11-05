@@ -10,6 +10,9 @@ import {
   FEEDBACK_ASSIGNEE_NONE,
   FEEDBACK_BODY_ERROR,
   FEEDBACK_BODY_MAX,
+  FEEDBACK_DELETE_ERROR,
+  FEEDBACK_TASK_SAVE_ERROR,
+  FEEDBACK_UPDATE_ERROR,
   FEEDBACK_STATUS_STAMP,
   FEEDBACK_TASK_TITLE_ERROR,
   FEEDBACK_TASK_TITLE_LEN_ERROR,
@@ -167,6 +170,33 @@ describe('feedback task-board migration', () => {
     expect(sql).toContain("where public.has_role(auth.uid(), 'super_admin')")
     expect(sql).toContain('revoke all on function public.feedback_assignees() from public')
     expect(sql).toContain('as assignable')
+    const drop = sql.indexOf('drop function if exists public.feedback_assignees();')
+    expect(drop).toBeGreaterThan(-1)
+    expect(drop).toBeLessThan(sql.indexOf('create or replace function public.feedback_assignees()'))
+  })
+})
+
+describe('board failure copy', () => {
+  const lib = readFileSync(resolve(srcDir, 'userFeedback.ts'), 'utf8')
+
+  function body(name: string) {
+    const start = lib.indexOf(`function ${name}(`)
+    return lib.slice(start, lib.indexOf('\n}\n', start))
+  }
+
+  it('says the update or delete failed, not that sending failed', () => {
+    expect(FEEDBACK_UPDATE_ERROR).toBe('העדכון נכשל. נסו שוב.')
+    expect(FEEDBACK_DELETE_ERROR).toBe('המחיקה נכשלה. נסו שוב.')
+    expect(FEEDBACK_TASK_SAVE_ERROR).toBe('שמירת המשימה נכשלה. נסו שוב.')
+    for (const name of ['updateFeedbackStatusRow', 'setUserFeedbackAssignee']) {
+      expect(body(name)).toContain('FEEDBACK_UPDATE_ERROR')
+      expect(body(name)).not.toContain('FEEDBACK_NETWORK')
+    }
+    expect(body('deleteUserFeedback')).toContain('FEEDBACK_DELETE_ERROR')
+    for (const name of ['createFeedbackTask', 'updateFeedbackTask']) {
+      expect(body(name)).toContain('FEEDBACK_TASK_SAVE_ERROR')
+      expect(body(name)).not.toContain('FEEDBACK_NETWORK')
+    }
   })
 })
 

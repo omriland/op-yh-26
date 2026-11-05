@@ -21,6 +21,9 @@ export const FEEDBACK_VIDEO_MAX_BYTES = 25 * 1024 * 1024
 export const FEEDBACK_ATTACH_NAME_MAX = 200
 
 export const FEEDBACK_NETWORK = 'השליחה נכשלה. בדקו את החיבור ונסו שוב.'
+export const FEEDBACK_UPDATE_ERROR = 'העדכון נכשל. נסו שוב.'
+export const FEEDBACK_DELETE_ERROR = 'המחיקה נכשלה. נסו שוב.'
+export const FEEDBACK_TASK_SAVE_ERROR = 'שמירת המשימה נכשלה. נסו שוב.'
 export const FEEDBACK_EMPTY_ERROR = 'יש לכתוב הערה או להקליט הודעה.'
 export const FEEDBACK_BODY_ERROR = 'ההערה ארוכה מדי. קצרו ל־2,000 תווים.'
 export const FEEDBACK_KIND_ERROR = 'בחרו אם זה באג או הצעה.'
@@ -696,7 +699,7 @@ async function updateFeedbackStatusRow(
   status: FeedbackStatus,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await supabase.from('user_feedback').update({ status }).eq('id', id)
-  if (error) return { ok: false, error: FEEDBACK_NETWORK }
+  if (error) return { ok: false, error: FEEDBACK_UPDATE_ERROR }
   return { ok: true }
 }
 
@@ -733,7 +736,7 @@ async function markFeedbackTreatedViaEdge(
       if (!fallback.ok) return fallback
       return { ok: true, sms: 'unavailable' }
     }
-    return { ok: false, error: FEEDBACK_NETWORK }
+    return { ok: false, error: FEEDBACK_UPDATE_ERROR }
   }
 
   const payload = data as { error?: string; sms?: FeedbackSmsResult }
@@ -818,7 +821,7 @@ export async function deleteUserFeedback(input: {
   attachmentPaths?: string[]
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error } = await supabase.from('user_feedback').delete().eq('id', input.id)
-  if (error) return { ok: false, error: FEEDBACK_NETWORK }
+  if (error) return { ok: false, error: FEEDBACK_DELETE_ERROR }
   const paths = [
     input.audioStoragePath,
     ...(input.attachmentPaths ?? []),
@@ -888,7 +891,7 @@ export async function setUserFeedbackAssignee(
     .from('user_feedback')
     .update({ assignee_id: assigneeId })
     .eq('id', id)
-  if (error) return { ok: false, error: FEEDBACK_NETWORK }
+  if (error) return { ok: false, error: FEEDBACK_UPDATE_ERROR }
   return { ok: true }
 }
 
@@ -904,7 +907,7 @@ export async function createFeedbackTask(input: {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: FEEDBACK_NETWORK }
+  if (!user) return { ok: false, error: FEEDBACK_TASK_SAVE_ERROR }
 
   const { error: insertError } = await supabase.from('user_feedback').insert({
     user_id: user.id,
@@ -914,7 +917,7 @@ export async function createFeedbackTask(input: {
     status: 'open',
     assignee_id: input.assigneeId,
   })
-  if (insertError) return { ok: false, error: FEEDBACK_NETWORK }
+  if (insertError) return { ok: false, error: FEEDBACK_TASK_SAVE_ERROR }
   return { ok: true }
 }
 
@@ -928,6 +931,6 @@ export async function updateFeedbackTask(
     .from('user_feedback')
     .update({ title: input.title.trim(), body: input.body.trim() || null })
     .eq('id', id)
-  if (updateError) return { ok: false, error: FEEDBACK_NETWORK }
+  if (updateError) return { ok: false, error: FEEDBACK_TASK_SAVE_ERROR }
   return { ok: true }
 }

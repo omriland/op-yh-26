@@ -107,6 +107,8 @@ $$;
 
 -- Active super admins (assignable) plus anyone still holding a row who no
 -- longer qualifies, so the inbox can name them. Empty for anyone but a super admin.
+-- Dropped first: create or replace cannot change the returned columns.
+drop function if exists public.feedback_assignees();
 create or replace function public.feedback_assignees()
 returns table (
   id uuid,
