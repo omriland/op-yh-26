@@ -19,6 +19,8 @@
     "@heroui/styles": "^3.2.4",
     "@posthog/react": "^1.10.3",
     "@supabase/supabase-js": "^2.112.2",
+    "cobrowse-sdk-js": "3.28.9",
+    "heic-to": "1.6.6",
     "lucide-react": "^1.30.0",
     "motion": "^13.2.0",
     "posthog-js": "^1.417.1",

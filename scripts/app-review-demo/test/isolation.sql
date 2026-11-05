@@ -163,8 +163,9 @@ select pg_temp.ok((select array_agg(id order by id) from public.profiles)
   'demo: profiles = demo profiles only');
 select pg_temp.ok((select count(*) from public.profiles where id = '11111111-1111-4111-8111-111111111111') = 0,
   'demo: cannot read a real profile by id');
-select pg_temp.ok((select array_agg(id) from public.list_unit_contacts()) = array['d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1']::uuid[],
-  'demo: list_unit_contacts = demo members only');
+select pg_temp.ok((select array_agg(id order by id) from public.list_unit_contacts())
+  = array['d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd']::uuid[],
+  'demo: list_unit_contacts = demo members only, self included');
 select pg_temp.ok((select array_agg(user_id) from public.list_unit_map_pins()) = array['d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1']::uuid[],
   'demo: list_unit_map_pins = demo pins only');
 select pg_temp.ok((select array_agg(user_id) from public.vehicles) = array['dddddddd-dddd-4ddd-8ddd-dddddddddddd']::uuid[],
@@ -225,9 +226,10 @@ select pg_temp.act_as('11111111-1111-4111-8111-111111111111');
 select pg_temp.ok((select array_agg(id) from public.events) = array['e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1']::uuid[],
   'real responder: sees the real event');
 select pg_temp.ok((select array_agg(id order by id) from public.list_unit_contacts())
-  = array['22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333',
-          '35353535-3535-4353-8353-353535353535', '44444444-4444-4444-8444-444444444444']::uuid[],
-  'real responder: contacts = real members, no demo');
+  = array['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222',
+          '33333333-3333-4333-8333-333333333333', '35353535-3535-4353-8353-353535353535',
+          '44444444-4444-4444-8444-444444444444']::uuid[],
+  'real responder: contacts = real members, self included, no demo');
 select pg_temp.ok((select array_agg(user_id) from public.list_unit_map_pins()) = array['11111111-1111-4111-8111-111111111111']::uuid[],
   'real responder: map pins = real pins, no demo');
 select pg_temp.ok((select count(*) from public.profiles where is_app_review_demo) = 0,

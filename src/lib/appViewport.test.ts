@@ -6,8 +6,10 @@ import {
   applyKeyboardOpenState,
   bindAppViewportHeight,
   isVirtualKeyboardOpen,
+  keyboardCoverPx,
   readAppViewportHeight,
   resetDocumentScroll,
+  sheetAboveKeyboard,
   shouldScrollFocusedField,
 } from './appViewport'
 
@@ -75,6 +77,35 @@ describe('applyKeyboardOpenState', () => {
     expect(attrs.get(KEYBOARD_OPEN_ATTR)).toBe('')
     applyKeyboardOpenState(false, root)
     expect(attrs.has(KEYBOARD_OPEN_ATTR)).toBe(false)
+  })
+})
+
+describe('keyboardCoverPx', () => {
+  it('is the layout viewport hidden below the visual viewport', () => {
+    expect(keyboardCoverPx(800, 0, 420)).toBe(380)
+    expect(keyboardCoverPx(800, 40, 420)).toBe(340)
+  })
+
+  it('stays closed for browser chrome and a resting viewport', () => {
+    expect(keyboardCoverPx(800, 0, 720)).toBe(0)
+    expect(keyboardCoverPx(800, 0, 800)).toBe(0)
+    expect(keyboardCoverPx(700, 0, 760)).toBe(0)
+  })
+})
+
+describe('sheetAboveKeyboard', () => {
+  it('lifts the fixed sheet by the keyboard overlap and caps it to the visual viewport', () => {
+    expect(sheetAboveKeyboard(800, 0, 420)).toEqual({
+      rootBottom: '380px',
+      sheetMaxHeight: '420px',
+    })
+  })
+
+  it('clears the lift after the keyboard closes', () => {
+    expect(sheetAboveKeyboard(800, 0, 800)).toEqual({
+      rootBottom: '',
+      sheetMaxHeight: '',
+    })
   })
 })
 

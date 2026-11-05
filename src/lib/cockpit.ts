@@ -408,6 +408,8 @@ export async function fetchCockpitReel(now = new Date()): Promise<CockpitReelIte
   const { data, error } = await supabase
     .from('events')
     .select(await withResponderFreeze(COCKPIT_REEL_SELECT))
+    // Shift-born events are documented in the shared shift report, never here.
+    .eq('origin', 'manual')
     .gte('created_at', since)
     .order('created_at', { ascending: false })
 

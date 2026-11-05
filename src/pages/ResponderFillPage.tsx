@@ -7,6 +7,8 @@ import {
   fetchResponderVehicleChoices,
   fillHeaderStatus,
   mergeFillVehicleChoices,
+  RESPONDER_FILL_CANCELLED_NOTE,
+  odometerDelta,
   odometerRangeError,
   saveResponderFillDraft,
   type ResponderFillContext,
@@ -42,6 +44,7 @@ import {
   type SaveRuleIssue,
 } from '../lib/eventSaveRules'
 import { fetchEventPhotoCoverage } from '../lib/eventVehiclePhotos'
+import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
@@ -62,6 +65,7 @@ import {
   stashFillDraft,
 } from '../lib/fillDraftStash'
 import { shouldKeepLiveFormBoot } from '../lib/formDraftSurvival'
+import { ShiftBornFillPage } from './ShiftBornFillPage'
 
 const FILL_STASH_SCOPE = 'responder'
 /** Long enough to not thrash on every keystroke, short enough to survive a kill. */
@@ -95,7 +99,10 @@ export function ResponderFillPage({
   const { show } = useToast()
   const [ctx, setCtx] = useState<ResponderFillContext | null>(null)
   const [draft, setDraft] = useState<ResponderFillDraft | null>(null)
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied'>('loading')
+  /** `shift_born`: the crew documents this event once, in the shared report. */
+  const [loadState, setLoadState] = useState<
+    'loading' | 'ready' | 'denied' | 'error' | 'shift_born'
+  >('loading')
   const [errors, setErrors] = useState<ResponderFillErrors>({})
   const [savingDraft, setSavingDraft] = useState(false)
   const [completing, setCompleting] = useState(false)
@@ -158,7 +165,7 @@ export function ResponderFillPage({
           setLoadState('ready')
         })
         .catch(() => {
-          if (active) setLoadState('denied')
+          if (active) setLoadState('error')
         })
       return () => {
         active = false
@@ -177,12 +184,19 @@ export function ResponderFillPage({
           setLoadState('denied')
           return
         }
+        // The one guard for every route into a per-responder report (inbox CTA,
+        // own card, /fill URL, post-login link): a shift-born event never asks
+        // anyone for plate, odometer or route.
+        if (next.origin === 'shift') {
+          setLoadState('shift_born')
+          return
+        }
         setCtx(next)
         setDraft(restoreDraft(next.assignmentId, next.draft))
         setLoadState('ready')
       })
       .catch(() => {
-        if (active) setLoadState('denied')
+        if (active) setLoadState('error')
       })
 
     return () => {
@@ -193,13 +207,9 @@ export function ResponderFillPage({
   }, [eventId, userId, fillToken])
 
   const readOnly =
-    ctx?.participationStatus === 'done' ||
-    ctx?.eventStatus === 'done' ||
-    Boolean(ctx?.is_cancelled)
+    ctx?.participationStatus === 'done' || ctx?.eventStatus === 'done'
   const eventClosedWhileOpen =
     ctx?.eventStatus === 'done' && ctx.participationStatus !== 'done'
-  // Surfaced up front so the כונן does not fill the whole form and only then
-  // hit the write gate.
   const eventCancelledWhileOpen =
     Boolean(ctx?.is_cancelled) && ctx?.participationStatus !== 'done'
 
@@ -383,6 +393,17 @@ export function ResponderFillPage({
     enqueuePlateLookup(result.plate.plate_number)
   }
 
+  /** A plate read off a photo and confirmed by the responder. Leaves the typed field alone. */
+  function onAddScannedPlate(digits: string): string | null {
+    if (!draft || readOnly) return null
+    const result = commitTreatedPlate(digits, draft.treated_plates)
+    if (!result.ok) return result.error
+    patchDraft({ treated_plates: result.plates })
+    setErrors((current) => ({ ...current, treated_plates: undefined }))
+    enqueuePlateLookup(result.plate.plate_number)
+    return null
+  }
+
   function onRemoveTreatedPlate(plateDigitsKey: string) {
     if (!draft || readOnly) return
     patchDraft({
@@ -411,6 +432,7 @@ export function ResponderFillPage({
       unfinishedMediaDraftCount: unfinishedMediaDrafts,
       coveredPlateDigits: coverage.coveredDigits,
       photoNotifyOk: photoNotifyOkRef.current,
+      cancelled: ctx.is_cancelled,
     })
     if (rules.blocks.length > 0) {
       setErrors(mergeFieldErrors(rules.blocks))
@@ -446,6 +468,7 @@ export function ResponderFillPage({
           draft,
           allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
           totalKm: ctx.totalKm,
+          cancelled: ctx.is_cancelled,
         })
     setSavingDraft(false)
     if (!result.ok) {
@@ -503,6 +526,7 @@ export function ResponderFillPage({
           allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
           totalKm: ctx.totalKm,
           unfinishedMediaDraftCount: unfinishedMediaDrafts,
+          cancelled: ctx.is_cancelled,
         })
     setCompleting(false)
     if (!result.ok) {
@@ -546,11 +570,19 @@ export function ResponderFillPage({
       !savingDraft,
   })
 
-  if (loadState === 'denied') {
+  if (loadState === 'shift_born') {
+    return <ShiftBornFillPage eventId={eventId} onBack={onBack} onCompleted={onCompleted} />
+  }
+
+  if (loadState === 'denied' || loadState === 'error') {
     return (
       <EmptyState
         icon={<FileWarning size={40} strokeWidth={1.75} />}
-        title="אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים."
+        title={
+          loadState === 'error'
+            ? 'טעינת הדיווח נכשלה. בדקו את החיבור ונסו שוב.'
+            : 'אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.'
+        }
         action={
           <Button variant="secondary" onClick={onBack}>
             חזרה
@@ -615,7 +647,7 @@ export function ResponderFillPage({
 
         {eventCancelledWhileOpen ? (
           <p className="banner banner--info t-body" role="status">
-            האירוע בוטל. לא ניתן לעדכן את התיעוד.
+            {RESPONDER_FILL_CANCELLED_NOTE}
           </p>
         ) : eventClosedWhileOpen ? (
           <p className="banner banner--info t-body" role="status">
@@ -740,6 +772,11 @@ export function ResponderFillPage({
                   }
                   onBlur={checkOdometerRange}
                 />
+                <OdometerTotal
+                  start={draft.odometer_start}
+                  end={draft.odometer_end}
+                  fieldError={errors.odometer_end}
+                />
                 <TextAreaField
                   label="נתיב נסיעה"
                   required
@@ -754,7 +791,10 @@ export function ResponderFillPage({
                 />
                 <TextAreaField
                   label="פירוט הטיפול"
-                  required
+                  required={!ctx.is_cancelled}
+                  counter={
+                    ctx.is_cancelled ? undefined : treatmentDetailCounter(draft.treatment_detail)
+                  }
                   value={draft.treatment_detail}
                   error={errors.treatment_detail}
                   rows={5}
@@ -784,6 +824,8 @@ export function ResponderFillPage({
                     error={errors.event_media}
                     onUnfinishedChange={setUnfinishedMediaDrafts}
                     dropUnfinishedTick={dropUnfinishedTick}
+                    formPlates={draft.treated_plates.map((plate) => plate.plate_number)}
+                    onAddScannedPlate={onAddScannedPlate}
                   />
                 )}
                 <TextAreaField
@@ -832,5 +874,33 @@ export function ResponderFillPage({
         }}
       />
     </div>
+  )
+}
+
+/** Live end − start. Hidden until both readings are numbers. Reversed pairs show the order error until the field itself does. */
+function OdometerTotal({
+  start,
+  end,
+  fieldError,
+}: {
+  start: string
+  end: string
+  fieldError?: string
+}) {
+  const total = odometerDelta(start, end)
+  if (total != null) {
+    return (
+      <p className="t-body" aria-live="polite">
+        <span className="text-secondary">סה״כ</span>{' '}
+        <span className="mono">{formatNumber(total)}</span>
+      </p>
+    )
+  }
+  const reversed = odometerRangeError(start, end)
+  if (!reversed || fieldError === reversed) return null
+  return (
+    <p className="field__hint field__hint--error" role="alert">
+      {reversed}
+    </p>
   )
 }

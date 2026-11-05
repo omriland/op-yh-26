@@ -21,6 +21,14 @@ export function viewerManagesEvent(input: {
   return input.isEventLead || input.isAdmin
 }
 
+/**
+ * KM entered by an אחמ״ש (per event, and the lifetime total built from it) is
+ * refund data: only אחמ״ש / מנהל / מנהל־על see it, never a plain כונן.
+ */
+export function rolesSeeLeadKm(roles: readonly string[]): boolean {
+  return roles.includes('shift_lead') || roles.includes('admin') || roles.includes('super_admin')
+}
+
 /** View-only lead KM on event detail — hidden from responder-only viewers. */
 export const LEAD_KM_VIEW_LABEL = 'ק״מ (אחמ״ש)'
 

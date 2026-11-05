@@ -1,21 +1,65 @@
+import { isHeicFile } from './heicImage'
 import { supabase } from './supabase'
 
 export const EVENT_MEDIA_CAP = 20
 export const EVENT_MEDIA_CAPTION_MAX = 200
 export const EVENT_MEDIA_LEFTOVER_ERROR = 'בחרו מתי צולמה כל תמונה.'
-export const EVENT_MEDIA_CAP_ERROR = 'ניתן לצרף עד 20 תמונות לאירוע.'
+export const EVENT_MEDIA_CAP_ERROR = 'ניתן לצרף עד 20 תמונות וסרטונים לאירוע.'
 export const EVENT_MEDIA_CAPTION_ERROR = 'התיאור קצר עד 200 תווים.'
-export const EVENT_MEDIA_BAD_TYPE = 'לא ניתן להעלות קובץ זה. בחרו תמונה.'
+export const EVENT_MEDIA_BAD_TYPE = 'לא ניתן להעלות קובץ זה. בחרו תמונה או סרטון.'
 export const EVENT_MEDIA_TOO_LARGE = 'הקובץ גדול מדי. בחרו תמונה אחרת.'
 export const EVENT_MEDIA_COMPRESS_FAIL = 'לא הצלחנו לדחוס את התמונה. נסו תמונה אחרת.'
 export const EVENT_MEDIA_HEIC_FAIL =
   'לא הצלחנו לקרוא את התמונה. שמרו כ-JPEG או PNG ונסו שוב.'
 export const EVENT_MEDIA_NETWORK = 'ההעלאה נכשלה. נסו שוב.'
 export const EVENT_MEDIA_TITLE = 'מדיה'
-export const EVENT_MEDIA_EMPTY_DETAIL = 'אין תמונות לאירוע זה.'
+export const EVENT_MEDIA_EMPTY_DETAIL = 'אין תמונות או סרטונים לאירוע זה.'
 export const EVENT_MEDIA_ADDED = 'התמונה נוספה'
 export const EVENT_MEDIA_UPDATED = 'התמונה עודכנה'
 export const EVENT_MEDIA_DELETED = 'התמונה נמחקה'
+export const EVENT_MEDIA_VIDEO_ADDED = 'הסרטון נוסף'
+export const EVENT_MEDIA_VIDEO_DELETED = 'הסרטון נמחק'
+export const EVENT_MEDIA_VIDEO_TOO_LARGE = 'הסרטון ארוך מדי. ניתן לצרף סרטון קצר, עד 25MB.'
+export const EVENT_MEDIA_VIDEO_MAX_BYTES = 25 * 1024 * 1024
+
+/** Videos are stored as uploaded. Keep in sync with event_media_type_and_size. */
+const EVENT_MEDIA_VIDEO_EXTENSIONS: Record<string, string> = {
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+}
+
+export type EventMediaKind = 'image' | 'video'
+
+/** Any image is compressed to JPEG; only MP4, QuickTime and WebM videos are kept. */
+export function eventMediaKind(file: { type: string; name?: string }): EventMediaKind | null {
+  if (file.type.startsWith('image/') || isHeicFile(file)) return 'image'
+  if (file.type in EVENT_MEDIA_VIDEO_EXTENSIONS) return 'video'
+  return null
+}
+
+export function isVideoMedia(mimeType: string): boolean {
+  return mimeType.startsWith('video/')
+}
+
+export function rejectVideoFile(file: Pick<File, 'size'>): string | null {
+  if (!file.size || file.size > EVENT_MEDIA_VIDEO_MAX_BYTES) return EVENT_MEDIA_VIDEO_TOO_LARGE
+  return null
+}
+
+/** Splits picked or dropped files into what fits the event and what was left out. */
+export function pickEventMediaFiles<T extends { type: string; name?: string }>(
+  files: readonly T[],
+  remaining: number,
+): { accepted: T[]; unsupported: number; overCap: number } {
+  const supported = files.filter((file) => eventMediaKind(file) !== null)
+  const slots = Math.max(0, remaining)
+  return {
+    accepted: supported.slice(0, slots),
+    unsupported: files.length - supported.length,
+    overCap: Math.max(0, supported.length - slots),
+  }
+}
 
 export type EventMediaTakenWhen = 'before_treatment' | 'during_after_treatment'
 
@@ -63,6 +107,73 @@ export function canAddMoreMedia(savedCount: number, inFlightCount: number): bool
   return slotsRemaining(savedCount, inFlightCount) > 0
 }
 
+export const EVENT_MEDIA_STEP_TITLE = 'שיוך התמונה'
+export const EVENT_MEDIA_VEHICLE_PROMPT = 'לאיזה רכב לשייך?'
+export const EVENT_MEDIA_NO_VEHICLE = 'אין רכב באירוע. התמונה תישמר בלי שיוך לרכב.'
+
+export type PhotoAttachWrite = {
+  caption: string | null
+  vehicleIds: string[]
+  /** Empty text never blocks. A caption over 200 characters does. */
+  blocked: boolean
+}
+
+/** The only vehicle on the event is already chosen. Several stay unchosen until tapped. */
+export function nextPhotoVehicleId(
+  vehicleIds: readonly string[],
+  currentId: string | null,
+): string | null {
+  if (vehicleIds.length === 0) return null
+  if (vehicleIds.length === 1) return vehicleIds[0] ?? null
+  if (currentId && vehicleIds.includes(currentId)) return currentId
+  return null
+}
+
+export function photoStepVehicleNote(vehicleCount: number): string | null {
+  if (vehicleCount > 0) return null
+  return EVENT_MEDIA_NO_VEHICLE
+}
+
+/** Caption is optional. A chosen vehicle id is the one id sent with the photo. */
+export function photoAttachWrite(input: {
+  caption: string
+  vehicleId: string | null
+}): PhotoAttachWrite {
+  const caption = input.caption.trim()
+  return {
+    caption: caption.length > 0 ? caption : null,
+    vehicleIds: input.vehicleId ? [input.vehicleId] : [],
+    blocked: captionError(input.caption) != null,
+  }
+}
+
+export function photoStepCanSave(input: {
+  caption: string
+  takenWhen: '' | EventMediaTakenWhen
+  preparing: boolean
+  platesLoaded: boolean
+}): boolean {
+  if (!input.platesLoaded || input.preparing) return false
+  if (input.takenWhen !== 'before_treatment' && input.takenWhen !== 'during_after_treatment') {
+    return false
+  }
+  return !photoAttachWrite({ caption: input.caption, vehicleId: null }).blocked
+}
+
+/** After one photo is stored, the add action stays until the cap. */
+export function canAddAnotherPhoto(savedCount: number): boolean {
+  return canAddMoreMedia(savedCount, 0)
+}
+
+/** Mirrors the event_media_delete RLS policy: only the uploader, while they may write. */
+export function canDeleteEventMedia(
+  item: Pick<EventMedia, 'uploaded_by'>,
+  viewerId: string | null,
+  canWrite: boolean,
+): boolean {
+  return canWrite && Boolean(viewerId) && item.uploaded_by === viewerId
+}
+
 export function groupMediaByTakenWhen(items: readonly EventMedia[]): {
   before: EventMedia[]
   during: EventMedia[]
@@ -74,8 +185,12 @@ export function groupMediaByTakenWhen(items: readonly EventMedia[]): {
   }
 }
 
-export function eventMediaStoragePath(eventId: string, mediaId: string): string {
-  return `${eventId}/${mediaId}.jpg`
+export function eventMediaStoragePath(
+  eventId: string,
+  mediaId: string,
+  mimeType: string = 'image/jpeg',
+): string {
+  return `${eventId}/${mediaId}.${EVENT_MEDIA_VIDEO_EXTENSIONS[mimeType] ?? 'jpg'}`
 }
 
 export type EventMediaPlateOption = {
@@ -177,7 +292,8 @@ async function withSignedUrl(row: EventMediaRow): Promise<EventMedia> {
   }
 }
 
-async function replaceMediaPlates(
+/** Sets exactly which treated plates the photo shows (uploader only, by RLS). */
+export async function replaceMediaPlates(
   mediaId: string,
   plateIds: readonly string[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -248,8 +364,10 @@ function mapPlateOptions(
 export async function uploadEventMedia(input: {
   eventId: string
   blob: Blob
-  width: number
-  height: number
+  /** 'image/jpeg' for compressed photos, the file's own type for videos. */
+  mimeType: string
+  width: number | null
+  height: number | null
   takenWhen: EventMediaTakenWhen
   treatedPlateIds: readonly string[]
   caption: string | null
@@ -265,10 +383,10 @@ export async function uploadEventMedia(input: {
   }
 
   const id = crypto.randomUUID()
-  const storage_path = eventMediaStoragePath(input.eventId, id)
+  const storage_path = eventMediaStoragePath(input.eventId, id, input.mimeType)
   const { error: uploadError } = await supabase.storage
     .from('event-media')
-    .upload(storage_path, input.blob, { contentType: 'image/jpeg', upsert: false })
+    .upload(storage_path, input.blob, { contentType: input.mimeType, upsert: false })
   if (uploadError) return { ok: false, error: mapEventMediaError(uploadError.message) }
 
   const { data, error } = await supabase
@@ -280,7 +398,7 @@ export async function uploadEventMedia(input: {
       caption,
       taken_when: input.takenWhen,
       storage_path,
-      mime_type: 'image/jpeg',
+      mime_type: input.mimeType,
       byte_size: input.blob.size,
       width: input.width,
       height: input.height,
@@ -323,6 +441,27 @@ export async function updateEventMedia(input: {
     .eq('id', input.id)
   if (error) return { ok: false, error: mapEventMediaError(error.message) }
   return replaceMediaPlates(input.id, input.treatedPlateIds)
+}
+
+/**
+ * Event ids that have at least one photo or video. Gallery uploads and
+ * responder-log uploads both write `event_media` for the event.
+ */
+export async function fetchEventIdsWithMedia(eventIds: readonly string[]): Promise<Set<string>> {
+  const unique = [...new Set(eventIds.filter(Boolean))]
+  const found = new Set<string>()
+  for (let index = 0; index < unique.length; index += 100) {
+    const chunk = unique.slice(index, index + 100)
+    const { data, error } = await supabase
+      .from('event_media')
+      .select('event_id')
+      .in('event_id', chunk)
+    if (error) continue
+    for (const row of data ?? []) {
+      if (typeof row.event_id === 'string' && row.event_id) found.add(row.event_id)
+    }
+  }
+  return found
 }
 
 export async function deleteEventMedia(input: {

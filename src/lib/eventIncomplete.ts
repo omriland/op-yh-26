@@ -9,6 +9,8 @@
  *  - Event-level: police_event_id, patrol_callsign_number (אוק - מס),
  *                 district, event_type, road, location, started_at, ended_at
  *  - Per-responder: total_km
+ *
+ * Shift-born events are exempt (see missingEventFields).
  */
 
 import type { EventListItem } from './events'
@@ -48,6 +50,9 @@ function isMissing(value: string | null | undefined): boolean {
  */
 export function missingEventFields(event: EventListItem): Set<IncompleteField> {
   const missing = new Set<IncompleteField>()
+  // Shift-born: the shared report gates its own completion, and it has no input
+  // for או״ק, שלוחה, times or KM. Its stamp says when it still needs work.
+  if (event.origin === 'shift') return missing
 
   if (isMissing(event.police_event_id)) missing.add('police_event_id')
   const callsign = resolvePatrolCallsign({

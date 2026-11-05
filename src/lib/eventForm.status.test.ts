@@ -40,6 +40,60 @@ describe('deriveEventStatus', () => {
     expect(deriveEventStatus(draft({ responders: [] }))).toBe('draft')
   })
 
+  it('stays draft when cancelled and nobody is assigned until the lead sets an end time', () => {
+    expect(
+      deriveEventStatus(draft({ is_cancelled: true, responders: [], end_time: '' })),
+    ).toBe('draft')
+    expect(
+      deriveEventStatus(draft({ is_cancelled: true, responders: [], end_time: '  ' })),
+    ).toBe('draft')
+  })
+
+  it('is done when cancelled, nobody is assigned, and the lead set an end time', () => {
+    expect(
+      deriveEventStatus(draft({ is_cancelled: true, responders: [], end_time: '09:00' })),
+    ).toBe('done')
+  })
+
+  it('does not mark a normal event done with nobody assigned, even with an end time', () => {
+    expect(
+      deriveEventStatus(draft({ is_cancelled: false, responders: [], end_time: '09:00' })),
+    ).toBe('draft')
+  })
+
+  it('keeps the responder rule when a cancelled event still has assignments', () => {
+    expect(
+      deriveEventStatus(
+        draft({
+          is_cancelled: true,
+          end_time: '09:00',
+          responders: [responder({ status: 'pending', total_km: '' })],
+        }),
+      ),
+    ).toBe('in_progress')
+  })
+
+  it('uses the same done rule when every responder on a cancelled event has finished', () => {
+    expect(
+      deriveEventStatus(
+        draft({
+          is_cancelled: true,
+          end_time: '09:15',
+          responders: [responder({ status: 'done', total_km: '8' })],
+        }),
+      ),
+    ).toBe('done')
+    expect(
+      deriveEventStatus(
+        draft({
+          is_cancelled: true,
+          end_time: '',
+          responders: [responder({ status: 'done', total_km: '8' })],
+        }),
+      ),
+    ).toBe('partial')
+  })
+
   it('is done only when every responder is done, end time is set, and every KM is filled', () => {
     expect(
       deriveEventStatus(

@@ -29,7 +29,7 @@ export type AdminUserRow = {
   active: boolean
   last_sign_in_at: string | null
   last_active_at: string | null
-  /** True until the invitee sets a password in the app. */
+  /** True until a password is set, or the person signs in with that password. */
   invite_pending: boolean
   otp_login_enabled: boolean
   otp_users_page_enabled: boolean
@@ -101,6 +101,8 @@ export async function fetchAdminUsers(): Promise<AdminUserRow[]> {
     .select(
       'id, full_name, email, callsign, phone, active, invite_pending, otp_login_enabled, otp_users_page_enabled, volunteer_status, availability, available_from, last_android_seen_at, last_android_version_code, last_android_version_name',
     )
+    // Deleted accounts stay only as anonymized placeholders for old events.
+    .is('deleted_at', null)
     .order('full_name')
 
   if (error) throw error

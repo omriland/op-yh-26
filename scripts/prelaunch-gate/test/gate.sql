@@ -301,8 +301,9 @@ select pg_temp.ok((select array_agg(id) from public.events) = array['e0000000-00
 select pg_temp.ok((select count(*) from public.event_responders) = 1, 'before/demo: sees its assignment');
 select pg_temp.ok((select array_agg(user_id) from public.vehicles) = array['b0000000-0000-4000-8000-00000000000d']::uuid[],
   'before/demo: sees its vehicle');
-select pg_temp.ok((select array_agg(id) from public.list_unit_contacts()) = array['b0000000-0000-4000-8000-00000000000e']::uuid[],
-  'before/demo: contacts = the demo lead');
+select pg_temp.ok((select array_agg(id order by id) from public.list_unit_contacts())
+    = array['b0000000-0000-4000-8000-00000000000d', 'b0000000-0000-4000-8000-00000000000e']::uuid[],
+  'before/demo: contacts = the demo account and the demo lead');
 select pg_temp.ok((select array_agg(user_id) from public.list_unit_map_pins()) = array['b0000000-0000-4000-8000-00000000000e']::uuid[],
   'before/demo: map pins = the demo lead');
 select pg_temp.ok((select count(*) from public.districts) > 0, 'before/demo: lookups readable');
@@ -355,7 +356,8 @@ select pg_temp.as_client('swift');
 select pg_temp.ok((select count(*) from public.profiles where id = 'b0000000-0000-4000-8000-00000000000d') = 1
     and (select array_agg(role::text) from public.user_roles) = array['responder']
     and (select array_agg(id) from public.events) = array['e0000000-0000-4000-8000-000000000002']::uuid[]
-    and (select array_agg(id) from public.list_unit_contacts()) = array['b0000000-0000-4000-8000-00000000000e']::uuid[],
+    and (select array_agg(id order by id) from public.list_unit_contacts())
+    = array['b0000000-0000-4000-8000-00000000000d', 'b0000000-0000-4000-8000-00000000000e']::uuid[],
   'before/App Review demo on iOS: profile, roles, demo event and contacts as before');
 select pg_temp.as_client('kt');
 select pg_temp.ok((select count(*) from public.profiles where id = 'b0000000-0000-4000-8000-00000000000d') = 1,

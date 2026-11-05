@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
-import { canEditShiftByDate } from '../lib/shifts'
+import { jerusalemToday } from '../lib/shifts'
 import {
   fetchShiftBornFillContext,
+  resolveShiftBornStash,
   saveShiftBornEventFill,
   type ShiftBornFillContext,
   shiftBornCompleteErrors,
   type ShiftBornFillDraft,
   type ShiftBornFillErrors,
+  type ShiftBornStash,
 } from '../lib/shiftBornFill'
-import { lastSavedByLabel, SHIFT_BORN_CHIP } from '../lib/shiftBornEvents'
+import {
+  lastSavedByLabel,
+  SHIFT_BORN_CHIP,
+  shiftBornBeforeShiftDate,
+  shiftBornFillAccess,
+} from '../lib/shiftBornEvents'
 import { formatDate, plateDigits, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
 import { lookupPlate } from '../lib/plateLookup'
 import {
@@ -23,6 +30,7 @@ import {
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
 import { leftoverEventMediaError } from '../lib/eventMedia'
+import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { Button } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -61,7 +69,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [ctx, setCtx] = useState<ShiftBornFillContext | null>(null)
   const [draft, setDraft] = useState<ShiftBornFillDraft | null>(null)
   const [expectedAt, setExpectedAt] = useState<string | null>(null)
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied'>('loading')
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading')
   const [saving, setSaving] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [platePending, setPlatePending] = useState('')
@@ -76,6 +84,9 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [submitAttempt, setSubmitAttempt] = useState(0)
   const plateLookupTail = useRef(Promise.resolve())
   const draftRef = useRef<ShiftBornFillDraft | null>(null)
+  /** The server copy as of the last load or save, and the version it carries. */
+  const savedDraftRef = useRef<ShiftBornFillDraft | null>(null)
+  const expectedAtRef = useRef<string | null>(null)
   const stashLatest = useRef<(() => void) | null>(null)
   const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [localSavedAt, setLocalSavedAt] = useState<number | null>(null)
@@ -84,6 +95,9 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   useEffect(() => {
     draftRef.current = draft
   }, [draft])
+  useEffect(() => {
+    expectedAtRef.current = expectedAt
+  }, [expectedAt])
 
   useEffect(() => {
     let active = true
@@ -108,26 +122,34 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           return
         }
         setCtx(next)
-        const stashed = readFillDraft<ShiftBornFillDraft>(
+        savedDraftRef.current = next.draft
+        const stashed = readFillDraft<ShiftBornStash>(
           SHIFT_BORN_STASH_SCOPE,
           eventId,
           Date.now(),
         )
-        if (
-          stashed &&
-          JSON.stringify(stashed.draft) !== JSON.stringify(next.draft)
-        ) {
-          setDraft(stashed.draft)
+        // A report this user can no longer edit shows the server's text, never an
+        // old device copy (e.g. a teammate completed it after these edits).
+        const nextReadOnly = shiftBornFillAccess({
+          canManage,
+          onCrew: Boolean(user && next.event.responders.some((row) => row.responder_id === user.id)),
+          beforeShiftDate: shiftBornBeforeShiftDate(next.event, jerusalemToday()),
+          done: next.event.status === 'done',
+        }).readOnly
+        const resolved = resolveShiftBornStash(next, nextReadOnly ? null : (stashed?.draft ?? null))
+        setDraft(resolved.draft)
+        if (resolved.restored && stashed) {
           setLocalSavedAt(stashed.savedAt)
           setRestoredFromDevice(true)
-        } else {
-          setDraft(next.draft)
+          // Same banner as a save that lost the race: the text is kept, and a
+          // deliberate save is what replaces the teammate's version.
+          setConflict(resolved.serverMovedOn)
         }
         setExpectedAt(next.expected_updated_at)
         setLoadState('ready')
       })
       .catch(() => {
-        if (active) setLoadState('denied')
+        if (active) setLoadState('error')
       })
     return () => {
       active = false
@@ -136,21 +158,34 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
-  const shiftDate = ctx?.event.shift?.shift_date ?? ctx?.event.event_date
-  const dateOk = shiftDate ? canEditShiftByDate(shiftDate) : false
-  const eventDone = ctx?.event.status === 'done'
-  const readOnly = eventDone ? !canManage : !(canManage || dateOk)
   const assigned = Boolean(
     user && ctx?.event.responders.some((row) => row.responder_id === user.id),
   )
-  const canWriteMedia = assigned && !ctx?.event.is_cancelled
+  const beforeShiftDate = ctx ? shiftBornBeforeShiftDate(ctx.event, jerusalemToday()) : false
+  const { readOnly, note: readOnlyNote } = shiftBornFillAccess({
+    canManage,
+    onCrew: assigned,
+    beforeShiftDate,
+    done: ctx?.event.status === 'done',
+  })
+  const canWriteMedia = assigned && !ctx?.event.is_cancelled && !beforeShiftDate
 
   useEffect(() => {
     if (!draft || loadState !== 'ready' || readOnly) return
     const flush = () => {
       const current = draftRef.current
       if (!current) return
-      stashFillDraft(SHIFT_BORN_STASH_SCOPE, eventId, current, Date.now())
+      // Nothing typed since the last load or save: a copy would only be restored
+      // later over a teammate's newer save.
+      if (JSON.stringify(current) === JSON.stringify(savedDraftRef.current)) {
+        clearFillDraft(SHIFT_BORN_STASH_SCOPE, eventId)
+        return
+      }
+      const stash: ShiftBornStash = {
+        ...current,
+        base_updated_at: expectedAtRef.current ?? undefined,
+      }
+      stashFillDraft(SHIFT_BORN_STASH_SCOPE, eventId, stash, Date.now())
       setLocalSavedAt(Date.now())
     }
     stashLatest.current = flush
@@ -245,6 +280,17 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     enqueuePlateLookup(result.plate.plate_number)
   }
 
+  /** A plate read off a photo and confirmed by the user. Leaves the typed field alone. */
+  function onAddScannedPlate(digits: string): string | null {
+    if (!draft || readOnly) return null
+    const result = commitTreatedPlate(digits, draft.treated_plates)
+    if (!result.ok) return result.error
+    patchDraft({ treated_plates: result.plates })
+    setPlateError(undefined)
+    enqueuePlateLookup(result.plate.plate_number)
+    return null
+  }
+
   function onRemoveTreatedPlate(plateDigitsKey: string) {
     if (!draft || readOnly) return
     patchDraft({
@@ -283,6 +329,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
       }
       return false
     }
+    savedDraftRef.current = draft
     setExpectedAt(result.updated_at)
     setConflict(false)
     return true
@@ -297,13 +344,10 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
 
   async function onComplete() {
     if (!draft) return
-    const fieldErrors = shiftBornCompleteErrors(draft, {
-      ended_at: ctx?.event.ended_at,
-      responders: ctx?.event.responders,
-    })
+    const fieldErrors = shiftBornCompleteErrors(draft, Boolean(ctx?.event.is_cancelled))
     if (Object.keys(fieldErrors).length > 0) {
       setErrors(fieldErrors)
-      show(fieldErrors.form ?? 'יש להשלים את השדות המסומנים כדי לסיים את הדיווח.', 'alert')
+      show('יש להשלים את השדות המסומנים כדי לסיים את הדיווח.', 'alert')
       setSubmitAttempt((n) => n + 1)
       return
     }
@@ -330,11 +374,15 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     enabled: loadState === 'ready' && Boolean(draft) && !readOnly && !saving && !completing,
   })
 
-  if (loadState === 'denied') {
+  if (loadState === 'denied' || loadState === 'error') {
     return (
       <EmptyState
         icon={<FileWarning size={40} strokeWidth={1.75} />}
-        title="אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים."
+        title={
+          loadState === 'error'
+            ? 'טעינת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
+            : 'אין לך הרשאה לצפות באירוע זה או שהאירוע אינו קיים.'
+        }
         action={
           <Button variant="secondary" onClick={onBack}>
             חזרה
@@ -371,6 +419,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             <StampChip label={SHIFT_BORN_CHIP} tone="draft" />
           </div>
         </div>
+
+        {readOnlyNote ? (
+          <p className="banner banner--info t-body" role="status">
+            {readOnlyNote}
+          </p>
+        ) : null}
 
         {conflict ? (
           <p className="banner banner--alert t-body" role="alert">
@@ -425,7 +479,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
             />
             <TextAreaField
               label="פירוט הטיפול"
-              required
+              required={!ctx.event.is_cancelled}
+              counter={
+                ctx.event.is_cancelled
+                  ? undefined
+                  : treatmentDetailCounter(draft.treatment_detail)
+              }
               error={errors.treatment_detail}
               value={draft.treatment_detail}
               disabled={readOnly}
@@ -452,6 +511,8 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               viewerId={user?.id ?? null}
               error={mediaError}
               dropUnfinishedTick={dropUnfinishedTick}
+              formPlates={draft.treated_plates.map((plate) => plate.plate_number)}
+              onAddScannedPlate={readOnly ? undefined : onAddScannedPlate}
               onUnfinishedChange={(count) => {
                 setUnfinishedMediaDrafts(count)
                 if (count === 0) setMediaError(undefined)

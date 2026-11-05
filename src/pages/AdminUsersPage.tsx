@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArchiveRestore, Plus, RefreshCw, Search, Trash2, UserRound } from 'lucide-react'
+import { AlertCircle, ArchiveRestore, Plus, RefreshCw, Search, Trash2, UserRound } from 'lucide-react'
 import {
   archiveAdminVehicle,
   deleteAdminUser,
@@ -32,6 +32,12 @@ import {
   USER_CREATE_STASH_DEBOUNCE_MS,
   userEmailFieldHint,
 } from '../lib/adminUserDraft'
+import {
+  applyOpenAdminUserForm,
+  clearOpenAdminUserForm,
+  readOpenAdminUserForm,
+  writeOpenAdminUserForm,
+} from '../lib/adminUserFormOpen'
 import { SUPER_ADMIN_LOCK_ERROR, canMutateAdminUser, canToggleUsersPageOtp } from '../lib/adminUserMenu'
 import {
   highestRoleLabel,
@@ -41,6 +47,7 @@ import {
   type AssignableRole,
 } from '../lib/appRoles'
 import { hasAvailability, isInvitePending } from '../lib/adminUserStatus'
+import { userListDataGap } from '../lib/userListDataGap'
 import { AndroidInstallMark } from '../components/admin/AndroidInstallMark'
 import { UserPresenceDot } from '../components/admin/UserPresenceDot'
 import {
@@ -58,6 +65,7 @@ import {
 } from '../lib/userPresence'
 import { fieldsMatchQuery } from '../lib/searchQuery'
 import { useAuth, type AppRole } from '../lib/auth'
+import { COBROWSE_LICENSE_KEY, cobrowseConnectUrl } from '../lib/cobrowse'
 import { canImpersonateTarget } from '../lib/impersonationEligibility'
 import { isImpersonating } from '../lib/impersonationStash'
 import { isValidIlMobile } from '../lib/phoneE164'
@@ -93,6 +101,7 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { AlertDialog } from '../components/ui/AlertDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
+import { HoverTip } from '../components/ui/HoverTip'
 import { OverflowMenu, type OverflowMenuItem } from '../components/ui/OverflowMenu'
 import { SelectField } from '../components/ui/SelectField'
 import { PasswordField, TextField } from '../components/ui/TextField'
@@ -187,6 +196,7 @@ function buildUserMenuItems(
     onEdit: () => void
     onSetPassword?: () => void
     onImpersonate?: () => void
+    onRequestScreenControl?: () => void
     onToggleOtpLogin: () => void
     onToggleOtpUsersPage: () => void
     onResendInvite: () => void
@@ -204,6 +214,9 @@ function buildUserMenuItems(
       : []),
     ...(actions.onImpersonate
       ? [{ label: 'צפייה כמשתמש זה', onSelect: actions.onImpersonate }]
+      : []),
+    ...(actions.onRequestScreenControl
+      ? [{ label: 'בקשת שליטה במסך', onSelect: actions.onRequestScreenControl }]
       : []),
   ]
   if (!canMutate) return privileged
@@ -281,7 +294,26 @@ function UserAndroidInstallMark({
   )
 }
 
-export function AdminUsersPage() {
+function UserDataGapMark({ user }: { user: AdminUserRow }) {
+  const gap = userListDataGap(user)
+  if (!gap) return null
+  return (
+    <HoverTip
+      text={gap.tip}
+      mode="always"
+      className="user-data-gap"
+      tipClassName="hover-tip--overdue"
+      theme="field"
+    >
+      <span className="user-data-gap__hit">
+        <AlertCircle size={16} strokeWidth={1.75} aria-hidden="true" />
+        <span className="visually-hidden">{gap.tip}</span>
+      </span>
+    </HoverTip>
+  )
+}
+
+export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
   const isDesktop = useIsDesktop()
   const { user: authUser, roles, profile: authProfile } = useAuth()
   const authUserId = authUser?.id
@@ -314,7 +346,11 @@ export function AdminUsersPage() {
   const [query, setQuery] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
-  const [draft, setDraft] = useState<Draft | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(() => {
+    const saved = readOpenAdminUserForm()
+    if (!saved) return null
+    return applyOpenAdminUserForm(emptyDraft(), saved)
+  })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDeactivate, setConfirmDeactivate] = useState<AdminUserRow | null>(null)
@@ -399,6 +435,7 @@ export function AdminUsersPage() {
   function closeCreateForm() {
     if (saving) return
     stashCreateDraftNow()
+    clearOpenAdminUserForm()
     setDraft(null)
   }
 
@@ -414,11 +451,23 @@ export function AdminUsersPage() {
   }, [authUserId, draft])
 
   useEffect(() => {
+    if (!draft) return
+    writeOpenAdminUserForm(draft)
+  }, [draft])
+
+  useEffect(() => {
+    function persistOpenForm() {
+      const current = draftRef.current
+      if (current) writeOpenAdminUserForm(current)
+    }
     function onHidden() {
-      if (document.visibilityState === 'hidden') stashLatest.current?.()
+      if (document.visibilityState !== 'hidden') return
+      stashLatest.current?.()
+      persistOpenForm()
     }
     function onPageHide() {
       stashLatest.current?.()
+      persistOpenForm()
     }
     document.addEventListener('visibilitychange', onHidden)
     window.addEventListener('pagehide', onPageHide)
@@ -504,6 +553,17 @@ export function AdminUsersPage() {
       setRefreshing(false)
     }
   }
+
+  // Opened from a search result: open that user's edit dialog once the list is in.
+  const openedEditRef = useRef(false)
+  useEffect(() => {
+    if (!editUserId || !users || openedEditRef.current) return
+    openedEditRef.current = true
+    const target = users.find((row) => row.id === editUserId)
+    if (!target || !canMutateAdminUser(isSuperAdmin, target.roles)) return
+    setFormError(null)
+    setDraft(draftFromUser(target))
+  }, [editUserId, users, isSuperAdmin])
 
   const usersLoaded = users !== null
   useEffect(() => {
@@ -636,6 +696,7 @@ export function AdminUsersPage() {
               'alert',
             )
             if (authUserId) clearCreateUserStash(authUserId)
+            clearOpenAdminUserForm()
             setDraft(null)
             setReloadKey((value) => value + 1)
             return
@@ -686,6 +747,7 @@ export function AdminUsersPage() {
         }
         show('המשתמש נשמר', 'done')
       }
+      clearOpenAdminUserForm()
       setDraft(null)
       setReloadKey((value) => value + 1)
     } finally {
@@ -782,6 +844,17 @@ export function AdminUsersPage() {
           ? () => {
               setMenuUserId(null)
               setImpersonateTargetId(user.id)
+            }
+          : undefined,
+      onRequestScreenControl:
+        COBROWSE_LICENSE_KEY &&
+        isSuperAdmin &&
+        !viewingAsOther &&
+        canImpersonateTarget(authUser?.id, user)
+          ? () => {
+              setMenuUserId(null)
+              window.open(cobrowseConnectUrl(user.id), '_blank', 'noopener')
+              show('נפתח חלון Cobrowse. המשתמש יתבקש לאשר במסך שלו.', 'done')
             }
           : undefined,
       onToggleOtpLogin: () => requestToggleOtpLogin(user),
@@ -906,7 +979,10 @@ export function AdminUsersPage() {
       return
     }
     show(result.message ?? 'המשתמש נמחק', 'done')
-    if (draft?.id === target.id) setDraft(null)
+    if (draft?.id === target.id) {
+      clearOpenAdminUserForm()
+      setDraft(null)
+    }
     setReloadKey((value) => value + 1)
   }
 
@@ -1172,6 +1248,7 @@ export function AdminUsersPage() {
                 >
                   <td>
                     <span className="user-name-with-presence">
+                      <UserDataGapMark user={user} />
                       {presence ? <UserPresenceDot status={presence} /> : null}
                       <UserAndroidInstallMark
                         user={user}
@@ -1295,6 +1372,7 @@ export function AdminUsersPage() {
               >
                 <div className="user-card__head">
                   <div className="user-card__identity-btn">
+                    <UserDataGapMark user={user} />
                     {presence ? <UserPresenceDot status={presence} /> : null}
                     {androidMark}
                     {canMutate ? (

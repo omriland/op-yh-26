@@ -26,6 +26,17 @@ on:
       - "supabase/migrations/20261029190000_prelaunch_native_block.sql"
       - "supabase/migrations/20261029200000_vehicles_member_write_error.sql"
       - "supabase/migrations/20261030120000_legacy_event_archive.sql"
+      - "supabase/migrations/20261103180000_account_deletion.sql"
+      - "supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql"
+      - "supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql"
+      - "supabase/migrations/20261101120000_admin_smart_search.sql"
+      - "supabase/migrations/20261101121000_admin_search_archive.sql"
+      - "supabase/migrations/20261102120000_contacts_include_self_and_pending.sql"
+      - "supabase/migrations/20261102121000_event_media_short_videos.sql"
+      - "supabase/migrations/20261103100000_shift_born_events_hardening.sql"
+      - "supabase/migrations/20261103101000_map_pins_require_vehicle.sql"
+      - "supabase/migrations/20261103110000_apply_event_status_service_role.sql"
+      - "supabase/migrations/20261104170000_user_feedback_transcript.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -108,12 +119,67 @@ jobs:
           # Must land before the frontend shows the archive card.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261030120000_legacy_event_archive.sql
+          # After 20260913090000: that replay restores the older
+          # derived_event_status / guard_event_done_requirements bodies.
+          # Cancelled events with no responders must stay `done`.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261101053833_cancelled_event_without_responders_is_done.sql
+          # event_responders_self_update must not read events inline.
+          # events_select reads event_responders, and the pair raises 42P17
+          # on every volunteer-row update.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql
+          # Admin smart search: admin_search, word variants, smart_search_log.
+          # Must land before the smart-search function (it calls
+          # log_smart_search) and before the frontend /search page.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261101120000_admin_smart_search.sql
+          # Admin smart search over the old-site archive: admin_search_archive.
+          # Needs the legacy archive and admin_smart_search helpers above.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261101121000_admin_search_archive.sql
+          # After 20261029180000, which last replaced list_unit_contacts:
+          # contacts now include the caller and members with a pending invite.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261102120000_contacts_include_self_and_pending.sql
+          # Event media accepts short videos (MP4 / MOV / WebM up to 25 MB).
+          # Must land before the frontend offers video uploads.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261102121000_event_media_short_videos.sql
+          # Keep these three LAST. The replays above restore older bodies of
+          # guard_event_done_requirements, derived_event_status,
+          # event_missing_lead_km, count_events_missing_lead_km,
+          # event_is_open_for_responder_edit, set_locked_event_lead_km, both
+          # partner-webhook triggers, list_unit_map_pins and
+          # apply_event_status_from_participations; these files put back the
+          # shift-born exemptions, the map's vehicle rule and the email-link
+          # status recompute. Without them every edge-function push silently
+          # undid those fixes (it did on 2026-11-03).
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261103100000_shift_born_events_hardening.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261103101000_map_pins_require_vehicle.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261103110000_apply_event_status_service_role.sql
+          # Self-service account deletion (App Store 5.1.1(v)). Independent of the
+          # replays above; must land before delete-account and admin-users, which
+          # call delete_user_account and write impersonation_audit.session_id.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261103180000_account_deletion.sql
+          # משוב voice transcripts. Additive columns; safe to re-apply.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261104170000_user_feedback_transcript.sql
+          # After the shift-born replay above, which restores the older
+          # "cancelled + nobody assigned = done immediately" bodies.
+          # A cancelled event with nobody assigned is done only once שעת סיום is set.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261104193000_cancelled_zero_responders_done_after_lead_end.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          for fn in admin-users phone-otp send-email unit-broadcast user-feedback; do
+          for fn in admin-users delete-account phone-otp plate-scan send-email smart-search transcribe-feedback unit-broadcast user-feedback; do
             echo "Deploying $fn"
             supabase functions deploy "$fn" --project-ref rtvizpsfvtjowbimugns
           done

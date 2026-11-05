@@ -315,6 +315,13 @@
 }
 
 @media print {
+  /* The app shell pins html/body/#root to the viewport with overflow hidden
+     (base.css); in print that clips the report after one screen-height. */
+  html:has(> body > .legacy-print-root),
+  body:has(> .legacy-print-root) {
+    height: auto;
+    overflow: visible;
+  }
   body:has(> .legacy-print-root) {
     background: var(--surface-raised);
   }
@@ -329,6 +336,17 @@
     padding: 0;
     border: 0;
     border-radius: 0;
+  }
+  /* On screen the heading is pulled 13px up over the section's top rule; at a page
+     break that sliver lands on the previous page. Draw the rule inside the box. */
+  .lgr__section.form-section {
+    border-block-start: 0;
+    background: linear-gradient(var(--stroke-hairline), var(--stroke-hairline)) 0 12px / 100% 1px no-repeat;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .lgr__section .form-section__heading {
+    margin-block-start: 0;
   }
   .lgr__section,
   .lgr__text-field,

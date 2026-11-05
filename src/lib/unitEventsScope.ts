@@ -2,6 +2,10 @@ export const SHOW_OTHERS_CREATED_EVENTS_LABEL = 'הצג אירועים שנוצ�
 
 const SHOW_OTHERS_STORAGE_KEY = 'yahpaz:unitEventsShowOthers'
 
+export const SHOW_SHIFT_EVENTS_LABEL = 'הצג אירועים ממשמרות'
+
+const SHOW_SHIFT_EVENTS_STORAGE_KEY = 'yahpaz:unitEventsShowShiftEvents'
+
 /** אחמ״ש only — not admin, not SuperAdmin. Those roles keep the full unit list. */
 export function shouldFilterUnitEventsToOwnCreated(roles: readonly string[]): boolean {
   return roles.includes('shift_lead') && !roles.includes('admin') && !roles.includes('super_admin')
@@ -33,6 +37,30 @@ export function writeShowOthersCreatedEvents(show: boolean, storage?: Storage | 
     if (!store) return
     if (show) store.setItem(SHOW_OTHERS_STORAGE_KEY, '1')
     else store.removeItem(SHOW_OTHERS_STORAGE_KEY)
+  } catch {
+    // sessionStorage can throw in private mode
+  }
+}
+
+function sessionStore(storage?: Storage | null): Storage | null {
+  return storage ?? (typeof sessionStorage === 'undefined' ? null : sessionStorage)
+}
+
+/** Unit events list: events born from a shift stay hidden until this is on. */
+export function readShowShiftEvents(storage?: Storage | null): boolean {
+  try {
+    return sessionStore(storage)?.getItem(SHOW_SHIFT_EVENTS_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function writeShowShiftEvents(show: boolean, storage?: Storage | null): void {
+  try {
+    const store = sessionStore(storage)
+    if (!store) return
+    if (show) store.setItem(SHOW_SHIFT_EVENTS_STORAGE_KEY, '1')
+    else store.removeItem(SHOW_SHIFT_EVENTS_STORAGE_KEY)
   } catch {
     // sessionStorage can throw in private mode
   }

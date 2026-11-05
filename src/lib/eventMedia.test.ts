@@ -5,12 +5,25 @@ import {
   EVENT_MEDIA_CAPTION_ERROR,
   EVENT_MEDIA_LEFTOVER_ERROR,
   EVENT_MEDIA_NETWORK,
+  EVENT_MEDIA_VIDEO_MAX_BYTES,
+  EVENT_MEDIA_VIDEO_TOO_LARGE,
+  EVENT_MEDIA_NO_VEHICLE,
+  canAddAnotherPhoto,
   canAddMoreMedia,
+  canDeleteEventMedia,
+  eventMediaKind,
+  isVideoMedia,
+  pickEventMediaFiles,
+  rejectVideoFile,
   captionError,
   eventMediaStoragePath,
   groupMediaByTakenWhen,
   leftoverEventMediaError,
   mapEventMediaError,
+  nextPhotoVehicleId,
+  photoAttachWrite,
+  photoStepCanSave,
+  photoStepVehicleNote,
   mergeMediaPlates,
   slotsRemaining,
   togglePlateId,
@@ -63,6 +76,34 @@ describe('captionError', () => {
   })
 })
 
+describe('photo attach step', () => {
+  it('does not block save on empty text, sends the chosen vehicle, and leaves another add', () => {
+    const write = photoAttachWrite({ caption: '   ', vehicleId: 'veh-1' })
+    expect(write.blocked).toBe(false)
+    expect(write.caption).toBeNull()
+    expect(write.vehicleIds).toEqual(['veh-1'])
+    expect(
+      photoStepCanSave({
+        caption: '',
+        takenWhen: 'during_after_treatment',
+        preparing: false,
+        platesLoaded: true,
+      }),
+    ).toBe(true)
+    expect(canAddAnotherPhoto(1)).toBe(true)
+    expect(canAddAnotherPhoto(20)).toBe(false)
+  })
+
+  it('preselects the only vehicle and does not invent one', () => {
+    expect(nextPhotoVehicleId(['only'], null)).toBe('only')
+    expect(nextPhotoVehicleId(['a', 'b'], null)).toBeNull()
+    expect(nextPhotoVehicleId(['a', 'b'], 'b')).toBe('b')
+    expect(nextPhotoVehicleId([], 'a')).toBeNull()
+    expect(photoStepVehicleNote(0)).toBe(EVENT_MEDIA_NO_VEHICLE)
+    expect(photoStepVehicleNote(1)).toBeNull()
+  })
+})
+
 describe('canAddMoreMedia', () => {
   it('allows the 20th slot and blocks the 21st', () => {
     expect(canAddMoreMedia(19, 0)).toBe(true)
@@ -96,6 +137,78 @@ describe('groupMediaByTakenWhen', () => {
 describe('eventMediaStoragePath', () => {
   it('is {eventId}/{mediaId}.jpg', () => {
     expect(eventMediaStoragePath('e1', 'm1')).toBe('e1/m1.jpg')
+  })
+
+  it('uses the video extension for each video type', () => {
+    expect(eventMediaStoragePath('e1', 'm1', 'video/mp4')).toBe('e1/m1.mp4')
+    expect(eventMediaStoragePath('e1', 'm1', 'video/quicktime')).toBe('e1/m1.mov')
+    expect(eventMediaStoragePath('e1', 'm1', 'video/webm')).toBe('e1/m1.webm')
+  })
+})
+
+describe('eventMediaKind', () => {
+  it('treats any image type as a photo (compressed to JPEG later)', () => {
+    expect(eventMediaKind({ type: 'image/png' })).toBe('image')
+    expect(eventMediaKind({ type: 'image/heic' })).toBe('image')
+  })
+
+  it('treats a .heic file with no reported type as a photo', () => {
+    expect(eventMediaKind({ type: '', name: 'IMG_0001.HEIC' })).toBe('image')
+  })
+
+  it('accepts MP4, QuickTime and WebM videos only', () => {
+    expect(eventMediaKind({ type: 'video/mp4' })).toBe('video')
+    expect(eventMediaKind({ type: 'video/quicktime' })).toBe('video')
+    expect(eventMediaKind({ type: 'video/webm' })).toBe('video')
+    expect(eventMediaKind({ type: 'video/x-msvideo' })).toBeNull()
+  })
+
+  it('rejects everything else', () => {
+    expect(eventMediaKind({ type: 'application/pdf' })).toBeNull()
+    expect(eventMediaKind({ type: '' })).toBeNull()
+  })
+})
+
+describe('isVideoMedia', () => {
+  it('is true for stored video rows only', () => {
+    expect(isVideoMedia('video/mp4')).toBe(true)
+    expect(isVideoMedia('image/jpeg')).toBe(false)
+  })
+})
+
+describe('rejectVideoFile', () => {
+  it('accepts a video up to 25 MB', () => {
+    expect(rejectVideoFile({ size: EVENT_MEDIA_VIDEO_MAX_BYTES })).toBeNull()
+  })
+
+  it('rejects a longer video and an empty file', () => {
+    expect(rejectVideoFile({ size: EVENT_MEDIA_VIDEO_MAX_BYTES + 1 })).toBe(
+      EVENT_MEDIA_VIDEO_TOO_LARGE,
+    )
+    expect(rejectVideoFile({ size: 0 })).toBe(EVENT_MEDIA_VIDEO_TOO_LARGE)
+  })
+})
+
+describe('pickEventMediaFiles', () => {
+  const photo = { type: 'image/jpeg', name: 'a.jpg' }
+  const video = { type: 'video/mp4', name: 'b.mp4' }
+  const pdf = { type: 'application/pdf', name: 'c.pdf' }
+
+  it('keeps photos and videos in order and counts the rest as unsupported', () => {
+    expect(pickEventMediaFiles([photo, pdf, video], 20)).toEqual({
+      accepted: [photo, video],
+      unsupported: 1,
+      overCap: 0,
+    })
+  })
+
+  it('stops at the slots left and counts what did not fit', () => {
+    expect(pickEventMediaFiles([photo, video, photo], 2)).toEqual({
+      accepted: [photo, video],
+      unsupported: 0,
+      overCap: 1,
+    })
+    expect(pickEventMediaFiles([photo], 0)).toEqual({ accepted: [], unsupported: 0, overCap: 1 })
   })
 })
 
@@ -138,5 +251,23 @@ describe('mergeMediaPlates', () => {
       { id: 'a', plate_number: '12-345-67', model: 'REXTON', color: 'שחור', logo_slug: 'ssangyong' },
       { id: 'b', plate_number: '123-45-678', model: null, color: null, logo_slug: null },
     ])
+  })
+})
+
+describe('canDeleteEventMedia', () => {
+  it('lets the uploader delete while they may write', () => {
+    expect(canDeleteEventMedia(media({ uploaded_by: 'u1' }), 'u1', true)).toBe(true)
+  })
+
+  it('keeps media uploaded by someone else view-only', () => {
+    expect(canDeleteEventMedia(media({ uploaded_by: 'u2' }), 'u1', true)).toBe(false)
+  })
+
+  it('keeps the uploader view-only when the event is read-only', () => {
+    expect(canDeleteEventMedia(media({ uploaded_by: 'u1' }), 'u1', false)).toBe(false)
+  })
+
+  it('denies a signed-out viewer', () => {
+    expect(canDeleteEventMedia(media({ uploaded_by: 'u1' }), null, true)).toBe(false)
   })
 })

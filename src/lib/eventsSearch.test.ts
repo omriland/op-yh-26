@@ -63,6 +63,19 @@ describe('filterUnitEventsForList', () => {
     ])
   })
 
+  it('hides events born from a shift unless showShiftEvents is on', () => {
+    const mixed = [
+      row({ id: 'manual', status: 'done' }),
+      row({ id: 'shift', status: 'done', origin: 'shift', shift_id: 's1' }),
+    ]
+    const ids = (showShiftEvents: boolean) =>
+      filterUnitEventsForList(mixed, { status: 'all', searchIds: null, showShiftEvents }).map(
+        (e) => e.id,
+      )
+    expect(ids(false)).toEqual(['manual'])
+    expect(ids(true).sort()).toEqual(['manual', 'shift'])
+  })
+
   it('intersects status with search id set', () => {
     expect(
       filterUnitEventsForList(events, { status: 'done', searchIds: new Set(['a', 'b']) }).map((e) => e.id),

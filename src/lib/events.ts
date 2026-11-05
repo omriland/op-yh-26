@@ -70,6 +70,8 @@ export type EventListItem = {
   } | null
   shared_treated: { id: string }[]
   responders: EventResponderSummary[]
+  /** Unit list only: at least one image in `event_media` (event gallery or a responder log). */
+  has_image?: boolean
 }
 
 export const EVENT_LIST_SELECT = `
@@ -757,10 +759,16 @@ export async function searchUnitEventIds(
 
 export function filterUnitEventsForList(
   events: EventListItem[],
-  opts: { status: EventStatus | 'all'; searchIds: ReadonlySet<string> | null },
+  opts: {
+    status: EventStatus | 'all'
+    searchIds: ReadonlySet<string> | null
+    /** Off hides events born from a shift. Defaults to on. */
+    showShiftEvents?: boolean
+  },
 ): EventListItem[] {
   return sortEventsByDateDesc(
     events.filter((event) => {
+      if (opts.showShiftEvents === false && event.origin === 'shift') return false
       const matchesStatus = opts.status === 'all' || event.status === opts.status
       if (!matchesStatus) return false
       if (opts.searchIds === null) return true

@@ -31,6 +31,11 @@ type HoverTipProps = {
   mode?: 'truncate' | 'always'
   /** Override trigger tab stop. Field notes pass `-1` so Tab skips the `?`. */
   tabIndex?: number
+  /**
+   * `always` tips pin on click so a tap does not also activate a parent control.
+   * Pass false when that parent click should still run (a table row).
+   */
+  pinOnClick?: boolean
 }
 
 const VIEWPORT_PAD = 8
@@ -53,6 +58,7 @@ export function HoverTip({
   theme = 'command',
   mode = 'truncate',
   tabIndex,
+  pinOnClick = true,
 }: HoverTipProps) {
   const triggerRef = useRef<HTMLSpanElement>(null)
   const tipRef = useRef<HTMLDivElement>(null)
@@ -66,6 +72,7 @@ export function HoverTip({
   const hasTip = Boolean(content) || Boolean(text.trim() && text !== '—')
   // Only informational tips earn a tab stop; truncation tips repeat visible text.
   const interactive = hasTip && mode === 'always'
+  const pinsOnClick = interactive && pinOnClick
 
   function isTruncated() {
     const el = triggerRef.current
@@ -189,7 +196,7 @@ export function HoverTip({
         onPointerLeave={interactive ? closeOnPointerLeave : closeTip}
         onFocus={openTip}
         onBlur={closeTip}
-        onClick={interactive ? onTriggerClick : undefined}
+        onClick={pinsOnClick ? onTriggerClick : undefined}
         onKeyDown={interactive ? onTriggerKeyDown : undefined}
       >
         {children}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { filterContacts, toTelHref, toWhatsAppHref, type UnitContact } from './contacts'
+import {
+  filterContacts,
+  sortContacts,
+  toTelHref,
+  toWhatsAppHref,
+  type UnitContact,
+} from './contacts'
 
 const omri: UnitContact = {
   id: '1',
@@ -66,5 +72,30 @@ describe('filterContacts', () => {
 
   it('matches Hebrew typed on an English keyboard', () => {
     expect(filterContacts(contacts, 'gnrh').map((row) => row.id)).toEqual(['1'])
+  })
+})
+
+describe('sortContacts', () => {
+  const ids = (rows: UnitContact[]) => rows.map((row) => row.id)
+
+  it('sorts by name in Hebrew order, A to Z and back', () => {
+    expect(ids(sortContacts([omri, dana, noPhone], 'full_name', 'asc'))).toEqual(['3', '2', '1'])
+    expect(ids(sortContacts([omri, dana, noPhone], 'full_name', 'desc'))).toEqual(['1', '2', '3'])
+  })
+
+  it('compares callsigns with numbers in numeric order', () => {
+    const d2 = { ...dana, id: '4', callsign: 'D2' }
+    expect(ids(sortContacts([dana, d2], 'callsign', 'asc'))).toEqual(['4', '2'])
+  })
+
+  it('keeps a missing phone last in both directions', () => {
+    expect(ids(sortContacts([noPhone, omri, dana], 'phone', 'asc'))).toEqual(['2', '1', '3'])
+    expect(ids(sortContacts([noPhone, omri, dana], 'phone', 'desc'))).toEqual(['1', '2', '3'])
+  })
+
+  it('does not change the input array', () => {
+    const rows = [omri, dana]
+    sortContacts(rows, 'email', 'asc')
+    expect(ids(rows)).toEqual(['1', '2'])
   })
 })

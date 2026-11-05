@@ -76,12 +76,26 @@ export function TextField({
   )
 }
 
+/**
+ * Revealed password (`type=text`) must be LTR on the input itself.
+ * A masked `type=password` keeps the control's existing direction — mobile
+ * browsers follow the RTL document once the dots become letters.
+ */
+export function revealedPasswordInputProps(visible: boolean): {
+  dir?: 'ltr'
+  'data-revealed-password'?: ''
+} {
+  if (!visible) return {}
+  return { dir: 'ltr', 'data-revealed-password': '' }
+}
+
 export function PasswordField(props: Omit<TextFieldProps, 'type' | 'affix' | 'isolate'>) {
   const [visible, setVisible] = useState(false)
 
   return (
     <TextField
       {...props}
+      {...revealedPasswordInputProps(visible)}
       // Passwords are almost always Latin — only LTR field in the product.
       isolate
       type={visible ? 'text' : 'password'}

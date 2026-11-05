@@ -184,6 +184,12 @@ textarea.field__input {
   font: 400 16px/24px var(--font-mono);
 }
 
+/* Revealed password only. Masked type=password does not get this attribute. */
+.field__input[data-revealed-password] {
+  direction: ltr;
+  text-align: left;
+}
+
 .field__input--with-affix,
 .field__select {
   padding-inline-end: var(--space-12);
@@ -433,6 +439,16 @@ textarea.field__input {
   .field__affix:hover {
     background: var(--accent-subtle);
   }
+}
+
+.field__counter {
+  margin-block-end: var(--space-1);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.field__counter--met {
+  color: var(--status-done);
 }
 
 .field__hint {
@@ -708,6 +724,20 @@ p.alert--info {
   min-height: 48px;
   padding-block: var(--space-2);
   vertical-align: middle;
+}
+
+.table-cell--status__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.event-attachment {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  align-self: center;
+  color: var(--text-secondary);
 }
 
 @keyframes stamp-press {
@@ -991,6 +1021,7 @@ p.alert--info {
   display: inline-flex;
   align-items: flex-start;
   justify-content: flex-end;
+  gap: var(--space-2);
   min-width: 44px;
   min-height: 44px;
   border: 0;
@@ -1853,6 +1884,23 @@ p.alert--info {
   outline-offset: 2px;
 }
 
+.user-data-gap {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.user-data-gap__hit {
+  display: inline-flex;
+  align-items: center;
+  color: var(--status-alert);
+}
+
+.user-data-gap__hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    Application shell
    ============================================================ */
@@ -2168,6 +2216,11 @@ p.alert--info {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+
+.sidebar__nav::-webkit-scrollbar {
+  display: none;
 }
 
 .sidebar__footer {
@@ -2773,19 +2826,49 @@ div.app-footer__brand {
   flex-direction: column;
   align-items: center;
   width: 100%;
+  flex: 1 1 auto;
   min-height: 100%;
+  max-height: 100%;
+  overflow: hidden;
   gap: var(--space-8);
 }
 
+/* The stage is the scrollport. Centering with margin:auto sized it to its
+   content, so a short visual viewport (mobile keyboard) clipped the fields
+   instead of scrolling them above the keys. */
 .login__portal .login__stage {
-  margin-block: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-block: 0;
+  overflow: auto;
+  justify-content: safe center;
+  scroll-padding-block: var(--space-6);
+}
+
+html[data-keyboard-open] .login .app-footer {
+  display: none;
+}
+
+.login__stage .field__input {
+  scroll-margin-block: var(--space-8);
 }
 
 .login .app-footer {
   width: 100%;
+  flex: none;
   margin-block-start: 0;
   padding-block-start: var(--space-4);
   padding-block-end: 0;
+}
+
+/* Password setup is taller than the sign-in card and still has to scroll. */
+.login--setup {
+  overflow: auto;
+}
+
+.login--setup .login__portal {
+  max-height: none;
+  overflow: visible;
 }
 
 .privacy {
@@ -3297,6 +3380,40 @@ html[data-keyboard-open] .event-form__footer {
   white-space: nowrap;
 }
 
+/* Sortable column header: the whole label is the button. */
+.table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.table-sort svg {
+  opacity: 0.45;
+}
+
+.table-sort--active {
+  color: var(--text-primary);
+}
+
+.table-sort--active svg,
+.table-sort:hover svg {
+  opacity: 1;
+}
+
+.table-sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .table tbody tr {
   border-block-start: 1px solid var(--stroke-hairline);
   transition: background-color var(--duration-fast) var(--ease-standard);
@@ -3331,16 +3448,36 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 /* Events table: road/location must ellipsize; bare <td> max-width is unreliable. */
+/* Location is the column that gives way when space is tight: it wants 260px
+   but may shrink to 7rem (ellipsized) before the table starts to scroll.
+   width:0 + min-width:100% keeps the text out of the column's min-content. */
 .table--events .table-col--location {
   width: 260px;
-  max-width: 260px;
+  min-width: 7rem;
 }
 
 .table--events .table-col--location__text {
   display: block;
+  width: 0;
+  min-width: 100%;
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Events table: when the content column is narrower than the table (sidebar
+   open, small laptop), scroll sideways instead of clipping the status column.
+   Tooltips portal to <body>, so this does not clip them. */
+.table-wrap--events {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Keep each cell on one line (lead names were breaking word-by-word);
+   location keeps its own ellipsis; the full-width completion-notice and
+   "found by" meta rows may wrap. */
+.table--events tbody tr:not(.table-row--completion-meta):not(.table-row--found-by) > td {
   white-space: nowrap;
 }
 
@@ -3361,6 +3498,24 @@ html[data-keyboard-open] .event-form__footer {
   height: auto;
   padding-block: var(--space-2);
   vertical-align: middle;
+}
+
+/* Search results: why the row matched, as a full-width line under it (same anatomy as
+   the completion meta row, without the alert rail). Events and archive tables alike. */
+.table--events tbody tr.table-row--found-by,
+.search-archive-table tbody tr.table-row--found-by {
+  border-block-start: 1px dotted var(--stroke-hairline);
+}
+
+.table--events tbody tr.table-row--found-by td,
+.search-archive-table tbody tr.table-row--found-by td {
+  height: auto;
+  padding-block: var(--space-2);
+}
+
+.events-table__found-by,
+.search-archive-table__found-by {
+  color: var(--text-primary);
 }
 
 .table-wrap--event-locations {
@@ -3555,7 +3710,8 @@ html[data-keyboard-open] .event-form__footer {
   cursor: default;
 }
 
-.event-list-lead__overflow {
+.event-list-lead__overflow,
+.events-table__responders {
   white-space: nowrap;
   cursor: default;
 }
@@ -3680,6 +3836,13 @@ html[data-keyboard-open] .event-form__footer {
   }
 
   .table--events tbody tr.table-row--completion-meta:hover {
+    background: var(--accent-subtle);
+  }
+
+  .table--events tbody tr:not(.table-row--done):hover + .table-row--found-by,
+  .table--events tbody tr:not(.table-row--done):has(+ .table-row--found-by:hover),
+  .search-archive-table tbody tr:hover + .table-row--found-by,
+  .search-archive-table tbody tr:has(+ .table-row--found-by:hover) {
     background: var(--accent-subtle);
   }
 
@@ -3993,11 +4156,12 @@ html[data-keyboard-open] .event-form__footer {
   position: relative;
   isolation: isolate;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: var(--space-6) var(--space-4);
   padding-block-start: calc(var(--space-8) + env(safe-area-inset-top, 0px));
   padding-block-end: calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
@@ -4593,6 +4757,7 @@ html[data-keyboard-open] .event-form__footer {
 
 .dialog__header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -4602,11 +4767,13 @@ html[data-keyboard-open] .event-form__footer {
 
 .dialog__body {
   overflow: auto;
+  min-height: 0;
   padding: var(--space-4);
 }
 
 .dialog__footer {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column-reverse;
   gap: var(--space-2);
   padding: var(--space-4);
@@ -6213,9 +6380,9 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-3);
   grid-template-areas:
     'district'
+    'road'
     'note'
-    'place'
-    'road';
+    'place';
 }
 
 .event-district-place > .event-form__f-district { grid-area: district; }
@@ -6247,11 +6414,11 @@ html[data-keyboard-open] .event-form__footer {
   }
 
   .event-district-place {
-    grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.6fr) minmax(0, 0.7fr);
+    grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1.6fr);
     gap: var(--space-4);
     grid-template-areas:
       'note note note'
-      'district place road';
+      'district road place';
   }
 }
 
@@ -7771,9 +7938,26 @@ html[data-keyboard-open] .event-form__footer {
    ============================================================ */
 
 .event-media {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* Drop target while files are dragged over the gallery (desktop). */
+.event-media__drop {
+  position: absolute;
+  inset: calc(-1 * var(--space-2));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-raised) 90%, transparent);
+  text-align: center;
+  pointer-events: none;
 }
 
 .event-media__title {
@@ -7804,6 +7988,7 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .event-media__thumb {
+  position: relative;
   display: block;
   width: 100%;
   aspect-ratio: 1;
@@ -7821,11 +8006,30 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .event-media__thumb img,
+.event-media__thumb video,
 .event-media__draft-thumb {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.event-media__thumb video {
+  pointer-events: none;
+}
+
+.event-media__play {
+  position: absolute;
+  inset-block-end: var(--space-1);
+  inset-inline-start: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text-primary);
 }
 
 .event-media__thumb-miss {
@@ -7861,6 +8065,13 @@ html[data-keyboard-open] .event-form__footer {
   background: var(--surface-sunken);
 }
 
+.event-media__draft-thumb--preparing {
+  display: grid;
+  place-items: center;
+  padding: var(--space-2);
+  text-align: center;
+}
+
 .event-media__draft-fields {
   display: flex;
   flex-direction: column;
@@ -7874,11 +8085,60 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-2);
 }
 
+.plate-scan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.plate-scan__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.plate-scan__head h4 {
+  margin: 0;
+}
+
+.plate-scan__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plate-scan__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.plate-scan__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .event-media__add {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-1);
+}
+
+.event-media__add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .event-media__lightbox {
@@ -7943,6 +8203,78 @@ html[data-keyboard-open] .event-form__footer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Treated vehicles on a photo: one tap links or unlinks. */
+.media-plate-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.media-plate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  max-width: 100%;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.media-plate-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.media-plate-chip__check {
+  flex: none;
+  color: var(--accent);
+}
+
+.media-plate-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+@media (hover: hover) {
+  .media-plate-chip:not(:disabled):hover {
+    background: var(--accent-subtle);
+  }
+}
+
+/* Photos the plate scan linked on its own, each with an undo. */
+.plate-link-auto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-sm);
+  list-style: none;
+}
+
+.plate-link-auto__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.plate-link-auto__text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 @media (min-width: 1025px) {
@@ -8036,50 +8368,6 @@ html[data-keyboard-open] .event-form__footer {
 .feedback-fab__btn:focus-visible + .feedback-fab__tooltip {
   opacity: 1;
   transform: translateY(0);
-}
-
-.feedback-fab__menu {
-  position: absolute;
-  z-index: 1;
-  inset-block-end: calc(100% + var(--space-2));
-  inset-inline-end: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  width: max-content;
-  max-width: calc(100vw - var(--space-4) * 2);
-  padding: var(--space-1);
-  border: 1px solid var(--stroke-hairline);
-  border-radius: var(--radius-md);
-  background: var(--surface-overlay);
-  box-shadow: var(--shadow-overlay);
-  pointer-events: auto;
-}
-
-.feedback-fab__option {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-primary);
-  font: 600 16px/24px var(--font-ui);
-  text-align: start;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.feedback-fab__option:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-@media (hover: hover) {
-  .feedback-fab__option:hover {
-    background: var(--accent-subtle);
-  }
 }
 
 .feedback-form {
@@ -8305,6 +8593,12 @@ fieldset.field {
   white-space: pre-wrap;
 }
 
+.feedback-inbox__transcript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .feedback-attach {
   margin-block-start: auto;
   display: flex;
@@ -8371,4 +8665,191 @@ fieldset.field {
   max-height: 240px;
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
+}
+
+/* ============================================================
+   Search (/search) — screens/search.md
+   ============================================================ */
+
+.search-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.search-page > .page-head {
+  margin-block-end: var(--space-2);
+}
+
+/* Input and חיפוש share one row on every width. */
+.search-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.search-bar__field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Magnifier affix at inline-start. */
+.search-bar__input {
+  padding-inline-start: var(--space-12);
+  padding-inline-end: var(--space-3);
+}
+
+.search-bar__affix {
+  inset-inline-start: var(--space-1);
+  inset-inline-end: auto;
+  pointer-events: none;
+}
+
+/* Match the 44 px field it sits beside. */
+.search-bar .btn {
+  flex: none;
+  min-height: 44px;
+}
+
+/* הבנתי: — neutral chips (secondary-chip chrome), never stamps. */
+.search-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.search-chips__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font: 400 12px/16px var(--font-ui);
+  white-space: nowrap;
+}
+
+.search-chip:has(.search-chip__remove) {
+  padding-inline-end: 0;
+}
+
+.search-chip__remove {
+  position: relative;
+  display: inline-flex;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-8);
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+/* 44 × 44 hit area around the visible ✕, centred on it in both directions. */
+.search-chip__remove::before {
+  content: '';
+  position: absolute;
+  inset: calc(50% - 22px);
+}
+
+@media (hover: hover) {
+  .search-chip__remove:hover {
+    background: var(--accent-subtle);
+    color: var(--accent);
+  }
+}
+
+/* Section rule: heading on a hairline, export at inline-end (under it on mobile). */
+.search-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.search-section__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.search-section__rule {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.search-section__line {
+  flex: 1 1 auto;
+  min-inline-size: var(--space-6);
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+@media (min-width: 1025px) {
+  .search-section__head {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .search-section__rule {
+    flex: 1 1 auto;
+  }
+}
+
+/* Archive columns share the width equally; long cells ellipsize with a HoverTip. */
+.search-archive-table {
+  table-layout: fixed;
+}
+
+/* One-line archive cells with the full text in a HoverTip. */
+.table .table-col--truncate__text {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Archive card (mobile): same anatomy and pressed state as the event card. */
+.search-archive-card__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  text-align: start;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.search-archive-card__open:active,
+.search-person-card:active {
+  background: var(--surface-sunken);
+}
+
+.search-person-card {
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+/* The info line sits in the page stack, which already spaces it. */
+.search-page .banner {
+  margin-block-end: 0;
+}
+
+.search-report__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }

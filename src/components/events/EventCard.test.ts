@@ -254,4 +254,25 @@ describe('EventCard default (unit list)', () => {
     expect(html).not.toContain('event-frozen-mark')
     expect(html).not.toContain('event-frozen-notice')
   })
+
+  it('puts an attachment mark on the stamp only when the event has an image', () => {
+    const withImage = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event({ has_image: true }),
+        stamp: { label: 'הושלם', tone: 'done' },
+        onOpen: () => undefined,
+      }),
+    )
+    const without = renderToStaticMarkup(
+      createElement(EventCard, {
+        event: event(),
+        stamp: { label: 'הושלם', tone: 'done' },
+        onOpen: () => undefined,
+      }),
+    )
+
+    expect(withImage).toContain('יש תמונה מצורפת')
+    expect(withImage).toContain('הושלם')
+    expect(without).not.toContain('יש תמונה מצורפת')
+  })
 })

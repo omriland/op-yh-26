@@ -12,6 +12,7 @@ import { policeEventLabel } from '../../lib/shiftBornEvents'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventFrozenNotice } from './EventFrozenNotice'
+import { EventAttachmentMark } from './EventAttachmentMark'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
 
 type EventCardProps = {
@@ -36,6 +37,8 @@ type EventCardProps = {
   /** Unit list: missing required fields as a ledger line under the header. */
   incompleteFields?: string[]
   incompleteSpoken?: string
+  /** Search results: why this event matched, as a caption under row 3. */
+  foundBy?: string
 }
 
 export function EventCard({
@@ -52,6 +55,7 @@ export function EventCard({
   onContextDelete,
   incompleteFields,
   incompleteSpoken,
+  foundBy,
 }: EventCardProps) {
   const place = [event.road?.name, event.location].filter(Boolean).join(' · ')
   const inbox = mode === 'inbox'
@@ -115,6 +119,7 @@ export function EventCard({
             </span>
           ) : null}
         </span>
+        {foundBy ? <span className="t-caption text-muted">נמצא לפי: {foundBy}</span> : null}
         {incompleteFields && incompleteFields.length > 0 ? (
           <IncompleteFieldsNotice
             fields={incompleteFields}
@@ -125,6 +130,7 @@ export function EventCard({
       <EventFrozenNotice event={event} viewer={viewer} />
       <button type="button" className="event-card__stamp" onClick={open} tabIndex={-1}>
         <StampWithNote {...stamp} note={leadKmNote} tip={stampTip} />
+        {event.has_image ? <EventAttachmentMark /> : null}
       </button>
       {onFill && fillLabel ? (
         <div className="event-card__fill">

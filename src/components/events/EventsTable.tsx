@@ -1,6 +1,6 @@
 import { Fragment, useRef, type MouseEvent } from 'react'
 import { formatDate, monoClass } from '../../lib/format'
-import { doneFraction, type EventListItem } from '../../lib/events'
+import { doneFraction, type EventListItem, type EventResponderSummary } from '../../lib/events'
 import { mapSecondaryLeadRows } from '../../lib/eventShiftLeads'
 import type { FreezeViewer } from '../../lib/eventFreeze'
 import { HoverTip } from '../ui/HoverTip'
@@ -8,6 +8,7 @@ import { EventListLeadCaption } from './EventListLeadCaption'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
+import { EventAttachmentMark } from './EventAttachmentMark'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
 import { leadFacingMissingKm, missingFullyLoggedFieldLabels } from '../../lib/eventIncomplete'
 
@@ -28,6 +29,34 @@ type EventsTableProps = {
   incompleteNoticeFor?: (event: EventListItem) => IncompleteNotice | undefined
   /** Ledger queue title for the pinned incomplete table. */
   caption?: string
+  /** Search results: why each row matched, as a full-width `נמצא לפי` line under the row. */
+  foundBy?: (event: EventListItem) => string
+}
+
+const NO_ASSIGNED_RESPONDERS = 'אין מתנדבים משובצים'
+
+/** Same identity the status trail already uses for a responder on this table. */
+export function responderDisplayName(
+  profile: { full_name?: string | null; callsign?: string | null } | null | undefined,
+): string {
+  return profile?.full_name ?? profile?.callsign ?? 'מתנדב'
+}
+
+export function AssignedRespondersTip({
+  responders,
+}: {
+  responders: EventResponderSummary[]
+}) {
+  if (responders.length === 0) {
+    return <p className="hover-tip__empty">{NO_ASSIGNED_RESPONDERS}</p>
+  }
+  return (
+    <ul className="hover-tip__list">
+      {responders.map((row) => (
+        <li key={row.id}>{responderDisplayName(row.profile)}</li>
+      ))}
+    </ul>
+  )
 }
 
 /** Command desktop only — mobile renders the same data as cards. */
@@ -39,11 +68,12 @@ export function EventsTable({
   onContextDelete,
   incompleteNoticeFor,
   caption,
+  foundBy,
 }: EventsTableProps) {
   const skipOpenUntil = useRef(0)
 
   return (
-    <div className="table-wrap">
+    <div className="table-wrap table-wrap--events">
       <table className="table table--events">
         {caption ? <caption className="events-incomplete-heading">{caption}</caption> : null}
         <thead>
@@ -62,6 +92,7 @@ export function EventsTable({
             const locationLabel =
               [event.road?.name, event.location].filter(Boolean).join(' · ') || '—'
             const notice = incompleteNoticeFor?.(event)
+            const reason = foundBy?.(event)
             const incomplete = Boolean(notice && notice.fields.length > 0)
             const rowClass = [
               event.status === 'done' && !incomplete ? 'table-row--done' : '',
@@ -120,22 +151,34 @@ export function EventsTable({
                       />
                     )}
                   </td>
-                  <td className="num mono">{doneFraction(event)}</td>
+                  <td className="num mono">
+                    <HoverTip
+                      mode="always"
+                      pinOnClick={false}
+                      className="events-table__responders"
+                      content={<AssignedRespondersTip responders={event.responders} />}
+                    >
+                      {doneFraction(event)}
+                    </HoverTip>
+                  </td>
                   <td className="table-cell--status">
-                    <EventStatusTrail
-                      status={event.status}
-                      missingKm={leadFacingMissingKm(event, viewerId)}
-                      missingFields={
-                        event.status === 'partial' || event.status === 'in_progress'
-                          ? missingFullyLoggedFieldLabels(event, viewerId)
-                          : []
-                      }
-                      responders={event.responders.map((row) => ({
-                        id: row.id,
-                        status: row.status,
-                        name: row.profile?.full_name ?? row.profile?.callsign ?? 'מתנדב',
-                      }))}
-                    />
+                    <div className="table-cell--status__row">
+                      <EventStatusTrail
+                        status={event.status}
+                        missingKm={leadFacingMissingKm(event, viewerId)}
+                        missingFields={
+                          event.status === 'partial' || event.status === 'in_progress'
+                            ? missingFullyLoggedFieldLabels(event, viewerId)
+                            : []
+                        }
+                        responders={event.responders.map((row) => ({
+                          id: row.id,
+                          status: row.status,
+                          name: responderDisplayName(row.profile),
+                        }))}
+                      />
+                      {event.has_image ? <EventAttachmentMark /> : null}
+                    </div>
                   </td>
                 </tr>
                 {incomplete && notice ? (
@@ -149,6 +192,22 @@ export function EventsTable({
                   >
                     <td colSpan={7}>
                       <IncompleteFieldsNotice fields={notice.fields} spoken={notice.spoken} />
+                    </td>
+                  </tr>
+                ) : null}
+                {reason ? (
+                  <tr
+                    className={`table-row--found-by${event.status === 'done' && !incomplete ? ' table-row--done' : ''}`}
+                    onClick={(click) => {
+                      if (click.button !== 0) return
+                      openRow()
+                    }}
+                    onContextMenu={onContextMenu}
+                  >
+                    <td colSpan={7}>
+                      <p className="t-caption events-table__found-by">
+                        <span className="text-secondary">נמצא לפי:</span> {reason}
+                      </p>
                     </td>
                   </tr>
                 ) : null}

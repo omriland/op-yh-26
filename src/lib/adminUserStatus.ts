@@ -6,6 +6,18 @@ export function isInvitePending(user: {
   return user.active && user.invite_pending
 }
 
+/**
+ * A password sign-in means registration finished.
+ * Opening the invite link signs the person in before they choose a password;
+ * that session still has a setup reason and must stay pending.
+ */
+export function shouldClearInviteOnPasswordSignIn(
+  user: { invite_pending?: boolean } | null | undefined,
+  passwordSetupReason: string | null,
+): boolean {
+  return user?.invite_pending === true && !passwordSetupReason
+}
+
 /** Invitees who have not registered yet have no duty availability. */
 export function hasAvailability(user: {
   active: boolean

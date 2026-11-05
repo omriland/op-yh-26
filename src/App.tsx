@@ -11,6 +11,7 @@ import { EventListSkeleton } from './components/ui/Skeleton'
 import { ToastProvider } from './components/ui/Toast'
 import { Button } from './components/ui/Button'
 import { AlertDialog } from './components/ui/AlertDialog'
+import { PersonalVehiclePrompt } from './components/profile/PersonalVehiclePrompt'
 import { OtpGate } from './components/otp/OtpGate'
 import { ShieldAlert } from 'lucide-react'
 import {
@@ -46,6 +47,8 @@ import { ShiftDetailPage } from './pages/ShiftDetailPage'
 import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
 import { ContactsPage } from './pages/ContactsPage'
+import { SearchPage } from './pages/SearchPage'
+import { useSearchShortcut } from './lib/searchShortcut'
 import { FeedbackInboxPage } from './pages/FeedbackInboxPage'
 import { EventLocationsPage } from './pages/EventLocationsPage'
 import { EventAuditPage } from './pages/EventAuditPage'
@@ -58,7 +61,10 @@ import { ROLE_PREVIEW_CHANGE_EVENT, isRolePreviewing } from './lib/rolePreviewSt
 import { usePresenceHeartbeat } from './lib/usePresenceHeartbeat'
 import { usePrelaunchGate } from './lib/usePrelaunchGate'
 import { PrelaunchGatePage } from './pages/PrelaunchGatePage'
+import { useCobrowse } from './lib/useCobrowse'
 import { fetchOtpStatus } from './lib/phoneOtp'
+import { loginOtpCheck } from './lib/loginOtpGate'
+import { clearOpenAdminUserForm } from './lib/adminUserFormOpen'
 import {
   clearPostLoginFill,
   consumeFillEventTarget,
@@ -102,10 +108,11 @@ function readWindowBoot() {
       eventSurface: { kind: 'list' } as EventSurface,
       shiftSurface: { kind: 'list' } as ShiftSurface,
       cockpitEventId: undefined as string | undefined,
+      searchQuery: undefined as string | undefined,
       legalPage: null as 'privacy' | 'android' | 'ios' | 'delete_data' | 'support' | null,
     }
   }
-  return readBootRoute(window.location.pathname)
+  return readBootRoute(window.location.pathname, window.location.search)
 }
 
 function Gate() {
@@ -123,6 +130,9 @@ function Gate() {
   const [sectionReset, setSectionReset] = useState(0)
   const [eventCreateNonce, setEventCreateNonce] = useState(0)
   const [cockpitEventId, setCockpitEventId] = useState<string | undefined>(boot.cockpitEventId)
+  const [searchQuery, setSearchQuery] = useState<string | undefined>(boot.searchQuery)
+  // A search result opens this user's edit dialog on משתמשים.
+  const [editUserId, setEditUserId] = useState<string | undefined>()
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
     myShifts: false,
@@ -172,6 +182,10 @@ function Gate() {
             eventId: result.context.eventId,
             responderId: (result.context as { responderId?: string }).responderId,
           })
+        } else if (result.code === 'shift_born' && result.eventId) {
+          // A shared shift report has no per-person link: open it after login.
+          stashPostLoginFill(result.eventId)
+          setTokenFill({ status: 'idle' })
         } else {
           if (result.eventId) stashPostLoginFill(result.eventId)
           setTokenFill({
@@ -283,6 +297,8 @@ function Gate() {
   // Leads also go on events — same personal list/fill surface, not only the responder role.
   const hasMineList = responds || roles.includes('shift_lead')
   const fallbackView: AppView = defaultHomeView({ manages, hasMineList, isAdmin })
+
+  useSearchShortcut(isAdmin, () => navigate('search'))
   const [missingKmPopup, setMissingKmPopup] = useState<{ count: number } | null>(null)
 
   useEffect(() => {
@@ -358,6 +374,7 @@ function Gate() {
         eventSurface,
         shiftSurface,
         cockpitEventId: nextView === 'cockpit' ? cockpitEventId : undefined,
+        searchQuery: nextView === 'search' ? searchQuery : undefined,
         legalPage: null,
       },
       { adoptHome },
@@ -374,6 +391,7 @@ function Gate() {
     eventSurface,
     shiftSurface,
     cockpitEventId,
+    searchQuery,
     loginOtp.state,
     manages,
     hasMineList,
@@ -386,7 +404,7 @@ function Gate() {
     function onPop() {
       // Back / Forward leaves the open form like a nav click does.
       void discardAbandonedEmptyEventIfAny()
-      const parsed = parseAppPath(window.location.pathname)
+      const parsed = parseAppPath(window.location.pathname, window.location.search)
       if (parsed.kind === 'android') {
         setLegalPage('android')
         return
@@ -410,15 +428,20 @@ function Gate() {
       if (parsed.kind === 'oauth') return
       setLegalPage(null)
       if (parsed.kind === 'app') {
+        if (parsed.state.view !== 'users') clearOpenAdminUserForm()
         setView(parsed.state.view)
         setEventSurface(parsed.state.eventSurface)
         setShiftSurface(parsed.state.shiftSurface)
         setCockpitEventId(parsed.state.cockpitEventId)
+        setSearchQuery(parsed.state.searchQuery)
+        setEditUserId(undefined)
         return
       }
       setCockpitEventId(undefined)
+      setSearchQuery(undefined)
       setEventSurface({ kind: 'list' })
       setShiftSurface({ kind: 'list' })
+      clearOpenAdminUserForm()
       setView(null)
     }
     window.addEventListener('popstate', onPop)
@@ -533,13 +556,24 @@ function Gate() {
     if (analyticsPath) captureAppPageview(analyticsPath)
   }, [analyticsPath])
 
+  const loginOtpClearedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (!session || passwordSetupReason) {
+    const userId = session?.user?.id ?? null
+    const decision = loginOtpCheck({
+      signedIn: Boolean(session?.user),
+      passwordSetup: Boolean(passwordSetupReason),
+      impersonating: isImpersonating(),
+      otpLoginEnabled: Boolean(profile?.otp_login_enabled),
+      userId,
+      clearedUserId: loginOtpClearedFor.current,
+    })
+    if (decision === 'keep') return
+    if (decision === 'idle') {
+      loginOtpClearedFor.current = null
       setLoginOtp({ state: 'idle' })
       return
     }
-
-    if (isImpersonating() || !profile?.otp_login_enabled) {
+    if (decision === 'ok') {
       setLoginOtp({ state: 'ok' })
       return
     }
@@ -556,9 +590,10 @@ function Gate() {
         }
         if (status.loginRequired) {
           setLoginOtp({ state: 'required', maskedPhone: status.maskedPhone })
-        } else {
-          setLoginOtp({ state: 'ok' })
+          return
         }
+        if (userId) loginOtpClearedFor.current = userId
+        setLoginOtp({ state: 'ok' })
       })
       .catch(() => {
         if (active) setLoginOtp({ state: 'required', maskedPhone: null })
@@ -574,6 +609,11 @@ function Gate() {
     session && !passwordSetupReason ? (user?.id ?? null) : null,
     roles,
   )
+  useCobrowse({
+    signedIn: Boolean(session && !passwordSetupReason && loginOtp.state === 'ok'),
+    impersonating: superAdminChrome.impersonating,
+    identity: profile,
+  })
 
   const entries = useMemo(() => {
     const list: NavEntry[] = []
@@ -683,6 +723,12 @@ function Gate() {
     }
 
     if (isAdmin) {
+      list.push({
+        view: 'search',
+        label: 'חיפוש',
+        icon: NAV_ICONS.search,
+        section: isDesktop ? 'ניהול' : undefined,
+      })
       if (isDesktop) {
         for (const segment of ADMIN_SEGMENTS) {
           const settings = segment.id === 'lists'
@@ -983,6 +1029,7 @@ function Gate() {
   const commandShell = isDesktop && (manages || isAdminHub)
 
   function navigate(next: AppView) {
+    if ((view ?? fallbackView) === 'users') clearOpenAdminUserForm()
     void discardAbandonedEmptyEventIfAny()
     const nextState = applyNavClick(
       { view: view ?? fallbackView, eventSurface, shiftSurface, sectionReset },
@@ -993,6 +1040,8 @@ function Gate() {
     setEventSurface(nextState.eventSurface)
     setShiftSurface(nextState.shiftSurface)
     setCockpitEventId(undefined)
+    setSearchQuery(undefined)
+    setEditUserId(undefined)
     setView(nextState.view)
     setSectionReset(nextState.sectionReset)
   }
@@ -1003,6 +1052,7 @@ function Gate() {
   }
 
   function openNewEventForm() {
+    if ((view ?? fallbackView) === 'users') clearOpenAdminUserForm()
     void discardAbandonedEmptyEventIfAny()
     setLegalPage(null)
     setView('events')
@@ -1189,9 +1239,24 @@ function Gate() {
             ) : activeView === 'fuel_quarter' ? (
               <FuelQuarterPage key={sectionReset} />
             ) : (
-              <AdminUsersPage key={sectionReset} />
+              <AdminUsersPage key={sectionReset} editUserId={editUserId} />
             )}
           </div>
+      ) : activeView === 'search' ? (
+        <SearchPage
+          key={sectionReset}
+          initialQuery={searchQuery ?? ''}
+          onQueryChange={(q) => setSearchQuery(q || undefined)}
+          onOpenEvent={(eventId) => {
+            setView('events')
+            setEventSurface({ kind: 'detail', eventId })
+            setShiftSurface({ kind: 'list' })
+          }}
+          onOpenUser={(userId) => {
+            navigate('users')
+            setEditUserId(userId)
+          }}
+        />
       ) : activeView === 'contacts' ? (
         <div className={isDesktop ? 'page--wide' : undefined}>
           <ContactsPage key={sectionReset} />
@@ -1264,6 +1329,10 @@ function Gate() {
           <p className="t-body">{missingKmAlertMessage(missingKmPopup.count)}</p>
         ) : null}
       </AlertDialog>
+      <PersonalVehiclePrompt
+        userId={user?.id ?? null}
+        enabled={missingKmPopup === null && !superAdminChrome.impersonating}
+      />
     </AppShell>
   )
 }

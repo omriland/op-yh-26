@@ -5,6 +5,7 @@ import {
   jsonResponse as json,
   runWithCors,
 } from "../_shared/cors.ts";
+import { type AdminClient, deleteUserAccount, jwtSessionId } from "../_shared/deleteAccount.ts";
 import { deliverInvite } from "../_shared/inviteDelivery.ts";
 import { inviteExpiresAt, isInviteExpired, reusableInviteToken } from "../_shared/inviteTtl.ts";
 
@@ -456,6 +457,7 @@ async function writeImpersonationAudit(
     target_user_id: string | null;
     action: "started" | "stopped" | "denied";
     reason?: string | null;
+    session_id?: string | null;
   },
 ) {
   const { error } = await adminClient.from("impersonation_audit").insert({
@@ -463,6 +465,7 @@ async function writeImpersonationAudit(
     target_user_id: row.target_user_id,
     action: row.action,
     reason: row.reason ?? null,
+    session_id: row.session_id ?? null,
   });
   if (error) {
     console.error("impersonation_audit", error.message);
@@ -598,10 +601,13 @@ async function handleImpersonate(
     return json(500, { error: "פתיחת הצפייה נכשלה. נסו שוב." });
   }
 
+  // The session id lets delete-account refuse to delete an account from a
+  // "view as" session.
   await writeImpersonationAudit(adminClient, {
     actor_user_id: actorId,
     target_user_id: targetId,
     action: "started",
+    session_id: jwtSessionId(`Bearer ${accessToken}`),
   });
 
   return json(200, {
@@ -696,87 +702,17 @@ async function handleDeleteUser(
     return json(400, { error: "לא ניתן למחוק את המשתמש המחובר כעת." });
   }
 
-  const { data: profile, error: profileLookupError } = await adminClient
-    .from("profiles")
-    .select("id")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (profileLookupError) {
-    return json(500, { error: "בדיקת המשתמש נכשלה. נסו שוב." });
-  }
-  if (!profile) {
-    return json(404, { error: "המשתמש לא נמצא." });
-  }
-
-  const [{ count: eventsAsLead }, { count: shiftsAsLead }] = await Promise.all([
-    adminClient
-      .from("events")
-      .select("id", { count: "exact", head: true })
-      .eq("shift_lead_id", userId),
-    adminClient
-      .from("shifts")
-      .select("id", { count: "exact", head: true })
-      .eq("shift_lead_id", userId),
-  ]);
-
-  if ((eventsAsLead ?? 0) > 0 || (shiftsAsLead ?? 0) > 0) {
-    return json(409, {
-      error:
-        "לא ניתן למחוק משתמש שהוא אחמ״ש על אירועים או משמרות. השביתו אותו או העבירו את האחריות קודם.",
+  // Same routine as a member's own deletion: personal data and the login go,
+  // the profile stays as an anonymized placeholder so events, shifts and
+  // reports that point at it stay valid.
+  const result = await deleteUserAccount(adminClient as unknown as AdminClient, userId);
+  if (!result.ok) {
+    return json(result.status, {
+      error: result.code === "account_not_found" ? "המשתמש לא נמצא." : result.error,
     });
   }
-
-  // Drop participation rows so profile/auth delete is not blocked by FKs.
-  const { error: eventRespondersError } = await adminClient
-    .from("event_responders")
-    .delete()
-    .eq("responder_id", userId);
-  if (eventRespondersError) {
-    return json(500, { error: "מחיקת שיוכי האירועים נכשלה. נסו שוב." });
-  }
-
-  const { error: shiftRespondersError } = await adminClient
-    .from("shift_responders")
-    .delete()
-    .eq("responder_id", userId);
-  if (shiftRespondersError) {
-    return json(500, { error: "מחיקת שיוכי המשמרות נכשלה. נסו שוב." });
-  }
-
-  // Detach personal-vehicle shifts, then drop cars so Auth cascade
-  // does not hit vehicles triggers as supabase_auth_admin.
-  const { data: vehicleRows, error: vehicleLookupError } = await adminClient
-    .from("vehicles")
-    .select("id")
-    .eq("user_id", userId);
-  if (vehicleLookupError) {
-    return json(500, { error: "בדיקת הרכבים נכשלה. נסו שוב." });
-  }
-  const vehicleIds = (vehicleRows ?? []).map((row) => row.id as string);
-  if (vehicleIds.length > 0) {
-    const { error: detachShiftsError } = await adminClient
-      .from("shifts")
-      .update({ personal_vehicle_id: null })
-      .in("personal_vehicle_id", vehicleIds);
-    if (detachShiftsError) {
-      return json(500, { error: "ניתוק רכב ממשמרות נכשל. נסו שוב." });
-    }
-  }
-  const { error: vehiclesError } = await adminClient
-    .from("vehicles")
-    .delete()
-    .eq("user_id", userId);
-  if (vehiclesError) {
-    return json(500, { error: "מחיקת הרכבים נכשלה. נסו שוב." });
-  }
-
-  const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
-  if (deleteError) {
-    return json(400, {
-      error: "מחיקת המשתמש נכשלה. נסו שוב.",
-      detail: deleteError.message,
-    });
+  if (result.status === "simulated") {
+    return json(409, { error: "את חשבון הדמו של App Review מסירים רק בסקריפט הייעודי." });
   }
 
   return json(200, { ok: true, message: "המשתמש נמחק." });

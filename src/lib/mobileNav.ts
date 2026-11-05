@@ -2,7 +2,7 @@
 export const MOBILE_TAB_PRIMARY = ['events', 'mine', 'users', 'my_shifts'] as const
 
 /** Reachable on mobile, but not every-session. Overflow into עוד. */
-export const MOBILE_TAB_SECONDARY = ['shifts', 'contacts', 'map', 'reports'] as const
+export const MOBILE_TAB_SECONDARY = ['search', 'shifts', 'contacts', 'map', 'reports'] as const
 
 /** Five is the hard limit; the last slot is reserved for עוד when anything overflows. */
 export const MOBILE_TAB_MAX = 4
@@ -29,6 +29,17 @@ function isMenu<T extends { children?: readonly unknown[] }>(entry: T): boolean 
 }
 
 export function splitMobileNav<T extends { view?: string; children?: readonly unknown[] }>(
+  entries: readonly T[],
+): { tabs: T[]; more: T[] } {
+  const split = splitByRank(entries)
+  // חיפוש leads the עוד sheet even ahead of primary views that overflowed (e.g. המשמרות שלי).
+  const search = split.more.filter((entry) => entry.view === 'search')
+  if (search.length === 0) return split
+  const rest = split.more.filter((entry) => entry.view !== 'search')
+  return { tabs: split.tabs, more: [...search, ...rest] }
+}
+
+function splitByRank<T extends { view?: string; children?: readonly unknown[] }>(
   entries: readonly T[],
 ): { tabs: T[]; more: T[] } {
   const menus = entries.filter(isMenu)

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   COUNT_DECREASE_BLOCKED,
+  SHIFT_BORN_DONE_LOCKED,
+  SHIFT_BORN_TOO_EARLY,
   SHIFT_BORN_TYPE_MARK,
   STALE_SAVE_MESSAGE,
   eventLeadDisplayName,
@@ -8,6 +10,9 @@ import {
   isShiftBornEventEmpty,
   lastSavedByLabel,
   mineShiftBornIsOpen,
+  shiftBornBeforeShiftDate,
+  shiftBornFillAccess,
+  shiftBornFillCtaLabel,
   shiftBornFillStamp,
   type ShiftBornEventSnapshot,
 } from './shiftBornEvents'
@@ -114,5 +119,82 @@ describe('locked Hebrew errors', () => {
   it('keeps the approved stale-save and decrease copy', () => {
     expect(STALE_SAVE_MESSAGE).toBe('מישהו שמר לפניך — רעננו')
     expect(COUNT_DECREASE_BLOCKED).toBe('לא ניתן להקטין — קיימים אירועים שמולאו')
+  })
+})
+
+describe('shiftBornBeforeShiftDate', () => {
+  const today = '2026-11-03'
+
+  it('is true only for a shift-born event dated after today', () => {
+    expect(shiftBornBeforeShiftDate({ origin: 'shift', event_date: '2026-11-04' }, today)).toBe(true)
+    expect(shiftBornBeforeShiftDate({ origin: 'shift', event_date: today }, today)).toBe(false)
+    expect(shiftBornBeforeShiftDate({ origin: 'shift', event_date: '2026-11-01' }, today)).toBe(false)
+    expect(shiftBornBeforeShiftDate({ origin: 'manual', event_date: '2026-11-04' }, today)).toBe(false)
+  })
+
+  it('reads the shift date over the event date, as the save RPC does', () => {
+    expect(
+      shiftBornBeforeShiftDate(
+        { origin: 'shift', event_date: today, shift: { shift_date: '2026-11-05' } },
+        today,
+      ),
+    ).toBe(true)
+    expect(
+      shiftBornBeforeShiftDate(
+        { origin: 'shift', event_date: '2026-11-05', shift: { shift_date: today } },
+        today,
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('shiftBornFillAccess', () => {
+  const base = { canManage: false, onCrew: true, beforeShiftDate: false, done: false }
+
+  it('lets any crew member edit from the shift date on', () => {
+    expect(shiftBornFillAccess(base)).toEqual({ readOnly: false, note: null })
+  })
+
+  it('shows crew the report read-only before the shift date, with the date rule', () => {
+    expect(shiftBornFillAccess({ ...base, beforeShiftDate: true })).toEqual({
+      readOnly: true,
+      note: SHIFT_BORN_TOO_EARLY,
+    })
+  })
+
+  it('locks a completed report for crew but not for a lead or admin', () => {
+    expect(shiftBornFillAccess({ ...base, done: true }).readOnly).toBe(true)
+    expect(shiftBornFillAccess({ ...base, done: true, canManage: true }).readOnly).toBe(false)
+  })
+
+  it('lets a lead or admin edit before the shift date', () => {
+    expect(shiftBornFillAccess({ ...base, canManage: true, beforeShiftDate: true })).toEqual({
+      readOnly: false,
+      note: null,
+    })
+  })
+
+  it('never offers the editor to a viewer the save RPC would refuse', () => {
+    expect(shiftBornFillAccess({ ...base, onCrew: false }).readOnly).toBe(true)
+  })
+})
+
+describe('shiftBornFillCtaLabel', () => {
+  it('names the shared report, never "my" report', () => {
+    expect(shiftBornFillCtaLabel(snapshot())).toBe('השלמת התיעוד')
+    expect(shiftBornFillCtaLabel(snapshot({ location: 'מחלף שורק' }))).toBe('המשך התיעוד')
+  })
+
+  it('drops the CTA once the report is complete', () => {
+    expect(
+      shiftBornFillCtaLabel(snapshot({ status: 'done', treatment_detail: 'חילוץ' })),
+    ).toBeNull()
+  })
+})
+
+describe('save RPC messages', () => {
+  it('keeps the server copy for the date and completed-report refusals', () => {
+    expect(SHIFT_BORN_TOO_EARLY).toBe('ניתן לתעד החל מתאריך המשמרת.')
+    expect(SHIFT_BORN_DONE_LOCKED).toBe('התיעוד כבר הושלם. רק אחמ״ש יכול לערוך.')
   })
 })

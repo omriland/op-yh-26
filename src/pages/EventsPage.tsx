@@ -36,9 +36,15 @@ import {
   viewerStamp,
   overlayMissingKmOnDoneStamp,
   type EventStatus,
+  type ParticipationStatus,
   type StampDescriptor,
 } from '../lib/status'
-import { shiftBornFillStamp, mineShiftBornIsOpen } from '../lib/shiftBornEvents'
+import {
+  shiftBornBeforeShiftDate,
+  shiftBornFillCtaLabel,
+  shiftBornFillStamp,
+  mineShiftBornIsOpen,
+} from '../lib/shiftBornEvents'
 import {
   INCOMPLETE_FUEL_REFUND_NOTICE,
   shouldShowIncompleteFuelNotice,
@@ -76,11 +82,23 @@ import { SelectField } from '../components/ui/SelectField'
 import { useToast } from '../components/ui/Toast'
 import {
   SHOW_OTHERS_CREATED_EVENTS_LABEL,
+  SHOW_SHIFT_EVENTS_LABEL,
   readShowOthersCreatedEvents,
+  readShowShiftEvents,
   shouldFilterUnitEventsToOwnCreated,
   unitEventsCreatedByFilter,
   writeShowOthersCreatedEvents,
+  writeShowShiftEvents,
 } from '../lib/unitEventsScope'
+import {
+  SHIFT_LEAD_EVENTS_RECENT_EMPTY_TITLE,
+  SHIFT_LEAD_EVENTS_RECENT_HINT,
+  SHOW_OLDER_UNIT_EVENTS_LABEL,
+  keepShiftLeadRecentEvent,
+  readShowOlderUnitEvents,
+  shouldApplyShiftLeadRecentWindow,
+  writeShowOlderUnitEvents,
+} from '../lib/shiftLeadEventsWindow'
 import {
   incompleteLeadNoticeLabels,
   leadFacingMissingKm,
@@ -95,6 +113,7 @@ import {
   missingKmAlertMessage,
   shouldShowMissingKmAlert,
 } from '../lib/missingKmAlert'
+import { fetchEventIdsWithMedia } from '../lib/eventMedia'
 
 type EventsPageProps = {
   scope: 'unit' | 'mine'
@@ -122,6 +141,10 @@ export function EventsPage({
   const [query, setQuery] = useState('')
   const [showOthersCreated, setShowOthersCreated] = useState(readShowOthersCreatedEvents)
   const showOthersControl = shouldFilterUnitEventsToOwnCreated(roles)
+  const [showShiftEvents, setShowShiftEvents] = useState(readShowShiftEvents)
+  const [showOlderEvents, setShowOlderEvents] = useState(readShowOlderUnitEvents)
+  const recentList =
+    scope === 'unit' && shouldApplyShiftLeadRecentWindow(roles) && !showOlderEvents
   const createdById = unitEventsCreatedByFilter({
     roles,
     showOthersCreated,
@@ -144,6 +167,7 @@ export function EventsPage({
   const [confirmDelete, setConfirmDelete] = useState<EventListItem | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [missingKmCount, setMissingKmCount] = useState<number | null>(null)
+  const [imageEventIds, setImageEventIds] = useState<ReadonlySet<string>>(() => new Set())
   const showMissingKmBanner =
     scope === 'unit' &&
     canSeeMissingKmAlert(roles) &&
@@ -163,6 +187,25 @@ export function EventsPage({
       active = false
     }
   }, [scope, roles, reloadKey, events])
+
+  useEffect(() => {
+    if (scope !== 'unit') {
+      setImageEventIds(new Set())
+      return
+    }
+    const ids = [...(events ?? []), ...searchExtras].map((event) => event.id)
+    if (ids.length === 0) {
+      setImageEventIds(new Set())
+      return
+    }
+    let active = true
+    void fetchEventIdsWithMedia(ids).then((withMedia) => {
+      if (active) setImageEventIds(withMedia)
+    })
+    return () => {
+      active = false
+    }
+  }, [scope, events, searchExtras])
 
   function openDeleteMenu(event: EventListItem, pointer: { x: number; y: number }) {
     setDeleteMenu({ event, ...pointer })
@@ -324,6 +367,7 @@ export function EventsPage({
     if (!eventReleasedFromEvent(event)) {
       return false
     }
+    if (shiftBornBeforeShiftDate(event, jerusalemToday())) return false
     if (event.origin === 'shift') return mineShiftBornIsOpen(event)
     return mineInboxIsOpen(ownParticipation(event, user?.id), ownResponderKm(event, user?.id))
   }
@@ -334,20 +378,35 @@ export function EventsPage({
     if (searchIds !== null) {
       return { inWindow: source, hasMore: false }
     }
+    if (recentList) {
+      const now = new Date()
+      return {
+        inWindow: source.filter((event) => keepShiftLeadRecentEvent(event, user?.id, now)),
+        hasMore: false,
+      }
+    }
     const partitioned = partitionUnitEventsByWindow(source, {
       dateOf: (event) => event.event_date,
       today: jerusalemToday(),
       windowsLoaded: unitWindows,
     })
     return { inWindow: partitioned.visible, hasMore: partitioned.hasMore }
-  }, [events, scope, searchExtras, searchIds, unitWindows])
+  }, [events, recentList, scope, searchExtras, searchIds, unitWindows, user?.id])
 
   const visible = useMemo(() => {
     if (!events) return []
 
     if (scope === 'unit') {
       if (!unitWindow) return []
-      return filterUnitEventsForList(unitWindow.inWindow, { status: filter, searchIds })
+      const rows = filterUnitEventsForList(unitWindow.inWindow, {
+        status: filter,
+        searchIds,
+        showShiftEvents,
+      })
+      if (imageEventIds.size === 0) return rows
+      return rows.map((event) =>
+        imageEventIds.has(event.id) ? { ...event, has_image: true } : event,
+      )
     }
 
     const needle = query.trim()
@@ -365,7 +424,7 @@ export function EventsPage({
       const bOpen = mineEventIsOpen(b) ? 0 : 1
       return aOpen - bOpen
     })
-  }, [events, filter, query, scope, user?.id, searchIds, unitWindow])
+  }, [events, filter, query, scope, user?.id, searchIds, unitWindow, imageEventIds, showShiftEvents])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
   const mineSections = useMemo(() => {
@@ -373,7 +432,8 @@ export function EventsPage({
     return partitionMineList(events, {
       dateOf: (event) => event.event_date,
       bucket: (event) => {
-        if (!eventReleasedFromEvent(event)) {
+        // Not yet the crew's to document: neither pending nor logged.
+        if (!eventReleasedFromEvent(event) || shiftBornBeforeShiftDate(event, jerusalemToday())) {
           return 'hidden'
         }
         return mineEventIsOpen(event) ? 'pending' : 'logged'
@@ -418,7 +478,9 @@ export function EventsPage({
         <div className="page-head">
           <div className="page-head__intro">
             <h1 className="t-title">אירועים</h1>
-            <p className="t-caption text-muted">{unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}</p>
+            <p className="t-caption text-muted">
+              {recentList ? SHIFT_LEAD_EVENTS_RECENT_HINT : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}
+            </p>
           </div>
           {canCreate && onCreate ? (
             <div className="page-head__actions">
@@ -474,6 +536,44 @@ export function EventsPage({
                 }}
               />
             </div>
+            <button
+              type="button"
+              className="chip events-toolbar__others"
+              aria-pressed={showShiftEvents}
+              aria-label={SHOW_SHIFT_EVENTS_LABEL}
+              onClick={() => {
+                const next = !showShiftEvents
+                setShowShiftEvents(next)
+                writeShowShiftEvents(next)
+              }}
+            >
+              <span className="events-toolbar__others-short" aria-hidden="true">
+                משמרות
+              </span>
+              <span className="events-toolbar__others-full" aria-hidden="true">
+                {SHOW_SHIFT_EVENTS_LABEL}
+              </span>
+            </button>
+            {shouldApplyShiftLeadRecentWindow(roles) ? (
+              <button
+                type="button"
+                className="chip events-toolbar__others"
+                aria-pressed={showOlderEvents}
+                aria-label={SHOW_OLDER_UNIT_EVENTS_LABEL}
+                onClick={() => {
+                  const next = !showOlderEvents
+                  setShowOlderEvents(next)
+                  writeShowOlderUnitEvents(next)
+                }}
+              >
+                <span className="events-toolbar__others-short" aria-hidden="true">
+                  ישנים יותר
+                </span>
+                <span className="events-toolbar__others-full" aria-hidden="true">
+                  {SHOW_OLDER_UNIT_EVENTS_LABEL}
+                </span>
+              </button>
+            ) : null}
             {showOthersControl ? (
               <button
                 type="button"
@@ -566,6 +666,13 @@ export function EventsPage({
       ) : visible.length === 0 ? (
         <ListEmptyState
           filtered={filter !== 'all' || query.trim() !== ''}
+          recentHoursEmpty={
+            scope === 'unit' &&
+            recentList &&
+            searchIds === null &&
+            (events?.length ?? 0) > 0 &&
+            (unitWindow?.inWindow.length ?? 0) === 0
+          }
           recentWindowEmpty={
             scope === 'unit' &&
             unitWindow != null &&
@@ -577,6 +684,10 @@ export function EventsPage({
           onClear={() => {
             setFilter('all')
             setQuery('')
+          }}
+          onShowOlder={() => {
+            setShowOlderEvents(true)
+            writeShowOlderUnitEvents(true)
           }}
           onLoadMore={() => setUnitWindows((windows) => windows + 1)}
         />
@@ -672,19 +783,39 @@ function SearchLoadingState() {
 
 function ListEmptyState({
   filtered,
+  recentHoursEmpty = false,
   recentWindowEmpty = false,
   canCreate,
   onCreate,
   onClear,
+  onShowOlder,
   onLoadMore,
 }: {
   filtered: boolean
+  recentHoursEmpty?: boolean
   recentWindowEmpty?: boolean
   canCreate: boolean
   onCreate?: () => void
   onClear: () => void
+  onShowOlder?: () => void
   onLoadMore?: () => void
 }) {
+  if (recentHoursEmpty) {
+    return (
+      <EmptyState
+        icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+        title={SHIFT_LEAD_EVENTS_RECENT_EMPTY_TITLE}
+        action={
+          onShowOlder ? (
+            <Button variant="secondary" onClick={onShowOlder}>
+              {SHOW_OLDER_UNIT_EVENTS_LABEL}
+            </Button>
+          ) : undefined
+        }
+      />
+    )
+  }
+
   if (recentWindowEmpty) {
     return (
       <EmptyState
@@ -815,6 +946,26 @@ function MineLoggedList({
   )
 }
 
+/** Shift-born events open the crew's shared report, so their CTA names that. */
+function mineFillLabel(
+  event: EventListItem,
+  mineStatus: ParticipationStatus | null,
+): string | null {
+  if (!mineStatus) return null
+  if (event.origin === 'shift') {
+    return shiftBornFillCtaLabel({
+      status: event.status,
+      police_event_id: event.police_event_id,
+      treatment_detail: event.treatment_detail,
+      treatment_notes: event.treatment_notes,
+      location: event.location,
+      road_id: event.road?.name,
+      treated_count: event.shared_treated?.length ?? 0,
+    })
+  }
+  return mineFillCtaLabel(mineStatus)
+}
+
 function EventCards({
   events,
   stampFor,
@@ -842,7 +993,7 @@ function EventCards({
         if (block.kind === 'shift') {
           const groupedCards = block.events.map((event) => {
             const mineStatus = userId ? ownParticipation(event, userId) : null
-            const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
+            const fillLabel = mineFillLabel(event, mineStatus)
             return (
               <EventCard
                 key={event.id}
@@ -898,7 +1049,7 @@ function EventCards({
         }
         const event = block.event
         const mineStatus = userId ? ownParticipation(event, userId) : null
-        const fillLabel = mineStatus ? mineFillCtaLabel(mineStatus) : null
+        const fillLabel = mineFillLabel(event, mineStatus)
         return (
           <EventCard
             key={event.id}

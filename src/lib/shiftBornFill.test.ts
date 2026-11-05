@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import {
-  EVENT_DONE_NEEDS_END_ERROR,
-  EVENT_DONE_NEEDS_KM_ERROR,
-  eventMissingLeadDoneDetails,
-} from './eventStatus'
+import { eventMissingLeadDoneDetails } from './eventStatus'
+import { SHIFT_BORN_DONE_LOCKED, SHIFT_BORN_TOO_EARLY, STALE_SAVE_MESSAGE } from './shiftBornEvents'
 import {
   emptyShiftBornFillDraft,
   shiftBornCompleteErrors,
+  shiftBornFillErrorMessage,
+  bornRowsToSave,
+  resolveShiftBornStash,
+  shiftBornEventFillRowsFrom,
   type ShiftBornFillDraft,
 } from './shiftBornFill'
 
@@ -19,12 +20,49 @@ describe('shiftBornCompleteErrors', () => {
     const errors = shiftBornCompleteErrors(draft())
     expect(errors.road_id).toBe('יש לבחור כביש')
     expect(errors.location).toBe('יש להזין מיקום')
-    expect(errors.treatment_detail).toBe('יש להזין פירוט טיפול')
+    expect(errors.treatment_detail).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
+  })
+
+  it('requires at least 25 characters in פירוט טיפול and allows more', () => {
+    const short = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(24) }),
+    )
+    expect(short.treatment_detail).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
+
+    const exact = shiftBornCompleteErrors(
+      draft({
+        road_id: 'r1',
+        location: 'מחלף שורק',
+        treatment_detail: `  ${'א'.repeat(25)}  `,
+      }),
+    )
+    expect(exact.treatment_detail).toBeUndefined()
+
+    const longer = shiftBornCompleteErrors(
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(80) }),
+    )
+    expect(longer.treatment_detail).toBeUndefined()
+  })
+
+  it('allows a blank or short פירוט when the event is cancelled', () => {
+    for (const treatment_detail of ['', '   ', 'בוטל', 'א'.repeat(24)]) {
+      const errors = shiftBornCompleteErrors(
+        draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail }),
+        true,
+      )
+      expect(errors.treatment_detail).toBeUndefined()
+      expect(errors).toEqual({})
+    }
+
+    const stillNeedsPlace = shiftBornCompleteErrors(draft({ treatment_detail: '' }), true)
+    expect(stillNeedsPlace.road_id).toBe('יש לבחור כביש')
+    expect(stillNeedsPlace.location).toBe('יש להזין מיקום')
+    expect(stillNeedsPlace.treatment_detail).toBeUndefined()
   })
 
   it('accepts a complete record', () => {
     const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'חילוץ' }),
+      draft({ road_id: 'r1', location: 'מחלף שורק', treatment_detail: 'א'.repeat(40) }),
     )
     expect(errors).toEqual({})
   })
@@ -48,28 +86,92 @@ describe('shiftBornCompleteErrors', () => {
 
   it('does not require the optional fields', () => {
     const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'x', treatment_detail: 'y' }),
+      draft({ road_id: 'r1', location: 'x', treatment_detail: 'א'.repeat(40) }),
     )
     expect(errors).toEqual({})
   })
 
-  it('blocks complete when the event has no end time', () => {
+  it('completes with no event end time and no per-responder KM', () => {
     const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'x', treatment_detail: 'y' }),
-      { ended_at: null, responders: [{ total_km: 12 }] },
+      draft({ road_id: 'r1', location: 'x', treatment_detail: 'א'.repeat(40) }),
     )
-    expect(errors.form).toBe(EVENT_DONE_NEEDS_END_ERROR)
+    expect(errors).toEqual({})
+  })
+})
+
+describe('shiftBornFillErrorMessage', () => {
+  it('shows the save RPC refusals as-is, not as a connection error', () => {
+    expect(shiftBornFillErrorMessage(`P0001: ${SHIFT_BORN_TOO_EARLY}`)).toBe(SHIFT_BORN_TOO_EARLY)
+    expect(shiftBornFillErrorMessage(SHIFT_BORN_DONE_LOCKED)).toBe(SHIFT_BORN_DONE_LOCKED)
+    expect(shiftBornFillErrorMessage(STALE_SAVE_MESSAGE)).toBe(STALE_SAVE_MESSAGE)
+    expect(shiftBornFillErrorMessage('אין הרשאה')).toBe('אין הרשאה')
   })
 
-  it('blocks complete when any assigned responder is missing lead KM', () => {
-    const errors = shiftBornCompleteErrors(
-      draft({ road_id: 'r1', location: 'x', treatment_detail: 'y' }),
-      {
-        ended_at: '2026-09-10T09:00:00',
-        responders: [{ total_km: 12 }, { total_km: null }],
-      },
+  it('falls back to the connection message for anything else', () => {
+    expect(shiftBornFillErrorMessage('fetch failed')).toBe(
+      'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
     )
-    expect(errors.form).toBe(EVENT_DONE_NEEDS_KM_ERROR)
+    expect(shiftBornFillErrorMessage(undefined)).toBe(
+      'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
+    )
+  })
+})
+
+describe('bornRowsToSave', () => {
+  const [row] = shiftBornEventFillRowsFrom([
+    {
+      id: 'ev-1',
+      status: 'in_progress',
+      police_event_id: null,
+      treatment_detail: 'נשמר',
+      treatment_notes: null,
+      updated_at: 't1',
+      event_type: { name: 'פנצ׳ר' },
+      treated: [],
+      treated_plates: [{ plate_number: '1234567', sort_order: 0 }],
+    },
+  ])
+
+  it('keeps the loaded plates on the row, so saving it does not wipe them', () => {
+    expect(row.draft.treated_plates.map((plate) => plate.plate_number)).toEqual(['1234567'])
+  })
+
+  it('saves only the rows edited since the last load or save', () => {
+    expect(bornRowsToSave([row])).toEqual([])
+    const edited = { ...row, id: 'ev-2', draft: { ...row.draft, location: 'מחלף שורק' } }
+    expect(bornRowsToSave([row, edited])).toEqual([edited])
+  })
+})
+
+describe('resolveShiftBornStash', () => {
+  const server = { draft: draft({ location: 'שרת' }), expected_updated_at: 't2' }
+
+  it('uses the server copy when the device holds nothing new', () => {
+    expect(resolveShiftBornStash(server, null)).toEqual({
+      draft: server.draft,
+      restored: false,
+      serverMovedOn: false,
+    })
+    expect(
+      resolveShiftBornStash(server, { ...server.draft, base_updated_at: 't1' }).restored,
+    ).toBe(false)
+  })
+
+  it('restores device edits typed over the current version without a warning', () => {
+    const result = resolveShiftBornStash(server, {
+      ...draft({ location: 'מכשיר' }),
+      base_updated_at: 't2',
+    })
+    expect(result).toEqual({ draft: draft({ location: 'מכשיר' }), restored: true, serverMovedOn: false })
+  })
+
+  it('flags device edits typed over an older version, so a teammate’s save is not overwritten silently', () => {
+    expect(
+      resolveShiftBornStash(server, { ...draft({ location: 'מכשיר' }), base_updated_at: 't1' })
+        .serverMovedOn,
+    ).toBe(true)
+    // A stash from before this field existed cannot prove it is current.
+    expect(resolveShiftBornStash(server, draft({ location: 'מכשיר' })).serverMovedOn).toBe(true)
   })
 })
 

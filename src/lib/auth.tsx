@@ -34,12 +34,14 @@ import {
 } from './rolePreviewStash'
 import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
 import { captureEvent, identifyPosthogUser, resetPosthogUser } from './posthog'
+import { shouldClearInviteOnPasswordSignIn } from './adminUserStatus'
 import { passwordStrengthError } from './passwordRules'
 import {
   ensureRememberSessionUntil,
   isRememberLoginEnabled,
   isRememberSessionExpired,
 } from './rememberLogin'
+import { clearPersonalVehiclePromptDismissed } from './personalVehiclePrompt'
 import { supabase } from './supabase'
 
 export type AppRole = 'admin' | 'shift_lead' | 'responder' | 'super_admin'
@@ -194,13 +196,43 @@ async function prepareSession(
     reason = resolvePasswordSetupReason(loaded.profile)
   }
 
+  let profile = loaded.profile
+  // Invite redeem also creates a session, but it does not pass SIGNED_IN
+  // while a setup reason is set. A password sign-in does.
+  if (
+    event === 'SIGNED_IN' &&
+    shouldClearInviteOnPasswordSignIn(profile, reason)
+  ) {
+    const cleared = await clearInviteRegistration(session.user.id)
+    if (cleared && profile) profile = { ...profile, invite_pending: false }
+  }
+
   return {
     kind: 'ready',
     session,
-    profile: loaded.profile,
+    profile,
     roles: loaded.roles,
     passwordSetupReason: reason,
   }
+}
+
+/** Drop the invite marker once registration is done. Returns false if the row did not change. */
+async function clearInviteRegistration(userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({
+      invite_pending: false,
+      invite_token: null,
+      invite_token_expires_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+    .select('id')
+  if (error || !data?.length) {
+    console.error('[invite] clear pending failed', error?.message ?? 'no row')
+    return false
+  }
+  return true
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -410,7 +442,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const strengthError = passwordStrengthError(password)
     if (strengthError) return { error: strengthError }
 
-    const { error } = await supabase.auth.updateUser({ password })
+    const { data: updated, error } = await supabase.auth.updateUser({ password })
     if (error) {
       if (/weak|least|characters|short/i.test(error.message)) {
         return {
@@ -421,21 +453,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: 'שמירת הסיסמה נכשלה. נסו שוב.' }
     }
 
-    const {
-      data: { user: current },
-    } = await supabase.auth.getUser()
-    if (current?.id) {
+    // updateUser already has the user. A follow-up getUser() can miss the
+    // session that was just rotated, and then the invite flag never clears.
+    const userId =
+      updated.user?.id ??
+      (await supabase.auth.getSession()).data.session?.user?.id ??
+      null
+    if (userId) {
       await supabase.rpc('clear_must_change_password')
-      await supabase
-        .from('profiles')
-        .update({
-          invite_pending: false,
-          invite_token: null,
-          invite_token_expires_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', current.id)
-      setProfile((prev) => (prev ? { ...prev, must_change_password: false } : prev))
+      const cleared = await clearInviteRegistration(userId)
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              must_change_password: false,
+              invite_pending: cleared ? false : prev.invite_pending,
+            }
+          : prev,
+      )
     }
 
     // Clear durable intent + URL so refresh cannot reopen the gate; keep React
@@ -515,12 +550,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signOut = useCallback(async () => {
+    clearPersonalVehiclePromptDismissed()
     clearImpersonationStash()
     clearRolePreviewStash()
     clearPasswordSetupIntent()
     setPasswordSetupReason(null)
     resetPosthogUser()
-    await supabase.auth.signOut()
+    // This device only. A global sign-out would also end the member's other
+    // devices (and the App Review reviewer's session on the shared demo account).
+    await supabase.auth.signOut({ scope: 'local' })
   }, [])
 
   const reloadProfile = useCallback(async () => {

@@ -1827,6 +1827,38 @@ export function EventFormPage({
                         ) : null}
                       </div>
 
+                      <div className="event-form__f-road">
+                        <FieldNote field="road_id" />
+                        <SelectField
+                          label="כביש"
+                          required
+                          searchable
+                          searchPlaceholder="חיפוש כביש"
+                          value={draft.road_id}
+                          error={errors.road_id}
+                          options={lookups.roads.map((row) => ({
+                            value: row.id,
+                            label: row.name,
+                          }))}
+                          onChange={(event) => {
+                            updateDraft({
+                              road_id: event.target.value,
+                              ...(variant === 'cockpit' &&
+                              !locationPinIsLocked(draft.location_pin_source)
+                                ? {
+                                    location_place_id: null,
+                                    location_lat: null,
+                                    location_lng: null,
+                                    ...emptyLocationPinMeta(),
+                                  }
+                                : {}),
+                            })
+                            setErrors((current) => ({ ...current, road_id: undefined }))
+                            queueMicrotask(() => void persistLatest())
+                          }}
+                        />
+                      </div>
+
                       <FieldNote field="location" />
 
                       <div
@@ -1881,38 +1913,6 @@ export function EventFormPage({
                               'alert',
                             )
                           }
-                        />
-                      </div>
-
-                      <div className="event-form__f-road">
-                        <FieldNote field="road_id" />
-                        <SelectField
-                          label="כביש"
-                          required
-                          searchable
-                          searchPlaceholder="חיפוש כביש"
-                          value={draft.road_id}
-                          error={errors.road_id}
-                          options={lookups.roads.map((row) => ({
-                            value: row.id,
-                            label: row.name,
-                          }))}
-                          onChange={(event) => {
-                            updateDraft({
-                              road_id: event.target.value,
-                              ...(variant === 'cockpit' &&
-                              !locationPinIsLocked(draft.location_pin_source)
-                                ? {
-                                    location_place_id: null,
-                                    location_lat: null,
-                                    location_lng: null,
-                                    ...emptyLocationPinMeta(),
-                                  }
-                                : {}),
-                            })
-                            setErrors((current) => ({ ...current, road_id: undefined }))
-                            queueMicrotask(() => void persistLatest())
-                          }}
                         />
                       </div>
                   </div>

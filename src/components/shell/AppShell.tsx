@@ -27,6 +27,7 @@ import {
   Plus,
   Radar,
   MessageSquarePlus,
+  Search,
   Settings,
   Shield,
   Signpost,
@@ -53,6 +54,7 @@ import { Avatar } from '../ui/Avatar'
 import { NewEventButtonShell } from '../ui/NewEventButtonShell'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
+import { CobrowseSupport } from './CobrowseSupport'
 import { ImpersonationBar } from './ImpersonationBar'
 import { RolePreviewBar } from './RolePreviewBar'
 import { UpdateAvailableNotice } from './UpdateAvailableNotice'
@@ -94,6 +96,7 @@ export type AppView =
   | 'event_audit'
   | 'ios_devices'
   | 'highway_junctions'
+  | 'search'
 
 export type NavEntry = {
   view?: AppView
@@ -162,6 +165,7 @@ export function AppShell({
       )}
       <ImpersonationBar onRestored={onHome} />
       <RolePreviewBar onRestored={onHome} />
+      <CobrowseSupport />
       <UpdateAvailableNotice />
       <div className="shell__body">
         {withSidebar ? (
@@ -213,6 +217,7 @@ export const NAV_ICONS: Record<AppView, ReactNode> = {
   event_audit: <History size={24} strokeWidth={1.75} aria-hidden="true" />,
   ios_devices: <Smartphone size={24} strokeWidth={1.75} aria-hidden="true" />,
   highway_junctions: <Signpost size={24} strokeWidth={1.75} aria-hidden="true" />,
+  search: <Search size={24} strokeWidth={1.75} aria-hidden="true" />,
 }
 
 export const SUPER_ADMIN_NAV_ICON = (

@@ -4,10 +4,13 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   SHOW_OTHERS_CREATED_EVENTS_LABEL,
+  SHOW_SHIFT_EVENTS_LABEL,
   readShowOthersCreatedEvents,
+  readShowShiftEvents,
   shouldFilterUnitEventsToOwnCreated,
   unitEventsCreatedByFilter,
   writeShowOthersCreatedEvents,
+  writeShowShiftEvents,
 } from './unitEventsScope'
 
 const migrationsDir = resolve(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations')
@@ -135,3 +138,24 @@ function memoryStorage(): Storage {
     },
   }
 }
+
+describe('show-shift-events session stash', () => {
+  it('uses the requested Hebrew label', () => {
+    expect(SHOW_SHIFT_EVENTS_LABEL).toBe('הצג אירועים ממשמרות')
+  })
+
+  it('defaults off and persists only for the session store', () => {
+    const store = memoryStorage()
+    expect(readShowShiftEvents(store)).toBe(false)
+    writeShowShiftEvents(true, store)
+    expect(readShowShiftEvents(store)).toBe(true)
+    writeShowShiftEvents(false, store)
+    expect(readShowShiftEvents(store)).toBe(false)
+  })
+
+  it('does not share a key with the show-others toggle', () => {
+    const store = memoryStorage()
+    writeShowShiftEvents(true, store)
+    expect(readShowOthersCreatedEvents(store)).toBe(false)
+  })
+})

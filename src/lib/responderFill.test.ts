@@ -6,8 +6,10 @@ import {
   fillHeaderStatus,
   gateResponderFillWrite,
   mergeFillVehicleChoices,
+  odometerDelta,
   odometerRangeError,
   responderVehicleChoices,
+  RESPONDER_FILL_CANCELLED_NOTE,
   validateResponderFillDraft,
   type ResponderFillDraft,
 } from './responderFill'
@@ -16,6 +18,9 @@ import { ODOMETER_ORDER_ERROR } from './odometer'
 function draft(patch: Partial<ResponderFillDraft> = {}): ResponderFillDraft {
   return { ...emptyResponderFillDraft(), ...patch }
 }
+
+/** Long enough to satisfy the פירוט הטיפול minimum in complete-mode cases. */
+const treatmentOk = 'א'.repeat(40)
 
 describe('responderVehicleChoices', () => {
   it('includes a vehicle added after the responder was assigned', () => {
@@ -111,8 +116,77 @@ describe('odometerRangeError', () => {
   })
 })
 
+describe('odometerDelta', () => {
+  it('shows the difference when end is at least the start, including zero', () => {
+    expect(odometerDelta('100', '120')).toBe(20)
+    expect(odometerDelta('100', '100')).toBe(0)
+    expect(odometerDelta('0', '0')).toBe(0)
+  })
+
+  it('stays quiet until both readings are numbers, and on a reversed pair', () => {
+    expect(odometerDelta('', '')).toBeNull()
+    expect(odometerDelta('100', '')).toBeNull()
+    expect(odometerDelta('', '50')).toBeNull()
+    expect(odometerDelta('100', '99')).toBeNull()
+  })
+})
+
 describe('validateResponderFillDraft (user-entered odometer end)', () => {
   const plates = ['1234567']
+
+  it('draft mode allows a short פירוט הטיפול', () => {
+    const errors = validateResponderFillDraft(
+      draft({ treatment_detail: 'טיפול' }),
+      'draft',
+      plates,
+      null,
+    )
+    expect(errors.treatment_detail).toBeUndefined()
+  })
+
+  it('complete mode requires at least 25 characters in פירוט הטיפול', () => {
+    const short = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'א'.repeat(24),
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(short.treatment_detail).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
+
+    const exact = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: `  ${'א'.repeat(25)}  `,
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(exact.treatment_detail).toBeUndefined()
+
+    const longer = validateResponderFillDraft(
+      draft({
+        vehicle_plate: '1234567',
+        odometer_start: '100',
+        odometer_end: '112',
+        route: 'כביש 1',
+        treatment_detail: 'א'.repeat(80),
+      }),
+      'complete',
+      plates,
+      12,
+    )
+    expect(longer.treatment_detail).toBeUndefined()
+  })
 
   it('draft mode does not require totalKm or end', () => {
     const errors = validateResponderFillDraft(
@@ -131,7 +205,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -147,7 +221,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -163,7 +237,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '115',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -179,7 +253,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '110',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -195,7 +269,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '100',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -209,7 +283,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '0',
         odometer_end: '0',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -225,7 +299,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '99',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -241,7 +315,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
         treated_plate_pending: '12',
       }),
       'complete',
@@ -258,7 +332,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
         treated_plate_pending: '24100502',
       }),
       'complete',
@@ -275,7 +349,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -291,7 +365,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -308,7 +382,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'draft',
       plates,
@@ -325,7 +399,7 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
         odometer_start: '100',
         odometer_end: '112',
         route: 'כביש 1',
-        treatment_detail: 'טיפול',
+        treatment_detail: treatmentOk,
       }),
       'complete',
       plates,
@@ -337,25 +411,54 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
 })
 
 describe('gateResponderFillWrite', () => {
-  it('locks a cancelled event for both draft and complete', () => {
-    // Media upload already refuses on a cancelled event; the fill form and the
-    // סיום דיווח button did not, so a כונן could still document one.
+  it('lets a responder draft and complete a cancelled event', () => {
+    expect(RESPONDER_FILL_CANCELLED_NOTE).toBe('האירוע בוטל.')
     expect(
       gateResponderFillWrite({
         complete: false,
         participationStatus: 'in_progress',
         eventStatus: 'in_progress',
-        isCancelled: true,
       }),
-    ).toBe('cancelled')
+    ).toBe('proceed')
     expect(
       gateResponderFillWrite({
         complete: true,
         participationStatus: 'in_progress',
         eventStatus: 'in_progress',
-        isCancelled: true,
       }),
-    ).toBe('cancelled')
+    ).toBe('proceed')
+  })
+
+  it('allows a blank or short פירוט on a cancelled event', () => {
+    const plates = ['1234567']
+    const fields = {
+      vehicle_plate: '1234567',
+      odometer_start: '100',
+      odometer_end: '112',
+      route: 'כביש 1',
+    }
+    for (const treatment_detail of ['', '   ', 'בוטל', 'א'.repeat(24)]) {
+      expect(
+        validateResponderFillDraft(
+          draft({ ...fields, treatment_detail }),
+          'complete',
+          plates,
+          12,
+          0,
+          true,
+        ).treatment_detail,
+      ).toBeUndefined()
+    }
+    expect(
+      validateResponderFillDraft(
+        draft({ ...fields, treatment_detail: 'בוטל' }),
+        'complete',
+        plates,
+        12,
+        0,
+        false,
+      ).treatment_detail,
+    ).toBe('יש להזין לפחות 25 תווים בפירוט הטיפול.')
   })
 
   it('still reports an already-finished participation as success on a cancelled event', () => {
@@ -365,7 +468,6 @@ describe('gateResponderFillWrite', () => {
         complete: true,
         participationStatus: 'done',
         eventStatus: 'partial',
-        isCancelled: true,
       }),
     ).toBe('already_complete')
   })
@@ -376,7 +478,6 @@ describe('gateResponderFillWrite', () => {
         complete: false,
         participationStatus: 'in_progress',
         eventStatus: 'in_progress',
-        isCancelled: false,
       }),
     ).toBe('proceed')
   })

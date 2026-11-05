@@ -59,3 +59,30 @@ describe('event edit-lock RLS', () => {
     )
   })
 })
+
+describe('responder self-update RLS', () => {
+  it('does not read events from the update policy', () => {
+    const sql = readFileSync(
+      resolve(
+        srcDir,
+        '../../supabase/migrations/20261101063100_responder_self_update_rls_recursion.sql',
+      ),
+      'utf8',
+    )
+    const policy = sql.slice(sql.indexOf('create policy event_responders_self_update'))
+
+    expect(sql).toContain('event_is_open_for_responder_edit')
+    expect(sql).toContain('security definer')
+    expect(sql).toContain("e.status is distinct from 'done'")
+    expect(sql).toContain(
+      'revoke all on function public.event_is_open_for_responder_edit(uuid) from public',
+    )
+    expect(sql).toContain(
+      'grant execute on function public.event_is_open_for_responder_edit(uuid) to authenticated',
+    )
+    expect(policy).toContain('responder_id = auth.uid()')
+    expect(policy).toContain("status is distinct from 'done'")
+    expect(policy).toContain('public.event_is_open_for_responder_edit(event_id)')
+    expect(policy).not.toMatch(/from\s+public\.events/i)
+  })
+})

@@ -4,7 +4,13 @@ import type { ResponderFillContext, ResponderFillDraft, ResponderFillErrors } fr
 
 export type LoadByTokenResult =
   | { ok: true; context: ResponderFillContext & { responderId?: string } }
-  | { ok: false; error: string; code: 'expired' | 'invalid' | 'gone' | 'error'; eventId?: string }
+  | {
+      ok: false
+      error: string
+      /** `shift_born`: the link points at a shared shift report, which needs a login. */
+      code: 'expired' | 'invalid' | 'gone' | 'error' | 'shift_born'
+      eventId?: string
+    }
 
 export type SaveByTokenResult =
   | { ok: true; eventStatus: string | null; participationStatus: string }
@@ -24,6 +30,15 @@ export async function loadFillByToken(fillToken: string): Promise<LoadByTokenRes
 
   if (payload?.context) {
     return { ok: true, context: payload.context }
+  }
+
+  if (payload?.error === 'shift_born' && payload.event_id) {
+    return {
+      ok: false,
+      error: 'קישור הדיווח אינו תקין או שפג תוקפו.',
+      code: 'shift_born',
+      eventId: payload.event_id,
+    }
   }
 
   const code =

@@ -44,7 +44,7 @@ export const PATROL_CALLSIGN_FIELD_NOTE =
 export const LOCATION_FIELD_NOTE = 'חדש! הזנת כביש באופן אוטומטי מבוסס על המיקום הנבחר'
 
 export const LOCATION_FIELD_TOOLTIP =
-  `מיקמנו את שדה 'מיקום' ראשון כדי להקל עליכם והטמענו הזנה אוטומטית של מספר הכביש. במקרה של כביש וק״מ או מיקום שאינו נמצא, תוכלו עדיין להזין מספר כביש באופן ידני`
+  `בחירת מיקום ממלאת את מספר הכביש אוטומטית. במקרה של כביש וק״מ או מיקום שאינו נמצא, תוכלו עדיין להזין מספר כביש באופן ידני`
 
 export const EVENT_FORM_FIELD_NOTES: Partial<Record<EventFormFieldNoteId, FieldNoteCopy>> = {
   event_times: {

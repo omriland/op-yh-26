@@ -11,15 +11,21 @@ import {
 } from '../lib/eventForm'
 import {
   computeTotalKm,
+  resolveShiftFormStash,
   saveShiftForm,
   SHIFT_CREW_ERROR,
+  shiftFormStashFrom,
+  summarizeShiftSaveErrors,
   validateShiftSave,
   type ShiftFormDraft,
+  type ShiftFormStash,
   type ShiftSaveError,
 } from '../lib/shiftForm'
 import { lastSavedByLabel } from '../lib/shiftBornEvents'
+import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { deriveShiftLogStatus, eventToLogSnapshot } from '../lib/shiftLogStatus'
 import {
+  bornRowsToSave,
   saveShiftBornEventFill,
   shiftBornEventFillRowsFrom,
   type ShiftBornEventFillRow,
@@ -75,7 +81,8 @@ type PersonalVehicleOption = {
 
 type FieldErrors = Partial<Record<ShiftSaveError['field'], string>> & { form?: string }
 
-type LoadState = 'loading' | 'ready' | 'denied' | 'too_early'
+/** `error`: the load itself failed (network), which is not a permission answer. */
+type LoadState = 'loading' | 'ready' | 'denied' | 'too_early' | 'error'
 
 const SHIFT_STASH_SCOPE = 'shiftForm'
 const SHIFT_STASH_DEBOUNCE_MS = 600
@@ -123,19 +130,20 @@ function fieldErrorsFrom(list?: Array<{ field: string; message: string }>): Fiel
   return next
 }
 
+/** `keepVehicleId`: the shift's saved vehicle stays listed even if archived since. */
 async function fetchVehiclesForResponders(
   responderIds: string[],
+  keepVehicleId: string | null,
 ): Promise<PersonalVehicleOption[]> {
   if (responderIds.length === 0) return []
   const rows = await queryVehiclesWithDefaultFallback<PersonalVehicleOption>(
     'id, user_id, plate_number, model, is_default',
     async (select) => {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select(select)
-        .in('user_id', responderIds)
-        .eq('archived', false)
-        .order('plate_number', { ascending: true })
+      const query = supabase.from('vehicles').select(select).in('user_id', responderIds)
+      const { data, error } = await (keepVehicleId
+        ? query.or(`archived.eq.false,id.eq.${keepVehicleId}`)
+        : query.eq('archived', false)
+      ).order('plate_number', { ascending: true })
       return { data, error }
     },
   )
@@ -175,6 +183,11 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const [pickerQuery, setPickerQuery] = useState('')
   const [lastSavedName, setLastSavedName] = useState<string | null>(null)
   const [bornRows, setBornRows] = useState<ShiftBornEventFillRow[]>([])
+  /** A teammate saved after the restored device copy was typed. */
+  const [stashBehindServer, setStashBehindServer] = useState(false)
+  const bornRowsRef = useRef<ShiftBornEventFillRow[]>([])
+  /** The vehicle on the saved shift. Never swapped out from under an edit. */
+  const savedVehicleId = useRef<string | null>(null)
 
   const draftRef = useRef<ShiftFormDraft | null>(null)
   const canEditResponders = canManageLead
@@ -186,6 +199,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   useEffect(() => {
     dirtyRef.current = dirty
   }, [dirty])
+  useEffect(() => {
+    bornRowsRef.current = bornRows
+  }, [bornRows])
 
   const userId = user?.id
 
@@ -275,41 +291,44 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
             expected_updated_at: existing.updated_at,
           }
           draftRef.current = nextDraft
-          setDraft(nextDraft)
           setLastSavedName(existing.last_saved?.full_name ?? null)
-          setBornRows(shiftBornEventFillRowsFrom(existing.born_events ?? []))
+          savedVehicleId.current = existing.personal_vehicle_id
         } else {
-          const nextDraft = emptyDraft()
-          draftRef.current = nextDraft
-          setDraft(nextDraft)
+          draftRef.current = emptyDraft()
           setAssignedProfiles(new Map())
           setLastSavedName(null)
-          setBornRows([])
+          savedVehicleId.current = null
         }
 
-        // A device copy exists only if it was written after the last successful save,
-        // so it is the newer of the two. Restore it and say so.
-        const stashKey = shiftId ?? 'new'
-        const stashed = readFillDraft<ShiftFormDraft>(
+        // A device copy exists only if edits were typed after the last successful
+        // save. Put them back on top of the server copy and its tokens, and say so.
+        const stashed = readFillDraft<ShiftFormStash>(
           SHIFT_STASH_SCOPE,
-          stashKey,
+          shiftId ?? 'new',
           Date.now(),
         )
-        if (
-          stashed &&
-          JSON.stringify(stashed.draft) !== JSON.stringify(draftRef.current)
-        ) {
-          draftRef.current = stashed.draft
-          setDraft(stashed.draft)
+        const resolved = resolveShiftFormStash(
+          {
+            draft: draftRef.current,
+            bornRows: shiftBornEventFillRowsFrom(existing?.born_events ?? []),
+          },
+          stashed?.draft ?? null,
+        )
+        draftRef.current = resolved.draft
+        setDraft(resolved.draft)
+        bornRowsRef.current = resolved.bornRows
+        setBornRows(resolved.bornRows)
+        if (resolved.restored && stashed) {
           setLocalSavedAt(stashed.savedAt)
           setRestoredFromDevice(true)
+          setStashBehindServer(resolved.serverMovedOn)
           setDirty(true)
         }
 
         setLoadState('ready')
       })
       .catch(() => {
-        if (active) setLoadState('denied')
+        if (active) setLoadState('error')
       })
 
     return () => {
@@ -322,7 +341,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   useEffect(() => {
     if (!draft) return
     let active = true
-    fetchVehiclesForResponders(draft.responder_ids)
+    fetchVehiclesForResponders(draft.responder_ids, savedVehicleId.current)
       .then((rows) => {
         if (!active) return
         setPersonalVehicles(rows)
@@ -415,21 +434,31 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   useEffect(() => {
     if (!draft || loadState !== 'ready') return
     const key = shiftId ?? 'new'
+    // Only edits are worth a device copy. An untouched form stashed on backgrounding
+    // would later be restored over a teammate's newer save.
+    if (!dirty) {
+      stashLatest.current = null
+      return
+    }
     const flush = () => {
       const current = draftRef.current
       if (!current) return
-      stashFillDraft(SHIFT_STASH_SCOPE, key, current, Date.now())
+      stashFillDraft(
+        SHIFT_STASH_SCOPE,
+        key,
+        shiftFormStashFrom(current, bornRowsRef.current),
+        Date.now(),
+      )
       setLocalSavedAt(Date.now())
     }
     stashLatest.current = flush
-    if (!dirty) return
 
     if (stashTimer.current) clearTimeout(stashTimer.current)
     stashTimer.current = setTimeout(flush, SHIFT_STASH_DEBOUNCE_MS)
     return () => {
       if (stashTimer.current) clearTimeout(stashTimer.current)
     }
-  }, [draft, dirty, loadState, shiftId])
+  }, [draft, bornRows, dirty, loadState, shiftId])
 
   useEffect(() => {
     function flushHidden() {
@@ -468,6 +497,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
       draftRef.current = next
       return next
     })
+    setDirty(true)
   }
 
   function typeCountValue(eventTypeId: string): number {
@@ -480,6 +510,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
         row.id === eventId ? { ...row, draft: { ...row.draft, ...patch } } : row,
       ),
     )
+    setDirty(true)
   }
 
   function openAssigner() {
@@ -519,12 +550,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
 
     const fieldErrors = validateShiftSave(current)
     if (fieldErrors.length > 0) {
-      const crewInvalid = fieldErrors.some((row) => row.field === 'responder_ids')
       setErrors({
         ...fieldErrorsFrom(fieldErrors),
-        form: crewInvalid
-          ? SHIFT_CREW_ERROR
-          : 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.',
+        form: summarizeShiftSaveErrors(fieldErrors),
       })
       show(fieldErrors[0]?.message ?? 'לא ניתן לשמור את המשמרת', 'alert')
       return
@@ -533,7 +561,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     setSaving(true)
     setErrors({})
 
-    for (const row of bornRows) {
+    // Only rows edited here: rewriting untouched rows collides with teammates
+    // working in the shared report.
+    for (const row of bornRowsToSave(bornRowsRef.current)) {
       const fill = await saveShiftBornEventFill({
         eventId: row.id,
         expectedUpdatedAt: row.expected_updated_at,
@@ -546,11 +576,13 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
         show(fill.error, 'alert')
         return
       }
-      setBornRows((currentRows) =>
-        currentRows.map((item) =>
-          item.id === row.id ? { ...item, expected_updated_at: fill.updated_at } : item,
-        ),
+      const savedRows = bornRowsRef.current.map((item) =>
+        item.id === row.id
+          ? { ...item, expected_updated_at: fill.updated_at, saved: row.draft }
+          : item,
       )
+      bornRowsRef.current = savedRows
+      setBornRows(savedRows)
     }
 
     const result = await saveShiftForm(current, user.id, {
@@ -559,6 +591,14 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     })
     setSaving(false)
     if (!result.ok) {
+      // The shift row went through before a later step failed: keep its new
+      // token, or the retry is refused as someone else's save.
+      if (result.saved) {
+        const { shiftId: savedId, updated_at } = result.saved
+        const adopted = { ...current, id: savedId, expected_updated_at: updated_at }
+        draftRef.current = adopted
+        setDraft(adopted)
+      }
       setErrors({ ...fieldErrorsFrom(result.fieldErrors), form: result.error })
       show(result.error, 'alert')
       return
@@ -595,11 +635,15 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     )
   }
 
-  if (loadState === 'denied') {
+  if (loadState === 'denied' || loadState === 'error') {
     return (
       <EmptyState
         icon={<UserRound size={40} strokeWidth={1.75} />}
-        title="אין לך הרשאה לפעולה זו."
+        title={
+          loadState === 'error'
+            ? 'טעינת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
+            : 'אין לך הרשאה לפעולה זו.'
+        }
         action={
           <Button variant="secondary" onClick={onBack}>
             חזרה
@@ -645,7 +689,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
               <h1 className="t-title">{title}</h1>
               {restoredFromDevice ? (
                 <p className="banner banner--info t-body" role="status">
-                  שוחזרו פרטים שנשמרו במכשיר ולא נשמרו בשרת. בדקו אותם ולחצו על שמירה.
+                  {stashBehindServer
+                    ? 'שוחזרו פרטים שנשמרו במכשיר ולא נשמרו בשרת. מישהו שמר את המשמרת מאז. בדקו את הפרטים ולחצו על שמירה כדי לשמור את הגרסה שלכם.'
+                    : 'שוחזרו פרטים שנשמרו במכשיר ולא נשמרו בשרת. בדקו אותם ולחצו על שמירה.'}
                 </p>
               ) : null}
               {errors.form ? (
@@ -932,6 +978,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                       />
                       <TextAreaField
                         label={`פירוט הטיפול · ${row.typeName}`}
+                        counter={treatmentDetailCounter(row.draft.treatment_detail)}
                         value={row.draft.treatment_detail}
                         onChange={(event) =>
                           patchBornDraft(row.id, { treatment_detail: event.target.value })

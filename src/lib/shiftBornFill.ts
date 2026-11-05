@@ -1,8 +1,4 @@
-import {
-  EVENT_DONE_NEEDS_END_ERROR,
-  EVENT_DONE_NEEDS_KM_ERROR,
-  eventDoneGateError,
-} from './eventStatus'
+import { EVENT_DONE_NEEDS_END_ERROR, EVENT_DONE_NEEDS_KM_ERROR } from './eventStatus'
 import {
   fetchEventLookups,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
@@ -10,12 +6,17 @@ import {
 } from './eventForm'
 import { fetchEventDetail, type EventDetail } from './events'
 import { policeEventIdForInput } from './format'
-import { responderKmApplicable, type KmBearingResponder } from './responderVehicle'
 import { refreshShiftLogStatus } from './shiftForm'
-import { COUNT_DECREASE_BLOCKED, STALE_SAVE_MESSAGE } from './shiftBornEvents'
+import {
+  COUNT_DECREASE_BLOCKED,
+  SHIFT_BORN_DONE_LOCKED,
+  SHIFT_BORN_TOO_EARLY,
+  STALE_SAVE_MESSAGE,
+} from './shiftBornEvents'
 import type { EventStatus } from './status'
 import { supabase } from './supabase'
 import { mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
+import { treatmentDetailCompleteError } from './treatmentDetail'
 
 export type ShiftBornFillDraft = {
   police_event_id: string
@@ -36,7 +37,7 @@ export type ShiftBornFillContext = {
 }
 
 export type ShiftBornFillErrors = Partial<
-  Record<'road_id' | 'location' | 'treatment_detail' | 'form', string>
+  Record<'road_id' | 'location' | 'treatment_detail', string>
 >
 
 /**
@@ -46,32 +47,42 @@ export type ShiftBornFillErrors = Partial<
  * responder must fill in five fields could be completed empty from here. The bar is
  * the subset of the responder rule that a shift-born event can actually answer:
  * where it happened and what was done. Draft saves are never blocked.
+ * A cancelled event keeps the place fields and has no פירוט minimum:
+ * blank and short text are both valid.
+ *
+ * No end time and no KM: the shift carries the one odometer pair, and this record
+ * has no field for either, so asking for them would block completion for good.
  */
 export function shiftBornCompleteErrors(
   draft: ShiftBornFillDraft,
-  event?: {
-    ended_at?: string | null
-    responders?: KmBearingResponder[]
-  },
+  cancelled = false,
 ): ShiftBornFillErrors {
   const errors: ShiftBornFillErrors = {}
   if (!draft.road_id) errors.road_id = 'יש לבחור כביש'
   if (!draft.location.trim()) errors.location = 'יש להזין מיקום'
-  if (!draft.treatment_detail.trim()) {
-    errors.treatment_detail = 'יש להזין פירוט טיפול'
-  }
-  if (event) {
-    const gate = eventDoneGateError({
-      endedAt: event.ended_at,
-      // A ללא-רכב teammate has no KM to enter — do not block completion on it.
-      responders: (event.responders ?? []).map((row) => ({
-        total_km: row.total_km,
-        kmApplicable: responderKmApplicable(row),
-      })),
-    })
-    if (gate) errors.form = gate
-  }
+  const detailError = treatmentDetailCompleteError(draft.treatment_detail, cancelled)
+  if (detailError) errors.treatment_detail = detailError
   return errors
+}
+
+/** Device copy of the shared report, with the version the edits were typed over. */
+export type ShiftBornStash = ShiftBornFillDraft & { base_updated_at?: string }
+
+/**
+ * Prefer device edits over the server copy, but say when a teammate saved after
+ * they were typed: the page keeps the server's token, so the next save would
+ * otherwise replace the teammate's text without a word.
+ */
+export function resolveShiftBornStash(
+  server: { draft: ShiftBornFillDraft; expected_updated_at: string },
+  stashed: ShiftBornStash | null,
+): { draft: ShiftBornFillDraft; restored: boolean; serverMovedOn: boolean } {
+  if (!stashed) return { draft: server.draft, restored: false, serverMovedOn: false }
+  const { base_updated_at: base, ...typed } = stashed
+  if (JSON.stringify(typed) === JSON.stringify(server.draft)) {
+    return { draft: server.draft, restored: false, serverMovedOn: false }
+  }
+  return { draft: typed, restored: true, serverMovedOn: base !== server.expected_updated_at }
 }
 
 export function emptyShiftBornFillDraft(): ShiftBornFillDraft {
@@ -92,6 +103,13 @@ export type ShiftBornEventFillRow = {
   status: EventStatus
   expected_updated_at: string
   draft: ShiftBornFillDraft
+  /** The server copy as of the last load or save; `draft` differs only after an edit. */
+  saved: ShiftBornFillDraft
+}
+
+/** Inline rows the user edited. Saving an untouched row would collide with teammates. */
+export function bornRowsToSave(rows: ShiftBornEventFillRow[]): ShiftBornEventFillRow[] {
+  return rows.filter((row) => JSON.stringify(row.draft) !== JSON.stringify(row.saved))
 }
 
 export function shiftBornEventFillRowsFrom(
@@ -119,24 +137,26 @@ export function shiftBornEventFillRowsFrom(
 ): ShiftBornEventFillRow[] {
   return events.flatMap((event) => {
     if (!event.updated_at) return []
+    const draft: ShiftBornFillDraft = {
+      police_event_id: event.police_event_id ?? '',
+      treatment_detail: event.treatment_detail ?? '',
+      treatment_notes: event.treatment_notes ?? '',
+      road_id: event.road_id ?? '',
+      location: event.location ?? '',
+      treated: event.treated.flatMap((row) => {
+        if (!row.vehicle_kind_id || !row.quantity || row.quantity <= 0) return []
+        return [{ vehicle_kind_id: row.vehicle_kind_id, quantity: row.quantity }]
+      }),
+      treated_plates: mapTreatedPlateRows(event.treated_plates),
+    }
     return [
       {
         id: event.id,
         typeName: event.event_type?.name ?? 'אירוע',
         status: event.status,
         expected_updated_at: event.updated_at,
-        draft: {
-          police_event_id: event.police_event_id ?? '',
-          treatment_detail: event.treatment_detail ?? '',
-          treatment_notes: event.treatment_notes ?? '',
-          road_id: event.road_id ?? '',
-          location: event.location ?? '',
-          treated: event.treated.flatMap((row) => {
-            if (!row.vehicle_kind_id || !row.quantity || row.quantity <= 0) return []
-            return [{ vehicle_kind_id: row.vehicle_kind_id, quantity: row.quantity }]
-          }),
-          treated_plates: mapTreatedPlateRows(event.treated_plates),
-        },
+        draft,
+        saved: draft,
       },
     ]
   })
@@ -180,9 +200,12 @@ export async function fetchShiftBornFillContext(
   }
 }
 
-function mapFillError(message: string | undefined): string {
+/** The RPC's own Hebrew refusals say what to do; show them as they are. */
+export function shiftBornFillErrorMessage(message: string | undefined): string {
   if (message?.includes(STALE_SAVE_MESSAGE)) return STALE_SAVE_MESSAGE
   if (message?.includes(COUNT_DECREASE_BLOCKED)) return COUNT_DECREASE_BLOCKED
+  if (message?.includes(SHIFT_BORN_TOO_EARLY)) return SHIFT_BORN_TOO_EARLY
+  if (message?.includes(SHIFT_BORN_DONE_LOCKED)) return SHIFT_BORN_DONE_LOCKED
   if (message?.includes('אין הרשאה')) return 'אין הרשאה'
   if (message?.includes(EVENT_DONE_NEEDS_END_ERROR)) return EVENT_DONE_NEEDS_END_ERROR
   if (message?.includes(EVENT_DONE_NEEDS_KM_ERROR)) return EVENT_DONE_NEEDS_KM_ERROR
@@ -211,7 +234,7 @@ export async function saveShiftBornEventFill(input: {
   })
 
   if (error) {
-    return { ok: false, error: mapFillError(error.message) }
+    return { ok: false, error: shiftBornFillErrorMessage(error.message) }
   }
 
   const { data: parent } = await supabase

@@ -7,8 +7,11 @@ import {
   computeTotalKm,
   shiftEventAlreadyLinkedMessage,
   validateShiftSave,
+  resolveShiftFormStash,
+  shiftFormStashFrom,
   type ShiftFormDraft,
 } from './shiftForm'
+import { emptyShiftBornFillDraft, type ShiftBornEventFillRow } from './shiftBornFill'
 
 const baseDraft: ShiftFormDraft = {
   id: 's1',
@@ -194,3 +197,65 @@ describe('summarizeShiftSaveErrors', () => {
   })
 })
 
+
+describe('shift form device stash', () => {
+  const server: ShiftFormDraft = { ...baseDraft, expected_updated_at: 't2', status: 'in_progress' }
+  const bornRow: ShiftBornEventFillRow = {
+    id: 'ev-1',
+    typeName: 'פנצ׳ר',
+    status: 'in_progress',
+    expected_updated_at: 'e2',
+    draft: emptyShiftBornFillDraft(),
+    saved: emptyShiftBornFillDraft(),
+  }
+  const loaded = { draft: server, bornRows: [bornRow] }
+
+  it('uses the server copy when nothing was stashed', () => {
+    expect(resolveShiftFormStash(loaded, null)).toEqual({ ...loaded, restored: false, serverMovedOn: false })
+  })
+
+  it('ignores a stash that differs only in token or derived status', () => {
+    const stash = shiftFormStashFrom({ ...server, expected_updated_at: 't1', status: 'closed' }, [bornRow])
+    expect(resolveShiftFormStash(loaded, stash).restored).toBe(false)
+  })
+
+  it('restores typed fields onto the server token, so saving is not refused as stale', () => {
+    const stash = shiftFormStashFrom({ ...server, notes: 'נכתב במכשיר' }, [bornRow])
+    const result = resolveShiftFormStash(loaded, stash)
+    expect(result.restored).toBe(true)
+    expect(result.serverMovedOn).toBe(false)
+    expect(result.draft.notes).toBe('נכתב במכשיר')
+    expect(result.draft.expected_updated_at).toBe('t2')
+  })
+
+  it('says so when a teammate saved after the device copy was typed', () => {
+    const stash = shiftFormStashFrom(
+      { ...server, expected_updated_at: 't1', notes: 'נכתב במכשיר' },
+      [bornRow],
+    )
+    const result = resolveShiftFormStash(loaded, stash)
+    expect(result.serverMovedOn).toBe(true)
+    expect(result.draft.expected_updated_at).toBe('t2')
+  })
+
+  it('stashes and restores inline born-row edits, keeping the server copy as the baseline', () => {
+    const typed = { ...bornRow, draft: { ...bornRow.draft, treatment_detail: 'פירוט' } }
+    const stash = shiftFormStashFrom(server, [typed])
+    expect(stash.born_drafts).toEqual([
+      { id: 'ev-1', base_updated_at: 'e2', draft: typed.draft },
+    ])
+    const result = resolveShiftFormStash(loaded, stash)
+    expect(result.restored).toBe(true)
+    expect(result.serverMovedOn).toBe(false)
+    expect(result.bornRows[0].draft.treatment_detail).toBe('פירוט')
+    expect(result.bornRows[0].saved).toEqual(bornRow.saved)
+  })
+
+  it('flags a born row a teammate saved since, and drops rows that no longer exist', () => {
+    const typed = { ...bornRow, expected_updated_at: 'e1', draft: { ...bornRow.draft, location: 'צומת' } }
+    const gone = { ...typed, id: 'ev-gone' }
+    const result = resolveShiftFormStash(loaded, shiftFormStashFrom(server, [typed, gone]))
+    expect(result.serverMovedOn).toBe(true)
+    expect(result.bornRows.map((row) => row.id)).toEqual(['ev-1'])
+  })
+})

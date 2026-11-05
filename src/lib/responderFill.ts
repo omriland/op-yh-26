@@ -18,6 +18,7 @@ import { deriveStoredEventStatus, eventMissingLeadDoneDetails } from './eventSta
 import { ODOMETER_ORDER_ERROR } from './odometer'
 import type { EventOrigin } from './shiftBornEvents'
 import { mapTreatedPlateRows, settleTreatedPlatePending, type TreatedPlate } from './treatedPlates'
+import { treatmentDetailCompleteError } from './treatmentDetail'
 
 export { plateDigits }
 
@@ -171,23 +172,22 @@ export function fillHeaderStatus(ctx: {
 }
 
 export const RESPONDER_FILL_LOCKED_ERROR = 'לא ניתן לערוך דיווח שהושלם. רק אחמ״ש יכול לערוך.'
-export const RESPONDER_FILL_CANCELLED_ERROR = 'האירוע בוטל. לא ניתן לעדכן את התיעוד.'
+/** Shown on the fill while the event is cancelled. The report itself stays editable. */
+export const RESPONDER_FILL_CANCELLED_NOTE = 'האירוע בוטל.'
 export const RESPONDER_FILL_NETWORK_ERROR = 'שמירת הדיווח נכשלה. בדקו את החיבור ונסו שוב.'
 
-export type FillWriteGate = 'proceed' | 'locked' | 'already_complete' | 'cancelled'
+export type FillWriteGate = 'proceed' | 'locked' | 'already_complete'
 
 /** Completing an already-done assignment is success; draft saves stay locked. */
 export function gateResponderFillWrite(input: {
   complete: boolean
   participationStatus: ParticipationStatus
   eventStatus: EventStatus | null | undefined
-  isCancelled?: boolean
 }): FillWriteGate {
   // Checked first so retrying a save that already landed still reads as success.
   if (input.participationStatus === 'done') {
     return input.complete ? 'already_complete' : 'locked'
   }
-  if (input.isCancelled) return 'cancelled'
   if (input.eventStatus === 'done') return 'locked'
   return 'proceed'
 }
@@ -219,6 +219,7 @@ export function validateResponderFillDraft(
   allowedPlates: string[] = [],
   _totalKm: number | null = null,
   unfinishedMediaDraftCount = 0,
+  cancelled = false,
 ): ResponderFillErrors {
   const errors: ResponderFillErrors = {}
   const start = parseOptionalNumber(draft.odometer_start)
@@ -239,7 +240,8 @@ export function validateResponderFillDraft(
     if (start == null || start === 'invalid') errors.odometer_start = 'יש למלא מד אוץ התחלה.'
     if (end == null || end === 'invalid') errors.odometer_end = 'יש למלא מד אוץ סיום.'
     if (!draft.route.trim()) errors.route = 'יש למלא נתיב נסיעה.'
-    if (!draft.treatment_detail.trim()) errors.treatment_detail = 'יש למלא פירוט הטיפול.'
+    const detailError = treatmentDetailCompleteError(draft.treatment_detail, cancelled)
+    if (detailError) errors.treatment_detail = detailError
     const settled = settleTreatedPlatePending(
       draft.treated_plate_pending,
       draft.treated_plates,
@@ -273,6 +275,15 @@ export function odometerRangeError(
   if (typeof start !== 'number' || typeof end !== 'number') return undefined
   if (end < start) return ODOMETER_ORDER_ERROR
   return undefined
+}
+
+/** Display-only end − start. Null until both readings are numbers and end ≥ start. */
+export function odometerDelta(odometerStart: string, odometerEnd: string): number | null {
+  const start = parseOptionalNumber(odometerStart)
+  const end = parseOptionalNumber(odometerEnd)
+  if (typeof start !== 'number' || typeof end !== 'number') return null
+  if (end < start) return null
+  return end - start
 }
 
 export async function fetchResponderFillContext(
@@ -543,7 +554,7 @@ async function saveParticipation(input: {
 
   const { data: current, error: currentError } = await supabase
     .from('event_responders')
-    .select('status, event:events!inner(status, is_cancelled)')
+    .select('status, event:events!inner(status)')
     .eq('id', input.assignmentId)
     .maybeSingle()
 
@@ -556,7 +567,7 @@ async function saveParticipation(input: {
 
   const complete = input.status === 'done'
   const participationStatus = current.status as ParticipationStatus
-  type NestedEvent = { status: EventStatus; is_cancelled: boolean | null }
+  type NestedEvent = { status: EventStatus }
   const nestedEvent = (current as { event?: NestedEvent | NestedEvent[] | null }).event
   const resolvedEvent = Array.isArray(nestedEvent) ? nestedEvent[0] : nestedEvent
   const eventStatusRaw = resolvedEvent?.status
@@ -564,13 +575,9 @@ async function saveParticipation(input: {
     complete,
     participationStatus,
     eventStatus: eventStatusRaw,
-    isCancelled: Boolean(resolvedEvent?.is_cancelled),
   })
   if (gate === 'already_complete') {
     return { ok: true, eventStatus: eventStatusRaw ?? null }
-  }
-  if (gate === 'cancelled') {
-    return { ok: false, error: RESPONDER_FILL_CANCELLED_ERROR }
   }
   if (gate === 'locked') {
     return { ok: false, error: RESPONDER_FILL_LOCKED_ERROR }
@@ -670,6 +677,7 @@ export async function saveResponderFillDraft(input: {
   draft: ResponderFillDraft
   allowedPlates: string[]
   totalKm: number | null
+  cancelled?: boolean
 }): Promise<
   | { ok: true; eventStatus: EventStatus | null }
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors }
@@ -679,6 +687,8 @@ export async function saveResponderFillDraft(input: {
     'draft',
     input.allowedPlates,
     input.totalKm,
+    0,
+    input.cancelled ?? false,
   )
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'בדקו את השדות המסומנים.', fieldErrors }
@@ -693,6 +703,7 @@ export async function completeResponderFill(input: {
   allowedPlates: string[]
   totalKm: number | null
   unfinishedMediaDraftCount?: number
+  cancelled?: boolean
 }): Promise<
   | { ok: true; eventStatus: EventStatus | null }
   | { ok: false; error: string; fieldErrors?: ResponderFillErrors }
@@ -720,6 +731,7 @@ export async function completeResponderFill(input: {
     input.allowedPlates,
     input.totalKm,
     input.unfinishedMediaDraftCount ?? 0,
+    input.cancelled ?? false,
   )
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: 'יש למלא את כל שדות החובה לפני סיום הדיווח.', fieldErrors }

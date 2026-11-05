@@ -1,6 +1,8 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { sheetAboveKeyboard, shouldScrollFocusedField } from '../../lib/appViewport'
+import { shouldDismissDialogBackdrop } from '../../lib/dialogDismiss'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 
 type DialogProps = {
@@ -43,6 +45,7 @@ export function Dialog({
   // Unique per instance: a hardcoded id makes aria-labelledby ambiguous the moment
   // two dialogs are mounted at once.
   const titleId = useId()
+  const rootRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)
   // Form dialogs pass an inline onClose that changes every keystroke. Keep the
@@ -50,6 +53,45 @@ export function Dialog({
   // otherwise focus jumps to the first control (the X) on every letter.
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const backdropPointerDown = useRef(false)
+  const windowFocusedAt = useRef(0)
+
+  useEffect(() => {
+    if (!open) return
+    const onFocus = () => {
+      windowFocusedAt.current = Date.now()
+    }
+    const onHide = () => {
+      if (document.visibilityState !== 'visible') backdropPointerDown.current = false
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onHide)
+    }
+  }, [open])
+
+  function onBackdropPointerDown(event: PointerEvent<HTMLDivElement>) {
+    backdropPointerDown.current =
+      document.visibilityState === 'visible' && event.target === event.currentTarget
+  }
+
+  function onBackdropClick(event: MouseEvent<HTMLDivElement>) {
+    const pointerDownOnBackdrop = backdropPointerDown.current
+    backdropPointerDown.current = false
+    if (
+      !shouldDismissDialogBackdrop({
+        pointerDownOnBackdrop,
+        clickTargetIsBackdrop: event.target === event.currentTarget,
+        documentVisible: document.visibilityState === 'visible',
+        millisSinceWindowFocus: Date.now() - windowFocusedAt.current,
+      })
+    ) {
+      return
+    }
+    onCloseRef.current()
+  }
 
   /**
    * `aria-modal="true"` is a promise about behavior. Without a trap it is a lie to
@@ -103,15 +145,60 @@ export function Dialog({
     }
   }, [open])
 
+  // The sheet is position:fixed to the layout viewport, which does not shrink
+  // when the mobile keyboard opens, so a focused field stays behind the keys.
+  // Lift the overlay by the visualViewport overlap and scroll that field into
+  // the sheet. Desktop never takes this path.
+  useEffect(() => {
+    if (!open || isDesktop) return
+    const root = rootRef.current
+    const sheet = dialogRef.current
+    const vv = window.visualViewport
+    if (!root || !sheet || !vv) return
+
+    const place = () => {
+      const lift = sheetAboveKeyboard(window.innerHeight, vv.offsetTop, vv.height)
+      root.style.bottom = lift.rootBottom
+      sheet.style.maxHeight = lift.sheetMaxHeight
+      if (!lift.rootBottom) return
+      const active = document.activeElement
+      if (!(active instanceof HTMLElement) || !sheet.contains(active)) return
+      if (!shouldScrollFocusedField(active)) return
+      active.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }
+
+    const onFocusIn = () => {
+      place()
+      requestAnimationFrame(place)
+    }
+
+    place()
+    vv.addEventListener('resize', place)
+    vv.addEventListener('scroll', place)
+    sheet.addEventListener('focusin', onFocusIn)
+    return () => {
+      vv.removeEventListener('resize', place)
+      vv.removeEventListener('scroll', place)
+      sheet.removeEventListener('focusin', onFocusIn)
+      root.style.bottom = ''
+      sheet.style.maxHeight = ''
+    }
+  }, [open, isDesktop])
+
   if (!open) return null
 
   // Body portal escapes .appbar / .tabbar stacking (both z-index 20). In-tree
   // sheets from the avatar menu sat under the mobile tab bar.
   return createPortal(
-    <div className="dialog-root" role="presentation">
+    <div ref={rootRef} className="dialog-root" role="presentation">
       {/* Backdrop dismissal stays available to pointers but leaves the tab order to
           the dialog's own controls, which the close button already covers. */}
-      <div className="dialog-backdrop" onClick={onClose} aria-hidden="true" />
+      <div
+        className="dialog-backdrop"
+        onPointerDown={onBackdropPointerDown}
+        onClick={onBackdropClick}
+        aria-hidden="true"
+      />
       <div
         ref={dialogRef}
         tabIndex={-1}

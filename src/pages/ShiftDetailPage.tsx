@@ -64,7 +64,7 @@ export function ShiftDetailPage({
   const freezeViewer = useFreezeViewer()
   const { show } = useToast()
   const [shift, setShift] = useState<ShiftDetail | null>(null)
-  const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
+  const [state, setState] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -83,7 +83,7 @@ export function ShiftDetailPage({
         setState('ready')
       })
       .catch(() => {
-        if (active) setState('unavailable')
+        if (active) setState('error')
       })
 
     return () => {
@@ -99,13 +99,17 @@ export function ShiftDetailPage({
     </div>
   )
 
-  if (state === 'unavailable') {
+  if (state === 'unavailable' || state === 'error') {
     return (
       <div>
         {backButton}
         <EmptyState
           icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title="אין לך הרשאה לצפות במשמרת זו או שהמשמרת אינה קיימת."
+          title={
+            state === 'error'
+              ? 'טעינת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
+              : 'אין לך הרשאה לצפות במשמרת זו או שהמשמרת אינה קיימת.'
+          }
           action={
             <Button variant="secondary" onClick={onBack}>
               חזרה למשמרות

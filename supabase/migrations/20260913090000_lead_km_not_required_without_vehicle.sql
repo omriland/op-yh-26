@@ -99,8 +99,12 @@ $$;
 
 -- Release events that were held open only by a ללא-רכב volunteer's null KM.
 -- Recompute in both directions so nothing is promoted that does not qualify.
+-- Shift-born events are skipped: their status belongs to save_shift_born_event_fill,
+-- and this file is replayed by the edge-function deploy workflow, where it used to
+-- knock completed shift-born events back to partial (2026-11-03).
 update public.events e
 set
   status = public.derived_event_status(e.id, e.ended_at),
   updated_at = now()
-where public.derived_event_status(e.id, e.ended_at) is distinct from e.status;
+where e.origin is distinct from 'shift'
+  and public.derived_event_status(e.id, e.ended_at) is distinct from e.status;
