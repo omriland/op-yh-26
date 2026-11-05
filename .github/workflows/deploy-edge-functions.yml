@@ -40,6 +40,7 @@ on:
       - "supabase/migrations/20261105120000_feedback_task_board.sql"
       - "supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql"
       - "supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql"
+      - "supabase/migrations/20261105220000_exact_number_event_search.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -189,6 +190,10 @@ jobs:
           # replaces enforce_event_secondary_lead_row.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql
+          # Digits-only event search is an exact id or callsign. Nothing later
+          # replaces search_unit_event_ids.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261105220000_exact_number_event_search.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

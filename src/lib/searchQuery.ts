@@ -46,6 +46,38 @@ export function searchQueryVariants(query: string): string[] {
   return mapped === trimmed ? [trimmed] : [trimmed, mapped]
 }
 
+/** A callsign or event id: the whole value, not a digit sequence inside a longer one. */
+export function isExactNumberQuery(query: string): boolean {
+  return /^\d+$/.test(query.trim())
+}
+
+export type ListSearchFields = {
+  policeEventId?: string | null
+  roadName?: string | null
+  location?: string | null
+  patrolNumber?: string | null
+  names?: readonly (string | null | undefined)[]
+  callsigns?: readonly (string | null | undefined)[]
+}
+
+function sameNumber(value: string | null | undefined, needle: string): boolean {
+  return (value ?? '').trim() === needle
+}
+
+/** Text stays a substring. A query of only digits matches an id or callsign exactly. */
+export function listSearchMatches(fields: ListSearchFields, query: string): boolean {
+  const needle = query.trim()
+  if (!needle) return true
+  if (isExactNumberQuery(needle)) {
+    return [fields.policeEventId, fields.patrolNumber, ...(fields.callsigns ?? [])].some((value) =>
+      sameNumber(value, needle),
+    )
+  }
+  return [fields.policeEventId, fields.roadName, fields.location, ...(fields.names ?? []), ...(fields.callsigns ?? [])].some(
+    (value) => value != null && value !== '' && textIncludesQuery(value, needle),
+  )
+}
+
 export function textIncludesQuery(haystack: string, query: string): boolean {
   const variants = searchQueryVariants(query)
   if (variants.length === 0) return true

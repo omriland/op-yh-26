@@ -10,6 +10,7 @@
 import { partitionUnitEventsByWindow, type EventListItem } from './events'
 import { digitsOnly, formatDate } from './format'
 import { mineEventMatchesQuery } from './mineInbox'
+import { isExactNumberQuery } from './searchQuery'
 import { mapSecondaryLeadRows } from './eventShiftLeads'
 import { partitionMineList, type MineListBucket, type MineListSections } from './mineListSections'
 import { keepShiftLeadRecentEvent, shouldApplyShiftLeadRecentWindow } from './shiftLeadEventsWindow'
@@ -29,7 +30,7 @@ export type FilterRule =
   | { field: 'vehicle_kind'; op: 'any_of'; value: string[] }
   | { field: 'responder'; op: 'contains'; value: string }
   | { field: 'treated_plate'; op: 'contains'; value: string }
-  | { field: 'event_id'; op: 'is' | 'contains'; value: string }
+  | { field: 'event_id'; op: 'is'; value: string }
   /** `on` reads `from` only; `between` takes either end or both. */
   | { field: 'event_date'; op: 'on' | 'between'; value: { from: string; to: string } }
 
@@ -40,14 +41,7 @@ type FieldDef = { field: FilterField; label: string; ops: { op: FilterOp; label:
 export const FILTER_FIELDS: readonly FieldDef[] = [
   { field: 'shift_lead', label: 'אחמ״ש', ops: [{ op: 'any_of', label: 'אחד מהנבחרים' }] },
   { field: 'responder', label: 'כונן', ops: [{ op: 'contains', label: 'שם או או״ק מכיל' }] },
-  {
-    field: 'event_id',
-    label: 'מספר אירוע',
-    ops: [
-      { op: 'is', label: 'שווה ל־' },
-      { op: 'contains', label: 'מכיל' },
-    ],
-  },
+  { field: 'event_id', label: 'מספר אירוע', ops: [{ op: 'is', label: 'שווה ל־' }] },
   {
     field: 'event_date',
     label: 'תאריך האירוע',
@@ -142,8 +136,9 @@ function normalizeRule(rule: FilterRule): FilterRule {
     case 'responder':
       return { ...rule, value: cleanFilterText(rule.value) }
     case 'treated_plate':
-    case 'event_id':
       return { ...rule, value: digitsOnly(rule.value) }
+    case 'event_id':
+      return { field: 'event_id', op: 'is', value: digitsOnly(rule.value) }
     case 'event_date': {
       const from = isDay(rule.value.from) ? rule.value.from : ''
       const to = isDay(rule.value.to) ? rule.value.to : ''
@@ -165,7 +160,7 @@ export function listSummary(ids: readonly string[], names: ReadonlyMap<string, s
   return labels.length > 1 ? `${labels[0]} \u2068+${labels.length - 1}\u2069` : (labels[0] ?? '')
 }
 
-/** The value half of a pill: `דני כהן +1`, `רונית`, `מכיל 482`, `01.11.2026 עד 05.11.2026`. */
+/** The value half of a pill: `דני כהן +1`, `רונית`, `482`, `01.11.2026 עד 05.11.2026`. */
 export function ruleValueLabel(rule: FilterRule, labels: FilterLabels): string {
   switch (rule.field) {
     case 'shift_lead':
@@ -176,7 +171,7 @@ export function ruleValueLabel(rule: FilterRule, labels: FilterLabels): string {
     case 'treated_plate':
       return rule.value
     case 'event_id':
-      return rule.op === 'is' ? rule.value : `מכיל ${rule.value}`
+      return rule.value
     case 'event_date':
       return dateRuleLabel(rule)
   }
@@ -286,6 +281,10 @@ const STATUSES: readonly (EventStatus | 'all')[] = ['all', 'draft', 'in_progress
 function parseRule(raw: unknown): FilterRule | null {
   if (!raw || typeof raw !== 'object') return null
   const { field, op, value } = raw as { field?: unknown; op?: unknown; value?: unknown }
+  // מספר אירוע used to offer מכיל. A saved one is now an exact match.
+  if (field === 'event_id' && (op === 'is' || op === 'contains') && typeof value === 'string') {
+    return { field: 'event_id', op: 'is', value }
+  }
   const def = FILTER_FIELDS.find((row) => row.field === field)
   if (!def || !def.ops.some((row) => row.op === op)) return null
   const strings = (v: unknown) =>
@@ -441,18 +440,18 @@ export function ruleQueryPlans(
         break
       case 'responder':
         embeds.push('rf:event_responders!inner(rp:profiles!inner(full_name,callsign))')
-        filters.push({
-          op: 'or',
-          filters: `${orIlikeContains('full_name', rule.value)},${orIlikeContains('callsign', rule.value)}`,
-          referencedTable: 'rf.rp',
-        })
+        filters.push(
+          isExactNumberQuery(rule.value)
+            ? { op: 'eq', column: 'rf.rp.callsign', value: rule.value }
+            : {
+                op: 'or',
+                filters: `${orIlikeContains('full_name', rule.value)},${orIlikeContains('callsign', rule.value)}`,
+                referencedTable: 'rf.rp',
+              },
+        )
         break
       case 'event_id':
-        filters.push(
-          rule.op === 'is'
-            ? { op: 'eq', column: 'police_event_id', value: rule.value }
-            : { op: 'ilike', column: 'police_event_id', value: `%${rule.value}%` },
-        )
+        filters.push({ op: 'eq', column: 'police_event_id', value: rule.value })
         break
       case 'event_date':
         if (rule.op === 'on') {

@@ -1,4 +1,5 @@
-import { fieldsMatchQuery } from './searchQuery'
+import { mapSecondaryLeadRows } from './eventShiftLeads'
+import { listSearchMatches } from './searchQuery'
 
 export type MineInboxTab = 'pending' | 'logged'
 
@@ -40,11 +41,26 @@ export function mineEventMatchesQuery(
     police_event_id?: string | null
     road?: { name: string } | null
     location?: string | null
+    patrol_callsign_number?: string | null
+    shift_lead?: { callsign?: string | null } | null
+    responders?: { profile?: { callsign?: string | null } | null }[]
+    secondary_leads?: unknown
   },
   query: string,
 ): boolean {
-  return fieldsMatchQuery(
-    [event.police_event_id, event.road?.name, event.location],
+  const callsigns = [
+    event.shift_lead?.callsign,
+    ...(event.responders ?? []).map((row) => row.profile?.callsign),
+    ...mapSecondaryLeadRows(event.secondary_leads).map((lead) => lead.callsign),
+  ]
+  return listSearchMatches(
+    {
+      policeEventId: event.police_event_id,
+      roadName: event.road?.name,
+      location: event.location,
+      patrolNumber: event.patrol_callsign_number,
+      callsigns,
+    },
     query,
   )
 }

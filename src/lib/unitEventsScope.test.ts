@@ -103,6 +103,20 @@ describe('show-others session stash', () => {
   })
 })
 
+describe('search_unit_event_ids number match', () => {
+  const sql = readFileSync(
+    resolve(migrationsDir, '20261105220000_exact_number_event_search.sql'),
+    'utf8',
+  )
+
+  it('matches a digits-only needle exactly and keeps words as a substring', () => {
+    expect(sql).toContain("v_raw ~ '^[0-9]+$'")
+    expect(sql).toContain("btrim(coalesce(e.police_event_id, '')) = v_raw")
+    expect(sql).toContain("btrim(coalesce(lead.callsign, '')) = v_raw")
+    expect(sql).toContain('ilike v_pattern')
+  })
+})
+
 describe('search_unit_event_ids creator filter', () => {
   const sql = readFileSync(
     resolve(migrationsDir, '20260902190000_search_unit_event_ids_shift_lead.sql'),

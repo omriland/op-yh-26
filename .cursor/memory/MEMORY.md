@@ -1,6 +1,10 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-11-05 (event delete past a locked secondary lead; photos are not auto-assigned)
+Last updated: 2026-11-05 (events search: a digits-only query is an exact id or callsign)
+
+## Events search: numbers are exact (2026-11-05)
+
+- Omri, 2026-11-05: the events page must not fuzzy-match a number. A query of only digits matches `police_event_id`, a callsign (lead, responder, secondary) or `patrol_callsign_number` exactly. A word still matches inside a road, a place or a name. Unit search is `search_unit_event_ids` in `supabase/migrations/20261105220000_exact_number_event_search.sql`, **live on prod** (applied 2026-11-05; `pg_get_functiondef` contains `v_raw ~ '^[0-9]+$'`). Client match is `listSearchMatches` (`src/lib/searchQuery.ts`), used by האירועים שלי. כונן filter: digits match the responder callsign exactly, a name stays a substring. מספר אירוע is always `שווה ל־` (a saved `מכיל` rule is read as exact). מספר רכב stays a digit substring.
 
 ## Event delete vs a locked אחמ״ש משני (2026-11-05)
 
