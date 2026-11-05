@@ -46,17 +46,14 @@ import {
 import { formatDateTime, formatPlate } from '../../lib/format'
 import {
   PLATE_LINK_ACTION,
-  PLATE_LINK_AUTO,
   PLATE_LINK_HINT,
   PLATE_LINK_SAVED,
-  PLATE_LINK_UNDONE,
   PLATE_SCAN_ADD,
   PLATE_SCAN_ADDED,
   PLATE_SCAN_DISMISS,
   PLATE_SCAN_HINT,
   PLATE_SCAN_TITLE,
   addPlateSuggestions,
-  autoLinkPlateIds,
   scanPlatesInMedia,
   visiblePlateSuggestions,
 } from '../../lib/plateScan'
@@ -239,17 +236,12 @@ export function EventMediaGallery({
   } | null>(null)
   const draftsRef = useRef(drafts)
   draftsRef.current = drafts
-  const itemsRef = useRef(items)
-  itemsRef.current = items
   const platesRef = useRef(plates)
   platesRef.current = plates
   const [linkTarget, setLinkTarget] = useState<EventMedia | null>(null)
   const [linkPlateIds, setLinkPlateIds] = useState<string[]>([])
   const [linkError, setLinkError] = useState<string | undefined>()
   const [savingLink, setSavingLink] = useState(false)
-  /** Links the plate scan made on its own, each with an undo. */
-  const [autoLinks, setAutoLinks] = useState<{ mediaId: string; plateId: string }[]>([])
-
   const inFlight = drafts.filter((draft) => draft.uploading).length
   const addEnabled = canWrite && canAddMoreMedia(items.length, inFlight)
 
@@ -367,11 +359,11 @@ export function EventMediaGallery({
     setDrafts((current) => current.filter((row) => row.key !== key))
     setItems((current) => [...current, result.media])
     show(draft.kind === 'video' ? EVENT_MEDIA_VIDEO_ADDED : EVENT_MEDIA_ADDED, 'done')
-    if (draft.kind === 'image' && (onAddScannedPlate || platesRef.current.length > 0)) {
+    // A readable plate can be offered as a new vehicle. It is never linked to this photo.
+    if (draft.kind === 'image' && onAddScannedPlate) {
       void scanPlatesInMedia(result.media.id).then((found) => {
         if (found.length === 0) return
-        if (onAddScannedPlate) setPlateSuggestions((current) => addPlateSuggestions(current, found))
-        void autoLinkScanned(result.media.id, found)
+        setPlateSuggestions((current) => addPlateSuggestions(current, found))
       })
     }
   }
@@ -380,39 +372,6 @@ export function EventMediaGallery({
     setItems((current) =>
       current.map((row) => (row.id === mediaId ? { ...row, treated_plate_ids: plateIds } : row)),
     )
-  }
-
-  async function autoLinkScanned(mediaId: string, found: string[]) {
-    const item = itemsRef.current.find((row) => row.id === mediaId)
-    if (!item) return
-    const added = autoLinkPlateIds(found, platesRef.current, item.treated_plate_ids)
-    if (added.length === 0) return
-    const next = [...item.treated_plate_ids, ...added]
-    const result = await replaceMediaPlates(mediaId, next)
-    if (!result.ok) return
-    setItemPlates(mediaId, next)
-    setAutoLinks((current) => [...current, ...added.map((plateId) => ({ mediaId, plateId }))])
-  }
-
-  async function undoAutoLink(link: { mediaId: string; plateId: string }) {
-    const item = itemsRef.current.find((row) => row.id === link.mediaId)
-    const forget = () =>
-      setAutoLinks((current) =>
-        current.filter((row) => row.mediaId !== link.mediaId || row.plateId !== link.plateId),
-      )
-    if (!item) {
-      forget()
-      return
-    }
-    const next = item.treated_plate_ids.filter((id) => id !== link.plateId)
-    const result = await replaceMediaPlates(link.mediaId, next)
-    if (!result.ok) {
-      show(result.error, 'alert')
-      return
-    }
-    setItemPlates(link.mediaId, next)
-    forget()
-    show(PLATE_LINK_UNDONE, 'done')
   }
 
   function openLink(item: EventMedia) {
@@ -431,7 +390,6 @@ export function EventMediaGallery({
       return
     }
     setItemPlates(linkTarget.id, linkPlateIds)
-    setAutoLinks((current) => current.filter((row) => row.mediaId !== linkTarget.id))
     setLinkTarget(null)
     show(PLATE_LINK_SAVED, 'done')
   }
@@ -667,12 +625,6 @@ export function EventMediaGallery({
 
   const viewerIsVideo = Boolean(viewer && isVideoMedia(viewer.mime_type))
 
-  const autoLinkRows = autoLinks.flatMap((link) => {
-    const plate = plates.find((row) => row.id === link.plateId)
-    const item = items.find((row) => row.id === link.mediaId)
-    return plate && item?.treated_plate_ids.includes(plate.id) ? [{ link, plate }] : []
-  })
-
   const shownPlateSuggestions =
     onAddScannedPlate && canWrite
       ? visiblePlateSuggestions(plateSuggestions, {
@@ -725,28 +677,6 @@ export function EventMediaGallery({
         menuOpenFor={tileMenu?.item.id ?? null}
         onOpen={openTile}
       />
-
-      <div aria-live="polite">
-        {autoLinkRows.length > 0 ? (
-          <ul className="plate-link-auto">
-            {autoLinkRows.map(({ link, plate }) => (
-              <li key={`${link.mediaId}:${link.plateId}`} className="plate-link-auto__item">
-                <span className="plate-link-auto__text">
-                  <span className="t-body">{PLATE_LINK_AUTO}</span>
-                  <LicensePlate plate={plate.plate_number} size="sm" />
-                </span>
-                <Button
-                  variant="ghost"
-                  aria-label={`ביטול השיוך לרכב ${formatPlate(plate.plate_number)}`}
-                  onClick={() => void undoAutoLink(link)}
-                >
-                  ביטול
-                </Button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
 
       {shownPlateSuggestions.length > 0 ? (
         <section className="plate-scan" aria-live="polite">

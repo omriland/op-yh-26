@@ -1,6 +1,14 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-10-27 (launch UI and 7-day invites live on yahpz.com)
+Last updated: 2026-11-05 (event delete past a locked secondary lead; photos are not auto-assigned)
+
+## Event delete vs a locked אחמ״ש משני (2026-11-05)
+
+- Deleting an event cascades to `event_secondary_leads`. `enforce_event_secondary_lead_row` raised `לא ניתן להסיר אחמ״ש משני שננעל בעריכה.` on a locked row, and the client showed the generic delete failure. Confirmed in prod logs 2026-11-05 20:46 Israel: Omri, `delete_event` on `aaf96cb6-b466-4fe5-b351-f746ee2f9b48` returned 400 with that exception. הילה פנלון was locked as secondary when the event page autosaved a geocode pin (`location_lat` / `location_lng` / `location_pin_source`) at 2026-11-02 20:37 Israel. A real pin edit still locks. The event-delete trigger already sets `yahpaz.deleting_event_id`; the secondary-lead trigger now skips the raise when that stamp matches the row. Migration `supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql`, listed last in Deploy Edge Functions. **Live on prod** (applied 2026-11-05 via SQL on `rtvizpsfvtjowbimugns`; `pg_get_functiondef` contains `yahpaz.deleting_event_id`). A rolled-back probe deleted the locked row on `aaf96cb6-b466-4fe5-b351-f746ee2f9b48` and the row is still there (`locked = true`, הילה). The event itself was not deleted. Direct delete of a locked secondary, while the event stays, is unchanged.
+
+## Photos are not auto-assigned to a vehicle (2026-11-05)
+
+- Omri, 2026-11-05: stop auto-detecting a plate and attaching the photo, and let any photo be attached to any vehicle on the event. `nextPhotoVehicleId` no longer preselects the only vehicle (web `src/lib/eventMedia.ts`, Android `domain/.../EventMedia.kt`). Upload no longer calls `autoLinkPlateIds` (web `EventMediaGallery.tsx`, Android `FillMediaTab.kt`). The person picks a chip; saving with none is allowed. The web banner that offers to add a newly read plate, after a tap, is unchanged and does not attach the photo. Android no longer calls `plate-scan` on upload. No Android APK in this change.
 
 ## Events advanced filters + saved views (2026-11-05, branch only)
 
