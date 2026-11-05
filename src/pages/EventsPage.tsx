@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useFreezeViewer } from '../lib/freezeViewer'
@@ -55,6 +55,7 @@ import {
   MINE_PENDING_EMPTY_TITLE,
   MINE_PENDING_EMPTY_VIEW_LOGGED,
   MINE_PENDING_TAB_LABEL,
+  mineLoggedNoResultsTitle,
   shiftGroupPendingCaption,
   shiftGroupShouldStartOpen,
   type MineInboxTab,
@@ -107,6 +108,7 @@ import {
 import { fetchEventIdsWithMedia } from '../lib/eventMedia'
 import {
   activeRules,
+  leadOptionsFromEvents,
   mineFilteredSections,
   readSessionQuery,
   readSessionRules,
@@ -119,7 +121,7 @@ import {
   type EventListView,
   type FilterRule,
 } from '../lib/eventFilters'
-import { fetchFilterLookups, fetchRuleFilteredEvents } from '../lib/eventFiltersApi'
+import { fetchFilterLookups, fetchRuleFilteredEvents, fetchRuleMatchingIds } from '../lib/eventFiltersApi'
 import { deletePreset, listPresets, savePreset } from '../lib/eventFilterPresets'
 import { EventFilters, type EventFiltersApi } from '../components/events/EventFilters'
 
@@ -129,6 +131,7 @@ export type EventsPageApi = EventFiltersApi & {
   fetchMyEvents: typeof fetchMyEvents
   fetchEventsByIds: typeof fetchEventsByIds
   fetchRuleFilteredEvents: typeof fetchRuleFilteredEvents
+  fetchRuleMatchingIds: typeof fetchRuleMatchingIds
   searchUnitEventIds: typeof searchUnitEventIds
   deleteEvent: typeof deleteEvent
   fetchEventsMissingLeadKmCount: typeof fetchEventsMissingLeadKmCount
@@ -140,6 +143,7 @@ const EVENTS_PAGE_API: EventsPageApi = {
   fetchMyEvents,
   fetchEventsByIds,
   fetchRuleFilteredEvents,
+  fetchRuleMatchingIds,
   searchUnitEventIds,
   deleteEvent,
   fetchEventsMissingLeadKmCount,
@@ -188,6 +192,8 @@ export function EventsPage({
   const [rules, setRules] = useState<FilterRule[]>(() => readSessionRules(null, scope))
   const [rulesCapped, setRulesCapped] = useState(false)
   const [mineRuleIds, setMineRuleIds] = useState<ReadonlySet<string> | null>(null)
+  const [mineRulesError, setMineRulesError] = useState(false)
+  const [mineRulesRetry, setMineRulesRetry] = useState(0)
   // האירועים שלי has no unit toggles or 12-hour window: they cannot change that list.
   const view: EventListView =
     scope === 'mine'
@@ -360,30 +366,28 @@ export function EventsPage({
   useEffect(() => {
     if (!mineRulesKey || !events) {
       setMineRuleIds(null)
+      setMineRulesError(false)
       return
     }
     let active = true
-    setMineRuleIds(null)
-    const ids = events.map((event) => event.id)
+    setMineRulesError(false)
+    // The previous result stays on screen until this one lands, so a change does not flash.
     api
-      .fetchRuleFilteredEvents(JSON.parse(mineRulesKey) as FilterRule[], {
-        shiftLeadId: null,
-        status: 'all',
-        hideShiftEvents: false,
-        limit: ids.length,
-        ids,
-      })
-      .then((result) => {
-        if (active) setMineRuleIds(new Set(result.events.map((event) => event.id)))
+      .fetchRuleMatchingIds(
+        JSON.parse(mineRulesKey) as FilterRule[],
+        events.map((event) => event.id),
+      )
+      .then((ids) => {
+        if (active) setMineRuleIds(new Set(ids))
       })
       .catch(() => {
-        if (active) setFailed(true)
+        if (active) setMineRulesError(true)
       })
     return () => {
       active = false
     }
-  }, [api, events, mineRulesKey])
-  const mineRulesPending = mineRulesKey !== '' && mineRuleIds === null
+  }, [api, events, mineRulesKey, mineRulesRetry])
+  const mineRulesPending = mineRulesKey !== '' && mineRuleIds === null && !mineRulesError
 
   useEffect(() => {
     setLoggedWindows(1)
@@ -569,7 +573,7 @@ export function EventsPage({
     return mineFilteredSections(events, {
       status: filter,
       query,
-      ruleIds: mineRulesKey ? (mineRuleIds ?? new Set<string>()) : null,
+      ruleIds: mineRulesKey && mineRuleIds ? mineRuleIds : null,
       bucket: (event) => {
         // Not yet the crew's to document: neither pending nor logged.
         if (!eventReleasedFromEvent(event) || shiftBornBeforeShiftDate(event, jerusalemToday())) {
@@ -581,6 +585,11 @@ export function EventsPage({
       windowsLoaded: loggedWindows,
     })
   }, [events, filter, loggedWindows, mineRuleIds, mineRulesKey, query, scope, user?.id])
+  const mineSearchOnly = mineRulesKey === '' && filter === 'all' && query.trim() !== ''
+  const mineLeadOptions = useMemo(
+    () => (scope === 'mine' && events ? leadOptionsFromEvents(events) : []),
+    [events, scope],
+  )
   const loggedVisible = mineSections?.logged ?? []
   const mineFiltered = scope === 'mine' && (mineRulesKey !== '' || filter !== 'all' || query.trim() !== '')
   const openMineCount = useMemo(() => {
@@ -611,7 +620,14 @@ export function EventsPage({
   ) : scope === 'mine' && mineSections ? (
     mineTab === 'pending' ? (
       mineSections.pending.length === 0 && mineFiltered ? (
-        <ListEmptyState filtered rulesFiltered canCreate={false} onClear={clearAllFilters} />
+        <MineFilteredEmpty
+          tab="pending"
+          query={mineSearchOnly ? query.trim() : null}
+          otherCount={mineSections.logged.length}
+          onSwitch={() => setMineTab('logged')}
+          onClearSearch={() => changeQuery('')}
+          onClearAll={clearAllFilters}
+        />
       ) : mineSections.pending.length === 0 ? (
         <EmptyState
           icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
@@ -639,8 +655,19 @@ export function EventsPage({
     ) : (
       <MineLoggedList
         events={loggedVisible}
-        filtered={mineFiltered}
-        onClearFilters={clearAllFilters}
+        caption={mineRulesKey && mineRuleIds ? 'תועדו · לפי הסינון' : `תועדו · ${MINE_LOGGED_WINDOW_DAYS} יום אחרונים`}
+        filteredEmpty={
+          mineFiltered ? (
+            <MineFilteredEmpty
+              tab="logged"
+              query={mineSearchOnly ? query.trim() : null}
+              otherCount={mineSections.pending.length}
+              onSwitch={() => setMineTab('pending')}
+              onClearSearch={() => changeQuery('')}
+              onClearAll={clearAllFilters}
+            />
+          ) : null
+        }
         stampFor={stampFor}
         onOpen={onOpen}
         userId={user?.id}
@@ -786,9 +813,20 @@ export function EventsPage({
                 : visible.length
           }
           asCard={scope === 'unit' && asTable}
+          leadFallback={mineLeadOptions}
+          rulesError={
+            scope === 'mine' && mineRulesError
+              ? { onRetry: () => setMineRulesRetry((count) => count + 1) }
+              : null
+          }
         >
           {scope === 'mine' ? (
-            <MineInboxTabs tab={mineTab} pendingCount={openMineCount} onChange={setMineTab} />
+            <MineInboxTabs
+              tab={mineTab}
+              pendingCount={mineFiltered && mineSections ? mineSections.pending.length : openMineCount}
+              loggedCount={mineFiltered && mineSections ? mineSections.logged.length : null}
+              onChange={setMineTab}
+            />
           ) : null}
           {listBody}
         </EventFilters>
@@ -960,10 +998,64 @@ function ListEmptyState({
   )
 }
 
+/**
+ * A tab narrowed to nothing. A search alone names the search; status or rules point at
+ * the filters. When the other tab has matches, it says how many and switches there.
+ */
+function MineFilteredEmpty({
+  tab,
+  query,
+  otherCount,
+  onSwitch,
+  onClearSearch,
+  onClearAll,
+}: {
+  tab: MineInboxTab
+  /** The search text when it is the only filter; null when status or rules apply. */
+  query: string | null
+  otherCount: number
+  onSwitch: () => void
+  onClearSearch: () => void
+  onClearAll: () => void
+}) {
+  const otherLabel = tab === 'pending' ? 'בתועדו' : 'בממתינים לתיעוד'
+  const title = query
+    ? tab === 'pending'
+      ? `אין אירועים שממתינים לתיעוד התואמים ל־“${query}”`
+      : mineLoggedNoResultsTitle(query)
+    : 'אין אירועים שתואמים לסינון'
+  return (
+    <EmptyState
+      icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+      title={title}
+      caption={
+        otherCount > 0
+          ? otherCount === 1
+            ? `יש תוצאה אחת ${otherLabel}.`
+            : `יש ${otherCount} תוצאות ${otherLabel}.`
+          : query
+            ? undefined
+            : 'הסירו תנאי או בחרו תצוגה אחרת.'
+      }
+      action={
+        otherCount > 0 ? (
+          <Button variant="secondary" onClick={onSwitch}>
+            {tab === 'pending' ? 'מעבר לתועדו' : 'מעבר לממתינים לתיעוד'}
+          </Button>
+        ) : (
+          <Button variant="ghost" onClick={query ? onClearSearch : onClearAll}>
+            {query ? 'ניקוי חיפוש' : 'ניקוי סינון'}
+          </Button>
+        )
+      }
+    />
+  )
+}
+
 function MineLoggedList({
   events,
-  filtered,
-  onClearFilters,
+  caption,
+  filteredEmpty,
   stampFor,
   onOpen,
   userId,
@@ -971,9 +1063,10 @@ function MineLoggedList({
   onLoadMore,
 }: {
   events: EventListItem[]
-  /** Status, search or rules are narrowing the list (the toolbar above owns them). */
-  filtered: boolean
-  onClearFilters: () => void
+  /** Names the window actually shown (30 days, or whatever the filters chose). */
+  caption: string
+  /** The empty state while status, search or rules narrow the list; null when none do. */
+  filteredEmpty: ReactNode
   stampFor: (event: EventListItem) => StampDescriptor
   onOpen: (eventId: string) => void
   userId?: string
@@ -983,11 +1076,9 @@ function MineLoggedList({
   const freezeViewer = useFreezeViewer()
   return (
     <div className="stack-4">
-      <p className="t-caption text-muted mine-logged-caption">
-        {`תועדו · ${MINE_LOGGED_WINDOW_DAYS} יום אחרונים`}
-      </p>
-      {events.length === 0 && filtered ? (
-        <ListEmptyState filtered rulesFiltered canCreate={false} onClear={onClearFilters} />
+      <p className="t-caption text-muted mine-logged-caption">{caption}</p>
+      {events.length === 0 && filteredEmpty ? (
+        filteredEmpty
       ) : events.length === 0 ? (
         <EmptyState
           icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}

@@ -7,6 +7,7 @@ import {
   cleanFilterText,
   emptyRule,
   escapeLike,
+  leadOptionsFromEvents,
   mineFilteredSections,
   orIlikeContains,
   periodState,
@@ -712,5 +713,67 @@ describe('each list keeps its own session filters', () => {
     expect(readSessionStatus(storage)).toBe('all')
     expect(readSessionStatus(storage, 'mine')).toBe('done')
     expect(readSessionQuery(storage, 'mine')).toBe('כביש')
+  })
+})
+
+describe('האירועים שלי: an event with no number, road or location', () => {
+  const blank = event({
+    id: 'new-shift-born',
+    origin: 'shift',
+    shift_id: 's1',
+    police_event_id: null,
+    road: null,
+    location: null,
+    status: 'in_progress',
+  })
+  const bucket = () => 'pending' as const
+
+  it('still shows with no search, exactly as partitionMineList', () => {
+    const before = partitionMineList([blank], { dateOf: (row) => row.event_date, bucket, today: TODAY, windowsLoaded: 1 })
+    const after = mineFilteredSections([blank], {
+      status: 'all',
+      query: '   ',
+      ruleIds: null,
+      bucket,
+      today: TODAY,
+      windowsLoaded: 1,
+    })
+    expect(after).toEqual(before)
+    expect(after.pending.map((row) => row.id)).toEqual(['new-shift-born'])
+  })
+
+  it('a real search still leaves it out', () => {
+    const after = mineFilteredSections([blank], {
+      status: 'all',
+      query: '482',
+      ruleIds: null,
+      bucket,
+      today: TODAY,
+      windowsLoaded: 1,
+    })
+    expect(after.pending).toEqual([])
+  })
+})
+
+describe('אחמ״ש choices from the events on screen', () => {
+  it('collects main and secondary leads once each, sorted, skipping nameless ones', () => {
+    const options = leadOptionsFromEvents([
+      event({ id: 'a', shift_lead_id: 'dan', shift_lead: { full_name: 'דני כהן', callsign: '214' } }),
+      event({
+        id: 'b',
+        shift_lead_id: 'dan',
+        shift_lead: { full_name: 'דני כהן', callsign: '214' },
+        secondary_leads: [
+          { user_id: 'noa', locked: false, profile: { full_name: 'נועה פרץ', callsign: '' } },
+          { user_id: 'ghost', locked: false, profile: null },
+        ],
+      }),
+      event({ id: 'c', shift_lead_id: 'avi', shift_lead: { full_name: 'אבי לוי', callsign: '101' } }),
+    ])
+    expect(options).toEqual([
+      { id: 'avi', label: 'אבי לוי · 101' },
+      { id: 'dan', label: 'דני כהן · 214' },
+      { id: 'noa', label: 'נועה פרץ' },
+    ])
   })
 })

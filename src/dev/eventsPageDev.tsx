@@ -2,15 +2,15 @@
 // and an in-memory data boundary (the page's `api` prop), so the filters and saved views
 // can be exercised without logging in. Served at /events-page-dev.html. Not in the app bundle.
 //
-// ?role=shift_lead (default) · admin · admin_lead · responder (האירועים שלי, mine scope)
-// ?state=ready (default) · loading · error
+// ?role=shift_lead (default) · admin · admin_lead · responder / lead_mine (האירועים שלי)
+// ?state=ready (default) · loading · error · rules_error (only the rule query fails, mine)
 // ?table=1 forces the desktop table, ?table=0 the cards (default: table at ≥1025 px).
 // Saved views go to this browser's localStorage, as they do before the migration is applied.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AuthContext, type AuthState } from '../lib/auth'
-import { activeRules, type FilterRule } from '../lib/eventFilters'
+import { mergeRuleHits, ruleQueryPlans, type FilterRule, type QueryFilter } from '../lib/eventFilters'
 import { readLocalPresets, writeLocalPresets } from '../lib/eventFilterPresets'
 import type { EventListItem } from '../lib/events'
 import { useIsDesktop } from '../lib/useMediaQuery'
@@ -24,12 +24,13 @@ const ROLE_SETS: Record<string, string[]> = {
   admin: ['admin'],
   admin_lead: ['admin', 'shift_lead'],
   responder: ['responder'],
+  lead_mine: ['shift_lead', 'responder'],
 }
 const roleKey = params.get('role') && ROLE_SETS[params.get('role')!] ? params.get('role')! : 'shift_lead'
 const state = params.get('state') ?? 'ready'
 const tableParam = params.get('table')
-const SCOPE: 'unit' | 'mine' = roleKey === 'responder' ? 'mine' : 'unit'
-/** The responder signs in as רונית לוי, who rides on a third of the sample events. */
+const SCOPE: 'unit' | 'mine' = roleKey === 'responder' || roleKey === 'lead_mine' ? 'mine' : 'unit'
+/** On האירועים שלי the viewer is רונית לוי, who rides on a third of the sample events. */
 const ME = SCOPE === 'mine' ? 'dev-r1' : 'dev-lead'
 
 const LEADS = [
@@ -104,7 +105,7 @@ function fixture(i: number): EventListItem {
       ? {
           shift_date: created.toISOString().slice(0, 10),
           shift_kind: 'morning',
-          vehicle_type: 'unit',
+          vehicle_type: 'patrol_north',
           personal_vehicle: null,
         }
       : null,
@@ -129,32 +130,87 @@ const newestFirst = (a: EventListItem, b: EventListItem) =>
       : -1
     : (b.created_at ?? '').localeCompare(a.created_at ?? '')
 
-function matches(event: EventListItem, rule: FilterRule): boolean {
+/**
+ * Runs the real ruleQueryPlans output against the sample events, the way PostgREST
+ * would: every filter must pass, a filter on an embed (`sl.`, `pe.`, `pr.tp.`, …)
+ * passes when any joined row matches (`!inner`), and the plans' hits are unioned.
+ */
+function columnValues(event: EventListItem, column: string): (string | null)[] {
   const meta = META.get(event.id)!
-  switch (rule.field) {
-    case 'shift_lead':
-      return (
-        rule.value.includes(event.shift_lead_id ?? '') ||
-        ((event.secondary_leads ?? []) as { user_id: string }[]).some((row) => rule.value.includes(row.user_id))
-      )
-    case 'responder':
-      return event.responders.some((row) =>
-        [row.profile?.full_name, row.profile?.callsign].some((text) => text?.includes(rule.value)),
-      )
-    case 'event_id':
-      return rule.op === 'is'
-        ? event.police_event_id === rule.value
-        : Boolean(event.police_event_id?.includes(rule.value))
-    case 'event_date': {
-      const { from, to } = rule.value
-      if (rule.op === 'on') return event.event_date === from
-      return (!from || event.event_date >= from) && (!to || event.event_date <= to)
-    }
-    case 'treated_plate':
-      return meta.plates.some((plate) => plate.includes(rule.value))
-    case 'vehicle_kind':
-      return meta.kinds.some((kind) => rule.value.includes(kind))
+  const shiftBorn = event.origin === 'shift'
+  switch (column) {
+    case 'sl.user_id':
+      return ((event.secondary_leads ?? []) as { user_id: string }[]).map((row) => row.user_id)
+    case 'pe.plate_digits':
+      return shiftBorn ? meta.plates : []
+    case 'pr.tp.plate_digits':
+      return shiftBorn ? [] : meta.plates
+    case 'ke.vehicle_kind_id':
+      return shiftBorn ? meta.kinds : []
+    case 'kr.tv.vehicle_kind_id':
+      return shiftBorn ? [] : meta.kinds
+    default:
+      return [(event as unknown as Record<string, string | null>)[column] ?? null]
   }
+}
+
+function likeToRegExp(pattern: string): RegExp {
+  let source = ''
+  for (let i = 0; i < pattern.length; i += 1) {
+    const char = pattern[i]!
+    if (char === '\\') {
+      source += (pattern[i + 1] ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      i += 1
+    } else if (char === '%' || char === '*') source += '.*'
+    else if (char === '_') source += '.'
+    else source += char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  }
+  return new RegExp(`^${source}$`, 'i')
+}
+
+function passes(event: EventListItem, filter: QueryFilter): boolean {
+  if (filter.op === 'or') {
+    // `full_name.ilike."*x*",callsign.ilike."*x*"` on rf.rp: any responder's name or callsign
+    const patterns = [...filter.filters.matchAll(/(\w+)\.ilike\."((?:[^"\\]|\\.)*)"/g)].map((match) => ({
+      column: match[1]!,
+      pattern: likeToRegExp(match[2]!.replace(/\\(["\\])/g, '$1')),
+    }))
+    return event.responders.some((row) =>
+      patterns.some(({ column, pattern }) =>
+        pattern.test(String((row.profile as Record<string, unknown> | null)?.[column] ?? '')),
+      ),
+    )
+  }
+  const values = columnValues(event, filter.column)
+  switch (filter.op) {
+    case 'eq':
+      return values.some((value) => value === filter.value)
+    case 'neq':
+      return values.some((value) => value !== filter.value)
+    case 'gte':
+      return values.some((value) => value !== null && value >= filter.value)
+    case 'lte':
+      return values.some((value) => value !== null && value <= filter.value)
+    case 'ilike':
+      return values.some((value) => value !== null && likeToRegExp(filter.value).test(value))
+    case 'in':
+      return values.some((value) => value !== null && filter.value.includes(value))
+  }
+}
+
+function runPlans(
+  rules: readonly FilterRule[],
+  opts: { shiftLeadId: string | null; status: EventListItem['status'] | 'all'; hideShiftEvents: boolean; limit: number; ids?: string[] },
+) {
+  const lists = ruleQueryPlans(rules, opts).map((plan) =>
+    EVENTS.filter(
+      (event) => (!opts.ids || opts.ids.includes(event.id)) && plan.filters.every((filter) => passes(event, filter)),
+    )
+      .sort(newestFirst)
+      .slice(0, opts.limit)
+      .map((event) => ({ id: event.id, event_date: event.event_date, created_at: event.created_at ?? null })),
+  )
+  return mergeRuleHits(lists, opts.ids ? opts.ids.length : opts.limit)
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -174,16 +230,15 @@ const api: EventsPageApi = {
     await wait(350)
     if (state === 'loading') return never()
     if (state === 'error') throw new Error('dev: rules query failed')
-    const active = activeRules(rules)
-    const rows = EVENTS.filter(
-      (event) =>
-        (!opts.shiftLeadId || event.shift_lead_id === opts.shiftLeadId) &&
-        (opts.status === 'all' || event.status === opts.status) &&
-        (!opts.hideShiftEvents || event.origin !== 'shift') &&
-        (!opts.ids || opts.ids.includes(event.id)) &&
-        active.every((rule) => matches(event, rule)),
-    ).sort(newestFirst)
-    return { events: rows.slice(0, opts.limit), capped: rows.length > opts.limit }
+    const hits = runPlans(rules, opts)
+    const byId = new Map(EVENTS.map((event) => [event.id, event]))
+    return { events: hits.ids.map((id) => byId.get(id)!), capped: opts.ids ? false : hits.capped }
+  },
+  async fetchRuleMatchingIds(rules, ids) {
+    await wait(350)
+    if (state === 'loading') return never()
+    if (state === 'error' || state === 'rules_error') throw new Error('dev: rules query failed')
+    return runPlans(rules, { shiftLeadId: null, status: 'all', hideShiftEvents: false, limit: ids.length, ids }).ids
   },
   async fetchEventsByIds(ids) {
     return EVENTS.filter((event) => ids.includes(event.id)).sort(newestFirst)
@@ -217,7 +272,11 @@ const api: EventsPageApi = {
   async fetchFilterLookups() {
     await wait(300)
     return {
-      shiftLeads: LEADS.map((lead) => ({ id: lead.id, label: `${lead.full_name} · ${lead.callsign}` })),
+      // Production's lead list answers nobody for a plain responder.
+      shiftLeads:
+        roleKey === 'responder'
+          ? []
+          : LEADS.map((lead) => ({ id: lead.id, label: `${lead.full_name} · ${lead.callsign}` })),
       vehicleKinds: KINDS,
     }
   },
@@ -287,7 +346,7 @@ function DevBar() {
           {key}
         </a>
       ))}
-      {['ready', 'loading', 'error'].map((key) => (
+      {['ready', 'loading', 'error', 'rules_error'].map((key) => (
         <a key={key} href={link('state', key)} aria-current={key === state ? 'page' : undefined}>
           {key}
         </a>

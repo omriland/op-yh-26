@@ -3153,7 +3153,23 @@ html[data-keyboard-open] .event-form__footer {
   flex: 1 1 100%;
   color: var(--text-muted);
   font: 400 12px/16px var(--font-ui);
+  text-align: start;
   white-space: nowrap;
+}
+
+/* The rule query failed: one line under the row, the list stays as it was. */
+.efilters__error {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--status-alert);
+  font: 400 13px/18px var(--font-ui);
+}
+
+.efilters__retry {
+  color: var(--accent);
 }
 
 .fpop-anchor {
@@ -3698,7 +3714,6 @@ html[data-keyboard-open] .event-form__footer {
   }
 
   .efilters__row {
-    flex-wrap: nowrap;
     align-items: flex-start;
   }
 
@@ -3706,8 +3721,16 @@ html[data-keyboard-open] .event-form__footer {
     flex: 0 0 240px;
   }
 
+  /* Anchored to the first line of the row, however many lines the pills wrap to. */
   .efilters__count {
-    align-self: center;
+    display: flex;
+    align-self: flex-start;
+    align-items: center;
+    min-height: 36px;
+  }
+
+  .efilters__error {
+    order: 10;
   }
 
   .efilters__pills {

@@ -134,6 +134,7 @@ pair('field', 'stroke-strong over raised', STROKE_STRONG_FIELD, F.raised, UI)
 
 pair('field', 'status-done ink on raised', P.greenField, F.raised, TEXT)
 pair('field', 'status-alert ink on raised', P.redField, F.raised, TEXT)
+pair('field', 'status-alert ink on page (filter-row error line)', P.redField, F.page, TEXT)
 pair('field', 'stamp done: on-tint text', P.greenFieldOnTint, P.greenFieldTint, TEXT)
 pair('field', 'stamp done: ink border', P.greenField, P.greenFieldTint, UI)
 pair('field', 'stamp alert: on-tint text', P.redFieldOnTint, P.redFieldTint, TEXT)

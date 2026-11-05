@@ -52,36 +52,55 @@ async function runPlan(plan: RuleQueryPlan, limit: number, ids?: string[]): Prom
   }))
 }
 
+type RuleQueryOpts = {
+  shiftLeadId: string | null
+  status: EventStatus | 'all'
+  hideShiftEvents: boolean
+  limit: number
+  ids?: string[]
+}
+
+async function ruleHits(
+  rules: readonly FilterRule[],
+  opts: RuleQueryOpts,
+): Promise<{ ids: string[]; capped: boolean }> {
+  const plans = ruleQueryPlans(rules, opts)
+  if (opts.ids) {
+    if (opts.ids.length === 0) return { ids: [], capped: false }
+    const chunks: string[][] = []
+    for (let i = 0; i < opts.ids.length; i += ID_CHUNK) chunks.push(opts.ids.slice(i, i + ID_CHUNK))
+    const lists = await Promise.all(
+      plans.flatMap((plan) => chunks.map((chunk) => runPlan(plan, chunk.length, chunk))),
+    )
+    return { ids: mergeRuleHits(lists, opts.ids.length).ids, capped: false }
+  }
+  const lists = await Promise.all(plans.map((plan) => runPlan(plan, opts.limit)))
+  return mergeRuleHits(lists, opts.limit)
+}
+
 /**
  * Unit-list rows that match every rule, newest first, capped at `limit`. With
  * `ids` it only checks those events (search hits outside the loaded rows).
  */
 export async function fetchRuleFilteredEvents(
   rules: readonly FilterRule[],
-  opts: {
-    shiftLeadId: string | null
-    status: EventStatus | 'all'
-    hideShiftEvents: boolean
-    limit: number
-    ids?: string[]
-  },
+  opts: RuleQueryOpts,
 ): Promise<{ events: EventListItem[]; capped: boolean }> {
-  const plans = ruleQueryPlans(rules, opts)
-  let lists: RuleHit[][]
-  if (opts.ids) {
-    if (opts.ids.length === 0) return { events: [], capped: false }
-    const chunks: string[][] = []
-    for (let i = 0; i < opts.ids.length; i += ID_CHUNK) chunks.push(opts.ids.slice(i, i + ID_CHUNK))
-    lists = await Promise.all(
-      plans.flatMap((plan) => chunks.map((chunk) => runPlan(plan, chunk.length, chunk))),
-    )
-  } else {
-    lists = await Promise.all(plans.map((plan) => runPlan(plan, opts.limit)))
-  }
-  const limit = opts.ids ? opts.ids.length : opts.limit
-  const merged = mergeRuleHits(lists, limit)
-  const events = await fetchEventsByIds(merged.ids)
-  return { events, capped: opts.ids ? false : merged.capped }
+  const hits = await ruleHits(rules, opts)
+  const events = await fetchEventsByIds(hits.ids)
+  return { events, capped: hits.capped }
+}
+
+/** Which of these already-loaded events match: ids only, no rows (האירועים שלי). */
+export async function fetchRuleMatchingIds(rules: readonly FilterRule[], ids: string[]): Promise<string[]> {
+  const hits = await ruleHits(rules, {
+    shiftLeadId: null,
+    status: 'all',
+    hideShiftEvents: false,
+    limit: ids.length,
+    ids,
+  })
+  return hits.ids
 }
 
 export type FilterLookups = {
@@ -91,8 +110,10 @@ export type FilterLookups = {
 
 /** Options for אחמ״ש and סוג רכב. Archived kinds stay: old events still use them. */
 export async function fetchFilterLookups(): Promise<FilterLookups> {
+  // The lead list answers only for leads and admins; a responder gets nothing or an
+  // error, and האירועים שלי then offers the leads on their own events instead.
   const [leads, kinds] = await Promise.all([
-    fetchShiftLeadUsers(),
+    fetchShiftLeadUsers().catch(() => []),
     supabase
       .from('vehicle_kinds')
       .select('id, name')

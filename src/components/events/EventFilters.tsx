@@ -100,9 +100,14 @@ type EventFiltersProps = {
   /** Desktop table: the filter row is the list card's top band, as on the reference. */
   asCard?: boolean
   children?: ReactNode
+  /** אחמ״ש choices to use when the lead list answers with nobody (a responder on האירועים שלי). */
+  leadFallback?: { id: string; label: string }[]
+  /** The rule query failed: the list stays, and the row offers a retry. */
+  rulesError?: { onRetry: () => void } | null
 }
 
 const UNSAVED_ID = 'unsaved'
+const EMPTY_OPTIONS: { id: string; label: string }[] = []
 const TEXT_DEBOUNCE_MS = 300
 
 const FIELD_ICONS: Record<FilterField, ReactNode> = {
@@ -158,12 +163,21 @@ export function EventFilters({
   resultCount = null,
   asCard = false,
   children,
+  leadFallback = EMPTY_OPTIONS,
+  rulesError = null,
 }: EventFiltersProps) {
   const { show } = useToast()
   const [openId, setOpenId] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<FilterRule[]>(() => view.rules)
   const [presets, setPresets] = useState<EventFilterPreset[]>([])
-  const [lookups, setLookups] = useState<FilterLookups | null>(null)
+  const [rawLookups, setLookups] = useState<FilterLookups | null>(null)
+  const lookups = useMemo(
+    () =>
+      rawLookups && rawLookups.shiftLeads.length === 0 && leadFallback.length > 0
+        ? { ...rawLookups, shiftLeads: leadFallback }
+        : rawLookups,
+    [leadFallback, rawLookups],
+  )
   const [lookupsFailed, setLookupsFailed] = useState(false)
   const [lookupsRequested, setLookupsRequested] = useState(false)
   const [saveOpen, setSaveOpen] = useState(false)
@@ -596,7 +610,7 @@ export function EventFilters({
             </button>
           }
         >
-          {EVENT_FILTERS.map((row) => (
+          {EVENT_FILTERS.filter((row) => scope !== 'mine' || row.value !== 'draft').map((row) => (
             <MenuItem
               key={row.value}
               role="menuitemradio"
@@ -727,6 +741,15 @@ export function EventFilters({
         ) : null}
       </div>
 
+      {rulesError ? (
+        <p className="efilters__error" role="alert">
+          <span>סינון האירועים נכשל. מוצגים האירועים בלי התנאים.</span>
+          <button type="button" className="ftext efilters__retry" onClick={rulesError.onRetry}>
+            טעינה מחדש
+          </button>
+        </p>
+      ) : null}
+
       {countLabel ? (
         <p className="efilters__count" aria-live="polite">
           {countLabel}
@@ -777,7 +800,11 @@ export function EventFilters({
             inputRef={saveNameRef}
             maxLength={PRESET_NAME_MAX}
             placeholder="למשל: משאיות בכביש 6"
-            hint="נשמרים התקופה, הסטטוס, הסינונים והבחירות שבשורה. לא נשמר טקסט החיפוש."
+            hint={
+              scope === 'mine'
+                ? 'נשמרים התקופה, הסטטוס והסינונים. לא נשמר טקסט החיפוש.'
+                : 'נשמרים התקופה, הסטטוס, הסינונים והבחירות שבשורה. לא נשמר טקסט החיפוש.'
+            }
             value={saveName}
             error={saveError ?? undefined}
             onChange={(event) => {
@@ -1290,7 +1317,15 @@ function RulePanel({
                 }
               />
             ))}
-            {shown.length === 0 ? <p className="fpop__note">אין תוצאות.</p> : null}
+            {shown.length === 0 ? (
+              <p className="fpop__note">
+                {all.length > 0
+                  ? 'אין תוצאות.'
+                  : rule.field === 'shift_lead'
+                    ? 'אין אחמ״שים באירועים שלך.'
+                    : 'אין סוגי רכב להצגה.'}
+              </p>
+            ) : null}
           </div>
         </>
       )

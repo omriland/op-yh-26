@@ -10,6 +10,7 @@
 import { partitionUnitEventsByWindow, type EventListItem } from './events'
 import { digitsOnly, formatDate } from './format'
 import { mineEventMatchesQuery } from './mineInbox'
+import { mapSecondaryLeadRows } from './eventShiftLeads'
 import { partitionMineList, type MineListBucket, type MineListSections } from './mineListSections'
 import { keepShiftLeadRecentEvent, shouldApplyShiftLeadRecentWindow } from './shiftLeadEventsWindow'
 import type { EventStatus } from './status'
@@ -655,6 +656,9 @@ export function mineFilteredSections<T extends EventListItem>(
     today: opts.today,
     windowsLoaded: opts.ruleIds === null ? opts.windowsLoaded : MINE_ALL_WINDOWS,
   })
+  // An empty search is no filter: an event with no number, road or location (a new
+  // shift-born one) must still show.
+  if (opts.query.trim() === '') return sections
   const matches = (event: T) => mineEventMatchesQuery(event, opts.query)
   return {
     pending: sections.pending.filter(matches),
@@ -662,4 +666,25 @@ export function mineFilteredSections<T extends EventListItem>(
     logged: sections.logged.filter(matches),
     hasMoreLogged: sections.hasMoreLogged,
   }
+}
+
+/**
+ * אחמ״ש choices taken from the events on screen (main and secondary leads), for a
+ * viewer the lead list does not answer for (a plain responder on האירועים שלי).
+ */
+export function leadOptionsFromEvents(
+  events: readonly EventListItem[],
+): { id: string; label: string }[] {
+  const byId = new Map<string, string>()
+  const add = (id: string | null | undefined, person: { full_name?: string | null; callsign?: string | null } | null | undefined) => {
+    if (!id || byId.has(id) || !person?.full_name) return
+    byId.set(id, person.callsign ? `${person.full_name} · ${person.callsign}` : person.full_name)
+  }
+  for (const event of events) {
+    add(event.shift_lead_id, event.shift_lead)
+    for (const lead of mapSecondaryLeadRows(event.secondary_leads)) add(lead.user_id, lead)
+  }
+  return [...byId.entries()]
+    .map(([id, label]) => ({ id, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'he'))
 }
