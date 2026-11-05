@@ -19,3 +19,15 @@ export function shouldDismissDialogBackdrop(input: {
   if (input.millisSinceWindowFocus < grace) return false
   return true
 }
+
+/**
+ * Escape inside an open SelectField menu (a listbox in a form dialog) closes
+ * that menu, not the dialog. The dialog listens in capture phase, so it checks.
+ */
+export function escapeBelongsToPopup(target: EventTarget | null): boolean {
+  const element = target as { closest?: (selector: string) => unknown } | null
+  if (!element || typeof element.closest !== 'function') return false
+  return Boolean(
+    element.closest('[role="listbox"], .select-field__menu, [aria-expanded="true"]'),
+  )
+}

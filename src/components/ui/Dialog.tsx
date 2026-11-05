@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, type MouseEvent, type PointerEvent, type Reac
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { sheetAboveKeyboard, shouldScrollFocusedField } from '../../lib/appViewport'
-import { shouldDismissDialogBackdrop } from '../../lib/dialogDismiss'
+import { escapeBelongsToPopup, shouldDismissDialogBackdrop } from '../../lib/dialogDismiss'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 
 type DialogProps = {
@@ -111,6 +111,7 @@ export function Dialog({
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
+        if (escapeBelongsToPopup(event.target)) return
         event.stopPropagation()
         onCloseRef.current()
         return
