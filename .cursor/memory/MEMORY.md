@@ -2,6 +2,12 @@
 
 Last updated: 2026-10-27 (launch UI and 7-day invites live on yahpz.com)
 
+## Events advanced filters + saved views (2026-11-05, branch only)
+
+- Branch `feat/events-advanced-filters` (not pushed, not deployed). Unit אירועים gets a `תצוגה` select + `סינון` dialog: rules on אחמ״ש, כונן (name/callsign), מספר אירוע, תאריך (day or range), מספר רכב שטופל, סוג רכב שטופל; AND across rules. Model in `src/lib/eventFilters.ts`, queries in `eventFiltersApi.ts` (PostgREST `!inner` id queries, two per treated-vehicle rule: event-keyed for shift-born, responder-keyed otherwise; then hydrate ≤200).
+- `ברירת מחדל` = today's list exactly; with no rules the old code path runs. Spec: `design-system-design-instructions/screens/event-list.md`.
+- Presets: table `event_filter_presets` in migration `20261105120000_event_filter_presets.sql` **not applied**; until it is, presets fall back to localStorage (`yahpaz:eventFilterPresets:<userId>`). Dev harness: `/events-page-dev.html`.
+
 ## Prod clean slate (2026-10-27)
 
 - Production `rtvizpsfvtjowbimugns` operational data was erased for launch. Events, responders, shifts, fuel quarters, feedback, broadcasts, audit, OTP/device/iOS rows, partner tokens, and storage objects in `event-media` and `user-feedback` are **0**.

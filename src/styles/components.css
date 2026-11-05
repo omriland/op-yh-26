@@ -3184,6 +3184,192 @@ html[data-keyboard-open] .event-form__footer {
   }
 }
 
+/* Filter row under the unit toolbar: תצוגה picker + סינון, then the active rules
+   as removable chips. Same chip ink as a pressed chip: a rule is a filter that is on. */
+.events-toolbar:has(+ .events-filterbar) {
+  margin-block-end: var(--space-3);
+}
+
+.events-filterbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block-end: var(--space-6);
+}
+
+.events-filterbar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.events-filterbar__view {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 14em;
+  min-width: 0;
+}
+
+.events-filterbar__view .select-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.events-filterbar__open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  height: auto;
+  padding-inline: var(--space-4);
+}
+
+.events-filterbar__action {
+  min-width: 0;
+  padding-inline: var(--space-3);
+}
+
+.events-filterbar__rules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.events-filterbar__rule {
+  display: inline-flex;
+  align-items: stretch;
+  max-inline-size: 100%;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.events-filterbar__rule-edit,
+.events-filterbar__rule-remove {
+  min-height: 44px;
+  border: 0;
+  color: inherit;
+}
+
+.events-filterbar__rule-edit {
+  min-width: 0;
+  padding-inline: var(--space-3) var(--space-1);
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+  text-align: start;
+}
+
+.events-filterbar__rule-text {
+  display: block;
+  max-inline-size: 44ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.events-filterbar__rule-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  flex: none;
+}
+
+.events-filterbar__rule-edit:active,
+.events-filterbar__rule-remove:active {
+  transform: translateY(1px);
+}
+
+@media (hover: hover) {
+  .events-filterbar__rule-edit:hover .events-filterbar__rule-text {
+    text-decoration: underline;
+  }
+
+  .events-filterbar__rule-remove:hover {
+    color: var(--accent-hover);
+  }
+}
+
+@media (min-width: 1025px) {
+  .events-filterbar__view {
+    flex: 0 1 20em;
+  }
+
+  .events-filterbar__open,
+  .events-filterbar__rule-edit,
+  .events-filterbar__rule-remove {
+    min-height: 40px;
+  }
+
+  .events-filterbar__rule-remove {
+    inline-size: 40px;
+  }
+}
+
+/* סינון אירועים dialog: one ruled block per rule, like a form section. */
+.event-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.event-filters__rules {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-filters__rule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block: var(--space-4);
+  border-block-end: 1px solid var(--stroke-hairline);
+}
+
+.event-filters__rule:first-child {
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.event-filters__rule-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.event-filters__pair {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.event-filters__lookup-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+@media (min-width: 641px) {
+  .event-filters__pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .event-filters__pair-error {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Document header for the responder's own record list: title, then a ledger line.
    Not a greeting and not a counter tile — 01-identity.md ("not a dashboard"). */
 .mine-head {

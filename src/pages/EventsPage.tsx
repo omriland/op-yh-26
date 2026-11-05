@@ -22,7 +22,6 @@ import {
   ownFillCompletableAt,
   ownParticipation,
   ownResponderKm,
-  partitionUnitEventsByWindow,
   searchUnitEventIds,
   unitEventsListHint,
   type EventListItem,
@@ -86,7 +85,6 @@ import {
   readShowOthersCreatedEvents,
   readShowShiftEvents,
   shouldFilterUnitEventsToOwnCreated,
-  unitEventsCreatedByFilter,
   writeShowOthersCreatedEvents,
   writeShowShiftEvents,
 } from '../lib/unitEventsScope'
@@ -94,7 +92,6 @@ import {
   SHIFT_LEAD_EVENTS_RECENT_EMPTY_TITLE,
   SHIFT_LEAD_EVENTS_RECENT_HINT,
   SHOW_OLDER_UNIT_EVENTS_LABEL,
-  keepShiftLeadRecentEvent,
   readShowOlderUnitEvents,
   shouldApplyShiftLeadRecentWindow,
   writeShowOlderUnitEvents,
@@ -114,6 +111,47 @@ import {
   shouldShowMissingKmAlert,
 } from '../lib/missingKmAlert'
 import { fetchEventIdsWithMedia } from '../lib/eventMedia'
+import {
+  readSessionRules,
+  unitListPlan,
+  unitListWindow,
+  writeSessionRules,
+  type EventListView,
+  type FilterRule,
+} from '../lib/eventFilters'
+import { fetchFilterLookups, fetchRuleFilteredEvents } from '../lib/eventFiltersApi'
+import { deletePreset, listPresets, savePreset } from '../lib/eventFilterPresets'
+import { EventFilterBar, type EventFilterBarApi } from '../components/events/EventFilterBar'
+
+/** Data boundary, so the dev harness can render the real page on fixtures. */
+export type EventsPageApi = EventFilterBarApi & {
+  fetchEvents: typeof fetchEvents
+  fetchMyEvents: typeof fetchMyEvents
+  fetchEventsByIds: typeof fetchEventsByIds
+  fetchRuleFilteredEvents: typeof fetchRuleFilteredEvents
+  searchUnitEventIds: typeof searchUnitEventIds
+  deleteEvent: typeof deleteEvent
+  fetchEventsMissingLeadKmCount: typeof fetchEventsMissingLeadKmCount
+  fetchEventIdsWithMedia: typeof fetchEventIdsWithMedia
+}
+
+const EVENTS_PAGE_API: EventsPageApi = {
+  fetchEvents,
+  fetchMyEvents,
+  fetchEventsByIds,
+  fetchRuleFilteredEvents,
+  searchUnitEventIds,
+  deleteEvent,
+  fetchEventsMissingLeadKmCount,
+  fetchEventIdsWithMedia,
+  fetchFilterLookups,
+  listPresets,
+  savePreset,
+  deletePreset,
+}
+
+const RULES_HINT = 'מציג אירועים לפי תנאי הסינון, מכל התאריכים.'
+const RULES_CAPPED_HINT = `מוצגים ${UNIT_EVENTS_LIST_LIMIT} האירועים האחרונים שתואמים לסינון. הוסיפו תנאי כדי להגיע לישנים יותר.`
 
 type EventsPageProps = {
   scope: 'unit' | 'mine'
@@ -123,6 +161,7 @@ type EventsPageProps = {
   onOpen: (eventId: string) => void
   onCreate?: () => void
   onFill?: (eventId: string) => void
+  api?: EventsPageApi
 }
 
 export function EventsPage({
@@ -132,6 +171,7 @@ export function EventsPage({
   onOpen,
   onCreate,
   onFill,
+  api = EVENTS_PAGE_API,
 }: EventsPageProps) {
   const { user, roles } = useAuth()
   const { show } = useToast()
@@ -143,13 +183,46 @@ export function EventsPage({
   const showOthersControl = shouldFilterUnitEventsToOwnCreated(roles)
   const [showShiftEvents, setShowShiftEvents] = useState(readShowShiftEvents)
   const [showOlderEvents, setShowOlderEvents] = useState(readShowOlderUnitEvents)
-  const recentList =
-    scope === 'unit' && shouldApplyShiftLeadRecentWindow(roles) && !showOlderEvents
-  const createdById = unitEventsCreatedByFilter({
-    roles,
-    showOthersCreated,
-    userId: user?.id,
-  })
+  const [rules, setRules] = useState<FilterRule[]>(readSessionRules)
+  const [rulesCapped, setRulesCapped] = useState(false)
+  const view: EventListView = {
+    status: filter,
+    showShiftEvents,
+    showOlder: showOlderEvents,
+    showOthers: showOthersCreated,
+    rules,
+  }
+  const plan = unitListPlan({ roles, userId: user?.id, view })
+  const rulesMode = scope === 'unit' && plan.rulesMode
+  const recentList = scope === 'unit' && plan.recentWindow
+  const createdById = plan.createdById
+  // Rules query the database, so status and the shift chip refetch only then.
+  const rulesKey = rulesMode
+    ? JSON.stringify({ rules, status: filter, hideShiftEvents: !showShiftEvents })
+    : ''
+  const rulesQuery = useMemo(
+    () =>
+      rulesKey
+        ? (JSON.parse(rulesKey) as {
+            rules: FilterRule[]
+            status: EventStatus | 'all'
+            hideShiftEvents: boolean
+          })
+        : null,
+    [rulesKey],
+  )
+
+  function applyView(next: EventListView) {
+    setFilter(next.status)
+    setShowShiftEvents(next.showShiftEvents)
+    writeShowShiftEvents(next.showShiftEvents)
+    setShowOlderEvents(next.showOlder)
+    writeShowOlderUnitEvents(next.showOlder)
+    setShowOthersCreated(next.showOthers)
+    writeShowOthersCreatedEvents(next.showOthers)
+    setRules(next.rules)
+    writeSessionRules(next.rules)
+  }
   const [searchIds, setSearchIds] = useState<ReadonlySet<string> | null>(null)
   const [searchExtras, setSearchExtras] = useState<EventListItem[]>([])
   const [reloadKey, setReloadKey] = useState(0)
@@ -180,13 +253,13 @@ export function EventsPage({
       return
     }
     let active = true
-    fetchEventsMissingLeadKmCount().then((count) => {
+    api.fetchEventsMissingLeadKmCount().then((count) => {
       if (active) setMissingKmCount(count)
     })
     return () => {
       active = false
     }
-  }, [scope, roles, reloadKey, events])
+  }, [api, scope, roles, reloadKey, events])
 
   useEffect(() => {
     if (scope !== 'unit') {
@@ -199,13 +272,13 @@ export function EventsPage({
       return
     }
     let active = true
-    void fetchEventIdsWithMedia(ids).then((withMedia) => {
+    void api.fetchEventIdsWithMedia(ids).then((withMedia) => {
       if (active) setImageEventIds(withMedia)
     })
     return () => {
       active = false
     }
-  }, [scope, events, searchExtras])
+  }, [api, scope, events, searchExtras])
 
   function openDeleteMenu(event: EventListItem, pointer: { x: number; y: number }) {
     setDeleteMenu({ event, ...pointer })
@@ -214,7 +287,7 @@ export function EventsPage({
   async function confirmDeleteEvent() {
     if (!confirmDelete) return
     setDeleting(true)
-    const result = await deleteEvent(confirmDelete.id)
+    const result = await api.deleteEvent(confirmDelete.id)
     setDeleting(false)
     if (!result.ok) {
       show(result.error, 'alert')
@@ -232,12 +305,23 @@ export function EventsPage({
 
     const load =
       scope === 'mine' && user
-        ? fetchMyEvents(user.id)
-        : // The card list is the phone's path. It gets the same 200-row cap as
-          // the desktop table — an uncapped select pulls every event with its
-          // nested responders over the worst connection in the product, and
-          // search already queries the full database for older records.
-          fetchEvents({ limit: UNIT_EVENTS_LIST_LIMIT, shiftLeadId: createdById })
+        ? api.fetchMyEvents(user.id)
+        : rulesQuery
+          ? api
+              .fetchRuleFilteredEvents(rulesQuery.rules, {
+                ...rulesQuery,
+                shiftLeadId: createdById,
+                limit: UNIT_EVENTS_LIST_LIMIT,
+              })
+              .then((result) => {
+                if (active) setRulesCapped(result.capped)
+                return result.events
+              })
+          : // The card list is the phone's path. It gets the same 200-row cap as
+            // the desktop table — an uncapped select pulls every event with its
+            // nested responders over the worst connection in the product, and
+            // search already queries the full database for older records.
+            api.fetchEvents({ limit: UNIT_EVENTS_LIST_LIMIT, shiftLeadId: createdById })
     load
       .then((rows) => {
         if (active) setEvents(rows)
@@ -249,7 +333,7 @@ export function EventsPage({
     return () => {
       active = false
     }
-  }, [createdById, scope, user, reloadKey])
+  }, [api, createdById, scope, user, reloadKey, rulesQuery])
 
   useEffect(() => {
     setLoggedWindows(1)
@@ -282,7 +366,8 @@ export function EventsPage({
 
     let cancelled = false
     const handle = window.setTimeout(() => {
-      searchUnitEventIds(trimmed, { shiftLeadId: createdById })
+      api
+        .searchUnitEventIds(trimmed, { shiftLeadId: createdById })
         .then(async (ids) => {
           const missing = missingSearchEventIds(
             events.map((event) => event.id),
@@ -291,7 +376,17 @@ export function EventsPage({
           let extras: EventListItem[] = []
           if (missing.length > 0) {
             try {
-              extras = await fetchEventsByIds(missing, { shiftLeadId: createdById })
+              // Under rules, a hit outside the loaded rows must still pass them.
+              extras = rulesQuery
+                ? (
+                    await api.fetchRuleFilteredEvents(rulesQuery.rules, {
+                      ...rulesQuery,
+                      shiftLeadId: createdById,
+                      limit: missing.length,
+                      ids: missing,
+                    })
+                  ).events
+                : await api.fetchEventsByIds(missing, { shiftLeadId: createdById })
             } catch {
               if (!cancelled) {
                 show('טעינת אירועים ישנים יותר נכשלה. מוצגות תוצאות מהרשימה הנוכחית.', 'alert')
@@ -317,7 +412,7 @@ export function EventsPage({
       cancelled = true
       window.clearTimeout(handle)
     }
-  }, [createdById, events, query, scope, show])
+  }, [api, createdById, events, query, rulesQuery, scope, show])
 
   const stampFor = useMemo(
     () => (event: EventListItem) => {
@@ -375,23 +470,16 @@ export function EventsPage({
   const unitWindow = useMemo(() => {
     if (scope !== 'unit' || !events) return null
     const source = searchIds === null ? events : mergeEventLists(events, searchExtras)
-    if (searchIds !== null) {
-      return { inWindow: source, hasMore: false }
-    }
-    if (recentList) {
-      const now = new Date()
-      return {
-        inWindow: source.filter((event) => keepShiftLeadRecentEvent(event, user?.id, now)),
-        hasMore: false,
-      }
-    }
-    const partitioned = partitionUnitEventsByWindow(source, {
-      dateOf: (event) => event.event_date,
+    return unitListWindow(source, {
+      searching: searchIds !== null,
+      rulesMode,
+      recentWindow: recentList,
+      viewerId: user?.id,
+      now: new Date(),
       today: jerusalemToday(),
       windowsLoaded: unitWindows,
     })
-    return { inWindow: partitioned.visible, hasMore: partitioned.hasMore }
-  }, [events, recentList, scope, searchExtras, searchIds, unitWindows, user?.id])
+  }, [events, recentList, rulesMode, scope, searchExtras, searchIds, unitWindows, user?.id])
 
   const visible = useMemo(() => {
     if (!events) return []
@@ -479,7 +567,13 @@ export function EventsPage({
           <div className="page-head__intro">
             <h1 className="t-title">אירועים</h1>
             <p className="t-caption text-muted">
-              {recentList ? SHIFT_LEAD_EVENTS_RECENT_HINT : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}
+              {rulesMode
+                ? rulesCapped
+                  ? RULES_CAPPED_HINT
+                  : RULES_HINT
+                : recentList
+                  ? SHIFT_LEAD_EVENTS_RECENT_HINT
+                  : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}
             </p>
           </div>
           {canCreate && onCreate ? (
@@ -607,6 +701,20 @@ export function EventsPage({
         />
       )}
 
+      {scope === 'unit' ? (
+        <EventFilterBar
+          view={view}
+          onViewChange={applyView}
+          userId={user?.id}
+          defaultCaption={
+            shouldApplyShiftLeadRecentWindow(roles)
+              ? SHIFT_LEAD_EVENTS_RECENT_HINT
+              : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)
+          }
+          api={api}
+        />
+      ) : null}
+
       {failed ? (
         <EmptyState
           icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
@@ -666,6 +774,7 @@ export function EventsPage({
       ) : visible.length === 0 ? (
         <ListEmptyState
           filtered={filter !== 'all' || query.trim() !== ''}
+          rulesFiltered={rulesMode}
           recentHoursEmpty={
             scope === 'unit' &&
             recentList &&
@@ -684,6 +793,10 @@ export function EventsPage({
           onClear={() => {
             setFilter('all')
             setQuery('')
+            if (rules.length > 0) {
+              setRules([])
+              writeSessionRules([])
+            }
           }}
           onShowOlder={() => {
             setShowOlderEvents(true)
@@ -783,6 +896,7 @@ function SearchLoadingState() {
 
 function ListEmptyState({
   filtered,
+  rulesFiltered = false,
   recentHoursEmpty = false,
   recentWindowEmpty = false,
   canCreate,
@@ -792,6 +906,7 @@ function ListEmptyState({
   onLoadMore,
 }: {
   filtered: boolean
+  rulesFiltered?: boolean
   recentHoursEmpty?: boolean
   recentWindowEmpty?: boolean
   canCreate: boolean
@@ -827,6 +942,21 @@ function ListEmptyState({
               {UNIT_EVENTS_LOAD_MORE_LABEL}
             </Button>
           ) : undefined
+        }
+      />
+    )
+  }
+
+  if (rulesFiltered) {
+    return (
+      <EmptyState
+        icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+        title="אין אירועים שתואמים לסינון"
+        caption="הסירו תנאי או בחרו תצוגה אחרת."
+        action={
+          <Button variant="ghost" onClick={onClear}>
+            ניקוי סינון
+          </Button>
         }
       />
     )
