@@ -402,6 +402,7 @@ export type QueryFilter =
 
 export type RuleQueryPlan = { select: string; filters: QueryFilter[] }
 
+const LEAD_SECONDARY = 'sl:event_secondary_leads!inner(user_id)'
 const PLATE_BY_EVENT = 'pe:event_treated_plates!event_treated_plates_event_id_fkey!inner(plate_digits)'
 const KIND_BY_EVENT = 'ke:event_treated_vehicles!event_treated_vehicles_event_id_fkey!inner(vehicle_kind_id)'
 const PLATE_BY_RESPONDER =
@@ -409,9 +410,12 @@ const PLATE_BY_RESPONDER =
 const KIND_BY_RESPONDER = 'kr:event_responders!inner(tv:event_treated_vehicles!inner(vehicle_kind_id))'
 
 /**
- * PostgREST id queries for a set of rules. Treated plates and vehicle kinds sit
- * on the event for shift-born events and on each responder row otherwise, so a
- * rule on them runs as two queries (one per home) and the page merges the ids.
+ * PostgREST id queries for a set of rules; the page unions their hits. Two rules need
+ * more than one query, and they multiply:
+ * - אחמ״ש matches the main lead (events.shift_lead_id) or a secondary lead
+ *   (event_secondary_leads), one query each.
+ * - Treated plates and vehicle kinds sit on the event for shift-born events and on each
+ *   responder row otherwise, one query per home.
  */
 export function ruleQueryPlans(
   rules: readonly FilterRule[],
@@ -424,12 +428,13 @@ export function ruleQueryPlans(
   if (base.status !== 'all') filters.push({ op: 'eq', column: 'status', value: base.status })
   if (base.hideShiftEvents) filters.push({ op: 'neq', column: 'origin', value: 'shift' })
 
+  let leads: string[] | null = null
   let plate: string | null = null
   let kinds: string[] | null = null
   for (const rule of active) {
     switch (rule.field) {
       case 'shift_lead':
-        filters.push({ op: 'in', column: 'shift_lead_id', value: rule.value })
+        leads = rule.value
         break
       case 'responder':
         embeds.push('rf:event_responders!inner(rp:profiles!inner(full_name,callsign))')
@@ -463,28 +468,47 @@ export function ruleQueryPlans(
     }
   }
 
-  const head = ['id', 'event_date', 'created_at', ...embeds]
-  if (plate === null && kinds === null) return [{ select: head.join(','), filters }]
+  type Branch = { embeds: string[]; filters: QueryFilter[] }
+  let branches: Branch[] = [{ embeds: [], filters: [] }]
+  const fork = (options: Branch[]) => {
+    branches = branches.flatMap((branch) =>
+      options.map((option) => ({
+        embeds: [...branch.embeds, ...option.embeds],
+        filters: [...branch.filters, ...option.filters],
+      })),
+    )
+  }
 
-  const byEvent: RuleQueryPlan = { select: '', filters: [...filters] }
-  const byResponder: RuleQueryPlan = { select: '', filters: [...filters] }
-  const eventEmbeds: string[] = []
-  const responderEmbeds: string[] = []
-  if (plate !== null) {
-    eventEmbeds.push(PLATE_BY_EVENT)
-    responderEmbeds.push(PLATE_BY_RESPONDER)
-    byEvent.filters.push({ op: 'ilike', column: 'pe.plate_digits', value: `%${plate}%` })
-    byResponder.filters.push({ op: 'ilike', column: 'pr.tp.plate_digits', value: `%${plate}%` })
+  if (leads !== null) {
+    fork([
+      { embeds: [], filters: [{ op: 'in', column: 'shift_lead_id', value: leads }] },
+      { embeds: [LEAD_SECONDARY], filters: [{ op: 'in', column: 'sl.user_id', value: leads }] },
+    ])
   }
-  if (kinds !== null) {
-    eventEmbeds.push(KIND_BY_EVENT)
-    responderEmbeds.push(KIND_BY_RESPONDER)
-    byEvent.filters.push({ op: 'in', column: 'ke.vehicle_kind_id', value: kinds })
-    byResponder.filters.push({ op: 'in', column: 'kr.tv.vehicle_kind_id', value: kinds })
+
+  if (plate !== null || kinds !== null) {
+    const byEvent: Branch = { embeds: [], filters: [] }
+    const byResponder: Branch = { embeds: [], filters: [] }
+    if (plate !== null) {
+      byEvent.embeds.push(PLATE_BY_EVENT)
+      byResponder.embeds.push(PLATE_BY_RESPONDER)
+      byEvent.filters.push({ op: 'ilike', column: 'pe.plate_digits', value: `%${plate}%` })
+      byResponder.filters.push({ op: 'ilike', column: 'pr.tp.plate_digits', value: `%${plate}%` })
+    }
+    if (kinds !== null) {
+      byEvent.embeds.push(KIND_BY_EVENT)
+      byResponder.embeds.push(KIND_BY_RESPONDER)
+      byEvent.filters.push({ op: 'in', column: 'ke.vehicle_kind_id', value: kinds })
+      byResponder.filters.push({ op: 'in', column: 'kr.tv.vehicle_kind_id', value: kinds })
+    }
+    fork([byEvent, byResponder])
   }
-  byEvent.select = [...head, ...eventEmbeds].join(',')
-  byResponder.select = [...head, ...responderEmbeds].join(',')
-  return [byEvent, byResponder]
+
+  const head = ['id', 'event_date', 'created_at', ...embeds]
+  return branches.map((branch) => ({
+    select: [...head, ...branch.embeds].join(','),
+    filters: [...filters, ...branch.filters],
+  }))
 }
 
 export type RuleHit = { id: string; event_date: string; created_at: string | null }

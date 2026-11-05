@@ -326,7 +326,6 @@ describe('ruleQueryPlans', () => {
   it('combines event-level rules with AND in a single id query', () => {
     const plans = ruleQueryPlans(
       [
-        { field: 'shift_lead', op: 'any_of', value: ['dan', 'ron'] },
         { field: 'event_id', op: 'contains', value: '482' },
         { field: 'event_date', op: 'between', value: { from: '2026-11-01', to: '2026-11-05' } },
       ],
@@ -339,13 +338,60 @@ describe('ruleQueryPlans', () => {
           { op: 'eq', column: 'shift_lead_id', value: 'lead' },
           { op: 'eq', column: 'status', value: 'partial' },
           { op: 'neq', column: 'origin', value: 'shift' },
-          { op: 'in', column: 'shift_lead_id', value: ['dan', 'ron'] },
           { op: 'ilike', column: 'police_event_id', value: '%482%' },
           { op: 'gte', column: 'event_date', value: '2026-11-01' },
           { op: 'lte', column: 'event_date', value: '2026-11-05' },
         ],
       },
     ])
+  })
+
+  it('an אחמ״ש rule matches the main lead or a secondary lead: two queries, same other rules', () => {
+    const plans = ruleQueryPlans(
+      [
+        { field: 'shift_lead', op: 'any_of', value: ['dan', 'ron'] },
+        { field: 'event_id', op: 'contains', value: '482' },
+      ],
+      { shiftLeadId: null, status: 'all', hideShiftEvents: true },
+    )
+    const shared = [
+      { op: 'neq', column: 'origin', value: 'shift' },
+      { op: 'ilike', column: 'police_event_id', value: '%482%' },
+    ]
+    expect(plans).toEqual([
+      {
+        select: 'id,event_date,created_at',
+        filters: [...shared, { op: 'in', column: 'shift_lead_id', value: ['dan', 'ron'] }],
+      },
+      {
+        select: 'id,event_date,created_at,sl:event_secondary_leads!inner(user_id)',
+        filters: [...shared, { op: 'in', column: 'sl.user_id', value: ['dan', 'ron'] }],
+      },
+    ])
+  })
+
+  it('אחמ״ש with a treated-vehicle rule covers every pairing of lead and vehicle home', () => {
+    const plans = ruleQueryPlans(
+      [
+        { field: 'shift_lead', op: 'any_of', value: ['dan'] },
+        { field: 'treated_plate', op: 'contains', value: '123' },
+      ],
+      base,
+    )
+    expect(plans).toHaveLength(4)
+    const columns = plans.map((plan) => plan.filters.map((filter) => ('column' in filter ? filter.column : '')))
+    expect(columns).toEqual([
+      ['shift_lead_id', 'pe.plate_digits'],
+      ['shift_lead_id', 'pr.tp.plate_digits'],
+      ['sl.user_id', 'pe.plate_digits'],
+      ['sl.user_id', 'pr.tp.plate_digits'],
+    ])
+    expect(plans.filter((plan) => plan.select.includes('sl:event_secondary_leads!inner(user_id)'))).toHaveLength(2)
+  })
+
+  it('an event led by both a main and a secondary match counts once', () => {
+    const hit = { id: 'e1', event_date: '2026-11-01', created_at: null }
+    expect(mergeRuleHits([[hit], [hit]], 200)).toEqual({ ids: ['e1'], capped: false })
   })
 
   it('a single date is an exact match on event_date', () => {

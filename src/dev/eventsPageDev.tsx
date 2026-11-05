@@ -81,6 +81,20 @@ function fixture(i: number): EventListItem {
     event_type: { name: TYPES[i % TYPES.length]! },
     road: { name: ROADS[i % ROADS.length]! },
     shift_lead: { full_name: lead.full_name, callsign: lead.callsign },
+    secondary_leads:
+      i % 5 === 2
+        ? [
+            {
+              user_id: LEADS[(i + 1) % LEADS.length]!.id,
+              locked: false,
+              added_at: created.toISOString(),
+              profile: {
+                full_name: LEADS[(i + 1) % LEADS.length]!.full_name,
+                callsign: LEADS[(i + 1) % LEADS.length]!.callsign,
+              },
+            },
+          ]
+        : [],
     last_saved: null,
     shift: shiftBorn
       ? {
@@ -115,7 +129,10 @@ function matches(event: EventListItem, rule: FilterRule): boolean {
   const meta = META.get(event.id)!
   switch (rule.field) {
     case 'shift_lead':
-      return rule.value.includes(event.shift_lead_id ?? '')
+      return (
+        rule.value.includes(event.shift_lead_id ?? '') ||
+        ((event.secondary_leads ?? []) as { user_id: string }[]).some((row) => rule.value.includes(row.user_id))
+      )
     case 'responder':
       return event.responders.some((row) =>
         [row.profile?.full_name, row.profile?.callsign].some((text) => text?.includes(rule.value)),
