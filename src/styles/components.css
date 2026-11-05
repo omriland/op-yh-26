@@ -8593,6 +8593,15 @@ fieldset.field {
   white-space: pre-wrap;
 }
 
+.feedback-inbox__filter,
+.feedback-inbox__assignee {
+  max-inline-size: 20em;
+}
+
+.feedback-inbox__assignee {
+  margin-block: var(--space-3);
+}
+
 .feedback-inbox__transcript {
   display: flex;
   flex-direction: column;

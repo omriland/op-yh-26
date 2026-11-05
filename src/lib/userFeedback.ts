@@ -9,7 +9,7 @@ import type { StampDescriptor } from './status'
 import { supabase } from './supabase'
 
 export type FeedbackKind = 'bug' | 'suggestion'
-export type FeedbackStatus = 'open' | 'fixed' | 'wont_do'
+export type FeedbackStatus = 'open' | 'in_progress' | 'fixed' | 'wont_do'
 
 export const FEEDBACK_BODY_MAX = 2000
 export const FEEDBACK_AUDIO_MAX_BYTES = 5 * 1024 * 1024
@@ -35,6 +35,14 @@ export const FEEDBACK_ATTACH_IMAGE_SIZE_ERROR = 'התמונה גדולה מדי.
 export const FEEDBACK_ATTACH_VIDEO_SIZE_ERROR = 'הסרטון גדול מדי. בחרו קובץ עד 25 מ״ב.'
 export const FEEDBACK_ATTACH_UNAVAILABLE =
   'צירוף הקבצים אינו זמין כרגע. שלחו בלי קבצים, או נסו שוב מאוחר יותר.'
+
+export const FEEDBACK_TASK_TITLE_MAX = 120
+export const FEEDBACK_TASK_TITLE_ERROR = 'יש לכתוב כותרת.'
+export const FEEDBACK_TASK_TITLE_LEN_ERROR = 'הכותרת ארוכה מדי. קצרו ל־120 תווים.'
+
+/** Assignee filter values besides a profile id. */
+export const FEEDBACK_ASSIGNEE_ALL = 'all'
+export const FEEDBACK_ASSIGNEE_NONE = 'none'
 
 export const FEEDBACK_KIND_LABEL: Record<FeedbackKind, string> = {
   bug: 'באג',
@@ -93,6 +101,7 @@ export function feedbackTreatedToast(sms?: FeedbackSmsResult): {
 
 export const FEEDBACK_STATUS_STAMP: Record<FeedbackStatus, StampDescriptor> = {
   open: { label: 'פתוח', tone: 'pending' },
+  in_progress: { label: 'בטיפול', tone: 'partial' },
   fixed: { label: 'טופל', tone: 'done' },
   wont_do: { label: 'לא יטופל', tone: 'draft' },
 }
@@ -122,7 +131,10 @@ export type UserFeedback = {
   user_id: string
   author_name: string | null
   author_callsign: string | null
-  kind: FeedbackKind
+  /** Null on a task a super admin opened from the inbox. */
+  kind: FeedbackKind | null
+  title: string | null
+  assignee_id: string | null
   body: string | null
   page_path: string | null
   status: FeedbackStatus
@@ -139,7 +151,9 @@ export type UserFeedback = {
 type FeedbackRow = {
   id: string
   user_id: string
-  kind: FeedbackKind
+  kind: FeedbackKind | null
+  title?: string | null
+  assignee_id?: string | null
   body: string | null
   page_path: string | null
   status: FeedbackStatus
@@ -226,6 +240,32 @@ export function feedbackSubmitError(input: {
   return undefined
 }
 
+export function feedbackTaskError(input: { title: string; body: string }): string | undefined {
+  const title = input.title.trim()
+  if (!title) return FEEDBACK_TASK_TITLE_ERROR
+  if (title.length > FEEDBACK_TASK_TITLE_MAX) return FEEDBACK_TASK_TITLE_LEN_ERROR
+  return feedbackBodyError(input.body.trim())
+}
+
+export function isFeedbackTask(item: Pick<UserFeedback, 'title'>): boolean {
+  return Boolean(item.title)
+}
+
+export function feedbackHeading(item: Pick<UserFeedback, 'title' | 'kind'>): string {
+  if (item.title) return item.title
+  return item.kind ? FEEDBACK_KIND_LABEL[item.kind] : 'משוב'
+}
+
+/** `all`, `none` (unassigned) or an assignee profile id. */
+export function filterFeedbackByAssignee<T extends Pick<UserFeedback, 'assignee_id'>>(
+  items: readonly T[],
+  filter: string,
+): T[] {
+  if (filter === FEEDBACK_ASSIGNEE_ALL) return [...items]
+  if (filter === FEEDBACK_ASSIGNEE_NONE) return items.filter((item) => !item.assignee_id)
+  return items.filter((item) => item.assignee_id === filter)
+}
+
 export function feedbackStorageExt(mime: string): 'webm' | 'm4a' | 'mp4' | 'ogg' | 'mp3' {
   const lower = mime.toLowerCase()
   if (lower.includes('webm')) return 'webm'
@@ -267,6 +307,17 @@ export function isMissingFeedbackTranscriptColumn(
   return (
     (error.code === '42703' && /user_feedback\.transcript/.test(message)) ||
     (error.code === 'PGRST204' && /transcript/.test(message))
+  )
+}
+
+export function isMissingFeedbackTaskColumns(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false
+  const message = error.message ?? ''
+  return (
+    (error.code === '42703' && /user_feedback\.(title|assignee_id)/.test(message)) ||
+    (error.code === 'PGRST204' && /title|assignee_id/.test(message))
   )
 }
 
@@ -430,6 +481,8 @@ async function withSignedUrl(row: FeedbackRow): Promise<UserFeedback> {
     author_name: author.name,
     author_callsign: author.callsign,
     kind: row.kind,
+    title: row.title ?? null,
+    assignee_id: row.assignee_id ?? null,
     body: row.body,
     page_path: row.page_path,
     status: row.status,
@@ -553,16 +606,22 @@ export async function submitUserFeedback(input: {
 }
 
 export async function listUserFeedback(status?: FeedbackStatus | 'all'): Promise<UserFeedback[]> {
+  // Dropped when the task-board migration is not applied yet, so the inbox still loads.
+  let taskColumns = ', title, assignee_id'
   const run = async (select: string) => {
     let query = supabase
       .from('user_feedback')
-      .select(select)
+      .select(`${select}${taskColumns}`)
       .order('created_at', { ascending: false })
     if (status && status !== 'all') query = query.eq('status', status)
     return query
   }
   let select = FEEDBACK_SELECT_WITH_TRANSCRIPT
   let { data, error } = await run(select)
+  if (error && isMissingFeedbackTaskColumns(error)) {
+    taskColumns = ''
+    ;({ data, error } = await run(select))
+  }
   if (error && isMissingFeedbackAttachmentsColumn(error)) {
     select = FEEDBACK_SELECT_TRANSCRIPT_NO_ATTACH
     ;({ data, error } = await run(select))
@@ -692,8 +751,9 @@ export function transcribeUserFeedback(
 export async function updateUserFeedbackStatus(
   id: string,
   status: FeedbackStatus,
+  options: { notifyAuthor?: boolean } = {},
 ): Promise<{ ok: true; sms?: FeedbackSmsResult } | { ok: false; error: string }> {
-  if (status === 'fixed') {
+  if (status === 'fixed' && options.notifyAuthor !== false) {
     if (isImpersonating()) {
       const result = await updateFeedbackStatusRow(id, status)
       if (!result.ok) return result
@@ -721,5 +781,54 @@ export async function deleteUserFeedback(input: {
   if (paths.length > 0) {
     await supabase.storage.from(FEEDBACK_BUCKET).remove(paths)
   }
+  return { ok: true }
+}
+
+export type FeedbackAssignee = { id: string; full_name: string }
+
+export async function listFeedbackAssignees(): Promise<FeedbackAssignee[]> {
+  const { data, error } = await supabase.rpc('feedback_assignees')
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as { id: string; full_name: string | null }[]).map((row) => ({
+    id: row.id,
+    full_name: row.full_name?.trim() || 'ללא שם',
+  }))
+}
+
+export async function setUserFeedbackAssignee(
+  id: string,
+  assigneeId: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase
+    .from('user_feedback')
+    .update({ assignee_id: assigneeId })
+    .eq('id', id)
+  if (error) return { ok: false, error: FEEDBACK_NETWORK }
+  return { ok: true }
+}
+
+/** A task a super admin opens from the inbox: no kind, no recording, no SMS on done. */
+export async function createFeedbackTask(input: {
+  title: string
+  body: string
+  assigneeId: string | null
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const error = feedbackTaskError(input)
+  if (error) return { ok: false, error }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: FEEDBACK_NETWORK }
+
+  const { error: insertError } = await supabase.from('user_feedback').insert({
+    user_id: user.id,
+    kind: null,
+    title: input.title.trim(),
+    body: input.body.trim() || null,
+    status: 'open',
+    assignee_id: input.assigneeId,
+  })
+  if (insertError) return { ok: false, error: FEEDBACK_NETWORK }
   return { ok: true }
 }

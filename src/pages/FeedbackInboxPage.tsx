@@ -1,53 +1,100 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MessageSquarePlus } from 'lucide-react'
+import { MessageSquarePlus, Plus } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { AlertDialog } from '../components/ui/AlertDialog'
+import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
+import { SelectField } from '../components/ui/SelectField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
+import { TextAreaField } from '../components/ui/TextAreaField'
+import { TextField } from '../components/ui/TextField'
 import { useToast } from '../components/ui/Toast'
 import { formatDateTime, monoClass } from '../lib/format'
+import * as userFeedbackApi from '../lib/userFeedback'
 import {
-  FEEDBACK_KIND_LABEL,
+  FEEDBACK_ASSIGNEE_ALL,
+  FEEDBACK_ASSIGNEE_NONE,
+  FEEDBACK_BODY_MAX,
   FEEDBACK_STATUS_STAMP,
-  deleteUserFeedback,
+  FEEDBACK_TASK_TITLE_MAX,
+  feedbackHeading,
   feedbackRowsNeedingTranscript,
+  feedbackTaskError,
   feedbackTreatedToast,
-  listUserFeedback,
-  transcribeUserFeedback,
-  updateUserFeedbackStatus,
+  filterFeedbackByAssignee,
+  isFeedbackTask,
+  type FeedbackAssignee,
   type FeedbackStatus,
   type UserFeedback,
 } from '../lib/userFeedback'
 
+/** The data boundary of this page. The dev harness passes a stub; the app uses the real module. */
+export type FeedbackInboxApi = Pick<
+  typeof userFeedbackApi,
+  | 'listUserFeedback'
+  | 'transcribeUserFeedback'
+  | 'updateUserFeedbackStatus'
+  | 'deleteUserFeedback'
+  | 'listFeedbackAssignees'
+  | 'setUserFeedbackAssignee'
+  | 'createFeedbackTask'
+>
+
 const FILTERS: { id: FeedbackStatus | 'all'; label: string }[] = [
   { id: 'open', label: 'פתוח' },
+  { id: 'in_progress', label: 'בטיפול' },
   { id: 'fixed', label: 'טופל' },
   { id: 'wont_do', label: 'לא יטופל' },
   { id: 'all', label: 'הכול' },
 ]
 
-export function FeedbackInboxPage() {
+type TaskDraft = { title: string; body: string; assigneeId: string }
+
+const EMPTY_DRAFT: TaskDraft = { title: '', body: '', assigneeId: FEEDBACK_ASSIGNEE_NONE }
+
+export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInboxApi } = {}) {
   const { show } = useToast()
   const [filter, setFilter] = useState<FeedbackStatus | 'all'>('open')
+  const [assigneeFilter, setAssigneeFilter] = useState<string>(FEEDBACK_ASSIGNEE_ALL)
+  const [assignees, setAssignees] = useState<FeedbackAssignee[]>([])
   const [items, setItems] = useState<UserFeedback[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<UserFeedback | null>(null)
   const [transcriptErrors, setTranscriptErrors] = useState<Record<string, string>>({})
+  const [draft, setDraft] = useState<TaskDraft | null>(null)
+  const [draftError, setDraftError] = useState<string | undefined>()
+  const [savingDraft, setSavingDraft] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    api
+      .listFeedbackAssignees()
+      .then((rows) => {
+        if (active) setAssignees(rows)
+      })
+      .catch(() => {
+        if (active) setAssignees([])
+      })
+    return () => {
+      active = false
+    }
+  }, [api])
 
   useEffect(() => {
     let active = true
     setItems(null)
     setFailed(false)
     setTranscriptErrors({})
-    listUserFeedback(filter)
+    api
+      .listUserFeedback(filter)
       .then((rows) => {
         if (!active) return
         setItems(rows)
         for (const id of feedbackRowsNeedingTranscript(rows)) {
-          void transcribeUserFeedback(id).then((result) => {
+          void api.transcribeUserFeedback(id).then((result) => {
             if (!active) return
             if (result.ok) {
               setItems((current) =>
@@ -67,33 +114,66 @@ export function FeedbackInboxPage() {
     return () => {
       active = false
     }
-  }, [filter, reloadKey])
+  }, [api, filter, reloadKey])
+
+  const visibleItems = useMemo(
+    () => (items ? filterFeedbackByAssignee(items, assigneeFilter) : null),
+    [items, assigneeFilter],
+  )
+
+  const assigneeOptions = useMemo(
+    () => [
+      { value: FEEDBACK_ASSIGNEE_NONE, label: 'לא משויך' },
+      ...assignees.map((person) => ({ value: person.id, label: person.full_name })),
+    ],
+    [assignees],
+  )
 
   const emptyCaption = useMemo(() => {
+    if (assigneeFilter !== FEEDBACK_ASSIGNEE_ALL) return 'אין פריטים שתואמים לסינון.'
     if (filter === 'open') return 'אין משוב פתוח.'
     if (filter === 'all') return 'עדיין לא התקבל משוב.'
     return 'אין פריטים במצב הזה.'
-  }, [filter])
+  }, [assigneeFilter, filter])
 
   async function setStatus(item: UserFeedback, status: FeedbackStatus) {
     setBusyId(item.id)
-    const result = await updateUserFeedbackStatus(item.id, status)
+    const task = isFeedbackTask(item)
+    const result = await api.updateUserFeedbackStatus(item.id, status, { notifyAuthor: !task })
     setBusyId(null)
     if (!result.ok) {
       show(result.error, 'alert')
       return
     }
     const toast =
-      status === 'fixed'
+      status === 'fixed' && !task
         ? feedbackTreatedToast(result.sms)
         : { message: 'הסטטוס עודכן.', tone: 'done' as const }
     show(toast.message, toast.tone)
     setReloadKey((key) => key + 1)
   }
 
+  async function assign(item: UserFeedback, value: string) {
+    const assigneeId = value === FEEDBACK_ASSIGNEE_NONE ? null : value
+    if (assigneeId === item.assignee_id) return
+    setBusyId(item.id)
+    const result = await api.setUserFeedbackAssignee(item.id, assigneeId)
+    setBusyId(null)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    setItems(
+      (current) =>
+        current?.map((row) => (row.id === item.id ? { ...row, assignee_id: assigneeId } : row)) ??
+        null,
+    )
+    show('האחראי עודכן.', 'done')
+  }
+
   async function remove(item: UserFeedback) {
     setBusyId(item.id)
-    const result = await deleteUserFeedback({
+    const result = await api.deleteUserFeedback({
       id: item.id,
       audioStoragePath: item.audio_storage_path,
       attachmentPaths: item.attachments.map((file) => file.path),
@@ -108,10 +188,47 @@ export function FeedbackInboxPage() {
     setReloadKey((key) => key + 1)
   }
 
+  function openDraft() {
+    setDraftError(undefined)
+    setDraft(EMPTY_DRAFT)
+  }
+
+  function closeDraft() {
+    if (savingDraft) return
+    setDraft(null)
+  }
+
+  async function submitDraft() {
+    if (!draft) return
+    const error = feedbackTaskError(draft)
+    if (error) {
+      setDraftError(error)
+      return
+    }
+    setSavingDraft(true)
+    const result = await api.createFeedbackTask({
+      title: draft.title,
+      body: draft.body,
+      assigneeId: draft.assigneeId === FEEDBACK_ASSIGNEE_NONE ? null : draft.assigneeId,
+    })
+    setSavingDraft(false)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    setDraft(null)
+    show('המשימה נוספה.', 'done')
+    if (filter === 'open' || filter === 'all') setReloadKey((key) => key + 1)
+    else setFilter('open')
+  }
+
   return (
     <div className="stack-4">
       <div className="page-head">
         <h1 className="t-title">משוב</h1>
+        <Button onClick={openDraft} icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}>
+          משימה חדשה
+        </Button>
       </div>
 
       <div className="chips" role="tablist" aria-label="סינון משוב">
@@ -130,6 +247,15 @@ export function FeedbackInboxPage() {
         ))}
       </div>
 
+      <div className="feedback-inbox__filter">
+        <SelectField
+          label="אחראי"
+          value={assigneeFilter}
+          options={[{ value: FEEDBACK_ASSIGNEE_ALL, label: 'כל האחראים' }, ...assigneeOptions]}
+          onChange={(event) => setAssigneeFilter(event.target.value)}
+        />
+      </div>
+
       {items === null && !failed ? <EventListSkeleton /> : null}
 
       {failed ? (
@@ -144,19 +270,19 @@ export function FeedbackInboxPage() {
         />
       ) : null}
 
-      {items && items.length === 0 && !failed ? (
+      {visibleItems && visibleItems.length === 0 && !failed ? (
         <EmptyState
           icon={<MessageSquarePlus size={40} strokeWidth={1.75} aria-hidden="true" />}
           title={emptyCaption}
         />
       ) : null}
 
-      {items && items.length > 0 ? (
+      {visibleItems && visibleItems.length > 0 ? (
         <ul className="stack-4 feedback-inbox">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <li key={item.id} className="card feedback-inbox__card">
               <div className="feedback-inbox__head">
-                <p className="t-section">{FEEDBACK_KIND_LABEL[item.kind]}</p>
+                <p className="t-section">{feedbackHeading(item)}</p>
                 <StampChip {...FEEDBACK_STATUS_STAMP[item.status]} />
               </div>
               <p className="t-body">
@@ -220,7 +346,26 @@ export function FeedbackInboxPage() {
                   ))}
                 </ul>
               ) : null}
+              <div className="feedback-inbox__assignee">
+                <SelectField
+                  label="אחראי"
+                  value={item.assignee_id ?? FEEDBACK_ASSIGNEE_NONE}
+                  options={assigneeOptions}
+                  disabled={busyId === item.id}
+                  onChange={(event) => void assign(item, event.target.value)}
+                />
+              </div>
               <div className="feedback-inbox__actions">
+                {item.status === 'open' ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busyId === item.id}
+                    onClick={() => void setStatus(item, 'in_progress')}
+                  >
+                    בטיפול
+                  </Button>
+                ) : null}
                 {item.status !== 'fixed' ? (
                   <Button
                     type="button"
@@ -248,7 +393,7 @@ export function FeedbackInboxPage() {
                     disabled={busyId === item.id}
                     onClick={() => void setStatus(item, 'open')}
                   >
-                    פתיחה מחדש
+                    {item.status === 'in_progress' ? 'החזרה לפתוח' : 'פתיחה מחדש'}
                   </Button>
                 ) : null}
                 <Button
@@ -264,6 +409,57 @@ export function FeedbackInboxPage() {
           ))}
         </ul>
       ) : null}
+
+      <Dialog
+        open={draft !== null}
+        title="משימה חדשה"
+        form
+        onClose={closeDraft}
+        footer={
+          <>
+            <Button type="button" variant="secondary" disabled={savingDraft} onClick={closeDraft}>
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              loading={savingDraft}
+              loadingLabel="מוסיף…"
+              onClick={() => void submitDraft()}
+            >
+              הוספת משימה
+            </Button>
+          </>
+        }
+      >
+        {draft ? (
+          <div className="stack-6">
+            <TextField
+              label="כותרת"
+              required
+              maxLength={FEEDBACK_TASK_TITLE_MAX}
+              value={draft.title}
+              error={draftError}
+              onChange={(event) => {
+                setDraftError(undefined)
+                setDraft({ ...draft, title: event.target.value })
+              }}
+            />
+            <TextAreaField
+              label="פירוט"
+              rows={4}
+              maxLength={FEEDBACK_BODY_MAX}
+              value={draft.body}
+              onChange={(event) => setDraft({ ...draft, body: event.target.value })}
+            />
+            <SelectField
+              label="אחראי"
+              value={draft.assigneeId}
+              options={assigneeOptions}
+              onChange={(event) => setDraft({ ...draft, assigneeId: event.target.value })}
+            />
+          </div>
+        ) : null}
+      </Dialog>
 
       <AlertDialog
         open={Boolean(confirmDelete)}
