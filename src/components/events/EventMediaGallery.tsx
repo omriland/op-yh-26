@@ -17,9 +17,15 @@ import {
   EVENT_MEDIA_UPDATED,
   EVENT_MEDIA_VIDEO_ADDED,
   EVENT_MEDIA_VIDEO_DELETED,
+  EVENT_MEDIA_STEP_TITLE,
+  EVENT_MEDIA_VEHICLE_PROMPT,
   canAddMoreMedia,
   canDeleteEventMedia,
   captionError,
+  nextPhotoVehicleId,
+  photoAttachWrite,
+  photoStepCanSave,
+  photoStepVehicleNote,
   deleteEventMedia,
   eventMediaKind,
   isVideoMedia,
@@ -136,11 +142,14 @@ function MediaPlateChips({
   plates,
   value,
   disabled,
+  single = false,
   onChange,
 }: {
   plates: readonly EventMediaPlateOption[]
   value: string[]
   disabled?: boolean
+  /** One vehicle for a new photo. Editing still allows several. */
+  single?: boolean
   onChange: (ids: string[]) => void
 }) {
   const labelId = useId()
@@ -148,9 +157,13 @@ function MediaPlateChips({
   return (
     <div className="field">
       <p id={labelId} className="field__label">
-        רכבים בתמונה
+        {single ? EVENT_MEDIA_VEHICLE_PROMPT : 'רכבים בתמונה'}
       </p>
-      <div className="media-plate-chips" role="group" aria-labelledby={labelId}>
+      <div
+        className="media-plate-chips"
+        role={single ? 'radiogroup' : 'group'}
+        aria-labelledby={labelId}
+      >
         {plates.map((plate) => {
           const selected = value.includes(plate.id)
           return (
@@ -158,11 +171,19 @@ function MediaPlateChips({
               key={plate.id}
               type="button"
               className="media-plate-chip"
-              aria-pressed={selected}
+              role={single ? 'radio' : undefined}
+              aria-pressed={single ? undefined : selected}
+              aria-checked={single ? selected : undefined}
               aria-label={mediaPlateLabel(plate)}
               disabled={disabled}
               onClick={() =>
-                onChange(selected ? value.filter((id) => id !== plate.id) : [...value, plate.id])
+                onChange(
+                  single
+                    ? [plate.id]
+                    : selected
+                      ? value.filter((id) => id !== plate.id)
+                      : [...value, plate.id],
+                )
               }
             >
               {selected ? (
@@ -198,6 +219,7 @@ export function EventMediaGallery({
   const dragDepthRef = useRef(0)
   const [items, setItems] = useState<EventMedia[]>([])
   const [plates, setPlates] = useState<EventMediaPlateOption[]>([])
+  const [platesLoaded, setPlatesLoaded] = useState(false)
   const [drafts, setDrafts] = useState<MediaDraft[]>([])
   const [viewer, setViewer] = useState<EventMedia | null>(null)
   const [editing, setEditing] = useState(false)
@@ -233,16 +255,37 @@ export function EventMediaGallery({
 
   useEffect(() => {
     let active = true
+    setPlatesLoaded(false)
     void listEventMedia(eventId).then((rows) => {
       if (active) setItems(rows)
     })
     void listEventMediaPlates(eventId).then((rows) => {
-      if (active) setPlates(rows)
+      if (!active) return
+      setPlates(rows)
+      setPlatesLoaded(true)
     })
     return () => {
       active = false
     }
   }, [eventId])
+
+  useEffect(() => {
+    if (!platesLoaded) return
+    const ids = plates.map((plate) => plate.id)
+    setDrafts((current) => {
+      let changed = false
+      const next = current.map((draft) => {
+        if (draft.uploading) return draft
+        const vehicleId = nextPhotoVehicleId(ids, draft.treatedPlateIds[0] ?? null)
+        const same =
+          (draft.treatedPlateIds[0] ?? null) === vehicleId && draft.treatedPlateIds.length <= 1
+        if (same) return draft
+        changed = true
+        return { ...draft, treatedPlateIds: vehicleId ? [vehicleId] : [] }
+      })
+      return changed ? next : current
+    })
+  }, [plates, platesLoaded])
 
   useEffect(() => {
     onUnfinishedChange?.(drafts.filter((draft) => !draft.takenWhen).length)
@@ -274,10 +317,20 @@ export function EventMediaGallery({
     setDrafts((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)))
   }
 
-  async function startUpload(key: string, takenWhen: EventMediaTakenWhen) {
+  async function startUpload(
+    key: string,
+    takenWhen: EventMediaTakenWhen,
+    write: ReturnType<typeof photoAttachWrite>,
+  ) {
     const draft = draftsRef.current.find((row) => row.key === key)
-    if (!draft) return
-    patchDraft(key, { uploading: true, error: undefined, takenWhen })
+    if (!draft || write.blocked) return
+    patchDraft(key, {
+      uploading: true,
+      error: undefined,
+      takenWhen,
+      treatedPlateIds: write.vehicleIds,
+      caption: write.caption ?? '',
+    })
     let payload: { blob: Blob; mimeType: string; width: number | null; height: number | null }
     if (draft.kind === 'video') {
       const rejected = rejectVideoFile(draft.file)
@@ -299,13 +352,12 @@ export function EventMediaGallery({
         height: compressed.height,
       }
     }
-    const latest = draftsRef.current.find((row) => row.key === key) ?? draft
     const result = await uploadEventMedia({
       eventId,
       ...payload,
       takenWhen,
-      treatedPlateIds: latest.treatedPlateIds,
-      caption: latest.caption.trim() || null,
+      treatedPlateIds: write.vehicleIds,
+      caption: write.caption,
     })
     if (!result.ok) {
       patchDraft(key, { uploading: false, error: result.error })
@@ -410,6 +462,10 @@ export function EventMediaGallery({
     if (unsupported > 0) show(EVENT_MEDIA_BAD_TYPE, 'alert')
     else if (overCap > 0) show(EVENT_MEDIA_CAP_ERROR, 'alert')
     if (accepted.length === 0) return
+    const presetVehicleId = nextPhotoVehicleId(
+      platesRef.current.map((plate) => plate.id),
+      null,
+    )
     const next: MediaDraft[] = accepted.map((file) => {
       const heic = isHeicFile(file)
       return {
@@ -418,14 +474,17 @@ export function EventMediaGallery({
         file,
         previewUrl: heic ? '' : URL.createObjectURL(file),
         takenWhen: '',
-        treatedPlateIds: [],
+        treatedPlateIds: presetVehicleId ? [presetVehicleId] : [],
         caption: '',
         uploading: false,
         preparing: heic,
       }
     })
     setDrafts((current) => [...current, ...next])
-    void listEventMediaPlates(eventId).then(setPlates)
+    void listEventMediaPlates(eventId).then((rows) => {
+      setPlates(rows)
+      setPlatesLoaded(true)
+    })
     for (const draft of next) {
       if (draft.preparing) void prepareHeicDraft(draft.key, draft.file)
     }
@@ -566,6 +625,41 @@ export function EventMediaGallery({
     show(isVideoMedia(viewer.mime_type) ? EVENT_MEDIA_VIDEO_DELETED : EVENT_MEDIA_DELETED, 'done')
   }
 
+  const stepDraft = drafts[0] ?? null
+  const stepCanSave = stepDraft
+    ? photoStepCanSave({
+        caption: stepDraft.caption,
+        takenWhen: stepDraft.takenWhen,
+        preparing: Boolean(stepDraft.preparing),
+        platesLoaded,
+      })
+    : false
+  const stepVehicleNote = platesLoaded ? photoStepVehicleNote(plates.length) : null
+
+  function saveStep() {
+    const draft = draftsRef.current[0]
+    if (!draft) return
+    if (draft.takenWhen !== 'before_treatment' && draft.takenWhen !== 'during_after_treatment') return
+    if (
+      !photoStepCanSave({
+        caption: draft.caption,
+        takenWhen: draft.takenWhen,
+        preparing: Boolean(draft.preparing),
+        platesLoaded,
+      })
+    ) {
+      return
+    }
+    void startUpload(
+      draft.key,
+      draft.takenWhen,
+      photoAttachWrite({
+        caption: draft.caption,
+        vehicleId: draft.treatedPlateIds[0] ?? null,
+      }),
+    )
+  }
+
   const ownViewer = Boolean(viewer && canDeleteEventMedia(viewer, viewerId, canWrite))
   const linkedPlates = viewer
     ? plates.filter((plate) => viewer.treated_plate_ids.includes(plate.id))
@@ -631,94 +725,6 @@ export function EventMediaGallery({
         menuOpenFor={tileMenu?.item.id ?? null}
         onOpen={openTile}
       />
-
-      {drafts.length > 0 ? (
-        <ul className="event-media__drafts">
-          {drafts.map((draft) => (
-            <li key={draft.key} className="event-media__draft">
-              {draft.kind === 'video' ? (
-                <video
-                  src={videoPosterSrc(draft.previewUrl)}
-                  className="event-media__draft-thumb"
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
-              ) : draft.preparing ? (
-                <div className="event-media__draft-thumb event-media__draft-thumb--preparing">
-                  <span className="t-caption text-muted">מכין תמונה…</span>
-                </div>
-              ) : draft.previewUrl ? (
-                <img src={draft.previewUrl} alt="" className="event-media__draft-thumb" />
-              ) : (
-                <div className="event-media__draft-thumb event-media__draft-thumb--preparing" />
-              )}
-              <div className="event-media__draft-fields">
-                <MediaPlateChips
-                  plates={plates}
-                  value={draft.treatedPlateIds}
-                  disabled={draft.uploading}
-                  onChange={(ids) => patchDraft(draft.key, { treatedPlateIds: ids })}
-                />
-                <TextField
-                  label="תיאור"
-                  placeholder="למשל: פגיעה בגלגל קדמי"
-                  value={draft.caption}
-                  disabled={draft.uploading}
-                  maxLength={200}
-                  onChange={(event) => patchDraft(draft.key, { caption: event.target.value })}
-                />
-                <SelectField
-                  label="מתי צולמה"
-                  required
-                  placeholder="בחירה"
-                  value={draft.takenWhen}
-                  disabled={draft.uploading || draft.preparing || !draft.previewUrl}
-                  options={TAKEN_WHEN_OPTIONS}
-                  onChange={(event) => {
-                    const value = event.target.value as EventMediaTakenWhen
-                    if (value !== 'before_treatment' && value !== 'during_after_treatment') return
-                    void startUpload(draft.key, value)
-                  }}
-                />
-                {draft.error ? (
-                  <p className="field__hint field__hint--error" role="alert">
-                    {draft.error}
-                  </p>
-                ) : null}
-                {draft.uploading ? (
-                  <p className="t-caption text-muted">מעלה…</p>
-                ) : null}
-                <div className="event-media__draft-actions">
-                  {draft.error ? (
-                    <Button
-                      variant="secondary"
-                      disabled={!draft.takenWhen}
-                      onClick={() => {
-                        if (
-                          draft.takenWhen === 'before_treatment' ||
-                          draft.takenWhen === 'during_after_treatment'
-                        ) {
-                          void startUpload(draft.key, draft.takenWhen)
-                        }
-                      }}
-                    >
-                      נסו שוב
-                    </Button>
-                  ) : null}
-                  <Button
-                    variant="ghost"
-                    disabled={draft.uploading}
-                    onClick={() => removeDraft(draft.key)}
-                  >
-                    הסרה
-                  </Button>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
 
       <div aria-live="polite">
         {autoLinkRows.length > 0 ? (
@@ -798,6 +804,105 @@ export function EventMediaGallery({
           ) : null}
         </div>
       ) : null}
+
+      <Dialog
+        open={Boolean(stepDraft)}
+        title={EVENT_MEDIA_STEP_TITLE}
+        onClose={() => {
+          if (!stepDraft || stepDraft.uploading) return
+          removeDraft(stepDraft.key)
+        }}
+        footer={
+          stepDraft ? (
+            <>
+              <Button
+                loading={stepDraft.uploading}
+                loadingLabel="שומר…"
+                disabled={!stepCanSave}
+                onClick={saveStep}
+              >
+                שמירה
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={stepDraft.uploading}
+                onClick={() => removeDraft(stepDraft.key)}
+              >
+                ביטול
+              </Button>
+            </>
+          ) : undefined
+        }
+      >
+        {stepDraft ? (
+          <div className="stack-3">
+            <div className="event-media__draft">
+              {stepDraft.kind === 'video' ? (
+                <video
+                  src={videoPosterSrc(stepDraft.previewUrl)}
+                  className="event-media__draft-thumb"
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              ) : stepDraft.preparing ? (
+                <div className="event-media__draft-thumb event-media__draft-thumb--preparing">
+                  <span className="t-caption text-muted">מכין תמונה…</span>
+                </div>
+              ) : stepDraft.previewUrl ? (
+                <img src={stepDraft.previewUrl} alt="" className="event-media__draft-thumb" />
+              ) : (
+                <div className="event-media__draft-thumb event-media__draft-thumb--preparing" />
+              )}
+              <div className="event-media__draft-fields">
+                {!platesLoaded ? (
+                  <p className="t-caption text-muted">טוען רכבים…</p>
+                ) : stepVehicleNote ? (
+                  <p className="t-body text-secondary">{stepVehicleNote}</p>
+                ) : (
+                  <MediaPlateChips
+                    single
+                    plates={plates}
+                    value={stepDraft.treatedPlateIds}
+                    disabled={stepDraft.uploading}
+                    onChange={(ids) => patchDraft(stepDraft.key, { treatedPlateIds: ids })}
+                  />
+                )}
+                <TextField
+                  label="תיאור"
+                  hint="אופציונלי"
+                  placeholder="למשל: פגיעה בגלגל קדמי"
+                  value={stepDraft.caption}
+                  disabled={stepDraft.uploading}
+                  maxLength={200}
+                  onChange={(event) => patchDraft(stepDraft.key, { caption: event.target.value })}
+                />
+                <SelectField
+                  label="מתי צולמה"
+                  required
+                  placeholder="בחירה"
+                  value={stepDraft.takenWhen}
+                  disabled={stepDraft.uploading || stepDraft.preparing || !stepDraft.previewUrl}
+                  options={TAKEN_WHEN_OPTIONS}
+                  onChange={(event) => {
+                    const value = event.target.value as EventMediaTakenWhen
+                    if (value !== 'before_treatment' && value !== 'during_after_treatment') return
+                    patchDraft(stepDraft.key, { takenWhen: value })
+                  }}
+                />
+                {stepDraft.error ? (
+                  <p className="field__hint field__hint--error" role="alert">
+                    {stepDraft.error}
+                  </p>
+                ) : null}
+                {drafts.length > 1 ? (
+                  <p className="t-caption text-muted">אחרי השמירה אפשר לשייך את התמונה הבאה.</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
 
       <PointerContextMenu
         open={Boolean(tileMenu)}

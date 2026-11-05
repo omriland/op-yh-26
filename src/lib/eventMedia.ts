@@ -107,6 +107,64 @@ export function canAddMoreMedia(savedCount: number, inFlightCount: number): bool
   return slotsRemaining(savedCount, inFlightCount) > 0
 }
 
+export const EVENT_MEDIA_STEP_TITLE = 'שיוך התמונה'
+export const EVENT_MEDIA_VEHICLE_PROMPT = 'לאיזה רכב לשייך?'
+export const EVENT_MEDIA_NO_VEHICLE = 'אין רכב באירוע. התמונה תישמר בלי שיוך לרכב.'
+
+export type PhotoAttachWrite = {
+  caption: string | null
+  vehicleIds: string[]
+  /** Empty text never blocks. A caption over 200 characters does. */
+  blocked: boolean
+}
+
+/** The only vehicle on the event is already chosen. Several stay unchosen until tapped. */
+export function nextPhotoVehicleId(
+  vehicleIds: readonly string[],
+  currentId: string | null,
+): string | null {
+  if (vehicleIds.length === 0) return null
+  if (vehicleIds.length === 1) return vehicleIds[0] ?? null
+  if (currentId && vehicleIds.includes(currentId)) return currentId
+  return null
+}
+
+export function photoStepVehicleNote(vehicleCount: number): string | null {
+  if (vehicleCount > 0) return null
+  return EVENT_MEDIA_NO_VEHICLE
+}
+
+/** Caption is optional. A chosen vehicle id is the one id sent with the photo. */
+export function photoAttachWrite(input: {
+  caption: string
+  vehicleId: string | null
+}): PhotoAttachWrite {
+  const caption = input.caption.trim()
+  return {
+    caption: caption.length > 0 ? caption : null,
+    vehicleIds: input.vehicleId ? [input.vehicleId] : [],
+    blocked: captionError(input.caption) != null,
+  }
+}
+
+export function photoStepCanSave(input: {
+  caption: string
+  takenWhen: '' | EventMediaTakenWhen
+  preparing: boolean
+  platesLoaded: boolean
+}): boolean {
+  if (!input.platesLoaded || input.preparing) return false
+  if (input.takenWhen !== 'before_treatment' && input.takenWhen !== 'during_after_treatment') {
+    return false
+  }
+  return !photoAttachWrite({ caption: input.caption, vehicleId: null }).blocked
+}
+
+/** After one photo is stored, the add action stays until the cap. */
+export function canAddAnotherPhoto(savedCount: number): boolean {
+  return canAddMoreMedia(savedCount, 0)
+}
+
 /** Mirrors the event_media_delete RLS policy: only the uploader, while they may write. */
 export function canDeleteEventMedia(
   item: Pick<EventMedia, 'uploaded_by'>,

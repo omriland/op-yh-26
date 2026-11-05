@@ -7,6 +7,8 @@ import {
   EVENT_MEDIA_NETWORK,
   EVENT_MEDIA_VIDEO_MAX_BYTES,
   EVENT_MEDIA_VIDEO_TOO_LARGE,
+  EVENT_MEDIA_NO_VEHICLE,
+  canAddAnotherPhoto,
   canAddMoreMedia,
   canDeleteEventMedia,
   eventMediaKind,
@@ -18,6 +20,10 @@ import {
   groupMediaByTakenWhen,
   leftoverEventMediaError,
   mapEventMediaError,
+  nextPhotoVehicleId,
+  photoAttachWrite,
+  photoStepCanSave,
+  photoStepVehicleNote,
   mergeMediaPlates,
   slotsRemaining,
   togglePlateId,
@@ -67,6 +73,34 @@ describe('captionError', () => {
 
   it('rejects 201 chars', () => {
     expect(captionError('א'.repeat(201))).toBe(EVENT_MEDIA_CAPTION_ERROR)
+  })
+})
+
+describe('photo attach step', () => {
+  it('does not block save on empty text, sends the chosen vehicle, and leaves another add', () => {
+    const write = photoAttachWrite({ caption: '   ', vehicleId: 'veh-1' })
+    expect(write.blocked).toBe(false)
+    expect(write.caption).toBeNull()
+    expect(write.vehicleIds).toEqual(['veh-1'])
+    expect(
+      photoStepCanSave({
+        caption: '',
+        takenWhen: 'during_after_treatment',
+        preparing: false,
+        platesLoaded: true,
+      }),
+    ).toBe(true)
+    expect(canAddAnotherPhoto(1)).toBe(true)
+    expect(canAddAnotherPhoto(20)).toBe(false)
+  })
+
+  it('preselects the only vehicle and does not invent one', () => {
+    expect(nextPhotoVehicleId(['only'], null)).toBe('only')
+    expect(nextPhotoVehicleId(['a', 'b'], null)).toBeNull()
+    expect(nextPhotoVehicleId(['a', 'b'], 'b')).toBe('b')
+    expect(nextPhotoVehicleId([], 'a')).toBeNull()
+    expect(photoStepVehicleNote(0)).toBe(EVENT_MEDIA_NO_VEHICLE)
+    expect(photoStepVehicleNote(1)).toBeNull()
   })
 })
 

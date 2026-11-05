@@ -1,7 +1,7 @@
 // DEV-ONLY harness: renders the REAL EventMediaGallery for an event that does not
 // exist, so drag and drop, drafts and video previews can be tried without touching
-// real events. Nothing uploads until a draft gets its "מתי צולמה" answer, and that
-// upload fails here (no such event). Served at /event-media-dev.html.
+// real events. Saving the שיוך התמונה step uploads, and that upload fails here
+// (no such event). Served at /event-media-dev.html.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
