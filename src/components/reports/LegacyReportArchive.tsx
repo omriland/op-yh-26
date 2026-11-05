@@ -62,11 +62,12 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(false)
   const [found, setFound] = useState<LegacyReport[] | null>(null)
   const [searched, setSearched] = useState<Searched | null>(null)
-  const [selectedFk, setSelectedFk] = useState<string | null>(null)
+  // An index into `found`: fld_EventFK repeats across distinct rows, so it can't identify one.
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
 
-  const selected = found?.find((r) => r.fk === selectedFk) ?? null
-  // A list whenever there is a choice to make; a call-sign search always lists.
-  const showList = Boolean(found && (found.length > 1 || searched?.mode === 'callsignList'))
+  const selected = selectedIdx === null ? null : (found?.[selectedIdx] ?? null)
+  // Always list results: the report opens in a popup, so closing it must leave the row to reopen.
+  const showList = Boolean(found && found.length > 0)
 
   // The browser names a saved PDF after document.title: name it for the open
   // report while printing (button or Ctrl+P), then put the app title back.
@@ -95,7 +96,7 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
     setMode(m)
     setFound(null)
     setSearched(null)
-    setSelectedFk(null)
+    setSelectedIdx(null)
     setFieldError(null)
     setLoadError('')
   }
@@ -129,7 +130,7 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
       const results = lookup ? await searchLegacyReports(lookup) : await searchByCallSign(cs)
       setFound(results)
       setSearched({ mode, text: mode === 'callsign' ? `${text} בתאריך ${isoDateToDisplay(dateIso)}` : text })
-      setSelectedFk(results.length === 1 ? results[0].fk : null)
+      setSelectedIdx(results.length === 1 ? 0 : null)
     } catch {
       setFound(null)
       setLoadError('טעינת הדוחות נכשלה. בדקו את החיבור ונסו שוב.')
@@ -255,7 +256,7 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
           </p>
           <ul className="legacy-archive__rows">
             {found.map((r, i) => {
-              const current = r.fk === selectedFk
+              const current = i === selectedIdx
               return (
                 // fld_EventFK repeats in the legacy data, so it can't key the list alone.
                 <li key={`${r.fk}-${i}`}>
@@ -264,7 +265,7 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
                     className="legacy-archive__row"
                     data-archive-row
                     aria-current={current ? 'true' : undefined}
-                    onClick={() => setSelectedFk(r.fk)}
+                    onClick={() => setSelectedIdx(i)}
                   >
                     <span className="legacy-archive__row-event t-body-strong">
                       אירוע <span className="mono">{r.eventNumber || '—'}</span>
@@ -297,7 +298,7 @@ export function LegacyReportArchive({ onBack }: { onBack: () => void }) {
           dir="rtl"
           lang="he"
           title={`דוח אירוע ${selected.eventNumber || ''}`.trim()}
-          onClose={() => setSelectedFk(null)}
+          onClose={() => setSelectedIdx(null)}
           footer={
             <Button variant="secondary" onClick={() => window.print()} icon={<Printer size={20} strokeWidth={1.75} />}>
               הדפסה / PDF
