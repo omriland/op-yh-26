@@ -3,12 +3,18 @@
 // Served at /feedback-board-dev.html?state=<name>. Not part of the app bundle.
 //
 // States: board · empty · loading · error · save_error. Changes live until reload.
+// The board includes a row held by a former super admin and a long task title.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ToastProvider } from '../components/ui/Toast'
 import { FeedbackInboxPage, type FeedbackInboxApi } from '../pages/FeedbackInboxPage'
-import type { FeedbackAssignee, UserFeedback } from '../lib/userFeedback'
+import {
+  feedbackMatchesFilter,
+  sortFeedbackForBoard,
+  type FeedbackAssignee,
+  type UserFeedback,
+} from '../lib/userFeedback'
 import '../index.css'
 
 const STATES = ['board', 'empty', 'loading', 'error', 'save_error'] as const
@@ -21,10 +27,12 @@ const state: DevState = (STATES as readonly string[]).includes(params.get('state
 
 const OMRI = 'dev-omri'
 const SAAR = 'dev-saar'
+const FORMER = 'dev-former'
 
 const assignees: FeedbackAssignee[] = [
-  { id: OMRI, full_name: 'עמרי (דמו)' },
-  { id: SAAR, full_name: 'סער (דמו)' },
+  { id: OMRI, full_name: 'עמרי (דמו)', assignable: true },
+  { id: SAAR, full_name: 'סער (דמו)', assignable: true },
+  { id: FORMER, full_name: 'מנהל לשעבר (דמו)', assignable: false },
 ]
 
 function row(partial: Partial<UserFeedback> & Pick<UserFeedback, 'id' | 'created_at'>): UserFeedback {
@@ -78,6 +86,18 @@ let rows: UserFeedback[] =
           assignee_id: OMRI,
         }),
         row({
+          id: 't2',
+          created_at: '2026-11-02T08:00:00Z',
+          user_id: SAAR,
+          author_name: 'סער (דמו)',
+          author_callsign: null,
+          kind: null,
+          title:
+            'משימה לדוגמה עם כותרת ארוכה במיוחד כדי לבדוק שהחותמת נשארת בשורה של הכותרת גם במסך צר',
+          page_path: null,
+          assignee_id: FORMER,
+        }),
+        row({
           id: 'f3',
           created_at: '2026-10-30T12:00:00Z',
           body: 'משוב לדוגמה שכבר טופל.',
@@ -95,8 +115,7 @@ const api: FeedbackInboxApi = {
     if (state === 'loading') return never
     await wait()
     if (state === 'error') throw new Error('dev error')
-    const sorted = [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))
-    return !status || status === 'all' ? sorted : sorted.filter((item) => item.status === status)
+    return sortFeedbackForBoard(rows.filter((item) => feedbackMatchesFilter(item.status, status ?? 'all')))
   },
   async transcribeUserFeedback() {
     return { ok: false, error: 'אין תמלול במסך הפיתוח.' }
@@ -120,6 +139,14 @@ const api: FeedbackInboxApi = {
     await wait()
     if (saveFails) return SAVE_ERROR
     rows = rows.map((item) => (item.id === id ? { ...item, assignee_id: assigneeId } : item))
+    return { ok: true }
+  },
+  async updateFeedbackTask(id, { title, body }) {
+    await wait()
+    if (saveFails) return SAVE_ERROR
+    rows = rows.map((item) =>
+      item.id === id ? { ...item, title: title.trim(), body: body.trim() || null } : item,
+    )
     return { ok: true }
   },
   async createFeedbackTask({ title, body, assigneeId }) {

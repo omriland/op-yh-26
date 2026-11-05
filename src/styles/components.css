@@ -8593,6 +8593,23 @@ fieldset.field {
   white-space: pre-wrap;
 }
 
+.feedback-inbox__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+/* Five chips do not fit 320 to 360 px; wrap instead of the default sideways scroll. */
+.feedback-inbox__filters .chips {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.feedback-inbox__filter {
+  flex: 1 1 14em;
+}
+
 .feedback-inbox__filter,
 .feedback-inbox__assignee {
   max-inline-size: 20em;
@@ -8600,6 +8617,20 @@ fieldset.field {
 
 .feedback-inbox__assignee {
   margin-block: var(--space-3);
+}
+
+.feedback-inbox__head {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.feedback-inbox__head > .t-section {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.feedback-inbox__head > .stamp {
+  flex-shrink: 0;
 }
 
 .feedback-inbox__transcript {
