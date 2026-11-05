@@ -7,6 +7,7 @@ import {
   cleanFilterText,
   emptyRule,
   escapeLike,
+  mineFilteredSections,
   orIlikeContains,
   periodState,
   ruleValueLabel,
@@ -33,6 +34,7 @@ import {
 } from './eventFilters'
 import type { EventListItem, EventResponderSummary } from './events'
 import { partitionUnitEventsByWindow } from './events'
+import { partitionMineList } from './mineListSections'
 import { keepShiftLeadRecentEvent, shouldApplyShiftLeadRecentWindow } from './shiftLeadEventsWindow'
 import { unitEventsCreatedByFilter } from './unitEventsScope'
 
@@ -633,5 +635,82 @@ describe('the whole view survives a reload', () => {
     const { store, storage } = memory()
     store.set('yahpaz:unitEventsStatus', 'archived')
     expect(readSessionStatus(storage)).toBe('all')
+  })
+})
+
+describe('האירועים שלי: default view reproduces today’s mine list', () => {
+  const mineEvents = [
+    event({ id: 'open-today', event_date: TODAY, status: 'in_progress', police_event_id: '48201' }),
+    event({ id: 'open-old', event_date: '2026-08-01', status: 'partial', police_event_id: '48202' }),
+    event({ id: 'logged-recent', event_date: '2026-10-20', status: 'done', police_event_id: '48203' }),
+    event({ id: 'logged-old', event_date: '2026-09-01', status: 'done', police_event_id: '48204' }),
+    event({ id: 'hidden', event_date: TODAY, status: 'draft', police_event_id: '48205' }),
+  ]
+  const bucket = (row: EventListItem) =>
+    row.id === 'hidden' ? ('hidden' as const) : row.id.startsWith('open') ? ('pending' as const) : ('logged' as const)
+  const opts = (partial: Partial<Parameters<typeof mineFilteredSections>[1]> = {}) => ({
+    status: DEFAULT_EVENT_LIST_VIEW.status,
+    query: '',
+    ruleIds: null,
+    bucket,
+    today: TODAY,
+    windowsLoaded: 1,
+    ...partial,
+  })
+
+  it.each([1, 2])('equals partitionMineList with %i logged window(s)', (windowsLoaded) => {
+    const before = partitionMineList(mineEvents, {
+      dateOf: (row) => row.event_date,
+      bucket,
+      today: TODAY,
+      windowsLoaded,
+    })
+    expect(mineFilteredSections(mineEvents, opts({ windowsLoaded }))).toEqual(before)
+  })
+
+  it('open assignments are never windowed; logged ones keep the 30-day window and טען עוד', () => {
+    const sections = mineFilteredSections(mineEvents, opts())
+    expect(sections.pending.map((row) => row.id)).toEqual(['open-today', 'open-old'])
+    expect(sections.logged.map((row) => row.id)).toEqual(['logged-recent'])
+    expect(sections.hasMoreLogged).toBe(true)
+  })
+
+  it('status and search narrow both tabs', () => {
+    const done = mineFilteredSections(mineEvents, opts({ status: 'done' }))
+    expect(done.pending).toEqual([])
+    expect(done.logged.map((row) => row.id)).toEqual(['logged-recent'])
+    const searched = mineFilteredSections(mineEvents, opts({ query: '48202' }))
+    expect(searched.pending.map((row) => row.id)).toEqual(['open-old'])
+    expect(searched.logged).toEqual([])
+  })
+
+  it('rules keep only the matching ids and lift the logged window', () => {
+    const sections = mineFilteredSections(mineEvents, opts({ ruleIds: new Set(['open-old', 'logged-old', 'hidden']) }))
+    expect(sections.pending.map((row) => row.id)).toEqual(['open-old'])
+    expect(sections.logged.map((row) => row.id)).toEqual(['logged-old'])
+    expect(sections.hasMoreLogged).toBe(false)
+  })
+})
+
+describe('each list keeps its own session filters', () => {
+  it('unit keys are unchanged and mine has its own', () => {
+    const store = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+      removeItem: (key: string) => void store.delete(key),
+    } as unknown as Storage
+    writeSessionRules([{ field: 'event_id', op: 'is', value: '1' }], storage)
+    writeSessionStatus('done', storage, 'mine')
+    writeSessionQuery('כביש', storage, 'mine')
+    expect([...store.keys()].sort()).toEqual([
+      'yahpaz:unitEventsFilterRules',
+      'yahpaz:unitEventsQuery:mine',
+      'yahpaz:unitEventsStatus:mine',
+    ])
+    expect(readSessionRules(storage, 'mine')).toEqual([])
+    expect(readSessionStatus(storage)).toBe('all')
+    expect(readSessionStatus(storage, 'mine')).toBe('done')
+    expect(readSessionQuery(storage, 'mine')).toBe('כביש')
   })
 })

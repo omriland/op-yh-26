@@ -2,7 +2,8 @@
 // and an in-memory data boundary (the page's `api` prop), so the filters and saved views
 // can be exercised without logging in. Served at /events-page-dev.html. Not in the app bundle.
 //
-// ?role=shift_lead (default) · admin · admin_lead   ?state=ready (default) · loading · error
+// ?role=shift_lead (default) · admin · admin_lead · responder (האירועים שלי, mine scope)
+// ?state=ready (default) · loading · error
 // ?table=1 forces the desktop table, ?table=0 the cards (default: table at ≥1025 px).
 // Saved views go to this browser's localStorage, as they do before the migration is applied.
 
@@ -22,14 +23,17 @@ const ROLE_SETS: Record<string, string[]> = {
   shift_lead: ['shift_lead', 'responder'],
   admin: ['admin'],
   admin_lead: ['admin', 'shift_lead'],
+  responder: ['responder'],
 }
 const roleKey = params.get('role') && ROLE_SETS[params.get('role')!] ? params.get('role')! : 'shift_lead'
 const state = params.get('state') ?? 'ready'
 const tableParam = params.get('table')
-const ME = 'dev-lead'
+const SCOPE: 'unit' | 'mine' = roleKey === 'responder' ? 'mine' : 'unit'
+/** The responder signs in as רונית לוי, who rides on a third of the sample events. */
+const ME = SCOPE === 'mine' ? 'dev-r1' : 'dev-lead'
 
 const LEADS = [
-  { id: ME, full_name: 'אבי לוי', callsign: '101' },
+  { id: 'dev-lead', full_name: 'אבי לוי', callsign: '101' },
   { id: 'dev-dan', full_name: 'דני כהן', callsign: '214' },
   { id: 'dev-noa', full_name: 'נועה פרץ', callsign: '330' },
 ]
@@ -184,8 +188,11 @@ const api: EventsPageApi = {
   async fetchEventsByIds(ids) {
     return EVENTS.filter((event) => ids.includes(event.id)).sort(newestFirst)
   },
-  async fetchMyEvents() {
-    return []
+  async fetchMyEvents(userId) {
+    await wait(250)
+    if (state === 'loading') return never()
+    if (state === 'error') throw new Error('dev: mine load failed')
+    return EVENTS.filter((event) => event.responders.some((row) => row.responder_id === userId)).sort(newestFirst)
   },
   async searchUnitEventIds(needle) {
     await wait(200)
@@ -214,20 +221,22 @@ const api: EventsPageApi = {
       vehicleKinds: KINDS,
     }
   },
-  async listPresets() {
-    return readLocalPresets(presetUser)
+  async listPresets(_userId, scope) {
+    return readLocalPresets(presetUser, null, scope)
   },
-  async savePreset(_userId, name, view) {
+  async savePreset(_userId, name, view, scope) {
     await wait(300)
     const saved = { id: `local:${Date.now().toString(36)}`, name: name.trim(), view }
-    writeLocalPresets(presetUser, [...readLocalPresets(presetUser), saved])
+    writeLocalPresets(presetUser, [...readLocalPresets(presetUser, null, scope), saved], null, scope)
     return saved
   },
-  async deletePreset(_userId, id) {
+  async deletePreset(_userId, id, scope) {
     await wait(200)
     writeLocalPresets(
       presetUser,
-      readLocalPresets(presetUser).filter((preset) => preset.id !== id),
+      readLocalPresets(presetUser, null, scope).filter((preset) => preset.id !== id),
+      null,
+      scope,
     )
   },
 }
@@ -235,7 +244,10 @@ const api: EventsPageApi = {
 const mockAuth = {
   session: null,
   user: { id: ME },
-  profile: { id: ME, full_name: 'אבי לוי', callsign: '101', active: true },
+  profile:
+    SCOPE === 'mine'
+      ? { id: ME, full_name: 'רונית לוי', callsign: '318', active: true }
+      : { id: ME, full_name: 'אבי לוי', callsign: '101', active: true },
   roles: ROLE_SETS[roleKey],
   loading: false,
   passwordSetupReason: null,
@@ -292,9 +304,10 @@ function Harness() {
       <main className="shell__main">
         <DevBar />
         <EventsPage
-          scope="unit"
-          asTable={asTable}
-          canCreate
+          scope={SCOPE}
+          asTable={SCOPE === 'unit' && asTable}
+          canCreate={SCOPE === 'unit'}
+          onFill={(id) => console.info('[dev] fill event', id)}
           onOpen={(id) => console.info('[dev] open event', id)}
           onCreate={() => console.info('[dev] create event')}
           api={api}

@@ -61,6 +61,16 @@ describe('localStorage fallback', () => {
     expect(readLocalPresets('u2', storage)).toEqual([])
   })
 
+  it('keeps unit and mine views apart; unit keeps its original key', () => {
+    const storage = memoryStorage()
+    writeLocalPresets('u1', [trucks], storage, 'mine')
+    expect(readLocalPresets('u1', storage, 'mine')).toEqual([trucks])
+    expect(readLocalPresets('u1', storage)).toEqual([])
+    writeLocalPresets('u1', [trucks], storage)
+    expect(storage.getItem('yahpaz:eventFilterPresets:u1')).not.toBeNull()
+    expect(storage.getItem('yahpaz:eventFilterPresets:mine:u1')).not.toBeNull()
+  })
+
   it('tells local ids from table ids', () => {
     expect(isLocalPreset('local:abc')).toBe(true)
     expect(isLocalPreset('3f2504e0-4f89-11d3-9a0c-0305e82c3301')).toBe(false)

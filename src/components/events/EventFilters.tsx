@@ -44,6 +44,7 @@ import {
   type EventListView,
   type FilterField,
   type FilterRule,
+  type ListScope,
 } from '../../lib/eventFilters'
 import type { FilterLookups } from '../../lib/eventFiltersApi'
 import {
@@ -67,9 +68,14 @@ import { FilterPopover } from './FilterPopover'
 
 export type EventFiltersApi = {
   fetchFilterLookups: () => Promise<FilterLookups>
-  listPresets: (userId: string) => Promise<EventFilterPreset[]>
-  savePreset: (userId: string, name: string, view: EventListView) => Promise<EventFilterPreset>
-  deletePreset: (userId: string, id: string) => Promise<void>
+  listPresets: (userId: string, scope: ListScope) => Promise<EventFilterPreset[]>
+  savePreset: (
+    userId: string,
+    name: string,
+    view: EventListView,
+    scope: ListScope,
+  ) => Promise<EventFilterPreset>
+  deletePreset: (userId: string, id: string, scope: ListScope) => Promise<void>
 }
 
 type EventFiltersProps = {
@@ -79,6 +85,8 @@ type EventFiltersProps = {
   onQueryChange: (query: string) => void
   /** אחמ״ש gets the 12-hour list by default. */
   shiftLeadList: boolean
+  /** אירועים (unit) or האירועים שלי (mine): which saved views, search and toggles apply. */
+  scope?: ListScope
   /** אחמ״ש who is not admin: the נוצרו על ידי אחרים toggle. */
   showOthersControl: boolean
   /** What ברירת מחדל shows this viewer, for the view menu. */
@@ -115,6 +123,10 @@ const STATUS_DOT: Record<string, string> = {
 }
 
 const STATUS_ALL_LABEL = 'כל הסטטוסים'
+const UNIT_SEARCH_LABEL = 'חיפוש אירועים לפי מספר אירוע, כביש, מיקום או שם'
+const MINE_SEARCH_LABEL = 'חיפוש באירועים שלי לפי מספר אירוע, כביש או מיקום'
+/** האירועים שלי by default: every open assignment, plus 30 days of logged ones. */
+const MINE_WINDOW_LABEL = 'כל הממתינים · 30 ימים'
 
 /** Pill fields: everything but the date, which the תקופה pill owns. */
 const PILL_FIELDS = FILTER_FIELDS.filter((def) => def.field !== 'event_date')
@@ -137,6 +149,7 @@ export function EventFilters({
   query,
   onQueryChange,
   shiftLeadList,
+  scope = 'unit',
   showOthersControl,
   defaultCaption,
   userId,
@@ -223,7 +236,7 @@ export function EventFilters({
     if (!userId) return
     let active = true
     api
-      .listPresets(userId)
+      .listPresets(userId, scope)
       .then((rows) => {
         if (active) setPresets(rows)
       })
@@ -233,7 +246,7 @@ export function EventFilters({
     return () => {
       active = false
     }
-  }, [api, show, userId])
+  }, [api, scope, show, userId])
 
   const needsLookups =
     (openId?.startsWith('rule:') ?? false) ||
@@ -367,7 +380,7 @@ export function EventFilters({
     }
     setSaving(true)
     try {
-      const saved = await api.savePreset(userId, saveName, view)
+      const saved = await api.savePreset(userId, saveName, view, scope)
       setPresets((rows) => [...rows, saved].sort((a, b) => a.name.localeCompare(b.name, 'he')))
       setSaveOpen(false)
       show('התצוגה נשמרה', 'done')
@@ -387,7 +400,7 @@ export function EventFilters({
     if (!userId || !confirmDelete) return
     setDeleting(true)
     try {
-      await api.deletePreset(userId, confirmDelete.id)
+      await api.deletePreset(userId, confirmDelete.id, scope)
       setPresets((rows) => rows.filter((row) => row.id !== confirmDelete.id))
       setConfirmDelete(null)
       show('התצוגה נמחקה', 'done')
@@ -480,13 +493,13 @@ export function EventFilters({
     <div className={asCard ? 'efilters__row events-card__band' : 'efilters__row'}>
       <label className="fsearch">
         <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-        <span className="visually-hidden">חיפוש אירועים לפי מספר אירוע, כביש, מיקום או שם</span>
+        <span className="visually-hidden">{scope === 'mine' ? MINE_SEARCH_LABEL : UNIT_SEARCH_LABEL}</span>
         <input
           type="search"
           data-trigger="search"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="חיפוש: אירוע, כביש, מיקום או שם"
+          placeholder={scope === 'mine' ? 'חיפוש: אירוע, כביש או מיקום' : 'חיפוש: אירוע, כביש, מיקום או שם'}
         />
         {query ? (
           <button
@@ -514,7 +527,7 @@ export function EventFilters({
               trigger="period"
               icon={<CalendarDays size={14} strokeWidth={1.75} aria-hidden="true" />}
               label="תקופה"
-              value={period.summary}
+              value={scope === 'mine' && period.choice === 'window' ? MINE_WINDOW_LABEL : period.summary}
               active={period.changed}
               open={openId === 'period'}
               onOpen={() => toggle('period')}
@@ -533,6 +546,12 @@ export function EventFilters({
         >
           <PeriodPanel
             shiftLeadList={shiftLeadList}
+            windowLabel={scope === 'mine' ? MINE_WINDOW_LABEL : PERIOD_LABELS.window}
+            windowDescription={
+              scope === 'mine'
+                ? 'ממתינים לתיעוד מוצגים תמיד. תועדו: 30 הימים האחרונים, טען עוד מוסיף 30.'
+                : 'טען עוד מוסיף 30 ימים'
+            }
             choice={dateDraft ? dateDraft.op : period.choice}
             otherRules={otherRules}
             draft={dateDraft ?? null}
@@ -596,22 +615,24 @@ export function EventFilters({
           ))}
         </FilterPopover>
 
-        <button
-          type="button"
-          className="fpill fpill--single fpill--toggle"
-          aria-pressed={view.showShiftEvents}
-          aria-label="הצג אירועים ממשמרות"
-          onClick={() => onViewChange({ ...view, showShiftEvents: !view.showShiftEvents })}
-        >
-          {view.showShiftEvents ? (
-            <Check size={16} strokeWidth={1.75} aria-hidden="true" />
-          ) : (
-            <Truck size={16} strokeWidth={1.75} aria-hidden="true" />
-          )}
-          <span className="fpill__value" aria-hidden="true">
-            משמרות
-          </span>
-        </button>
+        {scope === 'unit' ? (
+          <button
+            type="button"
+            className="fpill fpill--single fpill--toggle"
+            aria-pressed={view.showShiftEvents}
+            aria-label="הצג אירועים ממשמרות"
+            onClick={() => onViewChange({ ...view, showShiftEvents: !view.showShiftEvents })}
+          >
+            {view.showShiftEvents ? (
+              <Check size={16} strokeWidth={1.75} aria-hidden="true" />
+            ) : (
+              <Truck size={16} strokeWidth={1.75} aria-hidden="true" />
+            )}
+            <span className="fpill__value" aria-hidden="true">
+              משמרות
+            </span>
+          </button>
+        ) : null}
 
         {showOthersControl ? (
           <button
@@ -1050,6 +1071,8 @@ function AddFilter({
 
 function PeriodPanel({
   shiftLeadList,
+  windowLabel,
+  windowDescription,
   choice,
   otherRules,
   draft,
@@ -1058,6 +1081,8 @@ function PeriodPanel({
   onDateValidity,
 }: {
   shiftLeadList: boolean
+  windowLabel: string
+  windowDescription: string
   choice: string
   otherRules: boolean
   draft: DateRule | null
@@ -1099,8 +1124,8 @@ function PeriodPanel({
         <PeriodOption
           checked={choice === 'window'}
           disabled={windowsOff}
-          label={PERIOD_LABELS.window}
-          description="טען עוד מוסיף 30 ימים"
+          label={windowLabel}
+          description={windowDescription}
           onSelect={() => onWindow('window')}
         />
         <PeriodOption

@@ -1,12 +1,12 @@
 /**
- * Saved views (תצוגות) for the unit אירועים list, per user.
+ * Saved views (תצוגות) for אירועים and for האירועים שלי, per user and tagged by list.
  *
  * Home is `event_filter_presets` (own rows only, RLS). Until that migration is
  * applied the table is missing, so presets live in this browser's localStorage
  * instead; both lists are shown, and ids say which store a preset is in.
  */
 
-import { parseView, serializeView, type EventListView } from './eventFilters'
+import { parseView, serializeView, type EventListView, type ListScope } from './eventFilters'
 import { supabase } from './supabase'
 
 export type EventFilterPreset = { id: string; name: string; view: EventListView }
@@ -85,17 +85,22 @@ export function localPresetsToMigrate(
   })
 }
 
-function localKey(userId: string): string {
-  return `yahpaz:eventFilterPresets:${userId}`
+/** Unit views keep the key they had; האירועים שלי views get their own. */
+function localKey(userId: string, scope: ListScope): string {
+  return scope === 'mine' ? `yahpaz:eventFilterPresets:mine:${userId}` : `yahpaz:eventFilterPresets:${userId}`
 }
 
 function localStore(storage?: Storage | null): Storage | null {
   return storage ?? (typeof localStorage === 'undefined' ? null : localStorage)
 }
 
-export function readLocalPresets(userId: string, storage?: Storage | null): EventFilterPreset[] {
+export function readLocalPresets(
+  userId: string,
+  storage?: Storage | null,
+  scope: ListScope = 'unit',
+): EventFilterPreset[] {
   try {
-    const raw = localStore(storage)?.getItem(localKey(userId))
+    const raw = localStore(storage)?.getItem(localKey(userId, scope))
     return raw ? parsePresetRows(JSON.parse(raw)) : []
   } catch {
     return []
@@ -106,11 +111,12 @@ export function writeLocalPresets(
   userId: string,
   presets: readonly EventFilterPreset[],
   storage?: Storage | null,
+  scope: ListScope = 'unit',
 ): boolean {
   try {
     const store = localStore(storage)
     if (!store) return false
-    store.setItem(localKey(userId), JSON.stringify(presets))
+    store.setItem(localKey(userId, scope), JSON.stringify(presets))
     return true
   } catch {
     return false
@@ -120,12 +126,14 @@ export function writeLocalPresets(
 /** Once a request says the table is missing, stop asking for this page load. */
 let tableMissing = false
 
-export async function listPresets(userId: string): Promise<EventFilterPreset[]> {
-  const local = readLocalPresets(userId)
+/** The viewer's views for one list: a unit view never shows up on האירועים שלי, and back. */
+export async function listPresets(userId: string, scope: ListScope = 'unit'): Promise<EventFilterPreset[]> {
+  const local = readLocalPresets(userId, null, scope)
   if (tableMissing) return [...local].sort(byName)
   const { data, error } = await supabase
     .from('event_filter_presets')
     .select('id, name, view')
+    .eq('scope', scope)
     .order('name', { ascending: true })
   if (error) {
     if (isMissingPresetTable(error)) {
@@ -136,7 +144,7 @@ export async function listPresets(userId: string): Promise<EventFilterPreset[]> 
   }
   const table = parsePresetRows(data)
   if (local.length === 0) return table.sort(byName)
-  return [...table, ...(await migrateLocalPresets(userId, local, table))].sort(byName)
+  return [...table, ...(await migrateLocalPresets(userId, local, table, scope))].sort(byName)
 }
 
 /** Copies browser-only views into the table, then forgets them. Returns what could not move. */
@@ -144,18 +152,26 @@ async function migrateLocalPresets(
   userId: string,
   local: EventFilterPreset[],
   table: EventFilterPreset[],
+  scope: ListScope,
 ): Promise<EventFilterPreset[]> {
   const moving = localPresetsToMigrate(local, table)
   if (moving.length > 0) {
     const { data, error } = await supabase
       .from('event_filter_presets')
-      .insert(moving.map((preset) => ({ user_id: userId, name: preset.name, view: serializeView(preset.view) })))
+      .insert(
+        moving.map((preset) => ({
+          user_id: userId,
+          scope,
+          name: preset.name,
+          view: serializeView(preset.view),
+        })),
+      )
       .select('id, name, view')
     if (error) return local
-    writeLocalPresets(userId, [])
+    writeLocalPresets(userId, [], null, scope)
     return parsePresetRows(data)
   }
-  writeLocalPresets(userId, [])
+  writeLocalPresets(userId, [], null, scope)
   return []
 }
 
@@ -163,12 +179,13 @@ export async function savePreset(
   userId: string,
   name: string,
   view: EventListView,
+  scope: ListScope = 'unit',
 ): Promise<EventFilterPreset> {
   const trimmed = name.trim()
   if (!tableMissing) {
     const { data, error } = await supabase
       .from('event_filter_presets')
-      .insert({ user_id: userId, name: trimmed, view: serializeView(view) })
+      .insert({ user_id: userId, scope, name: trimmed, view: serializeView(view) })
       .select('id, name, view')
       .single()
     if (!error) {
@@ -180,7 +197,8 @@ export async function savePreset(
     if (!isMissingPresetTable(error)) throw new Error(error.message)
     tableMissing = true
   }
-  if (presetNameError(trimmed, readLocalPresets(userId)) === PRESET_DUPLICATE_NAME) {
+  const local = readLocalPresets(userId, null, scope)
+  if (presetNameError(trimmed, local) === PRESET_DUPLICATE_NAME) {
     throw new DuplicatePresetNameError()
   }
   const saved: EventFilterPreset = {
@@ -188,16 +206,16 @@ export async function savePreset(
     name: trimmed,
     view,
   }
-  if (!writeLocalPresets(userId, [...readLocalPresets(userId), { ...saved, view: serializeView(view) }])) {
+  if (!writeLocalPresets(userId, [...local, { ...saved, view: serializeView(view) }], null, scope)) {
     throw new Error('localStorage unavailable')
   }
   return saved
 }
 
-export async function deletePreset(userId: string, id: string): Promise<void> {
+export async function deletePreset(userId: string, id: string, scope: ListScope = 'unit'): Promise<void> {
   if (isLocalPreset(id)) {
-    const next = readLocalPresets(userId).filter((preset) => preset.id !== id)
-    if (!writeLocalPresets(userId, next)) throw new Error('localStorage unavailable')
+    const next = readLocalPresets(userId, null, scope).filter((preset) => preset.id !== id)
+    if (!writeLocalPresets(userId, next, null, scope)) throw new Error('localStorage unavailable')
     return
   }
   const { error } = await supabase.from('event_filter_presets').delete().eq('id', id)

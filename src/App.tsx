@@ -1278,7 +1278,7 @@ function Gate() {
         />
       ) : onEvents ? (
         <EventsPage
-          key={sectionReset}
+          key={`${sectionReset}:${scope}`}
           scope={scope}
           asTable={Boolean(commandShell && scope === 'unit')}
           canCreate={manages && scope === 'unit'}

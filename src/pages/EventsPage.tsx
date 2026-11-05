@@ -48,15 +48,13 @@ import {
   shouldShowIncompleteFuelNotice,
 } from '../lib/fuelAllocationPolicy'
 import { formatDayHeading } from '../lib/format'
-import { MINE_LOGGED_WINDOW_DAYS, partitionMineList } from '../lib/mineListSections'
+import { MINE_LOGGED_WINDOW_DAYS } from '../lib/mineListSections'
 import {
   MINE_LOGGED_EMPTY_TITLE,
   MINE_PENDING_EMPTY_CAPTION,
   MINE_PENDING_EMPTY_TITLE,
   MINE_PENDING_EMPTY_VIEW_LOGGED,
   MINE_PENDING_TAB_LABEL,
-  mineEventMatchesQuery,
-  mineLoggedNoResultsTitle,
   shiftGroupPendingCaption,
   shiftGroupShouldStartOpen,
   type MineInboxTab,
@@ -108,6 +106,8 @@ import {
 } from '../lib/missingKmAlert'
 import { fetchEventIdsWithMedia } from '../lib/eventMedia'
 import {
+  activeRules,
+  mineFilteredSections,
   readSessionQuery,
   readSessionRules,
   readSessionStatus,
@@ -150,6 +150,7 @@ const EVENTS_PAGE_API: EventsPageApi = {
   deletePreset,
 }
 
+const MINE_DEFAULT_CAPTION = 'ממתינים לתיעוד: כולם · תועדו: 30 הימים האחרונים'
 const RULES_HINT = 'מציג אירועים לפי תנאי הסינון, מכל התאריכים.'
 const RULES_CAPPED_HINT = `מוצגים ${UNIT_EVENTS_LIST_LIMIT} האירועים האחרונים שתואמים לסינון. הוסיפו תנאי כדי להגיע לישנים יותר.`
 
@@ -177,22 +178,21 @@ export function EventsPage({
   const { show } = useToast()
   const [events, setEvents] = useState<EventListItem[] | null>(null)
   const [failed, setFailed] = useState(false)
-  const [filter, setFilter] = useState<EventStatus | 'all'>(readSessionStatus)
-  const [query, setQuery] = useState(readSessionQuery)
+  const [filter, setFilter] = useState<EventStatus | 'all'>(() => readSessionStatus(null, scope))
+  const [query, setQuery] = useState(() => readSessionQuery(null, scope))
   const [filtersResetKey, setFiltersResetKey] = useState(0)
   const [showOthersCreated, setShowOthersCreated] = useState(readShowOthersCreatedEvents)
   const showOthersControl = shouldFilterUnitEventsToOwnCreated(roles)
   const [showShiftEvents, setShowShiftEvents] = useState(readShowShiftEvents)
   const [showOlderEvents, setShowOlderEvents] = useState(readShowOlderUnitEvents)
-  const [rules, setRules] = useState<FilterRule[]>(readSessionRules)
+  const [rules, setRules] = useState<FilterRule[]>(() => readSessionRules(null, scope))
   const [rulesCapped, setRulesCapped] = useState(false)
-  const view: EventListView = {
-    status: filter,
-    showShiftEvents,
-    showOlder: showOlderEvents,
-    showOthers: showOthersCreated,
-    rules,
-  }
+  const [mineRuleIds, setMineRuleIds] = useState<ReadonlySet<string> | null>(null)
+  // האירועים שלי has no unit toggles or 12-hour window: they cannot change that list.
+  const view: EventListView =
+    scope === 'mine'
+      ? { status: filter, showShiftEvents: false, showOlder: false, showOthers: false, rules }
+      : { status: filter, showShiftEvents, showOlder: showOlderEvents, showOthers: showOthersCreated, rules }
   const plan = unitListPlan({ roles, userId: user?.id, view })
   const rulesMode = scope === 'unit' && plan.rulesMode
   const recentList = scope === 'unit' && plan.recentWindow
@@ -213,22 +213,34 @@ export function EventsPage({
     [rulesKey],
   )
 
+  function clearAllFilters() {
+    setFilter('all')
+    writeSessionStatus('all', null, scope)
+    changeQuery('')
+    if (rules.length > 0) {
+      setRules([])
+      writeSessionRules([], null, scope)
+    }
+    setFiltersResetKey((key) => key + 1)
+  }
+
   function changeQuery(next: string) {
     setQuery(next)
-    writeSessionQuery(next)
+    writeSessionQuery(next, null, scope)
   }
 
   function applyView(next: EventListView) {
     setFilter(next.status)
-    writeSessionStatus(next.status)
+    writeSessionStatus(next.status, null, scope)
+    setRules(next.rules)
+    writeSessionRules(next.rules, null, scope)
+    if (scope === 'mine') return
     setShowShiftEvents(next.showShiftEvents)
     writeShowShiftEvents(next.showShiftEvents)
     setShowOlderEvents(next.showOlder)
     writeShowOlderUnitEvents(next.showOlder)
     setShowOthersCreated(next.showOthers)
     writeShowOthersCreatedEvents(next.showOthers)
-    setRules(next.rules)
-    writeSessionRules(next.rules)
   }
   const [searchIds, setSearchIds] = useState<ReadonlySet<string> | null>(null)
   const [searchExtras, setSearchExtras] = useState<EventListItem[]>([])
@@ -237,7 +249,6 @@ export function EventsPage({
   const [loggedWindows, setLoggedWindows] = useState(1)
   const [unitWindows, setUnitWindows] = useState(1)
   const [mineTab, setMineTab] = useState<MineInboxTab>('pending')
-  const [loggedQuery, setLoggedQuery] = useState('')
   const canListDelete = scope === 'unit' && canUseEventListDeleteContext(roles)
   const [deleteMenu, setDeleteMenu] = useState<{
     event: EventListItem
@@ -342,11 +353,42 @@ export function EventsPage({
     }
   }, [api, createdById, scope, user, reloadKey, rulesQuery])
 
+  // האירועים שלי is loaded whole (every open assignment, up to 200 logged), but plates
+  // and vehicle types are not in that select, so the same id queries as אירועים
+  // answer which of those ids match. Nothing outside the viewer's own list is asked.
+  const mineRulesKey = scope === 'mine' && activeRules(rules).length > 0 ? JSON.stringify(activeRules(rules)) : ''
+  useEffect(() => {
+    if (!mineRulesKey || !events) {
+      setMineRuleIds(null)
+      return
+    }
+    let active = true
+    setMineRuleIds(null)
+    const ids = events.map((event) => event.id)
+    api
+      .fetchRuleFilteredEvents(JSON.parse(mineRulesKey) as FilterRule[], {
+        shiftLeadId: null,
+        status: 'all',
+        hideShiftEvents: false,
+        limit: ids.length,
+        ids,
+      })
+      .then((result) => {
+        if (active) setMineRuleIds(new Set(result.events.map((event) => event.id)))
+      })
+      .catch(() => {
+        if (active) setFailed(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [api, events, mineRulesKey])
+  const mineRulesPending = mineRulesKey !== '' && mineRuleIds === null
+
   useEffect(() => {
     setLoggedWindows(1)
     setUnitWindows(1)
     setMineTab('pending')
-    setLoggedQuery('')
   }, [reloadKey, scope])
 
   useEffect(() => {
@@ -524,8 +566,10 @@ export function EventsPage({
   const grouped = useMemo(() => groupByDate(visible), [visible])
   const mineSections = useMemo(() => {
     if (scope !== 'mine' || !events) return null
-    return partitionMineList(events, {
-      dateOf: (event) => event.event_date,
+    return mineFilteredSections(events, {
+      status: filter,
+      query,
+      ruleIds: mineRulesKey ? (mineRuleIds ?? new Set<string>()) : null,
       bucket: (event) => {
         // Not yet the crew's to document: neither pending nor logged.
         if (!eventReleasedFromEvent(event) || shiftBornBeforeShiftDate(event, jerusalemToday())) {
@@ -536,11 +580,9 @@ export function EventsPage({
       today: jerusalemToday(),
       windowsLoaded: loggedWindows,
     })
-  }, [events, loggedWindows, scope, user?.id])
-  const loggedVisible = useMemo(() => {
-    if (!mineSections) return []
-    return mineSections.logged.filter((event) => mineEventMatchesQuery(event, loggedQuery))
-  }, [loggedQuery, mineSections])
+  }, [events, filter, loggedWindows, mineRuleIds, mineRulesKey, query, scope, user?.id])
+  const loggedVisible = mineSections?.logged ?? []
+  const mineFiltered = scope === 'mine' && (mineRulesKey !== '' || filter !== 'all' || query.trim() !== '')
   const openMineCount = useMemo(() => {
     if (scope !== 'mine' || !events) return 0
     return events.filter((event) => mineEventIsOpen(event)).length
@@ -564,9 +606,13 @@ export function EventsPage({
     )
   ) : searching ? (
     <SearchLoadingState />
+  ) : scope === 'mine' && mineRulesPending ? (
+    <EventListSkeleton />
   ) : scope === 'mine' && mineSections ? (
     mineTab === 'pending' ? (
-      mineSections.pending.length === 0 ? (
+      mineSections.pending.length === 0 && mineFiltered ? (
+        <ListEmptyState filtered rulesFiltered canCreate={false} onClear={clearAllFilters} />
+      ) : mineSections.pending.length === 0 ? (
         <EmptyState
           icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
           title={MINE_PENDING_EMPTY_TITLE}
@@ -593,8 +639,8 @@ export function EventsPage({
     ) : (
       <MineLoggedList
         events={loggedVisible}
-        query={loggedQuery}
-        onQueryChange={setLoggedQuery}
+        filtered={mineFiltered}
+        onClearFilters={clearAllFilters}
         stampFor={stampFor}
         onOpen={onOpen}
         userId={user?.id}
@@ -621,16 +667,7 @@ export function EventsPage({
       }
       canCreate={canCreate && Boolean(onCreate)}
       onCreate={onCreate}
-      onClear={() => {
-        setFilter('all')
-        writeSessionStatus('all')
-        changeQuery('')
-        if (rules.length > 0) {
-          setRules([])
-          writeSessionRules([])
-        }
-        setFiltersResetKey((key) => key + 1)
-      }}
+      onClear={clearAllFilters}
       onShowOlder={() => {
         setShowOlderEvents(true)
         writeShowOlderUnitEvents(true)
@@ -720,40 +757,41 @@ export function EventsPage({
         </p>
       ) : null}
 
-      {scope === 'unit' ? (
-        <EventFilters
+      <EventFilters
+          key={scope}
+          scope={scope}
           view={view}
           onViewChange={applyView}
           query={query}
           onQueryChange={changeQuery}
-          shiftLeadList={shouldApplyShiftLeadRecentWindow(roles)}
-          showOthersControl={showOthersControl}
+          shiftLeadList={scope === 'unit' && shouldApplyShiftLeadRecentWindow(roles)}
+          showOthersControl={scope === 'unit' && showOthersControl}
           defaultCaption={
-            shouldApplyShiftLeadRecentWindow(roles)
-              ? SHIFT_LEAD_EVENTS_RECENT_HINT
-              : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)
+            scope === 'mine'
+              ? MINE_DEFAULT_CAPTION
+              : shouldApplyShiftLeadRecentWindow(roles)
+                ? SHIFT_LEAD_EVENTS_RECENT_HINT
+                : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)
           }
           userId={user?.id}
           api={api}
           resetKey={filtersResetKey}
-          resultCount={events && !failed && !searching ? visible.length : null}
-          asCard={asTable}
+          resultCount={
+            !events || failed || searching || mineRulesPending
+              ? null
+              : scope === 'mine'
+                ? mineTab === 'pending'
+                  ? (mineSections?.pending.length ?? 0)
+                  : loggedVisible.length
+                : visible.length
+          }
+          asCard={scope === 'unit' && asTable}
         >
+          {scope === 'mine' ? (
+            <MineInboxTabs tab={mineTab} pendingCount={openMineCount} onChange={setMineTab} />
+          ) : null}
           {listBody}
         </EventFilters>
-      ) : (
-        <>
-          <MineInboxTabs
-            tab={mineTab}
-            pendingCount={openMineCount}
-            onChange={(next) => {
-              setMineTab(next)
-              if (next !== 'logged') setLoggedQuery('')
-            }}
-          />
-          {listBody}
-        </>
-      )}
 
 
       {canListDelete ? (
@@ -924,8 +962,8 @@ function ListEmptyState({
 
 function MineLoggedList({
   events,
-  query,
-  onQueryChange,
+  filtered,
+  onClearFilters,
   stampFor,
   onOpen,
   userId,
@@ -933,8 +971,9 @@ function MineLoggedList({
   onLoadMore,
 }: {
   events: EventListItem[]
-  query: string
-  onQueryChange: (value: string) => void
+  /** Status, search or rules are narrowing the list (the toolbar above owns them). */
+  filtered: boolean
+  onClearFilters: () => void
   stampFor: (event: EventListItem) => StampDescriptor
   onOpen: (eventId: string) => void
   userId?: string
@@ -942,35 +981,17 @@ function MineLoggedList({
   onLoadMore: () => void
 }) {
   const freezeViewer = useFreezeViewer()
-  const trimmed = query.trim()
   return (
     <div className="stack-4">
-      <div className="admin-toolbar">
-        <label className="search-field">
-          <Search size={20} strokeWidth={1.75} aria-hidden="true" />
-          <span className="visually-hidden">חיפוש אירועים שתועדו</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="אירוע, כביש או מיקום"
-          />
-        </label>
-      </div>
       <p className="t-caption text-muted mine-logged-caption">
         {`תועדו · ${MINE_LOGGED_WINDOW_DAYS} יום אחרונים`}
       </p>
-      {events.length === 0 ? (
+      {events.length === 0 && filtered ? (
+        <ListEmptyState filtered rulesFiltered canCreate={false} onClear={onClearFilters} />
+      ) : events.length === 0 ? (
         <EmptyState
           icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title={trimmed ? mineLoggedNoResultsTitle(trimmed) : MINE_LOGGED_EMPTY_TITLE}
-          action={
-            trimmed ? (
-              <Button variant="ghost" onClick={() => onQueryChange('')}>
-                ניקוי חיפוש
-              </Button>
-            ) : undefined
-          }
+          title={MINE_LOGGED_EMPTY_TITLE}
         />
       ) : (
         <ul className="list-rows">

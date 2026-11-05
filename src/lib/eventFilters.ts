@@ -9,6 +9,8 @@
 
 import { partitionUnitEventsByWindow, type EventListItem } from './events'
 import { digitsOnly, formatDate } from './format'
+import { mineEventMatchesQuery } from './mineInbox'
+import { partitionMineList, type MineListBucket, type MineListSections } from './mineListSections'
 import { keepShiftLeadRecentEvent, shouldApplyShiftLeadRecentWindow } from './shiftLeadEventsWindow'
 import type { EventStatus } from './status'
 import { unitEventsCreatedByFilter } from './unitEventsScope'
@@ -535,14 +537,21 @@ export function mergeRuleHits(
 
 const RULES_STORAGE_KEY = 'yahpaz:unitEventsFilterRules'
 
+export type ListScope = 'unit' | 'mine'
+
+/** Unit keys stay as they were; האירועים שלי gets its own, so the two lists never share filters. */
+function scopedKey(key: string, scope: ListScope): string {
+  return scope === 'mine' ? `${key}:mine` : key
+}
+
 function sessionStore(storage?: Storage | null): Storage | null {
   return storage ?? (typeof sessionStorage === 'undefined' ? null : sessionStorage)
 }
 
 /** Rules survive opening an event and coming back, like the toolbar chips. */
-export function readSessionRules(storage?: Storage | null): FilterRule[] {
+export function readSessionRules(storage?: Storage | null, scope: ListScope = 'unit'): FilterRule[] {
   try {
-    const raw = sessionStore(storage)?.getItem(RULES_STORAGE_KEY)
+    const raw = sessionStore(storage)?.getItem(scopedKey(RULES_STORAGE_KEY, scope))
     if (!raw) return []
     return parseView({ rules: JSON.parse(raw) })?.rules ?? []
   } catch {
@@ -550,13 +559,18 @@ export function readSessionRules(storage?: Storage | null): FilterRule[] {
   }
 }
 
-export function writeSessionRules(rules: readonly FilterRule[], storage?: Storage | null): void {
+export function writeSessionRules(
+  rules: readonly FilterRule[],
+  storage?: Storage | null,
+  scope: ListScope = 'unit',
+): void {
   try {
     const store = sessionStore(storage)
     if (!store) return
     const active = activeRules(rules)
-    if (active.length === 0) store.removeItem(RULES_STORAGE_KEY)
-    else store.setItem(RULES_STORAGE_KEY, JSON.stringify(active))
+    const key = scopedKey(RULES_STORAGE_KEY, scope)
+    if (active.length === 0) store.removeItem(key)
+    else store.setItem(key, JSON.stringify(active))
   } catch {
     // sessionStorage can throw in private mode
   }
@@ -566,41 +580,86 @@ const STATUS_STORAGE_KEY = 'yahpaz:unitEventsStatus'
 const QUERY_STORAGE_KEY = 'yahpaz:unitEventsQuery'
 
 /** Status and search text survive a reload with the rules, per browser session. */
-export function readSessionStatus(storage?: Storage | null): EventStatus | 'all' {
+export function readSessionStatus(storage?: Storage | null, scope: ListScope = 'unit'): EventStatus | 'all' {
   try {
-    const raw = sessionStore(storage)?.getItem(STATUS_STORAGE_KEY)
+    const raw = sessionStore(storage)?.getItem(scopedKey(STATUS_STORAGE_KEY, scope))
     return STATUSES.includes(raw as EventStatus | 'all') ? (raw as EventStatus | 'all') : 'all'
   } catch {
     return 'all'
   }
 }
 
-export function writeSessionStatus(status: EventStatus | 'all', storage?: Storage | null): void {
+export function writeSessionStatus(
+  status: EventStatus | 'all',
+  storage?: Storage | null,
+  scope: ListScope = 'unit',
+): void {
   try {
     const store = sessionStore(storage)
     if (!store) return
-    if (status === 'all') store.removeItem(STATUS_STORAGE_KEY)
-    else store.setItem(STATUS_STORAGE_KEY, status)
+    const key = scopedKey(STATUS_STORAGE_KEY, scope)
+    if (status === 'all') store.removeItem(key)
+    else store.setItem(key, status)
   } catch {
     // sessionStorage can throw in private mode
   }
 }
 
-export function readSessionQuery(storage?: Storage | null): string {
+export function readSessionQuery(storage?: Storage | null, scope: ListScope = 'unit'): string {
   try {
-    return sessionStore(storage)?.getItem(QUERY_STORAGE_KEY) ?? ''
+    return sessionStore(storage)?.getItem(scopedKey(QUERY_STORAGE_KEY, scope)) ?? ''
   } catch {
     return ''
   }
 }
 
-export function writeSessionQuery(query: string, storage?: Storage | null): void {
+export function writeSessionQuery(query: string, storage?: Storage | null, scope: ListScope = 'unit'): void {
   try {
     const store = sessionStore(storage)
     if (!store) return
-    if (query) store.setItem(QUERY_STORAGE_KEY, query)
-    else store.removeItem(QUERY_STORAGE_KEY)
+    const key = scopedKey(QUERY_STORAGE_KEY, scope)
+    if (query) store.setItem(key, query)
+    else store.removeItem(key)
   } catch {
     // sessionStorage can throw in private mode
+  }
+}
+
+/** Far enough back that the logged list has no window: rules already chose the events. */
+const MINE_ALL_WINDOWS = 1000
+
+/**
+ * The האירועים שלי list after filters. With status הכול, no search and no rules it is
+ * exactly partitionMineList, as before. Rules come back from the server as matching ids
+ * among the viewer's own loaded events; while they apply the logged window is off.
+ */
+export function mineFilteredSections<T extends EventListItem>(
+  events: T[],
+  opts: {
+    status: EventStatus | 'all'
+    query: string
+    ruleIds: ReadonlySet<string> | null
+    bucket: (event: T) => MineListBucket
+    today: string
+    windowsLoaded: number
+  },
+): MineListSections<T> {
+  const source = events.filter(
+    (event) =>
+      (opts.status === 'all' || event.status === opts.status) &&
+      (opts.ruleIds === null || opts.ruleIds.has(event.id)),
+  )
+  const sections = partitionMineList(source, {
+    dateOf: (event) => event.event_date,
+    bucket: opts.bucket,
+    today: opts.today,
+    windowsLoaded: opts.ruleIds === null ? opts.windowsLoaded : MINE_ALL_WINDOWS,
+  })
+  const matches = (event: T) => mineEventMatchesQuery(event, opts.query)
+  return {
+    pending: sections.pending.filter(matches),
+    future: sections.future.filter(matches),
+    logged: sections.logged.filter(matches),
+    hasMoreLogged: sections.hasMoreLogged,
   }
 }
