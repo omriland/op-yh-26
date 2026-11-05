@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import {
   CalendarDays,
   Car,
@@ -28,8 +37,9 @@ import {
   ruleError,
   ruleSummary,
   ruleValueLabel,
-  sameView,
+  sameFilters,
   withPeriodWindow,
+  withToggles,
   type DateRule,
   type EventListView,
   type FilterField,
@@ -75,6 +85,13 @@ type EventFiltersProps = {
   defaultCaption: string
   userId: string | undefined
   api: EventFiltersApi
+  /** Bumped when the page clears the filters itself (the empty state's ניקוי סינון). */
+  resetKey?: number
+  /** Rows on screen after filters and search; null while loading or failed. */
+  resultCount?: number | null
+  /** Desktop table: the filter row is the list card's top band, as on the reference. */
+  asCard?: boolean
+  children?: ReactNode
 }
 
 const UNSAVED_ID = 'unsaved'
@@ -124,6 +141,10 @@ export function EventFilters({
   defaultCaption,
   userId,
   api,
+  resetKey = 0,
+  resultCount = null,
+  asCard = false,
+  children,
 }: EventFiltersProps) {
   const { show } = useToast()
   const [openId, setOpenId] = useState<string | null>(null)
@@ -145,6 +166,38 @@ export function EventFilters({
   const timers = useRef(new Map<FilterField, number>())
   const viewRef = useRef(view)
   viewRef.current = view
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  /** After a menu choice or a dialog, focus goes back to a control that still exists. */
+  function focusTrigger(name: 'view' | 'status' | 'period' | 'add' | 'search') {
+    const focus = () => {
+      const root = rootRef.current
+      const target =
+        root?.querySelector<HTMLElement>(`[data-trigger="${name}"]`) ??
+        root?.querySelector<HTMLElement>('[data-trigger="add"]') ??
+        root?.querySelector<HTMLElement>('[data-trigger="view"]')
+      target?.focus()
+    }
+    // Once after the menu unmounts; dialogs restore focus on their own exit (to a button
+    // that may be gone), so check again until that has settled.
+    window.setTimeout(focus, 60)
+    for (const delay of [250, 600]) {
+      window.setTimeout(() => {
+        if (document.activeElement === document.body) focus()
+      }, delay)
+    }
+  }
+
+  const firstReset = useRef(true)
+  useEffect(() => {
+    if (firstReset.current) {
+      firstReset.current = false
+      return
+    }
+    timers.current.forEach((handle) => window.clearTimeout(handle))
+    setDrafts([])
+    setOpenId(null)
+  }, [resetKey])
 
   // Applied rules changed: drafts take the applied values and gain any new field. Drafts
   // leave only by an explicit remove, view switch or ניקוי סינון, so a withheld date stays.
@@ -209,25 +262,27 @@ export function EventFilters({
     [lookups],
   )
 
-  const currentId = sameView(view, DEFAULT_EVENT_LIST_VIEW)
+  const currentId = sameFilters(view, DEFAULT_EVENT_LIST_VIEW)
     ? DEFAULT_PRESET_ID
-    : (presets.find((preset) => sameView(view, preset.view))?.id ?? UNSAVED_ID)
+    : (presets.find((preset) => sameFilters(view, preset.view))?.id ?? UNSAVED_ID)
   const currentPreset = presets.find((preset) => preset.id === currentId) ?? null
   const currentName =
-    currentId === DEFAULT_PRESET_ID
-      ? DEFAULT_PRESET_NAME
-      : (currentPreset?.name ?? 'סינון שלא נשמר')
+    currentId === DEFAULT_PRESET_ID ? DEFAULT_PRESET_NAME : (currentPreset?.name ?? 'סינון שלא נשמר')
   const period = periodState(view, shiftLeadList)
   const hasLeadRule = drafts.some((rule) => rule.field === 'shift_lead' && !isEmptyRule(rule))
   const anythingSet = currentId !== DEFAULT_PRESET_ID || query.trim() !== ''
 
-  /** Applies one field: a complete rule, or none when emptied. A half-typed value leaves the list as it is. */
+  /**
+   * Applies one field: a complete rule, or none when emptied. A half-typed text value
+   * leaves the list as it is; a date that cannot run (reversed range) is withdrawn.
+   */
   function pushRule(field: FilterField, draft: FilterRule | null) {
     const current = viewRef.current
     const others = current.rules.filter((rule) => rule.field !== field)
     let next: FilterRule[]
     if (!draft || isEmptyRule(draft)) next = others
     else if (ruleError(draft) === null) next = [...others, draft]
+    else if (draft.field === 'event_date') next = others
     else return
     const rules = activeRules(next)
     if (JSON.stringify(rules) === JSON.stringify(activeRules(current.rules))) return
@@ -273,22 +328,25 @@ export function EventFilters({
 
   function chooseView(next: EventListView) {
     setOpenId(null)
-    if (currentId === UNSAVED_ID && !sameView(next, view)) {
+    if (currentId === UNSAVED_ID && !sameFilters(next, view)) {
       setConfirmSwitch(next)
       return
     }
     switchTo(next)
+    focusTrigger('view')
   }
 
+  /** A view sets the filters; the משמרות / אחרים toggles stay as the viewer left them. */
   function switchTo(next: EventListView) {
     timers.current.forEach((handle) => window.clearTimeout(handle))
     setDrafts(next.rules)
-    onViewChange(next)
+    onViewChange(withToggles(next, viewRef.current))
   }
 
   function clearAll() {
     switchTo(DEFAULT_EVENT_LIST_VIEW)
     onQueryChange('')
+    focusTrigger('add')
   }
 
   function openSave() {
@@ -313,6 +371,7 @@ export function EventFilters({
       setPresets((rows) => [...rows, saved].sort((a, b) => a.name.localeCompare(b.name, 'he')))
       setSaveOpen(false)
       show('התצוגה נשמרה', 'done')
+      focusTrigger('view')
     } catch (error) {
       setSaveError(
         error instanceof DuplicatePresetNameError
@@ -332,6 +391,7 @@ export function EventFilters({
       setPresets((rows) => rows.filter((row) => row.id !== confirmDelete.id))
       setConfirmDelete(null)
       show('התצוגה נמחקה', 'done')
+      focusTrigger('view')
     } catch {
       show('מחיקת התצוגה נכשלה. בדקו את החיבור ונסו שוב.', 'alert')
     } finally {
@@ -347,94 +407,103 @@ export function EventFilters({
   const statusRow = EVENT_FILTERS.find((row) => row.value === view.status)
   const otherRules = activeRules(view.rules).some((rule) => rule.field !== 'event_date')
 
-  return (
-    <div className="efilters">
-      <div className="efilters__view">
-        <span className="efilters__view-label">תצוגה:</span>
-        <FilterPopover
-          open={openId === 'view'}
-          onClose={close}
-          title="תצוגה"
-          kind="menu"
-          trigger={
-            <button
-              type="button"
-              className="fview"
-              aria-haspopup="menu"
-              aria-expanded={openId === 'view'}
-              onClick={() => toggle('view')}
-            >
-              <LayoutList size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span className="fview__name">{currentName}</span>
-              <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
-            </button>
-          }
-        >
+  const countLabel = resultCount === null ? null : resultCount === 1 ? 'אירוע אחד' : `${resultCount} אירועים`
+
+  const viewRow = (
+    <div className="efilters__view">
+      <span className="efilters__view-label">תצוגה:</span>
+      <FilterPopover
+        open={openId === 'view'}
+        onClose={close}
+        title="תצוגה"
+        kind="menu"
+        trigger={
+          <button
+            type="button"
+            className="fview"
+            data-trigger="view"
+            aria-haspopup="menu"
+            aria-expanded={openId === 'view'}
+            onClick={() => toggle('view')}
+          >
+            <LayoutList size={16} strokeWidth={1.75} aria-hidden="true" />
+            <span className="fview__name">{currentName}</span>
+            <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        }
+      >
+        <MenuItem
+          role="menuitemradio"
+          checked={currentId === DEFAULT_PRESET_ID}
+          icon={<LayoutList size={16} strokeWidth={1.75} aria-hidden="true" />}
+          label={DEFAULT_PRESET_NAME}
+          description={defaultCaption}
+          onSelect={() => chooseView(DEFAULT_EVENT_LIST_VIEW)}
+        />
+        {presets.map((preset) => (
           <MenuItem
+            key={preset.id}
             role="menuitemradio"
-            checked={currentId === DEFAULT_PRESET_ID}
+            checked={currentId === preset.id}
             icon={<LayoutList size={16} strokeWidth={1.75} aria-hidden="true" />}
-            label={DEFAULT_PRESET_NAME}
-            description={defaultCaption}
-            onSelect={() => chooseView(DEFAULT_EVENT_LIST_VIEW)}
+            label={preset.name}
+            onSelect={() => chooseView(preset.view)}
           />
-          {presets.map((preset) => (
-            <MenuItem
-              key={preset.id}
-              role="menuitemradio"
-              checked={currentId === preset.id}
-              icon={<LayoutList size={16} strokeWidth={1.75} aria-hidden="true" />}
-              label={preset.name}
-              onSelect={() => chooseView(preset.view)}
-            />
-          ))}
-          {presets.length === 0 ? (
-            <p className="fpop__note">אין עדיין תצוגות שמורות. הגדירו סינון ושמרו אותו כתצוגה.</p>
-          ) : null}
-          {userId && (currentId === UNSAVED_ID || currentPreset) ? <hr className="fpop__divider" /> : null}
-          {userId && currentId === UNSAVED_ID ? (
-            <MenuItem
-              icon={<Plus size={16} strokeWidth={1.75} aria-hidden="true" />}
-              label="שמירה כתצוגה חדשה"
-              onSelect={openSave}
-            />
-          ) : null}
-          {currentPreset ? (
-            <MenuItem
-              danger
-              icon={<Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />}
-              label={`מחיקת התצוגה ״${currentPreset.name}״`}
-              onSelect={() => {
-                setOpenId(null)
-                setConfirmDelete(currentPreset)
-              }}
-            />
-          ) : null}
-        </FilterPopover>
-      </div>
-
-      <div className="efilters__row">
-        <label className="fsearch">
-          <Search size={16} strokeWidth={1.75} aria-hidden="true" />
-          <span className="visually-hidden">חיפוש אירועים לפי מספר אירוע, כביש, מיקום או שם</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="חיפוש לסינון"
+        ))}
+        {presets.length === 0 ? (
+          <p className="fpop__note">אין עדיין תצוגות שמורות. הגדירו סינון ושמרו אותו כתצוגה.</p>
+        ) : null}
+        {userId && (currentId === UNSAVED_ID || currentPreset) ? <hr className="fpop__divider" /> : null}
+        {userId && currentId === UNSAVED_ID ? (
+          <MenuItem
+            icon={<Plus size={16} strokeWidth={1.75} aria-hidden="true" />}
+            label="שמירה כתצוגה חדשה"
+            onSelect={openSave}
           />
-          {query ? (
-            <button
-              type="button"
-              className="fsearch__clear"
-              aria-label="ניקוי החיפוש"
-              onClick={() => onQueryChange('')}
-            >
-              <X size={16} strokeWidth={1.75} aria-hidden="true" />
-            </button>
-          ) : null}
-        </label>
+        ) : null}
+        {currentPreset ? (
+          <MenuItem
+            danger
+            icon={<Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />}
+            label={`מחיקת התצוגה ״${currentPreset.name}״`}
+            onSelect={() => {
+              setOpenId(null)
+              setConfirmDelete(currentPreset)
+            }}
+          />
+        ) : null}
+      </FilterPopover>
+    </div>
+  )
 
+  const filterRow = (
+    <div className={asCard ? 'efilters__row events-card__band' : 'efilters__row'}>
+      <label className="fsearch">
+        <Search size={16} strokeWidth={1.75} aria-hidden="true" />
+        <span className="visually-hidden">חיפוש אירועים לפי מספר אירוע, כביש, מיקום או שם</span>
+        <input
+          type="search"
+          data-trigger="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="חיפוש: אירוע, כביש, מיקום או שם"
+        />
+        {query ? (
+          <button
+            type="button"
+            className="fsearch__clear"
+            aria-label="ניקוי החיפוש"
+            onClick={() => {
+              onQueryChange('')
+              focusTrigger('search')
+            }}
+          >
+            <X size={16} strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        ) : null}
+      </label>
+
+      <div className="efilters__pills">
         <FilterPopover
           open={openId === 'period'}
           onClose={close}
@@ -442,7 +511,8 @@ export function EventFilters({
           wide
           trigger={
             <Pill
-              icon={FIELD_ICONS.event_date}
+              trigger="period"
+              icon={<CalendarDays size={14} strokeWidth={1.75} aria-hidden="true" />}
               label="תקופה"
               value={period.summary}
               active={period.changed}
@@ -453,6 +523,7 @@ export function EventFilters({
                   ? () => {
                       setDrafts((rows) => rows.filter((row) => row.field !== 'event_date'))
                       onViewChange(withPeriodWindow(view, 'recent', shiftLeadList))
+                      focusTrigger('period')
                     }
                   : undefined
               }
@@ -485,7 +556,13 @@ export function EventFilters({
           trigger={
             <button
               type="button"
-              className={['fpill', 'fpill--single', view.status !== 'all' ? 'is-active' : '', openId === 'status' ? 'is-open' : '']
+              data-trigger="status"
+              className={[
+                'fpill',
+                'fpill--single',
+                view.status !== 'all' ? 'is-active' : '',
+                openId === 'status' ? 'is-open' : '',
+              ]
                 .filter(Boolean)
                 .join(' ')}
               aria-haspopup="menu"
@@ -493,7 +570,9 @@ export function EventFilters({
               onClick={() => toggle('status')}
             >
               <span className="fdot" style={{ background: STATUS_DOT[view.status] }} aria-hidden="true" />
-              <span className="fpill__value">{statusRow && view.status !== 'all' ? statusRow.label : STATUS_ALL_LABEL}</span>
+              <span className="fpill__value">
+                {statusRow && view.status !== 'all' ? statusRow.label : STATUS_ALL_LABEL}
+              </span>
               <ChevronDown size={16} strokeWidth={1.75} aria-hidden="true" />
             </button>
           }
@@ -503,12 +582,15 @@ export function EventFilters({
               key={row.value}
               role="menuitemradio"
               checked={view.status === row.value}
-              icon={<span className="fdot" style={{ background: STATUS_DOT[row.value] }} aria-hidden="true" />}
+              icon={
+                <span className="fdot" style={{ background: STATUS_DOT[row.value] }} aria-hidden="true" />
+              }
               label={row.value === 'all' ? STATUS_ALL_LABEL : row.label}
               description={row.tip}
               onSelect={() => {
                 setOpenId(null)
                 onViewChange({ ...view, status: row.value })
+                focusTrigger('status')
               }}
             />
           ))}
@@ -617,12 +699,35 @@ export function EventFilters({
         ) : null}
 
         {userId && currentId === UNSAVED_ID ? (
-          <button type="button" className="fpill fpill--single efilters__save" onClick={openSave}>
+          <button type="button" className="fpill fpill--single" onClick={openSave}>
             <Save size={16} strokeWidth={1.75} aria-hidden="true" />
             <span className="fpill__value">שמירת תצוגה</span>
           </button>
         ) : null}
       </div>
+
+      {countLabel ? (
+        <p className="efilters__count" aria-live="polite">
+          {countLabel}
+        </p>
+      ) : null}
+    </div>
+  )
+
+  return (
+    <div ref={rootRef} className="efilters">
+      {viewRow}
+      {asCard ? (
+        <div className="events-card">
+          {filterRow}
+          <div className="events-card__body">{children}</div>
+        </div>
+      ) : (
+        <>
+          {filterRow}
+          {children}
+        </>
+      )}
 
       <Dialog
         open={saveOpen}
@@ -667,13 +772,29 @@ export function EventFilters({
         status="danger"
         title={`למחוק את התצוגה ״${confirmDelete?.name ?? ''}״?`}
         busy={deleting}
-        onClose={() => !deleting && setConfirmDelete(null)}
+        onClose={() => {
+          if (deleting) return
+          setConfirmDelete(null)
+          focusTrigger('view')
+        }}
         footer={
           <>
-            <Button variant="destructive" loading={deleting} loadingLabel="מוחק…" onClick={() => void submitDelete()}>
+            <Button
+              variant="destructive"
+              loading={deleting}
+              loadingLabel="מוחק…"
+              onClick={() => void submitDelete()}
+            >
               מחיקה
             </Button>
-            <Button variant="secondary" disabled={deleting} onClick={() => setConfirmDelete(null)}>
+            <Button
+              variant="secondary"
+              disabled={deleting}
+              onClick={() => {
+                setConfirmDelete(null)
+                focusTrigger('view')
+              }}
+            >
               ביטול
             </Button>
           </>
@@ -686,18 +807,28 @@ export function EventFilters({
         open={Boolean(confirmSwitch)}
         status="warning"
         title="להחליף תצוגה?"
-        onClose={() => setConfirmSwitch(null)}
+        onClose={() => {
+          setConfirmSwitch(null)
+          focusTrigger('view')
+        }}
         footer={
           <>
             <Button
               onClick={() => {
                 if (confirmSwitch) switchTo(confirmSwitch)
                 setConfirmSwitch(null)
+                focusTrigger('view')
               }}
             >
               החלפת תצוגה
             </Button>
-            <Button variant="secondary" onClick={() => setConfirmSwitch(null)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setConfirmSwitch(null)
+                focusTrigger('view')
+              }}
+            >
               ביטול
             </Button>
           </>
@@ -710,6 +841,7 @@ export function EventFilters({
 }
 
 function Pill({
+  trigger,
   icon,
   label,
   value,
@@ -729,12 +861,14 @@ function Pill({
   onRemove?: () => void
   removeLabel: string
   pillRef?: (node: HTMLButtonElement | null) => void
+  trigger?: string
 }) {
   return (
     <span className={['fpill', active ? 'is-active' : '', open ? 'is-open' : ''].filter(Boolean).join(' ')}>
       <button
         ref={pillRef}
         type="button"
+        data-trigger={trigger}
         className="fpill__main"
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -759,7 +893,24 @@ function Pill({
   )
 }
 
+/** Arrow keys move between radios and choose, like native radio buttons (RTL: ← is next). */
+function onRadioKeys(event: KeyboardEvent<HTMLElement>) {
+  if (!['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
+  const radios = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)')]
+  const index = radios.indexOf(document.activeElement as HTMLButtonElement)
+  if (index < 0 || radios.length === 0) return
+  event.preventDefault()
+  event.stopPropagation()
+  const forward = event.key === 'ArrowDown' || event.key === 'ArrowLeft'
+  const next = radios[(index + (forward ? 1 : -1) + radios.length) % radios.length]
+  next?.focus()
+  next?.click()
+}
+
 function MenuItem({
+  id,
+  active = false,
+  onHover,
   role = 'menuitem',
   checked,
   icon,
@@ -775,14 +926,22 @@ function MenuItem({
   description?: string
   danger?: boolean
   onSelect: () => void
+  id?: string
+  /** The row Enter would pick from the filter field (aria-activedescendant). */
+  active?: boolean
+  onHover?: () => void
 }) {
   return (
     <button
+      id={id}
       type="button"
       role={role}
       aria-checked={role === 'menuitemradio' ? Boolean(checked) : undefined}
-      className={['fmi', checked ? 'is-on' : '', danger ? 'is-danger' : ''].filter(Boolean).join(' ')}
+      className={['fmi', checked ? 'is-on' : '', danger ? 'is-danger' : '', active ? 'is-active' : '']
+        .filter(Boolean)
+        .join(' ')}
       onClick={onSelect}
+      onMouseEnter={onHover}
     >
       {icon ? <span className="fmi__icon">{icon}</span> : null}
       <span className="fmi__text">
@@ -810,10 +969,28 @@ function AddFilter({
   buttonRef: RefObject<HTMLButtonElement | null>
 }) {
   const [find, setFind] = useState('')
+  const [active, setActive] = useState(0)
   useEffect(() => {
     if (!open) setFind('')
+    setActive(0)
   }, [open])
   const shown = fields.filter((field) => fieldDef(field).label.includes(find.trim()))
+  const activeIndex = Math.min(active, Math.max(shown.length - 1, 0))
+
+  function onFindKeys(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      event.stopPropagation()
+      if (shown.length === 0) return
+      const step = event.key === 'ArrowDown' ? 1 : -1
+      setActive((activeIndex + step + shown.length) % shown.length)
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      event.stopPropagation()
+      const field = shown[activeIndex]
+      if (field) onPick(field)
+    }
+  }
   return (
     <FilterPopover
       open={open}
@@ -824,6 +1001,7 @@ function AddFilter({
         <button
           ref={buttonRef}
           type="button"
+          data-trigger="add"
           className="ftext ftext--add"
           aria-haspopup="menu"
           aria-expanded={open}
@@ -838,16 +1016,33 @@ function AddFilter({
         <Search size={16} strokeWidth={1.75} aria-hidden="true" />
         <span className="visually-hidden">סינון לפי שדה</span>
         <input
-          data-menu-filter
           data-autofocus
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="efilters-add-list"
+          aria-activedescendant={shown.length > 0 ? `efilters-add-${shown[activeIndex]}` : undefined}
           value={find}
-          onChange={(event) => setFind(event.target.value)}
+          onChange={(event) => {
+            setFind(event.target.value)
+            setActive(0)
+          }}
+          onKeyDown={onFindKeys}
           placeholder="סינון לפי…"
         />
       </label>
-      {shown.map((field) => (
-        <MenuItem key={field} icon={FIELD_ICONS[field]} label={fieldDef(field).label} onSelect={() => onPick(field)} />
-      ))}
+      <div id="efilters-add-list" className="fpop__list">
+        {shown.map((field, index) => (
+          <MenuItem
+            key={field}
+            id={`efilters-add-${field}`}
+            active={index === activeIndex}
+            onHover={() => setActive(index)}
+            icon={FIELD_ICONS[field]}
+            label={fieldDef(field).label}
+            onSelect={() => onPick(field)}
+          />
+        ))}
+      </div>
       {shown.length === 0 ? <p className="fpop__note">אין שדה בשם הזה.</p> : null}
     </FilterPopover>
   )
@@ -891,7 +1086,7 @@ function PeriodPanel({
       {windowsOff ? (
         <p className="fpanel__note">סינונים פעילים מחפשים בכל התאריכים. בחרו יום או טווח כדי לצמצם.</p>
       ) : null}
-      <div className="fpanel__options" role="radiogroup" aria-label="תקופה">
+      <div className="fpanel__options" role="radiogroup" aria-label="תקופה" onKeyDown={onRadioKeys}>
         {shiftLeadList ? (
           <PeriodOption
             checked={choice === 'recent'}
@@ -911,7 +1106,9 @@ function PeriodPanel({
         <PeriodOption
           checked={choice === 'on'}
           label="יום מסוים"
-          onSelect={() => onDate({ field: 'event_date', op: 'on', value: { from: date.value.from, to: '' } }, anyInvalid)}
+          onSelect={() =>
+            onDate({ field: 'event_date', op: 'on', value: { from: date.value.from, to: '' } }, anyInvalid)
+          }
         />
         <PeriodOption
           checked={choice === 'between'}
@@ -1109,7 +1306,7 @@ function RulePanel({
     case 'event_id':
       body = (
         <div className="fpanel__fields">
-          <div className="fseg" role="radiogroup" aria-label="תנאי">
+          <div className="fseg" role="radiogroup" aria-label="תנאי" onKeyDown={onRadioKeys}>
             {def.ops.map((row) => (
               <button
                 key={row.op}
@@ -1131,7 +1328,9 @@ function RulePanel({
             value={rule.value}
             error={error}
             onBlur={() => setTouched(true)}
-            onChange={(event) => onChange({ ...rule, value: policeEventIdForInput(event.target.value) }, true)}
+            onChange={(event) =>
+              onChange({ ...rule, value: policeEventIdForInput(event.target.value) }, true)
+            }
           />
         </div>
       )

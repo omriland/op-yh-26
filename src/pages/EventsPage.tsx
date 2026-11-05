@@ -108,10 +108,14 @@ import {
 } from '../lib/missingKmAlert'
 import { fetchEventIdsWithMedia } from '../lib/eventMedia'
 import {
+  readSessionQuery,
   readSessionRules,
+  readSessionStatus,
   unitListPlan,
   unitListWindow,
+  writeSessionQuery,
   writeSessionRules,
+  writeSessionStatus,
   type EventListView,
   type FilterRule,
 } from '../lib/eventFilters'
@@ -173,8 +177,9 @@ export function EventsPage({
   const { show } = useToast()
   const [events, setEvents] = useState<EventListItem[] | null>(null)
   const [failed, setFailed] = useState(false)
-  const [filter, setFilter] = useState<EventStatus | 'all'>('all')
-  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<EventStatus | 'all'>(readSessionStatus)
+  const [query, setQuery] = useState(readSessionQuery)
+  const [filtersResetKey, setFiltersResetKey] = useState(0)
   const [showOthersCreated, setShowOthersCreated] = useState(readShowOthersCreatedEvents)
   const showOthersControl = shouldFilterUnitEventsToOwnCreated(roles)
   const [showShiftEvents, setShowShiftEvents] = useState(readShowShiftEvents)
@@ -208,8 +213,14 @@ export function EventsPage({
     [rulesKey],
   )
 
+  function changeQuery(next: string) {
+    setQuery(next)
+    writeSessionQuery(next)
+  }
+
   function applyView(next: EventListView) {
     setFilter(next.status)
+    writeSessionStatus(next.status)
     setShowShiftEvents(next.showShiftEvents)
     writeShowShiftEvents(next.showShiftEvents)
     setShowOlderEvents(next.showOlder)
@@ -535,6 +546,121 @@ export function EventsPage({
     return events.filter((event) => mineEventIsOpen(event)).length
   }, [events, scope, user?.id])
 
+  const listBody = failed ? (
+    <EmptyState
+      icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+      title="טעינת האירועים נכשלה. בדקו את החיבור ונסו שוב."
+      action={
+        <Button variant="secondary" onClick={() => setReloadKey((key) => key + 1)}>
+          רענון
+        </Button>
+      }
+    />
+  ) : !events ? (
+    asTable ? (
+      <EventRowsSkeleton />
+    ) : (
+      <EventListSkeleton />
+    )
+  ) : searching ? (
+    <SearchLoadingState />
+  ) : scope === 'mine' && mineSections ? (
+    mineTab === 'pending' ? (
+      mineSections.pending.length === 0 ? (
+        <EmptyState
+          icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+          title={MINE_PENDING_EMPTY_TITLE}
+          caption={MINE_PENDING_EMPTY_CAPTION}
+          action={
+            mineSections.logged.length > 0 || mineSections.hasMoreLogged ? (
+              <Button variant="ghost" onClick={() => setMineTab('logged')}>
+                {MINE_PENDING_EMPTY_VIEW_LOGGED}
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <EventCards
+          events={mineSections.pending}
+          stampFor={stampFor}
+          onOpen={onOpen}
+          onFill={onFill}
+          userId={user?.id}
+          mode="inbox"
+          collapsibleShiftGroups
+        />
+      )
+    ) : (
+      <MineLoggedList
+        events={loggedVisible}
+        query={loggedQuery}
+        onQueryChange={setLoggedQuery}
+        stampFor={stampFor}
+        onOpen={onOpen}
+        userId={user?.id}
+        hasMore={mineSections.hasMoreLogged}
+        onLoadMore={() => setLoggedWindows((windows) => windows + 1)}
+      />
+    )
+  ) : visible.length === 0 ? (
+    <ListEmptyState
+      filtered={filter !== 'all' || query.trim() !== ''}
+      rulesFiltered={rulesMode}
+      recentHoursEmpty={
+        scope === 'unit' &&
+        recentList &&
+        searchIds === null &&
+        (events?.length ?? 0) > 0 &&
+        (unitWindow?.inWindow.length ?? 0) === 0
+      }
+      recentWindowEmpty={
+        scope === 'unit' &&
+        unitWindow != null &&
+        unitWindow.inWindow.length === 0 &&
+        unitWindow.hasMore
+      }
+      canCreate={canCreate && Boolean(onCreate)}
+      onCreate={onCreate}
+      onClear={() => {
+        setFilter('all')
+        writeSessionStatus('all')
+        changeQuery('')
+        if (rules.length > 0) {
+          setRules([])
+          writeSessionRules([])
+        }
+        setFiltersResetKey((key) => key + 1)
+      }}
+      onShowOlder={() => {
+        setShowOlderEvents(true)
+        writeShowOlderUnitEvents(true)
+      }}
+      onLoadMore={() => setUnitWindows((windows) => windows + 1)}
+    />
+  ) : asTable ? (
+    <UnitTableList
+      scope={scope}
+      visible={visible}
+      viewerId={user?.id}
+      onOpen={onOpen}
+      onContextDelete={canListDelete ? openDeleteMenu : undefined}
+      hasMore={scope === 'unit' && Boolean(unitWindow?.hasMore)}
+      onLoadMore={() => setUnitWindows((windows) => windows + 1)}
+    />
+  ) : (
+    <UnitCardList
+      scope={scope}
+      visible={visible}
+      grouped={grouped}
+      stampFor={stampFor}
+      viewerId={user?.id}
+      onOpen={onOpen}
+      onContextDelete={canListDelete ? openDeleteMenu : undefined}
+      hasMore={scope === 'unit' && Boolean(unitWindow?.hasMore)}
+      onLoadMore={() => setUnitWindows((windows) => windows + 1)}
+    />
+  )
+
   return (
     <div className={asTable ? 'page--wide' : undefined}>
       {scope === 'mine' ? (
@@ -599,7 +725,7 @@ export function EventsPage({
           view={view}
           onViewChange={applyView}
           query={query}
-          onQueryChange={setQuery}
+          onQueryChange={changeQuery}
           shiftLeadList={shouldApplyShiftLeadRecentWindow(roles)}
           showOthersControl={showOthersControl}
           defaultCaption={
@@ -609,130 +735,26 @@ export function EventsPage({
           }
           userId={user?.id}
           api={api}
-        />
+          resetKey={filtersResetKey}
+          resultCount={events && !failed && !searching ? visible.length : null}
+          asCard={asTable}
+        >
+          {listBody}
+        </EventFilters>
       ) : (
-        <MineInboxTabs
-          tab={mineTab}
-          pendingCount={openMineCount}
-          onChange={(next) => {
-            setMineTab(next)
-            if (next !== 'logged') setLoggedQuery('')
-          }}
-        />
+        <>
+          <MineInboxTabs
+            tab={mineTab}
+            pendingCount={openMineCount}
+            onChange={(next) => {
+              setMineTab(next)
+              if (next !== 'logged') setLoggedQuery('')
+            }}
+          />
+          {listBody}
+        </>
       )}
 
-      {failed ? (
-        <EmptyState
-          icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title="טעינת האירועים נכשלה. בדקו את החיבור ונסו שוב."
-          action={
-            <Button variant="secondary" onClick={() => setReloadKey((key) => key + 1)}>
-              רענון
-            </Button>
-          }
-        />
-      ) : !events ? (
-        asTable ? (
-          <EventRowsSkeleton />
-        ) : (
-          <EventListSkeleton />
-        )
-      ) : searching ? (
-        <SearchLoadingState />
-      ) : scope === 'mine' && mineSections ? (
-        mineTab === 'pending' ? (
-          mineSections.pending.length === 0 ? (
-            <EmptyState
-              icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
-              title={MINE_PENDING_EMPTY_TITLE}
-              caption={MINE_PENDING_EMPTY_CAPTION}
-              action={
-                mineSections.logged.length > 0 || mineSections.hasMoreLogged ? (
-                  <Button variant="ghost" onClick={() => setMineTab('logged')}>
-                    {MINE_PENDING_EMPTY_VIEW_LOGGED}
-                  </Button>
-                ) : undefined
-              }
-            />
-          ) : (
-            <EventCards
-              events={mineSections.pending}
-              stampFor={stampFor}
-              onOpen={onOpen}
-              onFill={onFill}
-              userId={user?.id}
-              mode="inbox"
-              collapsibleShiftGroups
-            />
-          )
-        ) : (
-          <MineLoggedList
-            events={loggedVisible}
-            query={loggedQuery}
-            onQueryChange={setLoggedQuery}
-            stampFor={stampFor}
-            onOpen={onOpen}
-            userId={user?.id}
-            hasMore={mineSections.hasMoreLogged}
-            onLoadMore={() => setLoggedWindows((windows) => windows + 1)}
-          />
-        )
-      ) : visible.length === 0 ? (
-        <ListEmptyState
-          filtered={filter !== 'all' || query.trim() !== ''}
-          rulesFiltered={rulesMode}
-          recentHoursEmpty={
-            scope === 'unit' &&
-            recentList &&
-            searchIds === null &&
-            (events?.length ?? 0) > 0 &&
-            (unitWindow?.inWindow.length ?? 0) === 0
-          }
-          recentWindowEmpty={
-            scope === 'unit' &&
-            unitWindow != null &&
-            unitWindow.inWindow.length === 0 &&
-            unitWindow.hasMore
-          }
-          canCreate={canCreate && Boolean(onCreate)}
-          onCreate={onCreate}
-          onClear={() => {
-            setFilter('all')
-            setQuery('')
-            if (rules.length > 0) {
-              setRules([])
-              writeSessionRules([])
-            }
-          }}
-          onShowOlder={() => {
-            setShowOlderEvents(true)
-            writeShowOlderUnitEvents(true)
-          }}
-          onLoadMore={() => setUnitWindows((windows) => windows + 1)}
-        />
-      ) : asTable ? (
-        <UnitTableList
-          scope={scope}
-          visible={visible}
-          viewerId={user?.id}
-          onOpen={onOpen}
-          onContextDelete={canListDelete ? openDeleteMenu : undefined}
-          hasMore={scope === 'unit' && Boolean(unitWindow?.hasMore)}
-          onLoadMore={() => setUnitWindows((windows) => windows + 1)}
-        />
-      ) : (
-        <UnitCardList
-          scope={scope}
-          visible={visible}
-          grouped={grouped}
-          stampFor={stampFor}
-          viewerId={user?.id}
-          onOpen={onOpen}
-          onContextDelete={canListDelete ? openDeleteMenu : undefined}
-          hasMore={scope === 'unit' && Boolean(unitWindow?.hasMore)}
-          onLoadMore={() => setUnitWindows((windows) => windows + 1)}
-        />
-      )}
 
       {canListDelete ? (
         <>

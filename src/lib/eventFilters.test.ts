@@ -14,14 +14,20 @@ import {
   withPeriodWindow,
   mergeRuleHits,
   parseView,
+  readSessionQuery,
   readSessionRules,
+  readSessionStatus,
   ruleError,
   ruleQueryPlans,
   ruleSummary,
   sameView,
   unitListPlan,
   unitListWindow,
+  sameFilters,
+  withToggles,
+  writeSessionQuery,
   writeSessionRules,
+  writeSessionStatus,
   type EventListView,
   type FilterRule,
 } from './eventFilters'
@@ -291,7 +297,7 @@ describe('rule chips', () => {
   it('reads as one Hebrew line per rule', () => {
     expect(ruleSummary({ field: 'shift_lead', op: 'any_of', value: ['dan'] }, labels)).toBe('אחמ״ש: דני כהן · 214')
     expect(ruleSummary({ field: 'shift_lead', op: 'any_of', value: ['dan', 'ron'] }, labels)).toBe(
-      'אחמ״ש: דני כהן · 214 +1',
+      'אחמ״ש: דני כהן · 214 \u2068+1\u2069',
     )
     expect(ruleSummary({ field: 'vehicle_kind', op: 'any_of', value: ['truck'] }, labels)).toBe('סוג רכב שטופל: משאית')
     expect(ruleSummary({ field: 'responder', op: 'contains', value: 'רונית' }, labels)).toBe('כונן: רונית')
@@ -533,5 +539,53 @@ describe('תקופה pill', () => {
       true,
     )
     expect(next.rules).toEqual([{ field: 'event_id', op: 'is', value: '1' }])
+  })
+})
+
+describe('toggles are preferences, not filters', () => {
+  it('a view still matches ברירת מחדל with משמרות or אחרים on', () => {
+    const toggled = view({ showShiftEvents: true, showOthers: true })
+    expect(sameFilters(toggled, DEFAULT_EVENT_LIST_VIEW)).toBe(true)
+    expect(sameFilters(view({ showOlder: true }), DEFAULT_EVENT_LIST_VIEW)).toBe(false)
+    expect(sameFilters(view({ status: 'done' }), DEFAULT_EVENT_LIST_VIEW)).toBe(false)
+  })
+
+  it('switching views keeps the screen’s toggles', () => {
+    const saved = view({ status: 'done', showShiftEvents: false, showOthers: false })
+    const screen = view({ showShiftEvents: true, showOthers: true })
+    expect(withToggles(saved, screen)).toEqual({ ...saved, showShiftEvents: true, showOthers: true })
+  })
+})
+
+describe('the whole view survives a reload', () => {
+  const memory = () => {
+    const store = new Map<string, string>()
+    return {
+      store,
+      storage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+        removeItem: (key: string) => void store.delete(key),
+      } as unknown as Storage,
+    }
+  }
+
+  it('keeps status and search text per session, and forgets the defaults', () => {
+    const { store, storage } = memory()
+    expect(readSessionStatus(storage)).toBe('all')
+    expect(readSessionQuery(storage)).toBe('')
+    writeSessionStatus('partial', storage)
+    writeSessionQuery('כביש 6', storage)
+    expect(readSessionStatus(storage)).toBe('partial')
+    expect(readSessionQuery(storage)).toBe('כביש 6')
+    writeSessionStatus('all', storage)
+    writeSessionQuery('', storage)
+    expect(store.size).toBe(0)
+  })
+
+  it('ignores a status it does not know', () => {
+    const { store, storage } = memory()
+    store.set('yahpaz:unitEventsStatus', 'archived')
+    expect(readSessionStatus(storage)).toBe('all')
   })
 })

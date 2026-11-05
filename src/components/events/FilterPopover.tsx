@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
-import { useIsDesktop } from '../../lib/useMediaQuery'
+import { useEffect, useLayoutEffect, useRef, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import { Dialog } from '../ui/Dialog'
 
 type FilterPopoverProps = {
@@ -18,9 +18,8 @@ const ITEMS = '[role^="menuitem"]:not(:disabled), [role="option"]:not(:disabled)
 
 /**
  * One toolbar menu or panel. Desktop: anchored under its trigger, closed by a
- * click outside or Escape (focus returns to the trigger). Below 1025 px it is
- * the existing bottom sheet. Arrow keys move between menu items, and from a
- * `data-menu-filter` input into the list.
+ * click outside, Escape (focus returns to the trigger) or tabbing out. Below 768 px it is
+ * the existing bottom sheet. Arrow keys move between menu items.
  */
 export function FilterPopover({
   open,
@@ -32,7 +31,8 @@ export function FilterPopover({
   children,
   className = '',
 }: FilterPopoverProps) {
-  const isDesktop = useIsDesktop()
+  // Popovers from 768 px, as the reference; the bottom sheet below that.
+  const isDesktop = useMediaQuery('(min-width: 768px)')
   const anchorRef = useRef<HTMLDivElement>(null)
   const popRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -84,30 +84,21 @@ export function FilterPopover({
     if (rect.left < 8 || rect.right > window.innerWidth - 8) pop.classList.add('fpop--flip')
   }, [open, isDesktop])
 
+  // Tab out of the panel and its pill closes it. A click elsewhere is the mousedown handler's.
+  function onBlur(event: FocusEvent<HTMLDivElement>) {
+    if (!open || !isDesktop) return
+    const next = event.relatedTarget as Node | null
+    if (next && !anchorRef.current?.contains(next)) onCloseRef.current()
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return
-    const root = bodyRef.current
-    if (!root) return
-    const items = [...root.querySelectorAll<HTMLElement>(ITEMS)]
-    const active = document.activeElement as HTMLElement | null
-    const filter = root.querySelector<HTMLElement>('[data-menu-filter]')
-    if (event.key === 'Enter') {
-      if (active === filter && items[0]) {
-        event.preventDefault()
-        items[0].click()
-      }
-      return
-    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    const items = [...(bodyRef.current?.querySelectorAll<HTMLElement>(ITEMS) ?? [])]
     if (items.length === 0) return
     event.preventDefault()
-    const index = active ? items.indexOf(active) : -1
-    if (event.key === 'ArrowDown') {
-      items[Math.min(index + 1, items.length - 1)]?.focus()
-    } else if (index <= 0 && filter) {
-      filter.focus()
-    } else {
-      items[Math.max(index - 1, 0)]?.focus()
-    }
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    const step = event.key === 'ArrowDown' ? 1 : -1
+    items[Math.min(Math.max(index + step, 0), items.length - 1)]?.focus()
   }
 
   const body = (
@@ -117,7 +108,7 @@ export function FilterPopover({
   )
 
   return (
-    <div ref={anchorRef} className="fpop-anchor">
+    <div ref={anchorRef} className="fpop-anchor" onBlur={onBlur}>
       {trigger}
       {open && isDesktop ? (
         <div

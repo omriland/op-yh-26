@@ -156,9 +156,10 @@ export type FilterLabels = {
   vehicleKinds: ReadonlyMap<string, string>
 }
 
-function listSummary(ids: readonly string[], names: ReadonlyMap<string, string>): string {
+/** First and a count. The count is a bidi isolate (U+2068…U+2069), or RTL shows `1+`. */
+export function listSummary(ids: readonly string[], names: ReadonlyMap<string, string>): string {
   const labels = ids.map((id) => names.get(id) ?? 'לא ידוע')
-  return labels.length > 1 ? `${labels[0]} +${labels.length - 1}` : (labels[0] ?? '')
+  return labels.length > 1 ? `${labels[0]} \u2068+${labels.length - 1}\u2069` : (labels[0] ?? '')
 }
 
 /** The value half of a pill: `דני כהן +1`, `רונית`, `מכיל 482`, `01.11.2026 עד 05.11.2026`. */
@@ -248,6 +249,23 @@ export const DEFAULT_EVENT_LIST_VIEW: EventListView = {
   showOlder: false,
   showOthers: false,
   rules: [],
+}
+
+/**
+ * Same filters: status, period and rules. The משמרות / אחרים toggles are the
+ * viewer's standing preferences, so they never make a view "unsaved".
+ */
+export function sameFilters(a: EventListView, b: EventListView): boolean {
+  return (
+    a.status === b.status &&
+    a.showOlder === b.showOlder &&
+    JSON.stringify(activeRules(a.rules)) === JSON.stringify(activeRules(b.rules))
+  )
+}
+
+/** Another view's filters with this screen's toggles kept. */
+export function withToggles(next: EventListView, current: EventListView): EventListView {
+  return { ...next, showShiftEvents: current.showShiftEvents, showOthers: current.showOthers }
 }
 
 export function sameView(a: EventListView, b: EventListView): boolean {
@@ -515,6 +533,49 @@ export function writeSessionRules(rules: readonly FilterRule[], storage?: Storag
     const active = activeRules(rules)
     if (active.length === 0) store.removeItem(RULES_STORAGE_KEY)
     else store.setItem(RULES_STORAGE_KEY, JSON.stringify(active))
+  } catch {
+    // sessionStorage can throw in private mode
+  }
+}
+
+const STATUS_STORAGE_KEY = 'yahpaz:unitEventsStatus'
+const QUERY_STORAGE_KEY = 'yahpaz:unitEventsQuery'
+
+/** Status and search text survive a reload with the rules, per browser session. */
+export function readSessionStatus(storage?: Storage | null): EventStatus | 'all' {
+  try {
+    const raw = sessionStore(storage)?.getItem(STATUS_STORAGE_KEY)
+    return STATUSES.includes(raw as EventStatus | 'all') ? (raw as EventStatus | 'all') : 'all'
+  } catch {
+    return 'all'
+  }
+}
+
+export function writeSessionStatus(status: EventStatus | 'all', storage?: Storage | null): void {
+  try {
+    const store = sessionStore(storage)
+    if (!store) return
+    if (status === 'all') store.removeItem(STATUS_STORAGE_KEY)
+    else store.setItem(STATUS_STORAGE_KEY, status)
+  } catch {
+    // sessionStorage can throw in private mode
+  }
+}
+
+export function readSessionQuery(storage?: Storage | null): string {
+  try {
+    return sessionStore(storage)?.getItem(QUERY_STORAGE_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function writeSessionQuery(query: string, storage?: Storage | null): void {
+  try {
+    const store = sessionStore(storage)
+    if (!store) return
+    if (query) store.setItem(QUERY_STORAGE_KEY, query)
+    else store.removeItem(QUERY_STORAGE_KEY)
   } catch {
     // sessionStorage can throw in private mode
   }
