@@ -176,17 +176,34 @@ const FEEDBACK_SELECT_BASE =
 const FEEDBACK_SELECT_AUTHOR =
   'created_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
 
-const FEEDBACK_SELECT =
-  `${FEEDBACK_SELECT_BASE}, attachments, ${FEEDBACK_SELECT_AUTHOR}`
+/** Columns later migrations added; each is dropped when the database does not have it yet. */
+export type FeedbackColumnGroup = 'task' | 'transcript' | 'attachments'
 
-const FEEDBACK_SELECT_NO_ATTACH =
-  `${FEEDBACK_SELECT_BASE}, ${FEEDBACK_SELECT_AUTHOR}`
+const FEEDBACK_COLUMN_GROUPS: Record<FeedbackColumnGroup, string> = {
+  task: 'title, assignee_id',
+  transcript: 'transcript, transcribed_at',
+  attachments: 'attachments',
+}
 
-const FEEDBACK_SELECT_WITH_TRANSCRIPT =
-  `${FEEDBACK_SELECT_BASE}, transcript, transcribed_at, attachments, ${FEEDBACK_SELECT_AUTHOR}`
+export const FEEDBACK_ALL_COLUMN_GROUPS: readonly FeedbackColumnGroup[] = [
+  'task',
+  'transcript',
+  'attachments',
+]
 
-const FEEDBACK_SELECT_TRANSCRIPT_NO_ATTACH =
-  `${FEEDBACK_SELECT_BASE}, transcript, transcribed_at, ${FEEDBACK_SELECT_AUTHOR}`
+export function feedbackSelect(groups: readonly FeedbackColumnGroup[]): string {
+  const optional = groups.map((group) => FEEDBACK_COLUMN_GROUPS[group])
+  return [FEEDBACK_SELECT_BASE, ...optional, FEEDBACK_SELECT_AUTHOR].join(', ')
+}
+
+export function missingFeedbackColumnGroup(
+  error: { code?: string; message?: string } | null | undefined,
+): FeedbackColumnGroup | null {
+  if (isMissingFeedbackTaskColumns(error)) return 'task'
+  if (isMissingFeedbackTranscriptColumn(error)) return 'transcript'
+  if (isMissingFeedbackAttachmentsColumn(error)) return 'attachments'
+  return null
+}
 
 const FEEDBACK_IMAGE_MIMES = new Set([
   'image/jpeg',
@@ -605,43 +622,68 @@ export async function submitUserFeedback(input: {
   return { ok: true }
 }
 
-export async function listUserFeedback(status?: FeedbackStatus | 'all'): Promise<UserFeedback[]> {
-  // Dropped when the task-board migration is not applied yet, so the inbox still loads.
-  let taskColumns = ', title, assignee_id'
+/** `active` is the default board view: open and in progress together. */
+export type FeedbackListFilter = FeedbackStatus | 'all' | 'active'
+
+export const FEEDBACK_ACTIVE_STATUSES: readonly FeedbackStatus[] = ['open', 'in_progress']
+
+export function feedbackMatchesFilter(status: FeedbackStatus, filter: FeedbackListFilter): boolean {
+  if (filter === 'all') return true
+  if (filter === 'active') return FEEDBACK_ACTIVE_STATUSES.includes(status)
+  return status === filter
+}
+
+/** In progress first, then newest first. */
+export function sortFeedbackForBoard<T extends Pick<UserFeedback, 'status' | 'created_at'>>(
+  items: readonly T[],
+): T[] {
+  return [...items].sort((a, b) => {
+    const rank = Number(b.status === 'in_progress') - Number(a.status === 'in_progress')
+    return rank || b.created_at.localeCompare(a.created_at)
+  })
+}
+
+export async function listUserFeedback(filter: FeedbackListFilter = 'all'): Promise<UserFeedback[]> {
+  // Without the task-board migration the status type has no in_progress (22P02).
+  let statuses: FeedbackStatus[] | null =
+    filter === 'all' ? null : filter === 'active' ? [...FEEDBACK_ACTIVE_STATUSES] : [filter]
   const run = async (select: string) => {
     let query = supabase
       .from('user_feedback')
-      .select(`${select}${taskColumns}`)
+      .select(select)
       .order('created_at', { ascending: false })
-    if (status && status !== 'all') query = query.eq('status', status)
+    if (statuses) query = query.in('status', statuses)
     return query
   }
-  let select = FEEDBACK_SELECT_WITH_TRANSCRIPT
-  let { data, error } = await run(select)
-  if (error && isMissingFeedbackTaskColumns(error)) {
-    taskColumns = ''
-    ;({ data, error } = await run(select))
+  let groups = [...FEEDBACK_ALL_COLUMN_GROUPS]
+  let { data, error } = await run(feedbackSelect(groups))
+  if (error?.code === '22P02' && filter === 'active') {
+    statuses = ['open']
+    ;({ data, error } = await run(feedbackSelect(groups)))
   }
-  if (error && isMissingFeedbackAttachmentsColumn(error)) {
-    select = FEEDBACK_SELECT_TRANSCRIPT_NO_ATTACH
-    ;({ data, error } = await run(select))
-  }
-  if (error && isMissingFeedbackTranscriptColumn(error)) {
-    select = FEEDBACK_SELECT
-    ;({ data, error } = await run(select))
-    if (error && isMissingFeedbackAttachmentsColumn(error)) {
-      ;({ data, error } = await run(FEEDBACK_SELECT_NO_ATTACH))
-    }
+  for (let missing = missingFeedbackColumnGroup(error); missing; missing = missingFeedbackColumnGroup(error)) {
+    if (!groups.includes(missing)) break
+    groups = groups.filter((group) => group !== missing)
+    ;({ data, error } = await run(feedbackSelect(groups)))
   }
   if (error) throw new Error(error.message)
-  return Promise.all(((data ?? []) as unknown as FeedbackRow[]).map(withSignedUrl))
+  const rows = await Promise.all(((data ?? []) as unknown as FeedbackRow[]).map(withSignedUrl))
+  return sortFeedbackForBoard(rows)
 }
 
-export async function hasOpenUserFeedback(): Promise<boolean> {
-  const { count, error } = await supabase
-    .from('user_feedback')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'open')
+/**
+ * Nav dot: something open or in progress that is the viewer's or nobody's.
+ * A task the viewer opened and gave to someone else does not count.
+ */
+export async function hasOpenUserFeedback(viewerId: string): Promise<boolean> {
+  const base = () =>
+    supabase.from('user_feedback').select('id', { count: 'exact', head: true })
+  let { count, error } = await base()
+    .in('status', [...FEEDBACK_ACTIVE_STATUSES])
+    .or(`assignee_id.is.null,assignee_id.eq.${viewerId}`)
+  if (error && (isMissingFeedbackTaskColumns(error) || error.code === '22P02')) {
+    ;({ count, error } = await base().eq('status', 'open'))
+  }
   if (error) throw new Error(error.message)
   return (count ?? 0) > 0
 }
@@ -784,14 +826,54 @@ export async function deleteUserFeedback(input: {
   return { ok: true }
 }
 
-export type FeedbackAssignee = { id: string; full_name: string }
+/** `assignable` is false for someone still holding rows who is no longer an active super admin. */
+export type FeedbackAssignee = { id: string; full_name: string; assignable: boolean }
+
+export type FeedbackAssigneeOption = { value: string; label: string }
+
+function assigneeLabel(person: FeedbackAssignee): string {
+  return person.assignable ? person.full_name : `${person.full_name} (לא פעיל)`
+}
+
+/** Choices for one row: the assignable people, plus the stored assignee if they no longer qualify. */
+export function feedbackAssigneeOptions(
+  assignees: readonly FeedbackAssignee[],
+  currentId: string | null,
+): FeedbackAssigneeOption[] {
+  const options = [
+    { value: FEEDBACK_ASSIGNEE_NONE, label: 'לא משויך' },
+    ...assignees
+      .filter((person) => person.assignable)
+      .map((person) => ({ value: person.id, label: person.full_name })),
+  ]
+  if (currentId && !options.some((option) => option.value === currentId)) {
+    const stored = assignees.find((person) => person.id === currentId)
+    options.push({
+      value: currentId,
+      label: stored ? assigneeLabel(stored) : 'משתמש (לא פעיל)',
+    })
+  }
+  return options
+}
+
+export function feedbackAssigneeFilterOptions(
+  assignees: readonly FeedbackAssignee[],
+): FeedbackAssigneeOption[] {
+  return [
+    { value: FEEDBACK_ASSIGNEE_ALL, label: 'כל האחראים' },
+    { value: FEEDBACK_ASSIGNEE_NONE, label: 'לא משויך' },
+    ...assignees.map((person) => ({ value: person.id, label: assigneeLabel(person) })),
+  ]
+}
 
 export async function listFeedbackAssignees(): Promise<FeedbackAssignee[]> {
   const { data, error } = await supabase.rpc('feedback_assignees')
   if (error) throw new Error(error.message)
-  return ((data ?? []) as { id: string; full_name: string | null }[]).map((row) => ({
+  const rows = (data ?? []) as { id: string; full_name: string | null; assignable?: boolean }[]
+  return rows.map((row) => ({
     id: row.id,
     full_name: row.full_name?.trim() || 'ללא שם',
+    assignable: row.assignable !== false,
   }))
 }
 
@@ -830,5 +912,19 @@ export async function createFeedbackTask(input: {
     assignee_id: input.assigneeId,
   })
   if (insertError) return { ok: false, error: FEEDBACK_NETWORK }
+  return { ok: true }
+}
+
+export async function updateFeedbackTask(
+  id: string,
+  input: { title: string; body: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const error = feedbackTaskError(input)
+  if (error) return { ok: false, error }
+  const { error: updateError } = await supabase
+    .from('user_feedback')
+    .update({ title: input.title.trim(), body: input.body.trim() || null })
+    .eq('id', id)
+  if (updateError) return { ok: false, error: FEEDBACK_NETWORK }
   return { ok: true }
 }

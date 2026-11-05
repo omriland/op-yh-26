@@ -79,7 +79,7 @@ export async function fetchNavAttention(
       .from('shift_responders')
       .select('shift:shifts(shift_date, status, odometer_start, odometer_end)')
       .eq('responder_id', userId),
-    options.feedbackInbox ? hasOpenUserFeedback() : Promise.resolve(false),
+    options.feedbackInbox ? hasOpenUserFeedback(userId) : Promise.resolve(false),
   ])
 
   if (eventsResult.error) throw new Error(eventsResult.error.message)

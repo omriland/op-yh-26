@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  markFeedbackTreated,
+  type MarkTreatedRow,
+} from '../../supabase/functions/_shared/feedbackMarkTreated'
 import {
   FEEDBACK_ASSIGNEE_ALL,
   FEEDBACK_ASSIGNEE_NONE,
@@ -10,8 +14,16 @@ import {
   FEEDBACK_TASK_TITLE_ERROR,
   FEEDBACK_TASK_TITLE_LEN_ERROR,
   FEEDBACK_TASK_TITLE_MAX,
+  FEEDBACK_ALL_COLUMN_GROUPS,
+  feedbackAssigneeFilterOptions,
+  feedbackAssigneeOptions,
   feedbackHeading,
+  feedbackMatchesFilter,
+  feedbackSelect,
   feedbackTaskError,
+  missingFeedbackColumnGroup,
+  sortFeedbackForBoard,
+  type FeedbackAssignee,
   filterFeedbackByAssignee,
   isFeedbackTask,
   isMissingFeedbackTaskColumns,
@@ -121,16 +133,32 @@ describe('feedback task-board migration', () => {
     expect(sql).toContain('check (kind is not null or title is not null)')
   })
 
-  it('lets a submitter insert only open, unassigned, untitled feedback', () => {
-    expect(sql).toContain(
-      "(status = 'open' and assignee_id is null and title is null and kind is not null)",
+  it('starts every insert open, and lets a submitter insert only unassigned, untitled feedback', () => {
+    const insert = sql.slice(
+      sql.indexOf('create policy user_feedback_insert'),
+      sql.indexOf('create policy user_feedback_update'),
     )
+    expect(insert).toMatch(/user_id = auth\.uid\(\)\s+and status = 'open'/)
+    expect(insert).toContain('(assignee_id is null and title is null and kind is not null)')
+    expect(insert).toContain("or public.has_role(auth.uid(), 'super_admin')")
   })
 
   it('keeps status, assignee and tasks writable by super admins only', () => {
     const update = sql.slice(sql.indexOf('create policy user_feedback_update'))
     expect(update).toContain("using (public.has_role(auth.uid(), 'super_admin'))")
-    expect(sql.match(/public\.has_role\(assignee_id, 'super_admin'\)/g)).toHaveLength(2)
+  })
+
+  it('checks the assignee only when it changes', () => {
+    expect(sql).toContain("(tg_op = 'INSERT' or new.assignee_id is distinct from old.assignee_id)")
+    expect(sql).toContain("not public.has_role(new.assignee_id, 'super_admin')")
+    expect(sql).toContain('before insert or update of assignee_id on public.user_feedback')
+  })
+
+  it('lets a task change its title and body but keeps submitted feedback locked', () => {
+    expect(sql).toContain('create or replace function public.user_feedback_lock_identity()')
+    expect(sql).toContain('(old.title is null and new.body is distinct from old.body)')
+    expect(sql).toContain('(old.title is null and new.title is not null)')
+    expect(sql).toContain('new.attachments is distinct from old.attachments')
   })
 
   it('lists assignees for super admins only', () => {
@@ -138,5 +166,138 @@ describe('feedback task-board migration', () => {
     expect(sql).toContain('security definer')
     expect(sql).toContain("where public.has_role(auth.uid(), 'super_admin')")
     expect(sql).toContain('revoke all on function public.feedback_assignees() from public')
+    expect(sql).toContain('as assignable')
+  })
+})
+
+describe('board view', () => {
+  it('shows open and in progress together by default', () => {
+    expect(feedbackMatchesFilter('open', 'active')).toBe(true)
+    expect(feedbackMatchesFilter('in_progress', 'active')).toBe(true)
+    expect(feedbackMatchesFilter('fixed', 'active')).toBe(false)
+    expect(feedbackMatchesFilter('fixed', 'all')).toBe(true)
+    expect(feedbackMatchesFilter('wont_do', 'fixed')).toBe(false)
+  })
+
+  it('puts in progress first, then newest first', () => {
+    const sorted = sortFeedbackForBoard([
+      { id: 'old-open', status: 'open' as const, created_at: '2026-11-01T00:00:00Z' },
+      { id: 'new-open', status: 'open' as const, created_at: '2026-11-04T00:00:00Z' },
+      { id: 'old-progress', status: 'in_progress' as const, created_at: '2026-10-01T00:00:00Z' },
+    ])
+    expect(sorted.map((row) => row.id)).toEqual(['old-progress', 'new-open', 'old-open'])
+  })
+})
+
+describe('assignee options', () => {
+  const people: FeedbackAssignee[] = [
+    { id: 'omri', full_name: 'עמרי', assignable: true },
+    { id: 'former', full_name: 'דני', assignable: false },
+  ]
+
+  it('offers only assignable people, plus the stored one marked לא פעיל', () => {
+    expect(feedbackAssigneeOptions(people, null).map((option) => option.label)).toEqual([
+      'לא משויך',
+      'עמרי',
+    ])
+    expect(feedbackAssigneeOptions(people, 'former').map((option) => option.label)).toEqual([
+      'לא משויך',
+      'עמרי',
+      'דני (לא פעיל)',
+    ])
+    expect(feedbackAssigneeOptions([], 'gone').at(-1)).toEqual({
+      value: 'gone',
+      label: 'משתמש (לא פעיל)',
+    })
+  })
+
+  it('lists everyone holding rows in the filter', () => {
+    expect(feedbackAssigneeFilterOptions(people).map((option) => option.label)).toEqual([
+      'כל האחראים',
+      'לא משויך',
+      'עמרי',
+      'דני (לא פעיל)',
+    ])
+  })
+})
+
+describe('feedback select fallback', () => {
+  it('drops each missing column group on its own', () => {
+    expect(feedbackSelect(FEEDBACK_ALL_COLUMN_GROUPS)).toContain('title, assignee_id')
+    expect(feedbackSelect(['attachments'])).not.toContain('title')
+    expect(feedbackSelect(['attachments'])).not.toContain('transcript')
+    expect(
+      missingFeedbackColumnGroup({ code: '42703', message: 'column user_feedback.title does not exist' }),
+    ).toBe('task')
+    expect(
+      missingFeedbackColumnGroup({
+        code: '42703',
+        message: 'column user_feedback.transcript does not exist',
+      }),
+    ).toBe('transcript')
+    expect(
+      missingFeedbackColumnGroup({
+        code: '42703',
+        message: 'column user_feedback.attachments does not exist',
+      }),
+    ).toBe('attachments')
+    expect(missingFeedbackColumnGroup({ code: '42501', message: 'permission denied' })).toBeNull()
+  })
+})
+
+describe('mark_treated', () => {
+  function deps() {
+    return {
+      setFixed: vi.fn(async () => true),
+      smsDestination: vi.fn((phone: string | null) => (phone ? '972501234567' : null)),
+      sendSms: vi.fn(async () => true),
+    }
+  }
+
+  const feedback: MarkTreatedRow = {
+    status: 'open',
+    title: null,
+    body: 'המפה לא נטענת',
+    audio_storage_path: null,
+    author: { full_name: 'דני כהן', phone: '0501234567' },
+  }
+
+  it('never texts anyone when a task is marked טופל', async () => {
+    for (const status of ['open', 'in_progress', 'wont_do', 'fixed']) {
+      const d = deps()
+      const result = await markFeedbackTreated({ ...feedback, status, title: 'לבדוק את המפה' }, d)
+      expect(result).toEqual({ ok: true, sms: 'skipped' })
+      expect(d.sendSms).not.toHaveBeenCalled()
+      expect(d.setFixed).toHaveBeenCalledTimes(status === 'fixed' ? 0 : 1)
+    }
+  })
+
+  it('still texts the submitter of feedback once', async () => {
+    const d = deps()
+    expect(await markFeedbackTreated(feedback, d)).toEqual({ ok: true, sms: 'sent' })
+    expect(d.sendSms).toHaveBeenCalledTimes(1)
+    const repeat = deps()
+    await markFeedbackTreated({ ...feedback, status: 'fixed' }, repeat)
+    expect(repeat.sendSms).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed status update without texting', async () => {
+    const d = deps()
+    d.setFixed.mockResolvedValueOnce(false)
+    expect(await markFeedbackTreated(feedback, d)).toEqual({ ok: false })
+    expect(d.sendSms).not.toHaveBeenCalled()
+  })
+})
+
+describe('user-feedback edge function', () => {
+  const edge = readFileSync(
+    resolve(srcDir, '../../supabase/functions/user-feedback/index.ts'),
+    'utf8',
+  )
+
+  it('loads the title and routes mark_treated through the task-aware helper', () => {
+    expect(edge).toContain('"id, title, body, status, audio_storage_path, author:')
+    expect(edge).toContain('await markFeedbackTreated(')
+    expect(edge).not.toContain('buildFeedbackTreatedSms')
   })
 })
