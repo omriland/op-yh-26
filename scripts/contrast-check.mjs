@@ -128,6 +128,7 @@ pair('field', 'text-on-accent on accent-hover', P.paper0, P.blue800, TEXT)
 pair('field', 'accent on page', P.blue700, F.page, TEXT)
 pair('field', 'accent on raised', P.blue700, F.raised, TEXT)
 pair('field', 'accent on accent-subtle', P.blue700, P.blue50, TEXT)
+pair('field', 'text-secondary on accent-subtle (selected menu row description)', P.ink500, P.blue50, TEXT)
 pair('field', 'stroke-strong over page', STROKE_STRONG_FIELD, F.page, UI)
 pair('field', 'stroke-strong over raised', STROKE_STRONG_FIELD, F.raised, UI)
 

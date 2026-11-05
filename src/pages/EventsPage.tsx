@@ -27,7 +27,6 @@ import {
   type EventListItem,
 } from '../lib/events'
 import {
-  EVENT_FILTERS,
   leadKmPendingNote,
   mineFillCtaLabel,
   mineInboxIsOpen,
@@ -77,11 +76,8 @@ import { MineInboxTabs } from '../components/events/MineInboxTabs'
 import { MineLoggedEventRow } from '../components/events/MineLoggedEventRow'
 import { MineShiftEventGroup } from '../components/events/MineShiftEventGroup'
 import { EventsTable } from '../components/events/EventsTable'
-import { SelectField } from '../components/ui/SelectField'
 import { useToast } from '../components/ui/Toast'
 import {
-  SHOW_OTHERS_CREATED_EVENTS_LABEL,
-  SHOW_SHIFT_EVENTS_LABEL,
   readShowOthersCreatedEvents,
   readShowShiftEvents,
   shouldFilterUnitEventsToOwnCreated,
@@ -121,10 +117,10 @@ import {
 } from '../lib/eventFilters'
 import { fetchFilterLookups, fetchRuleFilteredEvents } from '../lib/eventFiltersApi'
 import { deletePreset, listPresets, savePreset } from '../lib/eventFilterPresets'
-import { EventFilterBar, type EventFilterBarApi } from '../components/events/EventFilterBar'
+import { EventFilters, type EventFiltersApi } from '../components/events/EventFilters'
 
 /** Data boundary, so the dev harness can render the real page on fixtures. */
-export type EventsPageApi = EventFilterBarApi & {
+export type EventsPageApi = EventFiltersApi & {
   fetchEvents: typeof fetchEvents
   fetchMyEvents: typeof fetchMyEvents
   fetchEventsByIds: typeof fetchEventsByIds
@@ -599,97 +595,21 @@ export function EventsPage({
       ) : null}
 
       {scope === 'unit' ? (
-        <div className="events-toolbar">
-          <label className="field__control events-toolbar__search">
-            <span className="visually-hidden">חיפוש אירועים</span>
-            <input
-              className="field__input field__input--with-affix"
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="אירוע, כביש, מיקום או שם"
-            />
-            <span className="field__affix" aria-hidden="true">
-              <Search size={20} strokeWidth={1.75} />
-            </span>
-          </label>
-          <div className="events-toolbar__filters">
-            <div className="events-toolbar__status">
-              <SelectField
-                label="סינון לפי סטטוס תיעוד"
-                hideLabel
-                options={EVENT_FILTERS.map((row) => ({
-                  value: row.value,
-                  label: row.label,
-                  description: row.tip,
-                }))}
-                value={filter}
-                onChange={(event) => {
-                  const next = EVENT_FILTERS.find((row) => row.value === event.target.value)
-                  if (next) setFilter(next.value)
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              className="chip events-toolbar__others"
-              aria-pressed={showShiftEvents}
-              aria-label={SHOW_SHIFT_EVENTS_LABEL}
-              onClick={() => {
-                const next = !showShiftEvents
-                setShowShiftEvents(next)
-                writeShowShiftEvents(next)
-              }}
-            >
-              <span className="events-toolbar__others-short" aria-hidden="true">
-                משמרות
-              </span>
-              <span className="events-toolbar__others-full" aria-hidden="true">
-                {SHOW_SHIFT_EVENTS_LABEL}
-              </span>
-            </button>
-            {shouldApplyShiftLeadRecentWindow(roles) ? (
-              <button
-                type="button"
-                className="chip events-toolbar__others"
-                aria-pressed={showOlderEvents}
-                aria-label={SHOW_OLDER_UNIT_EVENTS_LABEL}
-                onClick={() => {
-                  const next = !showOlderEvents
-                  setShowOlderEvents(next)
-                  writeShowOlderUnitEvents(next)
-                }}
-              >
-                <span className="events-toolbar__others-short" aria-hidden="true">
-                  ישנים יותר
-                </span>
-                <span className="events-toolbar__others-full" aria-hidden="true">
-                  {SHOW_OLDER_UNIT_EVENTS_LABEL}
-                </span>
-              </button>
-            ) : null}
-            {showOthersControl ? (
-              <button
-                type="button"
-                className="chip events-toolbar__others"
-                aria-pressed={showOthersCreated}
-                aria-label={SHOW_OTHERS_CREATED_EVENTS_LABEL}
-                onClick={() => {
-                  const next = !showOthersCreated
-                  setShowOthersCreated(next)
-                  writeShowOthersCreatedEvents(next)
-                }}
-              >
-                <span className="events-toolbar__others-short" aria-hidden="true">
-                  אחרים
-                </span>
-                <span className="events-toolbar__others-full" aria-hidden="true">
-                  {SHOW_OTHERS_CREATED_EVENTS_LABEL}
-                </span>
-              </button>
-            ) : null}
-          </div>
-        </div>
+        <EventFilters
+          view={view}
+          onViewChange={applyView}
+          query={query}
+          onQueryChange={setQuery}
+          shiftLeadList={shouldApplyShiftLeadRecentWindow(roles)}
+          showOthersControl={showOthersControl}
+          defaultCaption={
+            shouldApplyShiftLeadRecentWindow(roles)
+              ? SHIFT_LEAD_EVENTS_RECENT_HINT
+              : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)
+          }
+          userId={user?.id}
+          api={api}
+        />
       ) : (
         <MineInboxTabs
           tab={mineTab}
@@ -700,20 +620,6 @@ export function EventsPage({
           }}
         />
       )}
-
-      {scope === 'unit' ? (
-        <EventFilterBar
-          view={view}
-          onViewChange={applyView}
-          userId={user?.id}
-          defaultCaption={
-            shouldApplyShiftLeadRecentWindow(roles)
-              ? SHIFT_LEAD_EVENTS_RECENT_HINT
-              : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)
-          }
-          api={api}
-        />
-      ) : null}
 
       {failed ? (
         <EmptyState

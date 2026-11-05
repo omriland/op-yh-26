@@ -151,6 +151,8 @@ const api: EventsPageApi = {
   },
   async fetchRuleFilteredEvents(rules, opts) {
     await wait(350)
+    if (state === 'loading') return never()
+    if (state === 'error') throw new Error('dev: rules query failed')
     const active = activeRules(rules)
     const rows = EVENTS.filter(
       (event) =>

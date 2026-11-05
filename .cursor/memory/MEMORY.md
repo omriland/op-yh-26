@@ -4,9 +4,9 @@ Last updated: 2026-10-27 (launch UI and 7-day invites live on yahpz.com)
 
 ## Events advanced filters + saved views (2026-11-05, branch only)
 
-- Branch `feat/events-advanced-filters` (not pushed, not deployed). Unit אירועים gets a `תצוגה` select + `סינון` dialog: rules on אחמ״ש, כונן (name/callsign), מספר אירוע, תאריך (day or range), מספר רכב שטופל, סוג רכב שטופל; AND across rules. Model in `src/lib/eventFilters.ts`, queries in `eventFiltersApi.ts` (PostgREST `!inner` id queries, two per treated-vehicle rule: event-keyed for shift-born, responder-keyed otherwise; then hydrate ≤200).
+- Branch `feat/events-advanced-filters` (not pushed, not deployed). Unit אירועים filters follow the opeaz operations table (Omri, 2026-11-05): `תצוגה:` view picker, then one row of search + pills (תקופה, status, משמרות, אחרים) + `הוספת סינון` (אחמ״ש, כונן, מספר אירוע, מספר רכב שטופל, סוג רכב שטופל). Pills apply at once (text debounced 300 ms); popovers on desktop, bottom sheets below 1025 px. AND across rules. Model `src/lib/eventFilters.ts`, queries `eventFiltersApi.ts` (PostgREST `!inner` id queries, two per treated-vehicle rule: event-keyed for shift-born, responder-keyed otherwise; then hydrate ≤200), UI `src/components/events/EventFilters.tsx` + `FilterPopover.tsx`.
 - `ברירת מחדל` = today's list exactly; with no rules the old code path runs. Spec: `design-system-design-instructions/screens/event-list.md`.
-- Presets: table `event_filter_presets` in migration `20261105120000_event_filter_presets.sql` **not applied**; until it is, presets fall back to localStorage (`yahpaz:eventFilterPresets:<userId>`). Dev harness: `/events-page-dev.html`.
+- Presets: table `event_filter_presets` in migration `20261105130000_event_filter_presets.sql` **not applied**; until it is, presets fall back to localStorage (`yahpaz:eventFilterPresets:<userId>`). Dev harness: `/events-page-dev.html`.
 
 ## Prod clean slate (2026-10-27)
 
