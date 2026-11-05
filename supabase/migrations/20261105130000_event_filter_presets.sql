@@ -10,7 +10,8 @@ create table public.event_filter_presets (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint event_filter_presets_name_length check (char_length(btrim(name)) between 1 and 40),
-  constraint event_filter_presets_view_object check (jsonb_typeof(view) = 'object')
+  constraint event_filter_presets_view_object check (jsonb_typeof(view) = 'object'),
+  constraint event_filter_presets_view_size check (octet_length(view::text) <= 8192)
 );
 
 create unique index event_filter_presets_user_name_uidx
@@ -22,6 +23,7 @@ comment on table public.event_filter_presets is
 create or replace function public.event_filter_presets_set_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at := now();

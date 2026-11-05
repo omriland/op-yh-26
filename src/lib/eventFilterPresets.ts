@@ -6,7 +6,7 @@
  * instead; both lists are shown, and ids say which store a preset is in.
  */
 
-import { parseView, type EventListView } from './eventFilters'
+import { parseView, serializeView, type EventListView } from './eventFilters'
 import { supabase } from './supabase'
 
 export type EventFilterPreset = { id: string; name: string; view: EventListView }
@@ -29,7 +29,7 @@ export function presetNameError(
     key === DEFAULT_PRESET_NAME ||
     existing.some((preset) => preset.name.trim().toLocaleLowerCase('he') === key)
   ) {
-    return 'כבר קיימת תצוגה בשם זה.'
+    return PRESET_DUPLICATE_NAME
   }
   return null
 }
@@ -50,14 +50,39 @@ export function isLocalPreset(id: string): boolean {
   return id.startsWith(LOCAL_PREFIX)
 }
 
-/** The table is not there yet (migration not applied). */
+export const PRESET_DUPLICATE_NAME = 'כבר קיימת תצוגה בשם זה.'
+
+/** The name is taken: the unique index said so (another tab or device saved it first). */
+export class DuplicatePresetNameError extends Error {
+  constructor() {
+    super(PRESET_DUPLICATE_NAME)
+  }
+}
+
+/** The table is not there yet (migration not applied). Any other error is a real failure. */
 export function isMissingPresetTable(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false
-  return (
-    error.code === 'PGRST205' ||
-    error.code === '42P01' ||
-    /event_filter_presets/.test(error.message ?? '')
-  )
+  return error?.code === 'PGRST205' || error?.code === '42P01'
+}
+
+function byName(a: EventFilterPreset, b: EventFilterPreset): number {
+  return a.name.localeCompare(b.name, 'he')
+}
+
+/**
+ * Which browser-only views to copy into the table once it exists: those whose
+ * name the table does not already hold (case-insensitive), first one per name.
+ */
+export function localPresetsToMigrate(
+  local: readonly EventFilterPreset[],
+  table: readonly EventFilterPreset[],
+): EventFilterPreset[] {
+  const taken = new Set(table.map((preset) => preset.name.trim().toLocaleLowerCase('he')))
+  return local.filter((preset) => {
+    const key = preset.name.trim().toLocaleLowerCase('he')
+    if (taken.has(key)) return false
+    taken.add(key)
+    return true
+  })
 }
 
 function localKey(userId: string): string {
@@ -97,7 +122,7 @@ let tableMissing = false
 
 export async function listPresets(userId: string): Promise<EventFilterPreset[]> {
   const local = readLocalPresets(userId)
-  if (tableMissing) return local
+  if (tableMissing) return [...local].sort(byName)
   const { data, error } = await supabase
     .from('event_filter_presets')
     .select('id, name, view')
@@ -105,11 +130,33 @@ export async function listPresets(userId: string): Promise<EventFilterPreset[]> 
   if (error) {
     if (isMissingPresetTable(error)) {
       tableMissing = true
-      return local
+      return [...local].sort(byName)
     }
     throw new Error(error.message)
   }
-  return [...parsePresetRows(data), ...local]
+  const table = parsePresetRows(data)
+  if (local.length === 0) return table.sort(byName)
+  return [...table, ...(await migrateLocalPresets(userId, local, table))].sort(byName)
+}
+
+/** Copies browser-only views into the table, then forgets them. Returns what could not move. */
+async function migrateLocalPresets(
+  userId: string,
+  local: EventFilterPreset[],
+  table: EventFilterPreset[],
+): Promise<EventFilterPreset[]> {
+  const moving = localPresetsToMigrate(local, table)
+  if (moving.length > 0) {
+    const { data, error } = await supabase
+      .from('event_filter_presets')
+      .insert(moving.map((preset) => ({ user_id: userId, name: preset.name, view: serializeView(preset.view) })))
+      .select('id, name, view')
+    if (error) return local
+    writeLocalPresets(userId, [])
+    return parsePresetRows(data)
+  }
+  writeLocalPresets(userId, [])
+  return []
 }
 
 export async function savePreset(
@@ -121,7 +168,7 @@ export async function savePreset(
   if (!tableMissing) {
     const { data, error } = await supabase
       .from('event_filter_presets')
-      .insert({ user_id: userId, name: trimmed, view })
+      .insert({ user_id: userId, name: trimmed, view: serializeView(view) })
       .select('id, name, view')
       .single()
     if (!error) {
@@ -129,15 +176,19 @@ export async function savePreset(
       if (saved) return saved
       throw new Error('preset row did not parse')
     }
+    if (error.code === '23505') throw new DuplicatePresetNameError()
     if (!isMissingPresetTable(error)) throw new Error(error.message)
     tableMissing = true
+  }
+  if (presetNameError(trimmed, readLocalPresets(userId)) === PRESET_DUPLICATE_NAME) {
+    throw new DuplicatePresetNameError()
   }
   const saved: EventFilterPreset = {
     id: `${LOCAL_PREFIX}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     name: trimmed,
     view,
   }
-  if (!writeLocalPresets(userId, [...readLocalPresets(userId), saved])) {
+  if (!writeLocalPresets(userId, [...readLocalPresets(userId), { ...saved, view: serializeView(view) }])) {
     throw new Error('localStorage unavailable')
   }
   return saved

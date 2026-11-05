@@ -2,8 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_EVENT_LIST_VIEW,
   activeRules,
+  PERIOD_LABELS,
+  VIEW_VERSION,
   cleanFilterText,
   emptyRule,
+  escapeLike,
+  orIlikeContains,
+  periodState,
+  ruleValueLabel,
+  serializeView,
+  withPeriodWindow,
   mergeRuleHits,
   parseView,
   readSessionRules,
@@ -246,7 +254,7 @@ describe('rule validation', () => {
   it('keeps one normalized rule per field, in field order', () => {
     const rules = activeRules([
       { field: 'treated_plate', op: 'contains', value: '12-345' },
-      { field: 'responder', op: 'contains', value: '  רונית, (318) ' },
+      { field: 'responder', op: 'contains', value: '  רונית*  "318" ' },
       { field: 'shift_lead', op: 'any_of', value: ['b', 'a', 'b'] },
       { field: 'responder', op: 'contains', value: 'x' },
     ])
@@ -257,8 +265,17 @@ describe('rule validation', () => {
     ])
   })
 
-  it('strips PostgREST syntax from free text', () => {
-    expect(cleanFilterText('a,b(c)*d%e\\f"g')).toBe('a b c d e f g')
+  it('drops only PostgREST’s wildcard and the quote/escape characters', () => {
+    expect(cleanFilterText('a*b\\c"d')).toBe('a b c d')
+    expect(cleanFilterText('רון_לוי, (318) 50%')).toBe('רון_לוי, (318) 50%')
+  })
+
+  it('escapes LIKE wildcards so a typed % or _ matches itself', () => {
+    expect(escapeLike('50%_off\\x')).toBe('50\\%\\_off\\\\x')
+    expect(orIlikeContains('full_name', 'רון_לוי, (318)')).toBe(
+      'full_name.ilike."*רון\\\\_לוי, (318)*"',
+    )
+    expect(orIlikeContains('callsign', 'a"b')).toBe('callsign.ilike."*a\\"b*"')
   })
 })
 
@@ -277,9 +294,11 @@ describe('rule chips', () => {
       'אחמ״ש: דני כהן · 214 +1',
     )
     expect(ruleSummary({ field: 'vehicle_kind', op: 'any_of', value: ['truck'] }, labels)).toBe('סוג רכב שטופל: משאית')
-    expect(ruleSummary({ field: 'responder', op: 'contains', value: 'רונית' }, labels)).toBe('כונן מכיל רונית')
+    expect(ruleSummary({ field: 'responder', op: 'contains', value: 'רונית' }, labels)).toBe('כונן: רונית')
     expect(ruleSummary({ field: 'event_id', op: 'is', value: '48210' }, labels)).toBe('מספר אירוע: 48210')
-    expect(ruleSummary({ field: 'event_id', op: 'contains', value: '482' }, labels)).toBe('מספר אירוע מכיל 482')
+    expect(ruleSummary({ field: 'event_id', op: 'contains', value: '482' }, labels)).toBe('מספר אירוע: מכיל 482')
+    expect(ruleValueLabel({ field: 'treated_plate', op: 'contains', value: '12345' }, labels)).toBe('12345')
+    expect(ruleValueLabel({ field: 'shift_lead', op: 'any_of', value: ['gone'] }, labels)).toBe('לא ידוע')
     expect(
       ruleSummary({ field: 'event_date', op: 'on', value: { from: '2026-11-01', to: '' } }, labels),
     ).toBe('תאריך האירוע: 01.11.2026')
@@ -334,7 +353,11 @@ describe('ruleQueryPlans', () => {
       'id,event_date,created_at,rf:event_responders!inner(rp:profiles!inner(full_name,callsign))',
     )
     expect(plan!.filters).toEqual([
-      { op: 'or', filters: 'full_name.ilike.*רונית*,callsign.ilike.*רונית*', referencedTable: 'rf.rp' },
+      {
+        op: 'or',
+        filters: 'full_name.ilike."*רונית*",callsign.ilike."*רונית*"',
+        referencedTable: 'rf.rp',
+      },
     ])
   })
 
@@ -441,5 +464,74 @@ describe('stored views', () => {
     expect(readSessionRules(storage)).toEqual([{ field: 'event_id', op: 'is', value: '48210' }])
     writeSessionRules([], storage)
     expect(store.size).toBe(0)
+  })
+})
+
+describe('versioned views', () => {
+  it('writes the current version and reads it back', () => {
+    const stored = serializeView(view({ status: 'done' }))
+    expect(stored.v).toBe(VIEW_VERSION)
+    expect(parseView(JSON.parse(JSON.stringify(stored)))).toEqual(view({ status: 'done' }))
+  })
+
+  it('reads a row saved before versions existed as version 1', () => {
+    expect(parseView({ status: 'partial', rules: [] })).toEqual(view({ status: 'partial' }))
+  })
+
+  it('skips a newer or malformed version instead of half reading it', () => {
+    expect(parseView({ v: VIEW_VERSION + 1, status: 'done' })).toBeNull()
+    expect(parseView({ v: 'one', status: 'done' })).toBeNull()
+  })
+})
+
+describe('תקופה pill', () => {
+  const dateRule = (from: string, to = ''): FilterRule => ({
+    field: 'event_date',
+    op: to ? 'between' : 'on',
+    value: { from, to },
+  })
+
+  it('names today’s default honestly per role', () => {
+    expect(periodState(DEFAULT_EVENT_LIST_VIEW, true)).toEqual({
+      choice: 'recent',
+      summary: PERIOD_LABELS.recent,
+      changed: false,
+    })
+    expect(periodState(DEFAULT_EVENT_LIST_VIEW, false)).toEqual({
+      choice: 'window',
+      summary: PERIOD_LABELS.window,
+      changed: false,
+    })
+  })
+
+  it('30 days for אחמ״ש is the ישנים יותר chip, and counts as a change', () => {
+    const older = withPeriodWindow(DEFAULT_EVENT_LIST_VIEW, 'window', true)
+    expect(older.showOlder).toBe(true)
+    expect(periodState(older, true)).toEqual({ choice: 'window', summary: PERIOD_LABELS.window, changed: true })
+    expect(withPeriodWindow(DEFAULT_EVENT_LIST_VIEW, 'window', false).showOlder).toBe(false)
+    expect(sameView(withPeriodWindow(older, 'recent', true), DEFAULT_EVENT_LIST_VIEW)).toBe(true)
+  })
+
+  it('a day or a range shows the dates; other rules mean every date', () => {
+    expect(periodState(view({ rules: [dateRule('2026-11-01')] }), true).summary).toBe('01.11.2026')
+    expect(periodState(view({ rules: [dateRule('2026-11-01', '2026-11-05')] }), true)).toEqual({
+      choice: 'between',
+      summary: '01.11.2026 עד 05.11.2026',
+      changed: true,
+    })
+    expect(periodState(view({ rules: [{ field: 'event_id', op: 'is', value: '1' }] }), true)).toEqual({
+      choice: 'all',
+      summary: PERIOD_LABELS.all,
+      changed: false,
+    })
+  })
+
+  it('going back to a window drops the date rule and keeps the others', () => {
+    const next = withPeriodWindow(
+      view({ rules: [dateRule('2026-11-01'), { field: 'event_id', op: 'is', value: '1' }] }),
+      'recent',
+      true,
+    )
+    expect(next.rules).toEqual([{ field: 'event_id', op: 'is', value: '1' }])
   })
 })

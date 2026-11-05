@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_EVENT_LIST_VIEW } from './eventFilters'
 import {
+  DuplicatePresetNameError,
+  PRESET_DUPLICATE_NAME,
   isLocalPreset,
+  localPresetsToMigrate,
   isMissingPresetTable,
   parsePresetRows,
   presetNameError,
@@ -63,10 +66,27 @@ describe('localStorage fallback', () => {
     expect(isLocalPreset('3f2504e0-4f89-11d3-9a0c-0305e82c3301')).toBe(false)
   })
 
-  it('falls back only when the table is missing', () => {
-    expect(isMissingPresetTable({ code: 'PGRST205', message: "Could not find the table 'public.event_filter_presets'" })).toBe(true)
-    expect(isMissingPresetTable({ code: '42P01', message: 'relation does not exist' })).toBe(true)
-    expect(isMissingPresetTable({ code: '42501', message: 'permission denied for table events' })).toBe(false)
+  it('falls back only on the missing-table codes, never on a message or another error', () => {
+    expect(isMissingPresetTable({ code: 'PGRST205' })).toBe(true)
+    expect(isMissingPresetTable({ code: '42P01' })).toBe(true)
+    expect(isMissingPresetTable({ code: '23505', message: 'event_filter_presets_user_name_uidx' })).toBe(false)
+    expect(isMissingPresetTable({ code: '', message: 'event_filter_presets: fetch failed' })).toBe(false)
+    expect(isMissingPresetTable({ code: '42501' })).toBe(false)
     expect(isMissingPresetTable(null)).toBe(false)
+  })
+
+  it('a taken name surfaces as the duplicate message', () => {
+    expect(new DuplicatePresetNameError().message).toBe(PRESET_DUPLICATE_NAME)
+  })
+
+  it('moves browser views into the table once, skipping names the table has', () => {
+    const local = [
+      { ...trucks, id: 'local:1' },
+      { ...trucks, id: 'local:2', name: 'כביש 6' },
+      { ...trucks, id: 'local:3', name: ' כביש 6 ' },
+    ]
+    const table = [{ ...trucks, id: 'uuid-1', name: 'משאיות' }]
+    expect(localPresetsToMigrate(local, table).map((preset) => preset.id)).toEqual(['local:2'])
+    expect(localPresetsToMigrate([], table)).toEqual([])
   })
 })

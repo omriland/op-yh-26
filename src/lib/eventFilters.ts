@@ -76,9 +76,20 @@ export function emptyRule(field: FilterField): FilterRule {
   }
 }
 
-/** PostgREST `or()` and `ilike` treat these as syntax; a name never needs them. */
+/** Trims and collapses spaces; drops `*` (PostgREST's wildcard) and the quote/escape characters. */
 export function cleanFilterText(value: string): string {
-  return value.replace(/[,()*%\\"]/g, ' ').replace(/\s+/g, ' ').trim()
+  return value.replace(/[*\\"]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+/** LIKE treats `%` and `_` as wildcards; a typed one should match itself. */
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`)
+}
+
+/** One `ilike` value inside a PostgREST `or()` list, quoted so commas and parentheses stay literal. */
+export function orIlikeContains(column: string, text: string): string {
+  const quoted = `*${escapeLike(text)}*`.replace(/[\\"]/g, (char) => `\\${char}`)
+  return `${column}.ilike."${quoted}"`
 }
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -150,25 +161,75 @@ function listSummary(ids: readonly string[], names: ReadonlyMap<string, string>)
   return labels.length > 1 ? `${labels[0]} +${labels.length - 1}` : (labels[0] ?? '')
 }
 
-/** One chip line: `אחמ״ש: דני כהן +2`, `תאריך האירוע: 01.11.2026 עד 05.11.2026`. */
-export function ruleSummary(rule: FilterRule, labels: FilterLabels): string {
-  const name = fieldDef(rule.field).label
+/** The value half of a pill: `דני כהן +1`, `רונית`, `מכיל 482`, `01.11.2026 עד 05.11.2026`. */
+export function ruleValueLabel(rule: FilterRule, labels: FilterLabels): string {
   switch (rule.field) {
     case 'shift_lead':
-      return `${name}: ${listSummary(rule.value, labels.shiftLeads)}`
+      return listSummary(rule.value, labels.shiftLeads)
     case 'vehicle_kind':
-      return `${name}: ${listSummary(rule.value, labels.vehicleKinds)}`
+      return listSummary(rule.value, labels.vehicleKinds)
     case 'responder':
     case 'treated_plate':
-      return `${name} מכיל ${rule.value}`
+      return rule.value
     case 'event_id':
-      return rule.op === 'is' ? `${name}: ${rule.value}` : `${name} מכיל ${rule.value}`
-    case 'event_date': {
-      const { from, to } = rule.value
-      if (rule.op === 'on' || (from && from === to)) return `${name}: ${formatDate(from)}`
-      if (from && to) return `${name}: ${formatDate(from)} עד ${formatDate(to)}`
-      return from ? `${name}: מ־${formatDate(from)}` : `${name}: עד ${formatDate(to)}`
-    }
+      return rule.op === 'is' ? rule.value : `מכיל ${rule.value}`
+    case 'event_date':
+      return dateRuleLabel(rule)
+  }
+}
+
+/** Field and value in one line, for the pill's accessible name: `אחמ״ש: דני כהן +1`. */
+export function ruleSummary(rule: FilterRule, labels: FilterLabels): string {
+  return `${fieldDef(rule.field).label}: ${ruleValueLabel(rule, labels)}`
+}
+
+export type DateRule = Extract<FilterRule, { field: 'event_date' }>
+
+/** `01.11.2026`, `01.11.2026 עד 05.11.2026`, `מ־01.11.2026`, `עד 05.11.2026`. */
+export function dateRuleLabel(rule: DateRule): string {
+  const { from, to } = rule.value
+  if (rule.op === 'on' || (from && from === to)) return formatDate(from)
+  if (from && to) return `${formatDate(from)} עד ${formatDate(to)}`
+  return from ? `מ־${formatDate(from)}` : `עד ${formatDate(to)}`
+}
+
+/**
+ * The always-present תקופה pill. `recent` is the אחמ״ש 12-hour list, `window` the
+ * 30-day window (טען עוד adds more), `all` is what any other rule implies (the
+ * query spans every date), `on` / `between` an event_date rule.
+ */
+export type PeriodChoice = 'recent' | 'window' | 'all' | 'on' | 'between'
+
+export const PERIOD_LABELS = {
+  recent: '12 שעות אחרונות',
+  window: '30 ימים אחרונים',
+  all: 'כל התאריכים',
+} as const
+
+export function periodState(
+  view: EventListView,
+  shiftLeadList: boolean,
+): { choice: PeriodChoice; summary: string; changed: boolean } {
+  const rules = activeRules(view.rules)
+  const date = rules.find((rule): rule is DateRule => rule.field === 'event_date')
+  if (date) return { choice: date.op, summary: dateRuleLabel(date), changed: true }
+  if (rules.length > 0) return { choice: 'all', summary: PERIOD_LABELS.all, changed: false }
+  if (shiftLeadList && !view.showOlder) {
+    return { choice: 'recent', summary: PERIOD_LABELS.recent, changed: false }
+  }
+  return { choice: 'window', summary: PERIOD_LABELS.window, changed: shiftLeadList }
+}
+
+/** Back to a time window: drops the date rule; `window` for אחמ״ש is ישנים יותר. */
+export function withPeriodWindow(
+  view: EventListView,
+  choice: 'recent' | 'window',
+  shiftLeadList: boolean,
+): EventListView {
+  return {
+    ...view,
+    showOlder: choice === 'window' && shiftLeadList,
+    rules: view.rules.filter((rule) => rule.field !== 'event_date'),
   }
 }
 
@@ -226,10 +287,22 @@ function parseRule(raw: unknown): FilterRule | null {
   }
 }
 
-/** Reads a stored view (preset row or session copy). Drops what it cannot trust. */
+/** Bump when the stored shape changes; parseView reads this version and older. */
+export const VIEW_VERSION = 1
+
+export function serializeView(view: EventListView): EventListView & { v: number } {
+  return { v: VIEW_VERSION, ...view, rules: activeRules(view.rules) }
+}
+
+/**
+ * Reads a stored view (preset row or session copy). Drops what it cannot trust.
+ * No `v` is a version-1 row saved before versions existed; a newer version is
+ * skipped rather than half-read.
+ */
 export function parseView(raw: unknown): EventListView | null {
   if (!raw || typeof raw !== 'object') return null
   const row = raw as Record<string, unknown>
+  if (row.v !== undefined && (typeof row.v !== 'number' || row.v > VIEW_VERSION)) return null
   const status = STATUSES.includes(row.status as EventStatus | 'all')
     ? (row.status as EventStatus | 'all')
     : 'all'
@@ -344,7 +417,7 @@ export function ruleQueryPlans(
         embeds.push('rf:event_responders!inner(rp:profiles!inner(full_name,callsign))')
         filters.push({
           op: 'or',
-          filters: `full_name.ilike.*${rule.value}*,callsign.ilike.*${rule.value}*`,
+          filters: `${orIlikeContains('full_name', rule.value)},${orIlikeContains('callsign', rule.value)}`,
           referencedTable: 'rf.rp',
         })
         break
