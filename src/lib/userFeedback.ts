@@ -657,13 +657,16 @@ export async function listUserFeedback(filter: FeedbackListFilter = 'all'): Prom
   }
   let groups = [...FEEDBACK_ALL_COLUMN_GROUPS]
   let { data, error } = await run(feedbackSelect(groups))
-  if (error?.code === '22P02' && filter === 'active') {
-    statuses = ['open']
-    ;({ data, error } = await run(feedbackSelect(groups)))
-  }
-  for (let missing = missingFeedbackColumnGroup(error); missing; missing = missingFeedbackColumnGroup(error)) {
-    if (!groups.includes(missing)) break
-    groups = groups.filter((group) => group !== missing)
+  // Postgres reports a missing column before a bad status, so either can surface after the other is fixed.
+  while (error) {
+    const missing = missingFeedbackColumnGroup(error)
+    if (missing && groups.includes(missing)) {
+      groups = groups.filter((group) => group !== missing)
+    } else if (error.code === '22P02' && filter === 'active' && statuses?.length !== 1) {
+      statuses = ['open']
+    } else {
+      break
+    }
     ;({ data, error } = await run(feedbackSelect(groups)))
   }
   if (error) throw new Error(error.message)
