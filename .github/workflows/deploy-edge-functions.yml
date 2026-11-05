@@ -37,6 +37,8 @@ on:
       - "supabase/migrations/20261103101000_map_pins_require_vehicle.sql"
       - "supabase/migrations/20261103110000_apply_event_status_service_role.sql"
       - "supabase/migrations/20261104170000_user_feedback_transcript.sql"
+      - "supabase/migrations/20261105120000_feedback_task_board.sql"
+      - "supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -174,6 +176,14 @@ jobs:
           # A cancelled event with nobody assigned is done only once שעת סיום is set.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261104193000_cancelled_zero_responders_done_after_lead_end.sql
+          # משוב task board: in_progress status, title and assignee. Must land
+          # before user-feedback, whose mark_treated selects title.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261105120000_feedback_task_board.sql
+          # After 20261103180000 above, which restores the older
+          # delete_user_account that also deletes tasks a member opened.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:
