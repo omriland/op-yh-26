@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-27 (launch UI and 7-day invites live on yahpz.com)
 
+## Events advanced filters + saved views (2026-11-05, branch only)
+
+- Branch `feat/events-advanced-filters` (not pushed, not deployed). Unit אירועים filters follow the opeaz operations table (Omri, 2026-11-05): `תצוגה:` view picker, then one row of search + pills (תקופה, status, משמרות, אחרים) + `הוספת סינון` (אחמ״ש, כונן, מספר אירוע, מספר רכב שטופל, סוג רכב שטופל). Pills apply at once (text debounced 300 ms); popovers on desktop, bottom sheets below 1025 px. AND across rules. Model `src/lib/eventFilters.ts`, queries `eventFiltersApi.ts` (PostgREST `!inner` id queries, two per treated-vehicle rule: event-keyed for shift-born, responder-keyed otherwise; then hydrate ≤200), UI `src/components/events/EventFilters.tsx` + `FilterPopover.tsx`.
+- Both lists have the filters: `/events` (unit) and `/mine` (האירועים שלי; rules run as id queries restricted to the viewer's own loaded events, toggles hidden). אחמ״ש matches main or secondary leads. Views are per user and per list (`scope` column). Status, search and rules persist per list in sessionStorage.
+- `ברירת מחדל` = today's list exactly; with no rules the old code path runs. Spec: `design-system-design-instructions/screens/event-list.md`.
+- Presets: table `event_filter_presets` in migration `20261105130000_event_filter_presets.sql` **not applied**; until it is, presets fall back to localStorage (`yahpaz:eventFilterPresets:<userId>`). Dev harness: `/events-page-dev.html`.
+
 ## Prod clean slate (2026-10-27)
 
 - Production `rtvizpsfvtjowbimugns` operational data was erased for launch. Events, responders, shifts, fuel quarters, feedback, broadcasts, audit, OTP/device/iOS rows, partner tokens, and storage objects in `event-media` and `user-feedback` are **0**.

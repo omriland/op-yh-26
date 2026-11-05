@@ -23,6 +23,7 @@
 | `--radius-md` | 8 | Cards, dialogs, sheets, toasts |
 | `--radius-lg` | 16 | Desktop shell cards only (sidebar + main) |
 | `--radius-stamp` | 3 | Stamp chips only |
+| `--radius-popover` | 6 | Unit-list filter popovers only (match to the operations-table reference, owner request 2026-11-05) |
 | `--radius-full` | 9999 | Avatars, and the 8px user-presence disc on משתמשים |
 
 Documents are not bubbly. Inner records stay `--radius-md`. `--radius-lg` is only the desktop shell cards. Nothing else is rounded except avatars and the user-presence disc. No pill buttons.
@@ -43,6 +44,7 @@ Print is flat; elevation is rare and quiet.
 | 0 — flat | surface + hairline | Everything by default: cards, lists, panels |
 | 1 — raised | `--surface-raised` + hairline (no shadow) | Cards on the page surface |
 | 2 — overlay | surface-overlay/raised + hairline + `box-shadow: 0 8px 24px rgba(15, 27, 45, 0.16)` | Dialogs, menus, bottom sheets, toasts ONLY |
+| 2 (popover) | surface-overlay + hairline + `--shadow-popover` (`0 4px 12px rgba(15, 27, 45, 0.10)`) | Unit-list filter popovers anchored under a pill (≥768 px) ONLY |
 
 No other shadows exist. No colored shadows ever.
 

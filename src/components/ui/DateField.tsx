@@ -19,6 +19,10 @@ type DateFieldProps = {
   hint?: string
   min?: string
   max?: string
+  /** On blur, keep a typed-but-invalid date on screen with this error instead of reverting it. The value stays as last committed. */
+  invalidMessage?: string
+  /** Reports when that invalid state starts and ends. */
+  onValidityChange?: (invalid: boolean) => void
 }
 
 /**
@@ -37,20 +41,30 @@ export function DateField({
   hint,
   min,
   max,
+  invalidMessage,
+  onValidityChange,
 }: DateFieldProps) {
   const fieldId = useId()
   const pickerRef = useRef<HTMLInputElement>(null)
   const committedIso = useRef(value)
   const [display, setDisplay] = useState(() => isoDateToDisplay(value))
+  const [invalid, setInvalid] = useState(false)
+  const shownError = error ?? (invalid ? invalidMessage : undefined)
+  const onValidityRef = useRef(onValidityChange)
+  onValidityRef.current = onValidityChange
+  useEffect(() => {
+    onValidityRef.current?.(invalid)
+  }, [invalid])
 
   useEffect(() => {
     if (value === committedIso.current) return
     committedIso.current = value
     setDisplay(isoDateToDisplay(value))
+    setInvalid(false)
   }, [value])
 
   const describedBy =
-    [error ? `${fieldId}-error` : null, hint ? `${fieldId}-hint` : null]
+    [shownError ? `${fieldId}-error` : null, hint ? `${fieldId}-hint` : null]
       .filter(Boolean)
       .join(' ') || undefined
   const isBlank = Boolean(required) && !value
@@ -88,7 +102,7 @@ export function DateField({
           required={required}
           disabled={disabled}
           data-blank={isBlank ? 'true' : undefined}
-          aria-invalid={error ? true : undefined}
+          aria-invalid={shownError ? true : undefined}
           aria-describedby={describedBy}
           aria-label={`${label} (יום.חודש.שנה)`}
           value={display}
@@ -96,15 +110,23 @@ export function DateField({
             const next = applyDateKeystroke(display, event.target.value)
             setDisplay(next)
             if (!next) {
+              setInvalid(false)
               commitIso('')
               return
             }
             const iso = displayDateToIso(next)
-            if (iso) commitIso(iso)
+            if (iso) {
+              setInvalid(false)
+              commitIso(iso)
+            }
           }}
           onBlur={() => {
             if (display && !isCompleteDateInput(display)) {
-              setDisplay(isoDateToDisplay(committedIso.current))
+              if (invalidMessage) {
+                setInvalid(true)
+              } else {
+                setDisplay(isoDateToDisplay(committedIso.current))
+              }
             }
             onBlur?.()
           }}
@@ -130,14 +152,15 @@ export function DateField({
           value={value}
           onChange={(event) => {
             const iso = event.target.value
+            setInvalid(false)
             commitIso(iso)
             setDisplay(isoDateToDisplay(iso))
           }}
         />
       </div>
-      {error ? (
+      {shownError ? (
         <p id={`${fieldId}-error`} className="field__hint field__hint--error" role="alert">
-          {error}
+          {shownError}
         </p>
       ) : null}
       {hint ? (

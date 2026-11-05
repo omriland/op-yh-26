@@ -89,6 +89,8 @@
   --radius-md: 8px;
   --radius-lg: 16px;
   --radius-stamp: 3px;
+  /* Unit-list filter popovers (owner-approved match to the operations-table reference) */
+  --radius-popover: 6px;
   --radius-full: 9999px;
 
   /* ---- Layout ---- */
@@ -107,6 +109,8 @@
 
   /* ---- Elevation (level 2 only; levels 0/1 are hairline-only) ---- */
   --shadow-overlay: 0 8px 24px rgba(15, 27, 45, 0.16);
+  /* Lighter level 2 for the unit-list filter popovers, anchored under their pill */
+  --shadow-popover: 0 4px 12px rgba(15, 27, 45, 0.1);
   /* Sticky form footer scroll affordance (explicit exception — see scroll-cue spec) */
   --shadow-scroll-cue: 0 -12px 24px rgba(15, 27, 45, 0.18);
 }

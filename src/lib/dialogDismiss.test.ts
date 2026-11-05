@@ -1,5 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { shouldDismissDialogBackdrop } from './dialogDismiss'
+import { escapeBelongsToPopup, shouldDismissDialogBackdrop } from './dialogDismiss'
+
+describe('escapeBelongsToPopup', () => {
+  const inside = (match: boolean) => ({ closest: (selector: string) => (match ? { selector } : null) })
+
+  it('leaves Escape to an open SelectField menu inside the dialog', () => {
+    expect(escapeBelongsToPopup(inside(true) as unknown as EventTarget)).toBe(true)
+  })
+
+  it('lets the dialog close when no menu is open', () => {
+    expect(escapeBelongsToPopup(inside(false) as unknown as EventTarget)).toBe(false)
+    expect(escapeBelongsToPopup(null)).toBe(false)
+    expect(escapeBelongsToPopup({} as EventTarget)).toBe(false)
+  })
+
+  it('checks the selectors SelectField renders while open', () => {
+    let asked = ''
+    escapeBelongsToPopup({
+      closest: (selector: string) => {
+        asked = selector
+        return null
+      },
+    } as unknown as EventTarget)
+    for (const part of ['[role="listbox"]', '.select-field__menu', '[aria-expanded="true"]']) {
+      expect(asked).toContain(part)
+    }
+  })
+})
 
 const press = {
   pointerDownOnBackdrop: true,
