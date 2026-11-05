@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button'
 import { AlertDialog } from '../components/ui/AlertDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
+import { FilterChips } from '../components/ui/FilterChips'
 import { SelectField } from '../components/ui/SelectField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
@@ -47,13 +48,13 @@ export type FeedbackInboxApi = Pick<
   | 'updateFeedbackTask'
 >
 
-const FILTERS: { id: FeedbackListFilter; label: string }[] = [
-  { id: 'active', label: 'פעיל' },
-  { id: 'open', label: 'פתוח' },
-  { id: 'in_progress', label: 'בטיפול' },
-  { id: 'fixed', label: 'טופל' },
-  { id: 'wont_do', label: 'לא יטופל' },
-  { id: 'all', label: 'הכול' },
+const FILTERS: { value: FeedbackListFilter; label: string }[] = [
+  { value: 'active', label: 'פעיל' },
+  { value: 'open', label: 'פתוח' },
+  { value: 'in_progress', label: 'בטיפול' },
+  { value: 'fixed', label: 'טופל' },
+  { value: 'wont_do', label: 'לא יטופל' },
+  { value: 'all', label: 'הכול' },
 ]
 
 /** `id` is null for a new task. */
@@ -160,6 +161,12 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
     [items, assigneeFilter],
   )
 
+  // A save settles inside the closure of the render that started it; read the list as it is now.
+  const latest = useRef({ visibleItems, assigneeFilter })
+  useEffect(() => {
+    latest.current = { visibleItems, assigneeFilter }
+  }, [visibleItems, assigneeFilter])
+
   const filterOptions = useMemo(() => feedbackAssigneeFilterOptions(assignees), [assignees])
 
   const emptyCaption = useMemo(() => {
@@ -182,9 +189,10 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
     keepFocus = false,
   ) {
     if (generation !== loadGeneration.current) return
+    const now = latest.current
     const keep = (row: UserFeedback) =>
       feedbackMatchesFilter(row.status, filter) &&
-      filterFeedbackByAssignee([row], assigneeFilter).length > 0
+      filterFeedbackByAssignee([row], now.assigneeFilter).length > 0
     setItems(
       (current) =>
         current?.flatMap((row) => {
@@ -194,7 +202,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
           return feedbackMatchesFilter(next.status, filter) ? [next] : []
         }) ?? null,
     )
-    const before = visibleItems ?? []
+    const before = now.visibleItems ?? []
     const saved = before.find((row) => row.id === id)
     const stillShown = Boolean(saved && patch && keep({ ...saved, ...patch }))
     if (stillShown) {
@@ -347,21 +355,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
       </div>
 
       <div className="feedback-inbox__filters">
-        <div className="chips" role="tablist" aria-label="סינון משוב">
-          {FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              className="chip"
-              aria-selected={filter === item.id}
-              aria-pressed={filter === item.id}
-              onClick={() => setFilter(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <FilterChips label="סינון משוב" options={FILTERS} value={filter} onChange={setFilter} />
         <div className="feedback-inbox__filter" ref={assigneeFilterRef}>
           <SelectField
             label="אחראי"
@@ -414,7 +408,7 @@ export function FeedbackInboxPage({ api = userFeedbackApi }: { api?: FeedbackInb
                 }}
                 tabIndex={-1}
                 aria-busy={busy}
-                className={busy ? 'card feedback-inbox__card feedback-inbox__card--saving' : 'card feedback-inbox__card'}
+                className="card feedback-inbox__card"
               >
                 <div className="feedback-inbox__head">
                   <p className="t-section">{feedbackHeading(item)}</p>
