@@ -8644,6 +8644,20 @@ fieldset.field {
   align-self: center;
 }
 
+/* On a card, מחיקה only opens the confirm, so it takes the lightest destructive
+   recipe (the Command theme's red outline); the confirm keeps the solid fill. */
+.feedback-inbox__actions .btn--destructive {
+  background: transparent;
+  border: 1px solid var(--status-alert);
+  color: var(--status-alert);
+}
+
+@media (hover: hover) {
+  .feedback-inbox__actions .btn--destructive:hover:not(:disabled) {
+    background: var(--status-alert-tint);
+  }
+}
+
 .feedback-inbox__transcript {
   display: flex;
   flex-direction: column;
