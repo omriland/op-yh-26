@@ -94,10 +94,11 @@ describe('photo attach step', () => {
     expect(canAddAnotherPhoto(20)).toBe(false)
   })
 
-  it('preselects the only vehicle and does not invent one', () => {
-    expect(nextPhotoVehicleId(['only'], null)).toBe('only')
+  it('leaves every photo unassigned until the person picks a vehicle', () => {
+    expect(nextPhotoVehicleId(['only'], null)).toBeNull()
     expect(nextPhotoVehicleId(['a', 'b'], null)).toBeNull()
     expect(nextPhotoVehicleId(['a', 'b'], 'b')).toBe('b')
+    expect(nextPhotoVehicleId(['only'], 'gone')).toBeNull()
     expect(nextPhotoVehicleId([], 'a')).toBeNull()
     expect(photoStepVehicleNote(0)).toBe(EVENT_MEDIA_NO_VEHICLE)
     expect(photoStepVehicleNote(1)).toBeNull()

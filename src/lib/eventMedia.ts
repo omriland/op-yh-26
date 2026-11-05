@@ -118,13 +118,11 @@ export type PhotoAttachWrite = {
   blocked: boolean
 }
 
-/** The only vehicle on the event is already chosen. Several stay unchosen until tapped. */
+/** A vehicle the person already chose, while it is still on the event. Never picks one for them. */
 export function nextPhotoVehicleId(
   vehicleIds: readonly string[],
   currentId: string | null,
 ): string | null {
-  if (vehicleIds.length === 0) return null
-  if (vehicleIds.length === 1) return vehicleIds[0] ?? null
   if (currentId && vehicleIds.includes(currentId)) return currentId
   return null
 }

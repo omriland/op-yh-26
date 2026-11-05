@@ -450,6 +450,18 @@ describe('participation status does not lock a secondary lead', () => {
     'utf8',
   )
 
+  it('lets an event delete remove a locked secondary lead', () => {
+    const sql = readFileSync(
+      resolve(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql',
+      ),
+      'utf8',
+    )
+    expect(sql).toContain("current_setting('yahpaz.deleting_event_id', true)")
+    expect(sql).toContain('לא ניתן להסיר אחמ״ש משני שננעל בעריכה.')
+  })
+
   it('skips auto-secondary inside the participation status refresh', () => {
     expect(sql).toContain("set_config('yahpaz.skip_auto_secondary', '1', true)")
     expect(sql).toContain("current_setting('yahpaz.skip_auto_secondary', true)")

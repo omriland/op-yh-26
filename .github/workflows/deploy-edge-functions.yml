@@ -39,6 +39,7 @@ on:
       - "supabase/migrations/20261104170000_user_feedback_transcript.sql"
       - "supabase/migrations/20261105120000_feedback_task_board.sql"
       - "supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql"
+      - "supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -184,6 +185,10 @@ jobs:
           # delete_user_account that also deletes tasks a member opened.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql
+          # Event delete cascades through a locked אחמ״ש משני. Nothing later
+          # replaces enforce_event_secondary_lead_row.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

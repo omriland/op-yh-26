@@ -57,8 +57,8 @@ export const PLATE_LINK_AUTO = 'התמונה שויכה לרכב'
 export const PLATE_LINK_UNDONE = 'השיוך בוטל.'
 
 /**
- * Saved plates on the event that the scan read off the photo, so the photo can be
- * linked to them without asking. Matched by digits; already-linked plates are skipped.
+ * Digit match of a scan to saved plates. Nothing calls this on upload: a person
+ * attaches the photo to a vehicle themselves. Already-linked plates are skipped.
  */
 export function autoLinkPlateIds(
   scanned: readonly string[],
