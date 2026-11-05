@@ -1,0 +1,214 @@
+// DEV-ONLY harness: renders the REAL FeedbackInboxPage with an in-memory data boundary
+// (the page's `api` prop), so the task board can be clicked through without logging in.
+// Served at /feedback-board-dev.html?state=<name>. Not part of the app bundle.
+//
+// States: board · empty · loading · error · save_error. Changes live until reload.
+// The board includes a row held by a former super admin, a long task title, and a
+// task whose creator's account was deleted.
+
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { ToastProvider } from '../components/ui/Toast'
+import { FeedbackInboxPage, type FeedbackInboxApi } from '../pages/FeedbackInboxPage'
+import {
+  FEEDBACK_DELETE_ERROR,
+  FEEDBACK_TASK_SAVE_ERROR,
+  FEEDBACK_UPDATE_ERROR,
+  feedbackMatchesFilter,
+  sortFeedbackForBoard,
+  type FeedbackAssignee,
+  type UserFeedback,
+} from '../lib/userFeedback'
+import '../index.css'
+
+const STATES = ['board', 'empty', 'loading', 'error', 'save_error'] as const
+type DevState = (typeof STATES)[number]
+
+const params = new URLSearchParams(window.location.search)
+const state: DevState = (STATES as readonly string[]).includes(params.get('state') ?? '')
+  ? (params.get('state') as DevState)
+  : 'board'
+
+const OMRI = 'dev-omri'
+const SAAR = 'dev-saar'
+const FORMER = 'dev-former'
+
+const assignees: FeedbackAssignee[] = [
+  { id: OMRI, full_name: 'עמרי (דמו)', assignable: true },
+  { id: SAAR, full_name: 'סער (דמו)', assignable: true },
+  { id: FORMER, full_name: 'מנהל לשעבר (דמו)', assignable: false },
+]
+
+function row(partial: Partial<UserFeedback> & Pick<UserFeedback, 'id' | 'created_at'>): UserFeedback {
+  return {
+    user_id: 'dev-user',
+    author_name: 'מתנדב (דמו)',
+    author_callsign: '123',
+    kind: 'bug',
+    title: null,
+    assignee_id: null,
+    body: null,
+    page_path: '/events',
+    status: 'open',
+    audio_storage_path: null,
+    audio_mime_type: null,
+    audio_byte_size: null,
+    transcript: null,
+    transcribed_at: null,
+    attachments: [],
+    signed_url: null,
+    ...partial,
+  }
+}
+
+let rows: UserFeedback[] =
+  state === 'empty'
+    ? []
+    : [
+        row({
+          id: 'f1',
+          created_at: '2026-11-04T18:20:00Z',
+          body: 'משוב לדוגמה: המפה לא נטענת אחרי שמירת אירוע.',
+        }),
+        row({
+          id: 'f2',
+          created_at: '2026-11-03T09:05:00Z',
+          kind: 'suggestion',
+          body: 'הצעה לדוגמה: להוסיף סינון לפי כביש.',
+          status: 'in_progress',
+          assignee_id: SAAR,
+        }),
+        row({
+          id: 't1',
+          created_at: '2026-11-05T07:30:00Z',
+          user_id: OMRI,
+          author_name: 'עמרי (דמו)',
+          author_callsign: null,
+          kind: null,
+          title: 'משימה לדוגמה: לבדוק את טופס הסיום באנדרואיד',
+          page_path: null,
+          assignee_id: OMRI,
+        }),
+        row({
+          id: 't2',
+          created_at: '2026-11-02T08:00:00Z',
+          user_id: 'dev-deleted',
+          author_name: 'משתמש שנמחק',
+          author_callsign: null,
+          kind: null,
+          title:
+            'משימה לדוגמה עם כותרת ארוכה במיוחד כדי לבדוק שהחותמת נשארת בשורה של הכותרת גם במסך צר',
+          page_path: null,
+          assignee_id: FORMER,
+        }),
+        row({
+          id: 'f3',
+          created_at: '2026-10-30T12:00:00Z',
+          body: 'משוב לדוגמה שכבר טופל.',
+          status: 'fixed',
+        }),
+      ]
+
+const never = new Promise<never>(() => {})
+const wait = () => new Promise((resolve) => setTimeout(resolve, 300))
+const saveFails = state === 'save_error'
+const fail = (error: string) => ({ ok: false as const, error })
+
+const api: FeedbackInboxApi = {
+  async listUserFeedback(status) {
+    if (state === 'loading') return never
+    await wait()
+    if (state === 'error') throw new Error('dev error')
+    return sortFeedbackForBoard(rows.filter((item) => feedbackMatchesFilter(item.status, status ?? 'all')))
+  },
+  async transcribeUserFeedback() {
+    return { ok: false, error: 'אין תמלול במסך הפיתוח.' }
+  },
+  async updateUserFeedbackStatus(id, status) {
+    await wait()
+    if (saveFails) return fail(FEEDBACK_UPDATE_ERROR)
+    rows = rows.map((item) => (item.id === id ? { ...item, status } : item))
+    return { ok: true, sms: 'skipped' }
+  },
+  async deleteUserFeedback({ id }) {
+    await wait()
+    if (saveFails) return fail(FEEDBACK_DELETE_ERROR)
+    rows = rows.filter((item) => item.id !== id)
+    return { ok: true }
+  },
+  async listFeedbackAssignees() {
+    return assignees
+  },
+  async setUserFeedbackAssignee(id, assigneeId) {
+    await wait()
+    if (saveFails) return fail(FEEDBACK_UPDATE_ERROR)
+    rows = rows.map((item) => (item.id === id ? { ...item, assignee_id: assigneeId } : item))
+    return { ok: true }
+  },
+  async updateFeedbackTask(id, { title, body }) {
+    await wait()
+    if (saveFails) return fail(FEEDBACK_TASK_SAVE_ERROR)
+    rows = rows.map((item) =>
+      item.id === id ? { ...item, title: title.trim(), body: body.trim() || null } : item,
+    )
+    return { ok: true }
+  },
+  async createFeedbackTask({ title, body, assigneeId }) {
+    await wait()
+    if (saveFails) return fail(FEEDBACK_TASK_SAVE_ERROR)
+    rows = [
+      row({
+        id: `t${Date.now()}`,
+        created_at: new Date().toISOString(),
+        user_id: OMRI,
+        author_name: 'עמרי (דמו)',
+        author_callsign: null,
+        kind: null,
+        title: title.trim(),
+        body: body.trim() || null,
+        page_path: null,
+        assignee_id: assigneeId,
+      }),
+      ...rows,
+    ]
+    return { ok: true }
+  },
+}
+
+function DevBar() {
+  return (
+    <nav
+      aria-label="מצבי פיתוח"
+      className="t-caption"
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 'var(--space-2)',
+        padding: 'var(--space-2) var(--space-3)',
+        marginBlockEnd: 'var(--space-4)',
+        border: '1px dashed var(--stroke-strong)',
+        borderRadius: 'var(--radius-md)',
+      }}
+    >
+      <span>מסך פיתוח: עמוד המשוב האמיתי עם נתונים מדומים:</span>
+      {STATES.map((s) => (
+        <a key={s} href={`?state=${s}`} aria-current={s === state ? 'page' : undefined}>
+          {s}
+        </a>
+      ))}
+    </nav>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <ToastProvider>
+      <div className="shell dev-shell" data-theme="field">
+        <main className="shell__main">
+          <DevBar />
+          <FeedbackInboxPage api={api} />
+        </main>
+      </div>
+    </ToastProvider>
+  </StrictMode>,
+)

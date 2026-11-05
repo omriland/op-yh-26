@@ -8593,6 +8593,71 @@ fieldset.field {
   white-space: pre-wrap;
 }
 
+.feedback-inbox__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+/* Five chips do not fit 320 to 360 px; wrap instead of the default sideways scroll. */
+.feedback-inbox__filters .chips {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.feedback-inbox__filter {
+  flex: 1 1 14em;
+}
+
+.feedback-inbox__filter,
+.feedback-inbox__assignee {
+  max-inline-size: 20em;
+}
+
+.feedback-inbox__assignee {
+  margin-block: var(--space-3);
+}
+
+.feedback-inbox__head {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.feedback-inbox__head > .t-section {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.feedback-inbox__head > .stamp {
+  flex-shrink: 0;
+}
+
+/* A card mid-save keeps focus on its controls, so they are aria-disabled, not
+   disabled; same dimming as .btn:disabled. */
+.feedback-inbox .btn[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.feedback-inbox__actions > .t-caption {
+  align-self: center;
+}
+
+/* On a card, מחיקה only opens the confirm, so it takes the lightest destructive
+   recipe (the Command theme's red outline); the confirm keeps the solid fill. */
+.feedback-inbox__actions .btn--destructive {
+  background: transparent;
+  border: 1px solid var(--status-alert);
+  color: var(--status-alert);
+}
+
+@media (hover: hover) {
+  .feedback-inbox__actions .btn--destructive:hover:not(:disabled) {
+    background: var(--status-alert-tint);
+  }
+}
+
 .feedback-inbox__transcript {
   display: flex;
   flex-direction: column;

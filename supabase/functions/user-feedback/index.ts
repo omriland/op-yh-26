@@ -5,7 +5,7 @@ import {
   jsonResponse as json,
   runWithCors,
 } from "../_shared/cors.ts";
-import { buildFeedbackTreatedSms } from "../_shared/feedbackTreatedSms.ts";
+import { markFeedbackTreated } from "../_shared/feedbackMarkTreated.ts";
 
 const SOPRANO_API_URL = "https://sec.soprano.co.il/";
 const IMPERSONATING_HEADER = "x-yahpaz-impersonating";
@@ -24,8 +24,9 @@ type AuthorRow = {
 
 type FeedbackRow = {
   id: string;
+  title: string | null;
   body: string | null;
-  status: "open" | "fixed" | "wont_do";
+  status: "open" | "in_progress" | "fixed" | "wont_do";
   audio_storage_path: string | null;
   author: AuthorRow | AuthorRow[] | null;
 };
@@ -156,7 +157,7 @@ Deno.serve(async (req: Request) => {
     const { data: row, error: loadError } = await adminClient
       .from("user_feedback")
       .select(
-        "id, body, status, audio_storage_path, author:profiles!user_feedback_user_id_fkey(full_name, phone)",
+        "id, title, body, status, audio_storage_path, author:profiles!user_feedback_user_id_fkey(full_name, phone)",
       )
       .eq("id", id)
       .maybeSingle();
@@ -170,34 +171,25 @@ Deno.serve(async (req: Request) => {
     }
 
     const feedback = row as FeedbackRow;
-    const alreadyFixed = feedback.status === "fixed";
-    if (!alreadyFixed) {
-      const { error: updateError } = await adminClient
-        .from("user_feedback")
-        .update({ status: "fixed" })
-        .eq("id", id);
-      if (updateError) {
-        console.error("user-feedback: update", updateError);
-        return json(500, { error: "עדכון הסטטוס נכשל. נסו שוב." });
-      }
+    const result = await markFeedbackTreated(
+      { ...feedback, author: authorFrom(feedback) },
+      {
+        setFixed: async () => {
+          const { error: updateError } = await adminClient
+            .from("user_feedback")
+            .update({ status: "fixed" })
+            .eq("id", id);
+          if (updateError) console.error("user-feedback: update", updateError);
+          return !updateError;
+        },
+        smsDestination: toSopranoDestination,
+        sendSms: async (destination, message) =>
+          (await sendSopranoSms(destination, message)).ok,
+      },
+    );
+    if (!result.ok) {
+      return json(500, { error: "עדכון הסטטוס נכשל. נסו שוב." });
     }
-
-    if (alreadyFixed) {
-      return json(200, { ok: true, sms: "sent" });
-    }
-
-    const author = authorFrom(feedback);
-    const destination = toSopranoDestination(author.phone);
-    if (!destination) {
-      return json(200, { ok: true, sms: "skipped_no_phone" });
-    }
-
-    const message = buildFeedbackTreatedSms({
-      fullName: author.full_name,
-      body: feedback.body,
-      hasAudio: Boolean(feedback.audio_storage_path),
-    });
-    const sent = await sendSopranoSms(destination, message);
-    return json(200, { ok: true, sms: sent.ok ? "sent" : "failed" });
+    return json(200, { ok: true, sms: result.sms });
   });
 });
