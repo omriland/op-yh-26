@@ -331,3 +331,43 @@ describe('user-feedback edge function', () => {
     expect(edge).not.toContain('buildFeedbackTreatedSms')
   })
 })
+
+describe('account deletion keeps board tasks', () => {
+  const sql = readFileSync(
+    resolve(srcDir, '../../supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql'),
+    'utf8',
+  )
+  const original = readFileSync(
+    resolve(srcDir, '../../supabase/migrations/20261103180000_account_deletion.sql'),
+    'utf8',
+  )
+
+  it('deletes only feedback the member sent, with its files', () => {
+    expect(sql).toContain('delete from public.user_feedback where user_id = p_user_id and title is null;')
+    expect(sql).toContain(
+      'where uf.user_id = p_user_id and uf.title is null and uf.audio_storage_path is not null',
+    )
+    expect(sql).toContain('where uf.user_id = p_user_id and uf.title is null\n')
+    expect(sql).not.toMatch(/delete from public\.user_feedback where user_id = p_user_id;/)
+  })
+
+  it('changes nothing else in the routine', () => {
+    const body = (text: string) =>
+      text
+        .slice(text.indexOf('create or replace function public.delete_user_account'))
+        .replace(/ and (uf\.)?title is null/g, '')
+        .replace(/\n {2}-- Feedback the member sent goes;[^\n]*\n {2}-- to the anonymized[^\n]*/, '')
+        .trim()
+    expect(body(sql)).toBe(body(original))
+  })
+
+  it('is re-applied after the original in the local deletion test', () => {
+    const test = readFileSync(
+      resolve(srcDir, '../../scripts/delete-account/test/delete-account.sql'),
+      'utf8',
+    )
+    expect(test.indexOf('20261105121000_keep_tasks_on_account_deletion.sql')).toBeGreaterThan(
+      test.indexOf('20261103180000_account_deletion.sql'),
+    )
+  })
+})

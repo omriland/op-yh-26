@@ -3,7 +3,8 @@
 // Served at /feedback-board-dev.html?state=<name>. Not part of the app bundle.
 //
 // States: board · empty · loading · error · save_error. Changes live until reload.
-// The board includes a row held by a former super admin and a long task title.
+// The board includes a row held by a former super admin, a long task title, and a
+// task whose creator's account was deleted.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -91,8 +92,8 @@ let rows: UserFeedback[] =
         row({
           id: 't2',
           created_at: '2026-11-02T08:00:00Z',
-          user_id: SAAR,
-          author_name: 'סער (דמו)',
+          user_id: 'dev-deleted',
+          author_name: 'משתמש שנמחק',
           author_callsign: null,
           kind: null,
           title:

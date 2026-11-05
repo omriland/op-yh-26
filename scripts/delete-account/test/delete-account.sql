@@ -12,6 +12,8 @@ begin;
 -- The deploy workflow re-applies the migration on every push: it must replay
 -- cleanly on top of itself.
 \ir ../../../supabase/migrations/20261103180000_account_deletion.sql
+-- That replay restores the older body; this file puts back "tasks survive".
+\ir ../../../supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql
 
 create function pg_temp.ok(p_ok boolean, p_label text) returns void language plpgsql as $$
 declare
@@ -136,6 +138,9 @@ insert into public.user_feedback (user_id, kind, body, audio_storage_path, audio
   ('c0000000-0000-4000-8000-000000000001', 'bug', 'משוב', 'c0000000-0000-4000-8000-000000000001/voice.webm', 'audio/webm', 100,
    '[{"path":"c0000000-0000-4000-8000-000000000001/shot.jpg","mime":"image/jpeg","name":"shot.jpg","size":10}]'),
   ('c0000000-0000-4000-8000-000000000007', 'suggestion', 'משוב של X', null, null, null, '[]');
+-- A task R opened on the משוב board (20261105120000) while still a super admin.
+insert into public.user_feedback (id, user_id, kind, title, body) values
+  ('f7000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001', null, 'משימה של R', 'פירוט');
 insert into public.event_media (event_id, uploaded_by, taken_when, storage_path, mime_type, byte_size) values
   ('e1000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001', 'before_treatment', 'e1000000-0000-4000-8000-000000000001/r1.jpg', 'image/jpeg', 100),
   ('e1000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000007', 'before_treatment', 'e1000000-0000-4000-8000-000000000001/x1.jpg', 'image/jpeg', 100);
@@ -258,7 +263,13 @@ select pg_temp.ok((select count(*) from public.oauth_authorization_codes where u
   and (select count(*) from public.oauth_access_tokens where user_id = 'c0000000-0000-4000-8000-000000000001') = 0,
   'R OAuth codes and tokens removed');
 select pg_temp.ok((select count(*) from public.my_active_event_prefs where user_id = 'c0000000-0000-4000-8000-000000000001') = 0, 'R event prefs removed');
-select pg_temp.ok((select count(*) from public.user_feedback where user_id = 'c0000000-0000-4000-8000-000000000001') = 0, 'R feedback removed');
+select pg_temp.ok((select count(*) from public.user_feedback where user_id = 'c0000000-0000-4000-8000-000000000001' and title is null) = 0, 'R feedback removed');
+select pg_temp.ok((
+  select f.title = 'משימה של R' and f.body = 'פירוט' and p.full_name = 'משתמש שנמחק'
+  from public.user_feedback f
+  join public.profiles p on p.id = f.user_id
+  where f.id = 'f7000000-0000-4000-8000-000000000001'),
+  'a task R opened stays, credited to the anonymized profile');
 select pg_temp.ok((select count(*) from public.event_media where uploaded_by = 'c0000000-0000-4000-8000-000000000001') = 0,
   'R media removed, including media on a cancelled event');
 select pg_temp.ok((select count(*) from public.event_responder_live_locations where event_responder_id = 'e2000000-0000-4000-8000-000000000001') = 0,
