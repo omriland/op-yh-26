@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Calendar, ChevronRight, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
-import { fieldsMatchQuery } from '../lib/searchQuery'
+import { fieldsMatchQuery, sortByCallsignForNumericQuery } from '../lib/searchQuery'
 import {
   fetchAssignableUsers,
   fetchEventLookups,
@@ -378,11 +378,12 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     if (!draft) return []
     const taken = new Set(draft.responder_ids)
     const needle = pickerQuery.trim()
-    return roster.filter((person) => {
+    const matches = roster.filter((person) => {
       if (taken.has(person.id)) return false
       if (!needle) return true
       return fieldsMatchQuery([person.full_name, person.callsign], needle)
     })
+    return sortByCallsignForNumericQuery(matches, needle)
   }, [draft, roster, pickerQuery])
 
   const assignedPeople = useMemo(() => {

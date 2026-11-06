@@ -3110,6 +3110,7 @@ html[data-keyboard-open] .event-form__footer {
 
 .efilters__view {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
@@ -3126,7 +3127,7 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-2);
 }
 
-/* Pills, הוספת סינון, ניקוי and שמירה stay one group after the search. Phones scroll it
+/* Pills, הוספת סינון and ניקוי stay one group after the search. Phones scroll it
    sideways; the inline-end fade says there is more, and the end padding lets the last
    pill clear the fade once scrolled. The mask fades the physical left edge: the app is RTL. */
 .efilters__pills {
@@ -3683,7 +3684,7 @@ html[data-keyboard-open] .event-form__footer {
   border-block-start: 1px solid var(--stroke-hairline);
 }
 
-.events-card__body > :not(.stack-4),
+.events-card__body > :not(.stack-4, .empty),
 .events-card__body > .stack-4 > .btn {
   margin: var(--space-4) var(--space-5);
 }

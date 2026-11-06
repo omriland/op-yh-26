@@ -156,6 +156,7 @@ const EVENTS_PAGE_API: EventsPageApi = {
 
 const MINE_DEFAULT_CAPTION = 'ממתינים לתיעוד: כולם · תועדו: 30 הימים האחרונים'
 const RULES_HINT = 'מציג אירועים לפי תנאי הסינון, מכל התאריכים.'
+const SEARCH_ALL_DATES_HINT = 'מציג תוצאות חיפוש מכל התאריכים.'
 const RULES_CAPPED_HINT = `מוצגים ${UNIT_EVENTS_LIST_LIMIT} האירועים האחרונים שתואמים לסינון. הוסיפו תנאי כדי להגיע לישנים יותר.`
 
 type EventsPageProps = {
@@ -542,6 +543,7 @@ export function EventsPage({
       const rows = filterUnitEventsForList(unitWindow.inWindow, {
         status: filter,
         searchIds,
+        query,
         showShiftEvents,
       })
       if (imageEventIds.size === 0) return rows
@@ -757,9 +759,11 @@ export function EventsPage({
                 ? rulesCapped
                   ? RULES_CAPPED_HINT
                   : RULES_HINT
-                : recentList
-                  ? SHIFT_LEAD_EVENTS_RECENT_HINT
-                  : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}
+                : query.trim()
+                  ? SEARCH_ALL_DATES_HINT
+                  : recentList
+                    ? SHIFT_LEAD_EVENTS_RECENT_HINT
+                    : unitEventsListHint(UNIT_EVENTS_WINDOW_DAYS)}
             </p>
           </div>
           {canCreate && onCreate ? (
@@ -970,7 +974,7 @@ function ListEmptyState({
     return (
       <EmptyState
         icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
-        title="אין אירועים במצב זה"
+        title="לא נמצאו אירועים העונים לסינון"
         action={
           <Button variant="ghost" onClick={onClear}>
             ניקוי סינון

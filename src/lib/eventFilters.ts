@@ -210,18 +210,28 @@ export const PERIOD_LABELS = {
   all: 'כל התאריכים',
 } as const
 
+/** `searching`: a unit search skips the time window, so only the label changes; the choice stays for the panel. */
 export function periodState(
   view: EventListView,
   shiftLeadList: boolean,
+  searching = false,
 ): { choice: PeriodChoice; summary: string; changed: boolean } {
   const rules = activeRules(view.rules)
   const date = rules.find((rule): rule is DateRule => rule.field === 'event_date')
   if (date) return { choice: date.op, summary: dateRuleLabel(date), changed: true }
   if (rules.length > 0) return { choice: 'all', summary: PERIOD_LABELS.all, changed: false }
   if (shiftLeadList && !view.showOlder) {
-    return { choice: 'recent', summary: PERIOD_LABELS.recent, changed: false }
+    return {
+      choice: 'recent',
+      summary: searching ? PERIOD_LABELS.all : PERIOD_LABELS.recent,
+      changed: false,
+    }
   }
-  return { choice: 'window', summary: PERIOD_LABELS.window, changed: shiftLeadList }
+  return {
+    choice: 'window',
+    summary: searching ? PERIOD_LABELS.all : PERIOD_LABELS.window,
+    changed: shiftLeadList,
+  }
 }
 
 /** Back to a time window: drops the date rule; `window` for אחמ״ש is ישנים יותר. */

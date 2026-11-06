@@ -60,6 +60,23 @@ export function fieldsMatchQuery(
   return fields.some((field) => field != null && textIncludesQuery(String(field), query))
 }
 
+/** A digits-only search lists callsigns numerically; other callsigns follow in their given order. */
+export function sortByCallsignForNumericQuery<T extends { callsign?: string | null }>(
+  people: readonly T[],
+  query: string,
+): T[] {
+  if (!/^\d+$/.test(query.trim())) return [...people]
+  const rank = (person: T) => {
+    const callsign = person.callsign?.trim() ?? ''
+    return /^\d+$/.test(callsign) ? Number(callsign) : Number.POSITIVE_INFINITY
+  }
+  return [...people].sort((a, b) => {
+    const left = rank(a)
+    const right = rank(b)
+    return left === right ? 0 : left - right
+  })
+}
+
 export function filterSelectOptions<T extends { label: string }>(
   options: readonly T[],
   query: string,
