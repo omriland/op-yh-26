@@ -295,7 +295,7 @@ export function EventFilters({
   const currentPreset = presets.find((preset) => preset.id === currentId) ?? null
   const currentName =
     currentId === DEFAULT_PRESET_ID ? DEFAULT_PRESET_NAME : (currentPreset?.name ?? 'סינון שלא נשמר')
-  const period = periodState(view, shiftLeadList)
+  const period = periodState(view, shiftLeadList, scope === 'unit' && query.trim() !== '')
   const hasLeadRule = drafts.some((rule) => rule.field === 'shift_lead' && !isEmptyRule(rule))
   const anythingSet = currentId !== DEFAULT_PRESET_ID || query.trim() !== ''
 
@@ -500,6 +500,12 @@ export function EventFilters({
           />
         ) : null}
       </FilterPopover>
+      {userId && currentId === UNSAVED_ID ? (
+        <button type="button" className="fpill fpill--single" onClick={openSave}>
+          <Save size={16} strokeWidth={1.75} aria-hidden="true" />
+          <span className="fpill__value">שמירת תצוגה</span>
+        </button>
+      ) : null}
     </div>
   )
 
@@ -730,13 +736,6 @@ export function EventFilters({
         {anythingSet ? (
           <button type="button" className="ftext" onClick={clearAll}>
             ניקוי סינון
-          </button>
-        ) : null}
-
-        {userId && currentId === UNSAVED_ID ? (
-          <button type="button" className="fpill fpill--single" onClick={openSave}>
-            <Save size={16} strokeWidth={1.75} aria-hidden="true" />
-            <span className="fpill__value">שמירת תצוגה</span>
           </button>
         ) : null}
       </div>

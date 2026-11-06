@@ -18,7 +18,7 @@ import {
 } from './shifts'
 import { formatDate, formatPlate } from './format'
 import { mapTreatedPlateRows, type TreatedPlate } from './treatedPlates'
-import { EVENT_SECONDARY_LEADS_EMBED } from './eventShiftLeads'
+import { EVENT_SECONDARY_LEADS_EMBED, mapSecondaryLeadRows } from './eventShiftLeads'
 
 export type EventResponderSummary = {
   id: string
@@ -754,7 +754,45 @@ export async function searchUnitEventIds(
       return (fallback.data ?? []) as string[]
     }),
   )
-  return [...new Set(batches.flat())]
+  const exact = await exactEventFieldIds(variants, opts?.shiftLeadId)
+  return [...new Set([...batches.flat(), ...exact])]
+}
+
+/** The RPC never reads the event's own או״ק, and its response is row-capped, so exact values are asked directly. */
+async function exactEventFieldIds(variants: string[], shiftLeadId?: string | null): Promise<string[]> {
+  const columns = ['police_event_id', 'patrol_callsign', 'patrol_callsign_number']
+  const batches = await Promise.all(
+    columns.map(async (column) => {
+      let query = supabase.from('events').select('id').in(column, variants)
+      if (shiftLeadId) query = query.eq('shift_lead_id', shiftLeadId)
+      const { data, error } = await query
+      if (error) throw new Error(error.message)
+      return (data ?? []).map((row) => row.id as string)
+    }),
+  )
+  return batches.flat()
+}
+
+/**
+ * A search value that is exactly an event's number or או״ק, or the callsign of a person
+ * on the event, shows only those events. No exact match: all rows.
+ */
+export function narrowToExactMatches(events: EventListItem[], query: string): EventListItem[] {
+  const needles = new Set(searchQueryVariants(query).map((variant) => variant.toLowerCase()))
+  if (needles.size === 0) return events
+  const isExact = (value: string | null | undefined) =>
+    value != null && needles.has(value.trim().toLowerCase())
+
+  const exact = events.filter(
+    (event) =>
+      isExact(event.police_event_id) ||
+      isExact(event.patrol_callsign) ||
+      isExact(event.patrol_callsign_number) ||
+      isExact(event.shift_lead?.callsign) ||
+      mapSecondaryLeadRows(event.secondary_leads).some((lead) => isExact(lead.callsign)) ||
+      event.responders.some((row) => isExact(row.profile?.callsign)),
+  )
+  return exact.length > 0 ? exact : events
 }
 
 export function filterUnitEventsForList(
@@ -762,18 +800,21 @@ export function filterUnitEventsForList(
   opts: {
     status: EventStatus | 'all'
     searchIds: ReadonlySet<string> | null
+    /** The text behind searchIds. Exact matches among the filtered rows hide the rest. */
+    query?: string
     /** Off hides events born from a shift. Defaults to on. */
     showShiftEvents?: boolean
   },
 ): EventListItem[] {
+  const rows = events.filter((event) => {
+    if (opts.showShiftEvents === false && event.origin === 'shift') return false
+    const matchesStatus = opts.status === 'all' || event.status === opts.status
+    if (!matchesStatus) return false
+    if (opts.searchIds === null) return true
+    return opts.searchIds.has(event.id)
+  })
   return sortEventsByDateDesc(
-    events.filter((event) => {
-      if (opts.showShiftEvents === false && event.origin === 'shift') return false
-      const matchesStatus = opts.status === 'all' || event.status === opts.status
-      if (!matchesStatus) return false
-      if (opts.searchIds === null) return true
-      return opts.searchIds.has(event.id)
-    }),
+    opts.searchIds !== null && opts.query ? narrowToExactMatches(rows, opts.query) : rows,
   )
 }
 

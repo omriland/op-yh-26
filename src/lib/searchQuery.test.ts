@@ -3,6 +3,7 @@ import {
   filterSelectOptions,
   mapEnKeysToHe,
   searchQueryVariants,
+  sortByCallsignForNumericQuery,
   textIncludesQuery,
 } from './searchQuery'
 import { filterReportCatalog, queryMatchesText } from './reports/librarySearch'
@@ -70,5 +71,39 @@ describe('filterSelectOptions', () => {
     expect(filterSelectOptions(roads, '4').map((row) => row.value)).toEqual(['4'])
     expect(filterSelectOptions(roads, 'החוף').map((row) => row.label)).toEqual(['כביש החוף'])
     expect(filterSelectOptions(roads, 'fcha 1').map((row) => row.label)).toEqual(['כביש 1'])
+  })
+})
+
+describe('sortByCallsignForNumericQuery', () => {
+  const people = (...callsigns: Array<string | null>) =>
+    callsigns.map((callsign, index) => ({ id: `p${index}`, callsign }))
+  const callsigns = (rows: { callsign: string | null }[]) => rows.map((row) => row.callsign)
+
+  it('orders the screenshot search by callsign', () => {
+    const rows = people('815', '874', '528', '598', '823', '418', '873', '228')
+    expect(callsigns(sortByCallsignForNumericQuery(rows, '8'))).toEqual([
+      '228', '418', '528', '598', '815', '823', '873', '874',
+    ])
+  })
+
+  it('compares as numbers, not strings', () => {
+    expect(callsigns(sortByCallsignForNumericQuery(people('815', '98'), ' 8 '))).toEqual(['98', '815'])
+  })
+
+  it('puts non-numeric and missing callsigns last, in their given order', () => {
+    const rows = people('אביב', '815', null, '98', 'ב8')
+    expect(callsigns(sortByCallsignForNumericQuery(rows, '8'))).toEqual(['98', '815', 'אביב', null, 'ב8'])
+  })
+
+  it('keeps the given order for equal callsigns', () => {
+    const rows = people('8', '8', '08')
+    expect(sortByCallsignForNumericQuery(rows, '8').map((row) => row.id)).toEqual(['p0', 'p1', 'p2'])
+  })
+
+  it('leaves name and empty searches in their given order', () => {
+    const rows = people('815', '98')
+    expect(callsigns(sortByCallsignForNumericQuery(rows, 'יוסי'))).toEqual(['815', '98'])
+    expect(callsigns(sortByCallsignForNumericQuery(rows, 'a8'))).toEqual(['815', '98'])
+    expect(callsigns(sortByCallsignForNumericQuery(rows, '  '))).toEqual(['815', '98'])
   })
 })

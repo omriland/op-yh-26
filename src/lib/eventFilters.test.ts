@@ -581,6 +581,25 @@ describe('תקופה pill', () => {
     })
   })
 
+  it('a search names every date instead of the window it skips, and keeps the choice', () => {
+    expect(periodState(DEFAULT_EVENT_LIST_VIEW, true, true)).toEqual({
+      choice: 'recent',
+      summary: PERIOD_LABELS.all,
+      changed: false,
+    })
+    expect(periodState(DEFAULT_EVENT_LIST_VIEW, false, true)).toEqual({
+      choice: 'window',
+      summary: PERIOD_LABELS.all,
+      changed: false,
+    })
+    const older = withPeriodWindow(DEFAULT_EVENT_LIST_VIEW, 'window', true)
+    expect(periodState(older, true, true)).toEqual({ choice: 'window', summary: PERIOD_LABELS.all, changed: true })
+  })
+
+  it('an explicit date rule keeps its own label during a search', () => {
+    expect(periodState(view({ rules: [dateRule('2026-11-01')] }), true, true).summary).toBe('01.11.2026')
+  })
+
   it('going back to a window drops the date rule and keeps the others', () => {
     const next = withPeriodWindow(
       view({ rules: [dateRule('2026-11-01'), { field: 'event_id', op: 'is', value: '1' }] }),

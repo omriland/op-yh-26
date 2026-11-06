@@ -562,7 +562,6 @@ export function EventMediaGallery({
       caption: editCaption.trim() || null,
     }
     setItems((current) => current.map((row) => (row.id === next.id ? next : row)))
-    setAutoLinks((current) => current.filter((row) => row.mediaId !== next.id))
     setViewer(next)
     setEditing(false)
     show(EVENT_MEDIA_UPDATED, 'done')
