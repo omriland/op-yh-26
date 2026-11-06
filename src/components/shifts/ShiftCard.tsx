@@ -15,6 +15,7 @@ import {
   type ShiftListItem,
 } from '../../lib/shifts'
 import { shiftRecordLogStatus } from '../../lib/shiftLogStatus'
+import { listShiftEvents, shiftEventCountLabel, shiftListDestination } from '../../lib/shiftListEvents'
 import { shiftStamp } from '../../lib/status'
 import { StampChip } from '../ui/StampChip'
 import { EventFrozenMark } from '../events/EventFrozenMark'
@@ -24,7 +25,6 @@ type ShiftCardProps = {
   shift: ShiftListItem
   onOpen: (shiftId: string) => void
   onFill?: (shiftId: string) => void
-  onOpenEvent?: (eventId: string) => void
   fillDisabled?: boolean
   fillDisabledReason?: string
   /** Freeze reader for the shift-born event rows. */
@@ -47,15 +47,18 @@ export function ShiftCard({
   shift,
   onOpen,
   onFill,
-  onOpenEvent,
   fillDisabled = false,
   fillDisabledReason,
   viewer,
 }: ShiftCardProps) {
   const [open, setOpen] = useState(false)
   const responderCount = shift.responders.length
-  const born = shift.born_events ?? []
-  const eventCount = born.length
+  const born = listShiftEvents(shift.born_events)
+  const eventLabel = shiftEventCountLabel(born.length)
+  const openShift = () => {
+    const destination = shiftListDestination(born)
+    if (destination.kind === 'shift') onOpen(shift.id)
+  }
   const kindLabel = SHIFT_KIND_LABELS[shift.shift_kind]
   const vehicleLabel = VEHICLE_TYPE_LABELS[shift.vehicle_type]
   const plate =
@@ -72,14 +75,15 @@ export function ShiftCard({
         <button
           type="button"
           className="assignment-card__toggle"
-          onClick={() => onOpen(shift.id)}
+          title={eventLabel}
+          onClick={openShift}
         >
           <span className="assignment-card__identity">
             <span className="t-section">
               {kindLabel} · {vehicleLabel}
             </span>
             <span className="t-body text-secondary">
-              {responderCount} מתנדבים · {eventCount} אירועים
+              {responderCount} מתנדבים · {eventLabel}
             </span>
             <span className="event-card__meta">
               <span className="mono">{formatDate(shift.shift_date)}</span>
@@ -99,7 +103,11 @@ export function ShiftCard({
           type="button"
           className="shift-card__disclose"
           aria-expanded={open}
-          aria-label={open ? 'הסתרת אירועי המשמרת' : 'הצגת אירועי המשמרת'}
+          aria-label={
+            open
+              ? `הסתרת אירועי המשמרת · ${eventLabel}`
+              : `הצגת אירועי המשמרת · ${eventLabel}`
+          }
           onClick={() => setOpen((current) => !current)}
         >
           <ChevronDown
@@ -138,7 +146,7 @@ export function ShiftCard({
                   <button
                     type="button"
                     className="event-card"
-                    onClick={() => onOpenEvent?.(event.id)}
+                    onClick={openShift}
                   >
                     <span className="event-card__top">
                       <span className="event-card__type">

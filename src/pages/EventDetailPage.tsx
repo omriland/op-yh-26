@@ -75,9 +75,21 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Avatar } from '../components/ui/Avatar'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { OverflowMenu } from '../components/ui/OverflowMenu'
+import { Dialog } from '../components/ui/Dialog'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 import { ShiftBornFillPage } from './ShiftBornFillPage'
+import {
+  REOPENED_LOG_STATUS,
+  REOPEN_RESPONDER_LOG_BODY,
+  REOPEN_RESPONDER_LOG_CONFIRM,
+  REOPEN_RESPONDER_LOG_DONE,
+  REOPEN_RESPONDER_LOG_MENU,
+  REOPEN_RESPONDER_LOG_TITLE,
+  canReopenResponderLog,
+  defaultReopenChoice,
+  reopenResponderLog,
+} from '../lib/reopenResponderLog'
 
 type EventDetailPageProps = {
   eventId: string
@@ -107,6 +119,9 @@ export function EventDetailPage({
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [reopenOpen, setReopenOpen] = useState(false)
+  const [reopenId, setReopenId] = useState<string | null>(null)
+  const [reopening, setReopening] = useState(false)
   const [mapFailed, setMapFailed] = useState(false)
   const [geocodeCoords, setGeocodeCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [assignedEditBlockedOpen, setAssignedEditBlockedOpen] = useState(false)
@@ -252,6 +267,10 @@ export function EventDetailPage({
     userId: user?.id,
     shiftLeadId: event.shift_lead_id,
   })
+  const canReopenLog =
+    event.origin !== 'shift' &&
+    canReopenResponderLog(roles) &&
+    event.responders.length > 0
   const mine = event.responders.find((row) => row.responder_id === user?.id)?.status ?? null
   const mineKm = event.responders.find((row) => row.responder_id === user?.id)?.total_km ?? null
   const secondaryLeadIds = mapSecondaryLeadRows(event.secondary_leads).map((row) => row.user_id)
@@ -340,6 +359,35 @@ export function EventDetailPage({
     onBack()
   }
 
+  function openReopen() {
+    setReopenId(defaultReopenChoice(event?.responders.map((row) => row.id) ?? []))
+    setReopenOpen(true)
+  }
+
+  async function confirmReopen() {
+    if (!reopenId || !event) return
+    setReopening(true)
+    const result = await reopenResponderLog(reopenId)
+    setReopening(false)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    const chosenId = reopenId
+    setEvent((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        status: result.eventStatus,
+        responders: current.responders.map((row) =>
+          row.id === chosenId ? { ...row, status: REOPENED_LOG_STATUS } : row,
+        ),
+      }
+    })
+    setReopenOpen(false)
+    show(REOPEN_RESPONDER_LOG_DONE, 'done')
+  }
+
   function requestEventEdit() {
     if (assignedEditBlocked) {
       setAssignedEditBlockedOpen(true)
@@ -381,7 +429,7 @@ export function EventDetailPage({
         </span>
       </div>
 
-      {canEdit || canDelete ? (
+      {canEdit || canDelete || canReopenLog ? (
         <div className="detail__actions">
           {canEdit ? (
             <span title={ageLocked && !assignedEditBlocked ? EVENT_EDIT_LOCKED_TOOLTIP : undefined}>
@@ -394,16 +442,28 @@ export function EventDetailPage({
               </Button>
             </span>
           ) : null}
-          {canDelete ? (
+          {canDelete || canReopenLog ? (
             <OverflowMenu
               open={menuOpen}
               onOpenChange={setMenuOpen}
               items={[
-                {
-                  label: 'מחיקה',
-                  danger: true,
-                  onSelect: () => setConfirmDelete(true),
-                },
+                ...(canReopenLog
+                  ? [
+                      {
+                        label: REOPEN_RESPONDER_LOG_MENU,
+                        onSelect: openReopen,
+                      },
+                    ]
+                  : []),
+                ...(canDelete
+                  ? [
+                      {
+                        label: 'מחיקה',
+                        danger: true,
+                        onSelect: () => setConfirmDelete(true),
+                      },
+                    ]
+                  : []),
               ]}
             />
           ) : null}
@@ -620,6 +680,63 @@ export function EventDetailPage({
       >
         <p className="t-body">{eventDeleteConfirmBody(event.responders.length)}</p>
       </AlertDialog>
+
+      <Dialog
+        open={reopenOpen}
+        title={REOPEN_RESPONDER_LOG_TITLE}
+        onClose={() => !reopening && setReopenOpen(false)}
+        footer={
+          <>
+            <Button variant="secondary" disabled={reopening} onClick={() => setReopenOpen(false)}>
+              ביטול
+            </Button>
+            <Button
+              loading={reopening}
+              loadingLabel="פותח…"
+              disabled={!reopenId}
+              onClick={() => void confirmReopen()}
+            >
+              {REOPEN_RESPONDER_LOG_CONFIRM}
+            </Button>
+          </>
+        }
+      >
+        <div className="stack-4">
+          <p className="t-body">{REOPEN_RESPONDER_LOG_BODY}</p>
+          <ul className="impersonation-picker__list" role="radiogroup" aria-label="מתנדב">
+            {event.responders.map((responder) => {
+              const name = responder.profile?.full_name?.trim() || 'מתנדב'
+              const callsign = responder.profile?.callsign?.trim()
+              const checked = responder.id === reopenId
+              return (
+                <li key={responder.id}>
+                  <label
+                    className={['impersonation-picker__row', checked ? 'is-selected' : '']
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    <input
+                      type="radio"
+                      name="reopen-responder"
+                      checked={checked}
+                      onChange={() => setReopenId(responder.id)}
+                    />
+                    <span>
+                      <span className="t-body-strong">{name}</span>
+                      {callsign ? (
+                        <span className="t-caption text-muted">
+                          {' '}
+                          או״ק <span className={monoClass(callsign)}>{callsign}</span>
+                        </span>
+                      ) : null}
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      </Dialog>
     </div>
   )
 }

@@ -1267,9 +1267,11 @@ function Gate() {
           scope={shiftScope}
           asTable={Boolean(commandShell && shiftScope === 'unit')}
           canManage={manages && shiftScope === 'unit'}
-          onOpen={(shiftId) => setShiftSurface({ kind: 'detail', shiftId })}
+          onOpen={(shiftId) => {
+            setEventSurface({ kind: 'list' })
+            setShiftSurface({ kind: 'detail', shiftId })
+          }}
           onFill={(shiftId) => setShiftSurface({ kind: 'form', shiftId })}
-          onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
           onCreate={
             manages && shiftScope === 'unit'
               ? () => setShiftSurface({ kind: 'form' })

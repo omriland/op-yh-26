@@ -4,6 +4,7 @@ import {
   POLICE_EVENT_ID_DUPLICATE_ERROR,
   type LookupOption,
 } from './eventForm'
+import { shiftBornEventTypePatch } from './shiftEventTypeTotals'
 import { fetchEventDetail, type EventDetail } from './events'
 import { policeEventIdForInput } from './format'
 import { refreshShiftLogStatus } from './shiftForm'
@@ -32,6 +33,7 @@ export type ShiftBornFillContext = {
   event: EventDetail
   vehicleKinds: LookupOption[]
   roads: LookupOption[]
+  eventTypes: LookupOption[]
   draft: ShiftBornFillDraft
   expected_updated_at: string
 }
@@ -184,6 +186,7 @@ export async function fetchShiftBornFillContext(
     event,
     vehicleKinds: lookups.vehicleKinds,
     roads: lookups.roads,
+    eventTypes: lookups.eventTypes,
     expected_updated_at: event.updated_at,
     draft: {
       police_event_id: event.police_event_id ?? '',
@@ -207,6 +210,7 @@ export function shiftBornFillErrorMessage(message: string | undefined): string {
   if (message?.includes(SHIFT_BORN_TOO_EARLY)) return SHIFT_BORN_TOO_EARLY
   if (message?.includes(SHIFT_BORN_DONE_LOCKED)) return SHIFT_BORN_DONE_LOCKED
   if (message?.includes('אין הרשאה')) return 'אין הרשאה'
+  if (message?.includes('יש לבחור סוג אירוע')) return 'יש לבחור סוג אירוע.'
   if (message?.includes(EVENT_DONE_NEEDS_END_ERROR)) return EVENT_DONE_NEEDS_END_ERROR
   if (message?.includes(EVENT_DONE_NEEDS_KM_ERROR)) return EVENT_DONE_NEEDS_KM_ERROR
   if (message?.includes(POLICE_EVENT_ID_DUPLICATE_ERROR)) return POLICE_EVENT_ID_DUPLICATE_ERROR
@@ -246,5 +250,24 @@ export async function saveShiftBornEventFill(input: {
     await refreshShiftLogStatus(parent.shift_id as string)
   }
 
+  return { ok: true, updated_at: data as string }
+}
+
+/** Super admin: one column on this event, plus the shift's stored type tally. */
+export async function saveShiftBornEventType(input: {
+  eventId: string
+  previousTypeId: string | null | undefined
+  nextTypeId: string
+  expectedUpdatedAt: string
+}): Promise<{ ok: true; updated_at: string } | { ok: false; error: string } | { ok: true; unchanged: true }> {
+  const patch = shiftBornEventTypePatch(input.previousTypeId, input.nextTypeId)
+  if (!patch) return { ok: true, unchanged: true }
+
+  const { data, error } = await supabase.rpc('set_shift_born_event_type', {
+    p_event_id: input.eventId,
+    p_event_type_id: patch.event_type_id,
+    p_expected_updated_at: input.expectedUpdatedAt,
+  })
+  if (error) return { ok: false, error: shiftBornFillErrorMessage(error.message) }
   return { ok: true, updated_at: data as string }
 }

@@ -19,8 +19,8 @@ import {
   RectangleHorizontal,
   Save,
   Search,
+  Siren,
   Trash2,
-  Truck,
   UserRound,
   UserRoundCheck,
   Users,
@@ -646,7 +646,7 @@ export function EventFilters({
             {view.showShiftEvents ? (
               <Check size={16} strokeWidth={1.75} aria-hidden="true" />
             ) : (
-              <Truck size={16} strokeWidth={1.75} aria-hidden="true" />
+              <Siren size={16} strokeWidth={1.75} aria-hidden="true" />
             )}
             <span className="fpill__value" aria-hidden="true">
               משמרות

@@ -14,6 +14,7 @@ import {
 } from '../../lib/shifts'
 import { IconButton } from '../ui/Button'
 import { shiftRecordLogStatus } from '../../lib/shiftLogStatus'
+import { listShiftEvents, shiftEventCountLabel, shiftListDestination } from '../../lib/shiftListEvents'
 import { shiftStamp } from '../../lib/status'
 import { StampChip } from '../ui/StampChip'
 import { EventFrozenMark } from '../events/EventFrozenMark'
@@ -22,7 +23,6 @@ import type { FreezeViewer } from '../../lib/eventFreeze'
 type ShiftsTableProps = {
   shifts: ShiftListItem[]
   onOpen: (shiftId: string) => void
-  onOpenEvent?: (eventId: string) => void
   /** Freeze reader for the shift-born event rows. */
   viewer?: FreezeViewer | null
 }
@@ -40,7 +40,7 @@ function bornSnapshot(event: ShiftBornEventSummary) {
 }
 
 /** Command desktop only — mobile renders the same data as cards. */
-export function ShiftsTable({ shifts, onOpen, onOpenEvent, viewer }: ShiftsTableProps) {
+export function ShiftsTable({ shifts, onOpen, viewer }: ShiftsTableProps) {
   const [openId, setOpenId] = useState<string | null>(null)
 
   return (
@@ -64,25 +64,35 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent, viewer }: ShiftsTable
               shift.vehicle_type === 'personal' && shift.personal_vehicle?.plate_number
                 ? formatPlate(shift.personal_vehicle.plate_number)
                 : null
-            const born = shift.born_events ?? []
+            const born = listShiftEvents(shift.born_events)
+            const eventLabel = shiftEventCountLabel(born.length)
             const expanded = openId === shift.id
+            const openShift = () => {
+              const destination = shiftListDestination(born)
+              if (destination.kind === 'shift') onOpen(shift.id)
+            }
             return (
               <Fragment key={shift.id}>
                 <tr
                   tabIndex={0}
                   role="button"
-                  aria-label={`פתיחת משמרת ${formatDate(shift.shift_date)}`}
-                  onClick={() => onOpen(shift.id)}
+                  title={eventLabel}
+                  aria-label={`פתיחת משמרת ${formatDate(shift.shift_date)} · ${eventLabel}`}
+                  onClick={openShift}
                   onKeyDown={(event) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return
                     if (event.target !== event.currentTarget) return
                     event.preventDefault()
-                    onOpen(shift.id)
+                    openShift()
                   }}
                 >
                   <td className="num table-cell--nowrap">
                     <IconButton
-                      label={expanded ? 'סגירת אירועים' : 'פתיחת אירועים'}
+                      label={
+                        expanded
+                          ? `סגירת אירועים · ${eventLabel}`
+                          : `פתיחת אירועים · ${eventLabel}`
+                      }
                       aria-expanded={expanded}
                       onClick={(event) => {
                         event.stopPropagation()
@@ -113,7 +123,9 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent, viewer }: ShiftsTable
                   </td>
                   <td>{shift.shift_lead?.full_name ?? '—'}</td>
                   <td className="num mono">{shift.responders.length}</td>
-                  <td className="num mono">{born.length}</td>
+                  <td className="num mono" title={eventLabel}>
+                    {born.length}
+                  </td>
                   <td>
                     <StampChip {...shiftStamp(shiftRecordLogStatus(shift))} />
                   </td>
@@ -133,7 +145,7 @@ export function ShiftsTable({ shifts, onOpen, onOpenEvent, viewer }: ShiftsTable
                                 <button
                                   type="button"
                                   className="event-card"
-                                  onClick={() => onOpenEvent?.(event.id)}
+                                  onClick={openShift}
                                 >
                                   <span className="event-card__top">
                                     <span className="event-card__type">

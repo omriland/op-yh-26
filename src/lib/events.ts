@@ -333,6 +333,7 @@ export type EventDetail = Omit<EventListItem, 'responders'> & {
   location_lng: number | null
   location_pin_source: string | null
   updated_at: string
+  event_type_id: string | null
   responders: EventResponderDetail[]
   /** Event-keyed plates (shift-born). Alias from PostgREST `shared_plates`. */
   treated_plates: TreatedPlate[]
@@ -341,6 +342,7 @@ export type EventDetail = Omit<EventListItem, 'responders'> & {
 
 const EVENT_DETAIL_SELECT = `
   id,
+  event_type_id,
   shift_lead_id,
   created_at,
   event_date,
@@ -396,6 +398,7 @@ const EVENT_DETAIL_SELECT = `
 
 const EVENT_DETAIL_SELECT_NO_PLATES = `
   id,
+  event_type_id,
   shift_lead_id,
   created_at,
   event_date,
