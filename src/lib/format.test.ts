@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   applyDateKeystroke,
+  nativeDateValue,
+  replaceCompleteDateDigits,
   applyTimeKeystroke,
   digitsOnly,
   displayDateToIso,
@@ -210,6 +212,21 @@ describe('date input (always day-first)', () => {
     expect(applyDateKeystroke('05.10', '05102026')).toBe('05.10.2026')
     expect(applyDateKeystroke('05.10.2026', '05.10.202')).toBe('05.10.202')
     expect(applyDateKeystroke('05.10', '05.1')).toBe('05.1')
+  })
+
+  it('starts a new date when a digit is inserted into a finished one', () => {
+    expect(applyDateKeystroke('05.10.2026', '805.10.2026')).toBe('8')
+    expect(applyDateKeystroke('05.10.2026', '05.10.20267')).toBe('7')
+    expect(replaceCompleteDateDigits('05.10.2026', '8')).toBe('8')
+    expect(replaceCompleteDateDigits('05.10', '8')).toBeNull()
+    expect(replaceCompleteDateDigits('05.10.2026', 'a')).toBeNull()
+  })
+
+  it('gives the native date input only a real calendar day', () => {
+    expect(nativeDateValue('2026-10-05')).toBe('2026-10-05')
+    expect(nativeDateValue('')).toBe('')
+    expect(nativeDateValue('2026-02-31')).toBe('')
+    expect(nativeDateValue('05.10.2026')).toBe('')
   })
 })
 

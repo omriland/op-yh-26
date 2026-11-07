@@ -78,6 +78,9 @@ describe('event form standalone layout', () => {
     expect(eventFormSource).not.toContain('placeholder={PATROL_CALLSIGN_NUMBER_PLACEHOLDER}')
     expect(eventFormSource).not.toContain('למשל: מחלף שורק')
     expect(eventFormSource).toContain('RESPONDERS_HELD_FOR_POLICE_ID_NOTE')
+    expect(eventFormSource).toContain('canAssignResponder')
+    expect(eventFormSource).toContain('allowPartial: true')
+    expect(eventFormSource).not.toContain('hasEventMinimum')
   })
 
   it('wires FieldNote from the event-form field-notes registry', () => {

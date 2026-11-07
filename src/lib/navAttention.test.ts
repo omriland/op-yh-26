@@ -10,6 +10,7 @@ const openManual = {
   policeEventId: '12345',
   patrolCallsignNumber: '411',
   roadId: 'road-1',
+  hasEventType: true,
 }
 
 describe('hasOpenMineEvents', () => {
@@ -47,10 +48,15 @@ describe('hasOpenMineEvents', () => {
     ).toBe(true)
   })
 
-  it('ignores a manual assignment until או״ק, כביש, and מספר אירוע are filled', () => {
+  it('ignores a manual assignment until סוג אירוע, או״ק, כביש, and מספר אירוע are filled', () => {
     expect(
       hasOpenMineEvents([
-        { status: 'pending', origin: 'manual', policeEventId: null, patrolCallsignNumber: '411', roadId: 'r' },
+        { status: 'pending', origin: 'manual', policeEventId: null, patrolCallsignNumber: '411', roadId: 'r', hasEventType: true },
+      ]),
+    ).toBe(false)
+    expect(
+      hasOpenMineEvents([
+        { status: 'pending', ...openManual, hasEventType: false },
       ]),
     ).toBe(false)
     expect(

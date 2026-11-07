@@ -6,6 +6,7 @@ import {
   COCKPIT_IDENTITY_DRAFT_WARNING,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
   policeEventIdSaveAction,
+  canAssignResponder,
   canPersistEventDraft,
   cockpitIdentityDraftWarning,
   eventCreateBlockedMessage,
@@ -44,6 +45,16 @@ function draft(partial: Partial<EventFormDraft> = {}): EventFormDraft {
 const districts: LookupOption[] = [
   { id: 'sys', name: 'תחנה / אחר / משוכפל', code: 'station_other_duplicated' },
 ]
+
+describe('canAssignResponder', () => {
+  it('allows a כונן before סוג אירוע and מספר אירוע, once a date exists', () => {
+    expect(canAssignResponder(draft({ event_type_id: '', police_event_id: '' }))).toBe(true)
+    expect(canAssignResponder(draft({ event_date: '', event_type_id: 't1', police_event_id: '3740' }))).toBe(
+      false,
+    )
+    expect(canAssignResponder(draft({ event_date: '   ' }))).toBe(false)
+  })
+})
 
 describe('canPersistEventDraft', () => {
   it('blocks an empty create unless the cockpit allows a partial draft', () => {

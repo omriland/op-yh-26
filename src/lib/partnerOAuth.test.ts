@@ -183,6 +183,7 @@ describe('isOpenStandaloneParticipation', () => {
     isCancelled: false,
     patrolCallsignNumber: '411',
     hasRoad: true,
+    hasEventType: true,
   }
 
   it('keeps open manual events and drops shift-born, cancelled, and done', () => {
@@ -224,12 +225,20 @@ describe('isOpenStandaloneParticipation', () => {
     ).toBe(false)
   })
 
-  it('does not send a manual event until או״ק, כביש, and מספר אירוע are entered', () => {
+  it('does not send a manual event until סוג אירוע, או״ק, כביש, and מספר אירוע are entered', () => {
     expect(
       isOpenStandaloneParticipation({
         ...ready,
         participationStatus: 'pending',
         policeEventId: null,
+      }),
+    ).toBe(false)
+    expect(
+      isOpenStandaloneParticipation({
+        ...ready,
+        participationStatus: 'pending',
+        policeEventId: '12345',
+        hasEventType: false,
       }),
     ).toBe(false)
     expect(

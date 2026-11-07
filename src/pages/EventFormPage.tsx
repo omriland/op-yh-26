@@ -25,7 +25,7 @@ import {
   fetchEventLookups,
   saveLockedEventLeadKm,
   stripStoredTimeBaseline,
-  hasEventMinimum,
+  canAssignResponder,
   validateEventMinimum,
   isOtherEventTypeId,
   EVENT_TYPE_DETAIL_MAX_LENGTH,
@@ -180,6 +180,8 @@ type PersistOptions = {
   navigate?: boolean
   createNew?: boolean
   revealErrors?: boolean
+  /** Save the assignment even when סוג אירוע is still empty. */
+  allowPartial?: boolean
   overnightOk?: boolean
   futureDateOk?: boolean
 }
@@ -710,10 +712,14 @@ export function EventFormPage({
         return true
       }
 
-      const explicitSave = Boolean(options?.navigate || options?.createNew || options?.revealErrors)
-      // Background saves persist whatever is already typed. The explicit
-      // buttons still require the full minimum.
-      const allowPartial = variant === 'cockpit' || !explicitSave
+      const explicitSave = Boolean(
+        options?.navigate ||
+          options?.createNew ||
+          (options?.revealErrors && !options?.allowPartial),
+      )
+      // Background saves, and attaching a כונן, persist without סוג אירוע.
+      // The explicit buttons still require the full minimum.
+      const allowPartial = Boolean(options?.allowPartial) || variant === 'cockpit' || !explicitSave
       const rules = evaluateEventFormSaveRules({
         draft: current,
         districts: currentLookups.districts,
@@ -730,7 +736,7 @@ export function EventFormPage({
       })
       if (rules.blocks.length > 0) {
         const persistErrors = mergeFieldErrors(rules.blocks)
-        // Don't create a row until date + type + road are set; stay quiet on background autosave.
+        // Don't create a row until a date is set; stay quiet on background autosave.
         if (!current.id && !options?.navigate && !options?.createNew && !options?.revealErrors) {
           setSavePulse('idle')
           return false
@@ -1046,8 +1052,12 @@ export function EventFormPage({
   function assignResponder(person: AssignableUser) {
     if (!lookups || !draft) return
     if (isSelfAssignDisabledInPicker(blockSelfAssign, user?.id, person.id)) return
-    if (variant !== 'cockpit' && !hasEventMinimum(draft, lookups.districts, lookups.roads)) {
-      void persistLatest({ revealErrors: true })
+    // סוג אירוע and מספר אירוע can come after the כונן. A date is what the row needs.
+    if (!canAssignResponder(draft)) {
+      const dateError = 'יש לבחור תאריך.'
+      setErrors((current) => ({ ...current, event_date: dateError }))
+      setSavePulse('error')
+      show(eventCreateBlockedMessage({ event_date: dateError }), 'alert')
       return
     }
     const treated = lookups.vehicleKinds.map((kind) => ({
@@ -1080,7 +1090,7 @@ export function EventFormPage({
     setPickerQuery('')
     setPickerOpen(false)
     if (phoneLayout) setSheetResponderKey(next.responders[next.responders.length - 1]?.key ?? null)
-    void persistLatest({ revealErrors: true }).then((ok) => {
+    void persistLatest({ allowPartial: true, revealErrors: true }).then((ok) => {
       if (!ok) return
       if (
         !eventReleasedToResponders({
@@ -1090,6 +1100,7 @@ export function EventFormPage({
           patrolCallsignPrefix: next.patrol_callsign_prefix,
           patrolCallsign: next.patrol_callsign,
           roadId: next.road_id,
+          hasEventType: Boolean(next.event_type_id.trim()),
         })
       ) {
         show(RESPONDER_ADDED_HELD_TOAST, 'done')
@@ -1958,6 +1969,7 @@ export function EventFormPage({
                   patrolCallsignPrefix: draft.patrol_callsign_prefix,
                   patrolCallsign: draft.patrol_callsign,
                   roadId: draft.road_id,
+                  hasEventType: Boolean(draft.event_type_id.trim()),
                 }) ? (
                   <p className="t-caption text-muted" role="note">
                     {RESPONDERS_HELD_FOR_POLICE_ID_NOTE}
