@@ -1,27 +1,27 @@
-// DEV-ONLY harness: renders the REAL FeedbackInboxPage with an in-memory data boundary
-// (the page's `api` prop), so the task board can be clicked through without logging in.
+// DEV-ONLY harness: renders the REAL FeedbackBoardPage with an in-memory data boundary
+// (the page's `api` prop), so the board can be clicked through without logging in.
 // Served at /feedback-board-dev.html?state=<name>. Not part of the app bundle.
 //
-// States: board · empty · loading · error · save_error. Changes live until reload.
-// The board includes a row held by a former super admin, a long task title, and a
-// task whose creator's account was deleted.
+// States: board · empty · loading · error · save_error · no_board_table. Changes live
+// until reload. All names and texts are invented; no real feedback appears here.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ToastProvider } from '../components/ui/Toast'
-import { FeedbackInboxPage, type FeedbackInboxApi } from '../pages/FeedbackInboxPage'
+import { FeedbackBoardPage, type FeedbackBoardApi } from '../pages/FeedbackBoardPage'
 import {
+  FEEDBACK_BOARD_NOTE_ERROR,
+  FEEDBACK_BOARD_ORDER_ERROR,
+  FEEDBACK_BOARD_UNAVAILABLE,
   FEEDBACK_DELETE_ERROR,
   FEEDBACK_TASK_SAVE_ERROR,
   FEEDBACK_UPDATE_ERROR,
-  feedbackMatchesFilter,
-  sortFeedbackForBoard,
   type FeedbackAssignee,
   type UserFeedback,
 } from '../lib/userFeedback'
 import '../index.css'
 
-const STATES = ['board', 'empty', 'loading', 'error', 'save_error'] as const
+const STATES = ['board', 'empty', 'loading', 'error', 'save_error', 'no_board_table'] as const
 type DevState = (typeof STATES)[number]
 
 const params = new URLSearchParams(window.location.search)
@@ -31,19 +31,22 @@ const state: DevState = (STATES as readonly string[]).includes(params.get('state
 
 const OMRI = 'dev-omri'
 const SAAR = 'dev-saar'
-const FORMER = 'dev-former'
 
 const assignees: FeedbackAssignee[] = [
-  { id: OMRI, full_name: 'עמרי (דמו)', assignable: true },
-  { id: SAAR, full_name: 'סער (דמו)', assignable: true },
-  { id: FORMER, full_name: 'מנהל לשעבר (דמו)', assignable: false },
+  { id: OMRI, full_name: 'עמרי ל.', assignable: true },
+  { id: SAAR, full_name: 'סער מ.', assignable: true },
 ]
 
-function row(partial: Partial<UserFeedback> & Pick<UserFeedback, 'id' | 'created_at'>): UserFeedback {
+const DAY = 86_400_000
+const now = Date.now()
+const ago = (days: number, hours = 0) => new Date(now - days * DAY - hours * 3_600_000).toISOString()
+
+function row(partial: Partial<UserFeedback> & Pick<UserFeedback, 'id'>): UserFeedback {
+  const created = partial.created_at ?? ago(1)
   return {
     user_id: 'dev-user',
-    author_name: 'מתנדב (דמו)',
-    author_callsign: '123',
+    author_name: 'מתנדב א׳ (דמו)',
+    author_callsign: '214',
     kind: 'bug',
     title: null,
     assignee_id: null,
@@ -57,9 +60,22 @@ function row(partial: Partial<UserFeedback> & Pick<UserFeedback, 'id' | 'created
     transcribed_at: null,
     attachments: [],
     signed_url: null,
+    board_position: null,
+    board_note: null,
+    created_at: created,
+    updated_at: created,
     ...partial,
   }
 }
+
+const image = (name: string) => ({
+  path: `dev/${name}`,
+  mime: 'image/png',
+  size: 120_000,
+  name,
+  kind: 'image' as const,
+  signed_url: null,
+})
 
 let rows: UserFeedback[] =
   state === 'empty'
@@ -67,45 +83,86 @@ let rows: UserFeedback[] =
     : [
         row({
           id: 'f1',
-          created_at: '2026-11-04T18:20:00Z',
-          body: 'משוב לדוגמה: המפה לא נטענת אחרי שמירת אירוע.',
+          created_at: ago(0, 2),
+          body: 'אחרי שמירת אירוע חדש המפה נשארת ריקה עד שמרעננים את הדף.',
+          attachments: [image('map.png')],
         }),
         row({
           id: 'f2',
-          created_at: '2026-11-03T09:05:00Z',
+          created_at: ago(0, 5),
           kind: 'suggestion',
-          body: 'הצעה לדוגמה: להוסיף סינון לפי כביש.',
-          status: 'in_progress',
-          assignee_id: SAAR,
-        }),
-        row({
-          id: 't1',
-          created_at: '2026-11-05T07:30:00Z',
-          user_id: OMRI,
-          author_name: 'עמרי (דמו)',
-          author_callsign: null,
-          kind: null,
-          title: 'משימה לדוגמה: לבדוק את טופס הסיום באנדרואיד',
-          page_path: null,
-          assignee_id: OMRI,
-        }),
-        row({
-          id: 't2',
-          created_at: '2026-11-02T08:00:00Z',
-          user_id: 'dev-deleted',
-          author_name: 'משתמש שנמחק',
-          author_callsign: null,
-          kind: null,
-          title:
-            'משימה לדוגמה עם כותרת ארוכה במיוחד כדי לבדוק שהחותמת נשארת בשורה של הכותרת גם במסך צר',
-          page_path: null,
-          assignee_id: FORMER,
+          author_name: 'מתנדבת ב׳ (דמו)',
+          author_callsign: '307',
+          audio_storage_path: 'dev/voice.webm',
+          transcript: 'הייתי שמח אם בטופס הסיום אפשר היה לבחור את הכביש מרשימה של כבישים אחרונים.',
         }),
         row({
           id: 'f3',
-          created_at: '2026-10-30T12:00:00Z',
-          body: 'משוב לדוגמה שכבר טופל.',
+          created_at: ago(1, 3),
+          author_name: 'מתנדב ג׳ (דמו)',
+          author_callsign: '118',
+          body: 'בטלפון הכפתור "סיום תיעוד" מוסתר מאחורי המקלדת כשמקלידים ק״מ.',
+          page_path: '/events/fill',
+        }),
+        row({
+          id: 'f4',
+          created_at: ago(2),
+          kind: 'suggestion',
+          body: 'להוסיף סינון לפי שלוחה ברשימת האירועים.',
+          status: 'in_progress',
+          assignee_id: SAAR,
+          board_position: -now + 2 * DAY,
+          board_note: 'מחכה לרשימת השלוחות המעודכנת.',
+        }),
+        row({
+          id: 't1',
+          created_at: ago(1),
+          user_id: OMRI,
+          author_name: 'עמרי ל.',
+          author_callsign: null,
+          kind: null,
+          title: 'לבדוק את טופס הסיום באנדרואיד אחרי העדכון',
+          page_path: null,
+          status: 'in_progress',
+          assignee_id: OMRI,
+          board_position: -now + 2 * DAY + 60_000,
+        }),
+        row({
+          id: 'f5',
+          created_at: ago(3),
+          author_name: 'מתנדבת ד׳ (דמו)',
+          author_callsign: '402',
+          body: 'הדוח החודשי של ק״מ מציג את אותו אירוע פעמיים כשיש שני כוננים על אותו רכב.',
+          status: 'in_progress',
+          assignee_id: OMRI,
+          attachments: [image('report-1.png'), image('report-2.png')],
+          board_position: -now + 2 * DAY + 120_000,
+        }),
+        row({
+          id: 'f6',
+          created_at: ago(4),
+          body: 'אנשי הקשר לא נטענו כשהחיבור היה חלש.',
           status: 'fixed',
+          assignee_id: SAAR,
+          updated_at: ago(1),
+        }),
+        row({
+          id: 'f7',
+          created_at: ago(5),
+          kind: 'suggestion',
+          author_name: 'מתנדב ג׳ (דמו)',
+          body: 'להציג את מספר האירוע בכותרת של מסך התיעוד.',
+          status: 'fixed',
+          updated_at: ago(2),
+        }),
+        row({
+          id: 'f8',
+          created_at: ago(6),
+          kind: 'suggestion',
+          author_name: 'מתנדבת ב׳ (דמו)',
+          body: 'מצב לילה כהה לכל האפליקציה.',
+          status: 'wont_do',
+          board_note: 'מחוץ לתכולה כרגע.',
         }),
       ]
 
@@ -114,21 +171,21 @@ const wait = () => new Promise((resolve) => setTimeout(resolve, 300))
 const saveFails = state === 'save_error'
 const fail = (error: string) => ({ ok: false as const, error })
 
-const api: FeedbackInboxApi = {
-  async listUserFeedback(status) {
+const api: FeedbackBoardApi = {
+  async listUserFeedback() {
     if (state === 'loading') return never
     await wait()
     if (state === 'error') throw new Error('dev error')
-    return sortFeedbackForBoard(rows.filter((item) => feedbackMatchesFilter(item.status, status ?? 'all')))
+    return rows.map((item) => ({ ...item }))
   },
   async transcribeUserFeedback() {
     return { ok: false, error: 'אין תמלול במסך הפיתוח.' }
   },
-  async updateUserFeedbackStatus(id, status) {
+  async updateUserFeedbackStatus(id, status, options) {
     await wait()
     if (saveFails) return fail(FEEDBACK_UPDATE_ERROR)
     rows = rows.map((item) => (item.id === id ? { ...item, status } : item))
-    return { ok: true, sms: 'skipped' }
+    return { ok: true, sms: status === 'fixed' && options?.notifyAuthor !== false ? 'sent' : 'skipped' }
   },
   async deleteUserFeedback({ id }) {
     await wait()
@@ -161,7 +218,7 @@ const api: FeedbackInboxApi = {
         id: `t${Date.now()}`,
         created_at: new Date().toISOString(),
         user_id: OMRI,
-        author_name: 'עמרי (דמו)',
+        author_name: 'עמרי ל.',
         author_callsign: null,
         kind: null,
         title: title.trim(),
@@ -171,6 +228,23 @@ const api: FeedbackInboxApi = {
       }),
       ...rows,
     ]
+    return { ok: true }
+  },
+  async saveFeedbackBoardPositions(positions) {
+    await wait()
+    if (state === 'no_board_table') return fail(FEEDBACK_BOARD_UNAVAILABLE)
+    if (saveFails) return fail(FEEDBACK_BOARD_ORDER_ERROR)
+    const byId = new Map(positions.map((item) => [item.id, item.position]))
+    rows = rows.map((item) =>
+      byId.has(item.id) ? { ...item, board_position: byId.get(item.id) ?? null } : item,
+    )
+    return { ok: true }
+  },
+  async saveFeedbackBoardNote(id, note) {
+    await wait()
+    if (state === 'no_board_table') return fail(FEEDBACK_BOARD_UNAVAILABLE)
+    if (saveFails) return fail(FEEDBACK_BOARD_NOTE_ERROR)
+    rows = rows.map((item) => (item.id === id ? { ...item, board_note: note.trim() || null } : item))
     return { ok: true }
   },
 }
@@ -190,7 +264,7 @@ function DevBar() {
         borderRadius: 'var(--radius-md)',
       }}
     >
-      <span>מסך פיתוח: עמוד המשוב האמיתי עם נתונים מדומים:</span>
+      <span>מסך פיתוח: לוח המשוב האמיתי עם נתונים מדומים:</span>
       {STATES.map((s) => (
         <a key={s} href={`?state=${s}`} aria-current={s === state ? 'page' : undefined}>
           {s}
@@ -205,8 +279,8 @@ createRoot(document.getElementById('root')!).render(
     <ToastProvider>
       <div className="shell dev-shell" data-theme="field">
         <main className="shell__main">
-          <DevBar />
-          <FeedbackInboxPage api={api} />
+          {params.has('bare') ? null : <DevBar />}
+          <FeedbackBoardPage api={api} />
         </main>
       </div>
     </ToastProvider>
