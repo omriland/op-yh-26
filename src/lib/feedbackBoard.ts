@@ -107,10 +107,14 @@ export function boardCardExcerpt(item: Pick<UserFeedback, 'body' | 'transcript'>
   return (item.body ?? item.transcript ?? '').replace(/\s+/g, ' ').trim()
 }
 
-/** Submitted feedback moved to טופל texts the submitter, so it is confirmed first. Tasks never text. */
+/**
+ * Submitted feedback moved to טופל texts the submitter, so it is confirmed first.
+ * Tasks never text, and a submitter is texted at most once: an item already
+ * texted moves without the question.
+ */
 export function boardMoveNeedsSmsConfirm(
-  item: Pick<UserFeedback, 'title' | 'status'>,
+  item: Pick<UserFeedback, 'title' | 'status' | 'sms_sent_at'>,
   to: FeedbackStatus,
 ): boolean {
-  return to === 'fixed' && item.status !== 'fixed' && !item.title
+  return to === 'fixed' && item.status !== 'fixed' && !item.title && !item.sms_sent_at
 }

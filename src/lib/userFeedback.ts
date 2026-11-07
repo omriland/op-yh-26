@@ -59,6 +59,7 @@ export const FEEDBACK_SMS_FALLBACK_EXCERPT = 'המשוב'
 
 export type FeedbackSmsResult =
   | 'sent'
+  | 'already_sent'
   | 'skipped_no_phone'
   | 'failed'
   | 'skipped'
@@ -98,6 +99,9 @@ export function feedbackTreatedToast(sms?: FeedbackSmsResult): {
   }
   if (sms === 'failed' || sms === 'unavailable') {
     return { message: 'הסטטוס עודכן. שליחת ה-SMS נכשלה.', tone: 'alert' }
+  }
+  if (sms === 'already_sent') {
+    return { message: 'הסטטוס עודכן. השולח כבר קיבל SMS על המשוב הזה, ולא נשלח שוב.', tone: 'done' }
   }
   return { message: 'הסטטוס עודכן.', tone: 'done' }
 }
@@ -154,6 +158,10 @@ export type UserFeedback = {
   board_position: number | null
   /** Internal note, managers only. */
   board_note: string | null
+  /** When the submitter was texted that this was treated. At most once, ever. */
+  sms_sent_at: string | null
+  /** True when the text predates the record (treated before the board existed). */
+  sms_sent_inferred: boolean
 }
 
 type FeedbackRow = {
@@ -183,7 +191,12 @@ type FeedbackRow = {
 const FEEDBACK_SELECT_BASE =
   'id, user_id, kind, body, page_path, status, audio_storage_path, audio_mime_type, audio_byte_size'
 
-type FeedbackBoardRow = { position: number | null; note: string | null }
+type FeedbackBoardRow = {
+  position: number | null
+  note: string | null
+  sms_sent_at?: string | null
+  sms_sent_inferred?: boolean | null
+}
 
 const FEEDBACK_SELECT_AUTHOR =
   'created_at, updated_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
@@ -195,7 +208,7 @@ const FEEDBACK_COLUMN_GROUPS: Record<FeedbackColumnGroup, string> = {
   task: 'title, assignee_id',
   transcript: 'transcript, transcribed_at',
   attachments: 'attachments',
-  board: 'board:user_feedback_board(position, note)',
+  board: 'board:user_feedback_board(position, note, sms_sent_at, sms_sent_inferred)',
 }
 
 export const FEEDBACK_ALL_COLUMN_GROUPS: readonly FeedbackColumnGroup[] = [
@@ -542,6 +555,8 @@ async function withSignedUrl(row: FeedbackRow): Promise<UserFeedback> {
     signed_url,
     board_position: board?.position ?? null,
     board_note: board?.note ?? null,
+    sms_sent_at: board?.sms_sent_at ?? null,
+    sms_sent_inferred: board?.sms_sent_inferred === true,
   }
 }
 
@@ -731,9 +746,12 @@ async function updateFeedbackStatusRow(
   return { ok: true }
 }
 
-async function markFeedbackTreatedViaEdge(
-  id: string,
-): Promise<{ ok: true; sms: FeedbackSmsResult } | { ok: false; error: string }> {
+/** `smsSentAt` is when the submitter was texted, now or earlier; absent when they were not. */
+export type FeedbackStatusResult =
+  | { ok: true; sms?: FeedbackSmsResult; smsSentAt?: string | null; smsSentInferred?: boolean }
+  | { ok: false; error: string }
+
+async function markFeedbackTreatedViaEdge(id: string): Promise<FeedbackStatusResult> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
   if (sessionError || !token) {
@@ -767,9 +785,19 @@ async function markFeedbackTreatedViaEdge(
     return { ok: false, error: FEEDBACK_UPDATE_ERROR }
   }
 
-  const payload = data as { error?: string; sms?: FeedbackSmsResult }
+  const payload = data as {
+    error?: string
+    sms?: FeedbackSmsResult
+    sms_sent_at?: string | null
+    sms_sent_inferred?: boolean
+  }
   if (payload?.error) return { ok: false, error: payload.error }
-  return { ok: true, sms: payload.sms ?? 'sent' }
+  return {
+    ok: true,
+    sms: payload.sms ?? 'sent',
+    smsSentAt: payload.sms_sent_at ?? null,
+    smsSentInferred: payload.sms_sent_inferred === true,
+  }
 }
 
 const transcriptInflight = new Map<string, Promise<{ ok: true; transcript: string } | { ok: false; error: string }>>()
@@ -828,7 +856,7 @@ export async function updateUserFeedbackStatus(
   id: string,
   status: FeedbackStatus,
   options: { notifyAuthor?: boolean } = {},
-): Promise<{ ok: true; sms?: FeedbackSmsResult } | { ok: false; error: string }> {
+): Promise<FeedbackStatusResult> {
   if (status === 'fixed' && options.notifyAuthor !== false) {
     if (isImpersonating()) {
       const result = await updateFeedbackStatusRow(id, status)

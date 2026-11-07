@@ -1,6 +1,8 @@
 # לוח המשוב (feedback board)
 
-Status: draft for approval, 7 Nov 2026. Branch `feat/feedback-board-redesign`.
+Status: decisions taken 7 Nov 2026, not shipped. Branch `feat/feedback-board-redesign`.
+
+Managers: any `super_admin`. The two intended managers are Omri Landman and Saar (סער מכטינגר, `saariko@gmail.com`, confirmed).
 
 ## 1. The flow today
 
@@ -20,7 +22,7 @@ Status: draft for approval, 7 Nov 2026. Branch `feat/feedback-board-redesign`.
 
 1. It is a filtered list, so the state of the whole queue is never visible at once, and every card carries 6 to 7 controls.
 2. No manual order: the two managers cannot say "this one next".
-3. Moving to טופל texts a volunteer from a single click with no confirmation, and reopening then fixing again texts them a second time.
+3. Moving to טופל texts a volunteer from a single click with no confirmation, and reopening then fixing again texts them a second time. Nothing records that an SMS was sent: the only guard is "the row is already `fixed`".
 4. Nowhere to write why something is `wont_do` or what was done.
 5. `super_admin` is three people, not two: a third account (not Omri or Saar) can see and manage every submission. See section 4.
 6. Minor: every row's files are signed on every load (fine at 16 rows).
@@ -33,14 +35,24 @@ A four-column board. Nothing else changes for submitters (web and Android untouc
 |---|---|---|---|
 | פתוח | `open` | new submissions land at the top | nothing |
 | בטיפול | `in_progress` | a manager | nothing |
-| טופל | `fixed` | a manager, after a confirmation | one SMS, as today, unless the manager picks "בלי SMS" |
-| לא יטופל | `wont_do` | a manager | nothing |
+| טופל | `fixed` | a manager; the first time, after a confirmation | one SMS, at most once per item, ever (see below) |
+| לא יטופל | `wont_do` | a manager | nothing, by decision |
 
 Column names reuse the existing stamp labels, so the board and the stamps say the same thing.
 
 **Card (front).** Heading (task title, or the kind באג / הצעה), a two-line excerpt of the note or transcript, submitter name and date, small markers for a voice note and file count, and the assignee's initials. Nothing else.
 
-**Card (detail).** Click a card to open it in the existing dialog: full note, audio, transcript, files, submitter, callsign, page and date, then status, assignee, and one internal note (הערה פנימית). Tasks can be edited. Delete stays here, with its confirmation.
+**Card (detail).** Click a card to open it in the existing dialog: full note, audio, transcript, files, submitter, callsign, page and date, whether and when the submitter was texted, then status, assignee, and one internal note (הערה פנימית). Tasks can be edited. Delete stays here, with its confirmation.
+
+**SMS on טופל: at most once per item, ever.**
+
+- The first move of submitted feedback to טופל asks: "שליחת SMS", "בלי SMS", "ביטול".
+- Once the submitter has been texted, a later move to טופל (after a reopen) asks nothing and sends nothing. The toast says the submitter already got an SMS. The dialog is skipped rather than shown without its send button, because a question with one real answer is noise.
+- "בלי SMS" records nothing, so a later טופל may still offer the one SMS.
+- A failed send records nothing, so a later טופל may try again.
+- The rule is enforced in the `user-feedback` edge function, not only in the board: before sending it claims the item with one conditional update (`sms_sent_at is null and sms_sending_at is null`). A double click, a second tab or a stale board gets "already sent". A claim that is never released (a crash between the send and the record) blocks any further SMS: maybe-sent counts as sent.
+- Feedback already `fixed` when the migration runs counts as texted (`sms_sent_inferred`), because the old flow texted on every טופל. The detail says so instead of showing a send time.
+- Not covered: feedback that was texted, then reopened, and is open, in progress or לא יטופל when the migration runs. Nothing in the data shows it was texted, so its next טופל may text again. At the 7 Nov count that is at most the 5 rows not `fixed`.
 
 **Moving.** Drag between and within columns. The keyboard and touch alternative is the card's menu (⋮): move to any other column, move up or down, assign. New submissions sort to the top of פתוח by date until someone moves them.
 
@@ -56,23 +68,26 @@ Column names reuse the existing stamp labels, so the board and the stamps say th
 
 ## 3. Data changes
 
-One new migration, `20261107120000_feedback_board_cards.sql`, adds `public.user_feedback_board` (one row per card: `position`, `note`, `updated_at`, `updated_by`). It does not touch `user_feedback`, so the deployed app, the edge functions and Android keep working before and after it is applied. RLS: super admins only, so a submitter can never read the internal note. Rows cascade with their feedback, so account deletion still removes them. Until it is applied, the board still loads and moves cards between columns; only order and notes fail to save, with a message.
+One new migration, `20261107120000_feedback_board_cards.sql`, adds `public.user_feedback_board`: one row per card with `position`, `note`, `sms_sending_at`, `sms_sent_at`, `sms_sent_inferred`, `updated_at`, `updated_by`. It also backfills `sms_sent_at` for feedback already `fixed`.
 
-Not applied anywhere. It must be applied before this branch ships.
+- It does not touch `user_feedback`, so the deployed web app and Android keep working before and after it.
+- RLS: super admins only, so a submitter can never read the internal note. A trigger stops signed-in users from writing the `sms_*` columns; only the edge function (service role) does.
+- Rows cascade with their feedback, so account deletion still removes them.
 
-## 4. Access (decision needed)
+The `user-feedback` edge function changes too (the SMS claim and record). It is written, not deployed.
 
-The board uses the same gate as today: the `super_admin` role. That is three accounts: Omri, Saar, and one more.
+## 4. Shipping order
 
-- **A. Keep `super_admin` (built).** No new concept and no change to the deployed policies, but the third super admin keeps full access, as they have today.
-- **B. Explicit allowlist of Omri and Saar.** Exactly the two of you. It needs a `feedback_board_managers` table (or a fixed list in a SQL function) and a change to the existing `user_feedback` select, update and delete policies and the `user-feedback` edge function. It removes the third account's current access, and every new manager needs a migration or an admin row.
+1. Apply `20261107120000_feedback_board_cards.sql`.
+2. Merge the branch to `infra/bootstrap`. That deploys the web app (Netlify, assuming it builds this branch as today) and, because `supabase/functions/**` changed, the `user-feedback` edge function (GitHub workflow `deploy-edge-functions.yml`).
 
-Recommendation: A for this release, B only if the third account should not see volunteer feedback at all.
+What breaks if the order is wrong:
 
-## 5. Open questions
+- **Merge before the migration:** the new edge function cannot claim, so it fails closed: cards still become טופל, but no SMS goes out ("שליחת ה-SMS נכשלה") until the migration runs. The board loads, but order and notes do not save.
+- **Old edge function with the new board** (the migration applied but the function deploy failed): the board skips the question for items it knows were texted, but the old function texts again on a reopen-then-טופל if "שליחת SMS" is chosen for an item without a record.
 
-1. **Access:** A or B above?
-2. **SMS on טופל:** keep the confirmation with a "בלי SMS" choice, or always send?
-3. **לא יטופל:** should the submitter hear anything? Today: nothing. Recommended: keep it that way.
-4. **Reopen:** if a card leaves טופל and comes back, a second SMS goes out (as today). Acceptable, or send only once per card?
-5. **Saar's account:** identified as `saariko@gmail.com` (matches the GitHub `saariko`). Confirm.
+To make the merge self-ordering instead, the migration could be added to the workflow's "Apply idempotent migrations" list, which runs before the function deploy. That is a shipping choice, not done here.
+
+## 5. Access (decided)
+
+Any `super_admin` manages the board (option A). That is three accounts today: Omri, Saar and one more, who already had this access. No allowlist.

@@ -172,15 +172,22 @@ describe('boardDropIndex', () => {
 })
 
 describe('moving to טופל', () => {
-  it('asks before texting the submitter of feedback', () => {
-    expect(boardMoveNeedsSmsConfirm({ title: null, status: 'open' }, 'fixed')).toBe(true)
-    expect(boardMoveNeedsSmsConfirm({ title: null, status: 'in_progress' }, 'fixed')).toBe(true)
+  const feedback = { title: null, status: 'open' as FeedbackStatus, sms_sent_at: null }
+
+  it('offers the SMS on the first טופל of submitted feedback', () => {
+    expect(boardMoveNeedsSmsConfirm(feedback, 'fixed')).toBe(true)
+    expect(boardMoveNeedsSmsConfirm({ ...feedback, status: 'in_progress' }, 'fixed')).toBe(true)
+  })
+
+  it('does not offer it again once the submitter was texted, even after a reopen', () => {
+    const reopened = { ...feedback, status: 'open' as FeedbackStatus, sms_sent_at: '2026-11-06T08:00:00Z' }
+    expect(boardMoveNeedsSmsConfirm(reopened, 'fixed')).toBe(false)
   })
 
   it('never asks for a task, a card already טופל, or another column', () => {
-    expect(boardMoveNeedsSmsConfirm({ title: 'משימה', status: 'open' }, 'fixed')).toBe(false)
-    expect(boardMoveNeedsSmsConfirm({ title: null, status: 'fixed' }, 'fixed')).toBe(false)
-    expect(boardMoveNeedsSmsConfirm({ title: null, status: 'open' }, 'wont_do')).toBe(false)
+    expect(boardMoveNeedsSmsConfirm({ ...feedback, title: 'משימה' }, 'fixed')).toBe(false)
+    expect(boardMoveNeedsSmsConfirm({ ...feedback, status: 'fixed' }, 'fixed')).toBe(false)
+    expect(boardMoveNeedsSmsConfirm(feedback, 'wont_do')).toBe(false)
   })
 })
 
@@ -194,7 +201,9 @@ describe('boardCardExcerpt', () => {
 
 describe('board table fallback', () => {
   it('embeds the board row and drops it when the table is missing', () => {
-    expect(feedbackSelect(FEEDBACK_ALL_COLUMN_GROUPS)).toContain('board:user_feedback_board(position, note)')
+    expect(feedbackSelect(FEEDBACK_ALL_COLUMN_GROUPS)).toContain(
+      'board:user_feedback_board(position, note, sms_sent_at, sms_sent_inferred)',
+    )
     const missing = {
       code: 'PGRST200',
       message: "Could not find a relationship between 'user_feedback' and 'user_feedback_board' in the schema cache",
@@ -225,6 +234,13 @@ describe('feedback board migration', () => {
   it('is super admin only for every operation, so a submitter never reads the note', () => {
     expect(sql).toMatch(/for all to authenticated\s+using \(public\.has_role\(auth\.uid\(\), 'super_admin'\)\)\s+with check \(public\.has_role\(auth\.uid\(\), 'super_admin'\)\)/)
     expect(sql).toMatch(/enable row level security/)
+  })
+
+  it('keeps the SMS record server-only and backfills feedback treated before it', () => {
+    expect(sql).toMatch(/sms_sent_at timestamptz/)
+    expect(sql).toMatch(/auth\.uid\(\) is not null and/)
+    expect(sql).toMatch(/user_feedback_board_sms_server_only/)
+    expect(sql).toMatch(/select f\.id, f\.updated_at, true\s+from public\.user_feedback f\s+where f\.status = 'fixed'\s+and f\.title is null\s+on conflict \(feedback_id\) do nothing/)
   })
 
   it('caps the note like the feedback body', () => {

@@ -62,6 +62,8 @@ function row(partial: Partial<UserFeedback> & Pick<UserFeedback, 'id'>): UserFee
     signed_url: null,
     board_position: null,
     board_note: null,
+    sms_sent_at: null,
+    sms_sent_inferred: false,
     created_at: created,
     updated_at: created,
     ...partial,
@@ -145,6 +147,7 @@ let rows: UserFeedback[] =
           status: 'fixed',
           assignee_id: SAAR,
           updated_at: ago(1),
+          sms_sent_at: ago(1),
         }),
         row({
           id: 'f7',
@@ -154,6 +157,8 @@ let rows: UserFeedback[] =
           body: 'להציג את מספר האירוע בכותרת של מסך התיעוד.',
           status: 'fixed',
           updated_at: ago(2),
+          sms_sent_at: ago(2),
+          sms_sent_inferred: true,
         }),
         row({
           id: 'f8',
@@ -181,11 +186,21 @@ const api: FeedbackBoardApi = {
   async transcribeUserFeedback() {
     return { ok: false, error: 'אין תמלול במסך הפיתוח.' }
   },
+  // Mirrors the edge function: at most one SMS per item, ever.
   async updateUserFeedbackStatus(id, status, options) {
     await wait()
     if (saveFails) return fail(FEEDBACK_UPDATE_ERROR)
+    const before = rows.find((item) => item.id === id)
     rows = rows.map((item) => (item.id === id ? { ...item, status } : item))
-    return { ok: true, sms: status === 'fixed' && options?.notifyAuthor !== false ? 'sent' : 'skipped' }
+    if (status !== 'fixed' || options?.notifyAuthor === false || !before || before.title) {
+      return { ok: true, sms: 'skipped' }
+    }
+    if (before.sms_sent_at) {
+      return { ok: true, sms: 'already_sent', smsSentAt: before.sms_sent_at, smsSentInferred: before.sms_sent_inferred }
+    }
+    const sentAt = new Date().toISOString()
+    rows = rows.map((item) => (item.id === id ? { ...item, sms_sent_at: sentAt } : item))
+    return { ok: true, sms: 'sent', smsSentAt: sentAt, smsSentInferred: false }
   },
   async deleteUserFeedback({ id }) {
     await wait()

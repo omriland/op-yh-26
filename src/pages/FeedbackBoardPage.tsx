@@ -258,8 +258,9 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
     setBusy(item.id, true)
 
     if (statusChanged) {
+      const texted = Boolean(item.sms_sent_at)
       const result = await api.updateUserFeedbackStatus(item.id, status, {
-        notifyAuthor: options.notifyAuthor && !isFeedbackTask(item),
+        notifyAuthor: options.notifyAuthor && !isFeedbackTask(item) && !texted,
       })
       if (!result.ok) {
         setBusy(item.id, false)
@@ -267,11 +268,20 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
         show(result.error, 'alert')
         return
       }
+      if (result.smsSentAt) {
+        const sentAt = result.smsSentAt
+        const inferred = result.smsSentInferred === true
+        patchItems((row) =>
+          row.id === item.id ? { ...row, sms_sent_at: sentAt, sms_sent_inferred: inferred } : row,
+        )
+      }
       const moved = `הכרטיס סומן כ${boardColumnLabel(status)}.`
-      const texted = status === 'fixed' && options.notifyAuthor && !isFeedbackTask(item)
-      const sms = texted ? feedbackTreatedToast(result.sms) : null
+      const asked = status === 'fixed' && options.notifyAuthor && !isFeedbackTask(item) && !texted
+      const sms = asked ? feedbackTreatedToast(result.sms) : null
       if (sms?.tone === 'alert') show(sms.message, 'alert')
-      else show(texted && result.sms === 'sent' ? `${moved} נשלח SMS לשולח.` : moved, 'done')
+      else if (status === 'fixed' && (texted || result.sms === 'already_sent'))
+        show(`${moved} השולח כבר קיבל SMS על המשוב הזה, ולא נשלח שוב.`, 'done')
+      else show(asked && result.sms === 'sent' ? `${moved} נשלח SMS לשולח.` : moved, 'done')
     }
 
     const saved = await api.saveFeedbackBoardPositions(plan.positions)
@@ -757,6 +767,13 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
               </p>
             </div>
 
+            {!isFeedbackTask(detail) && detail.sms_sent_at ? (
+              <p className="t-caption text-secondary board-detail__sms">
+                {detail.sms_sent_inferred
+                  ? 'סומן כטופל לפני שהמערכת תיעדה הודעות SMS, ולכן נחשב כאילו השולח כבר עודכן. לא יישלח SMS נוסף.'
+                  : `השולח קיבל SMS שהמשוב טופל ב־${formatDateTime(detail.sms_sent_at)}. לא יישלח SMS נוסף.`}
+              </p>
+            ) : null}
             {detail.body ? <p className="t-body board-detail__body">{detail.body}</p> : null}
             {detail.signed_url ? (
               <audio className="feedback-record__audio" controls src={detail.signed_url} />
