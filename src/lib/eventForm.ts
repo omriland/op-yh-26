@@ -1,6 +1,8 @@
 import { sortByRoadName } from './roadSort'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
+import { eventReleasedToResponders } from './eventResponderRelease'
+import { formLifecycle, type LifecycleState } from './eventLifecycle'
 import { fillReadyNotifyIds } from './fillReadyNotify'
 import { notifyFillReady } from './responderFillToken'
 import { planTrackingSync } from './liveTrack'
@@ -1510,6 +1512,70 @@ export function deriveEventStatus(draft: EventFormDraft): EventStatus {
   })
 }
 
+/** Whether the typed event is out of טיוטה for its volunteers (see eventResponderRelease). */
+export function draftReleasedToResponders(
+  draft: Pick<
+    EventFormDraft,
+    | 'police_event_id'
+    | 'event_type_id'
+    | 'road_id'
+    | 'patrol_callsign'
+    | 'patrol_callsign_prefix'
+    | 'patrol_callsign_number'
+  >,
+): boolean {
+  return eventReleasedToResponders({
+    origin: 'manual',
+    policeEventId: draft.police_event_id,
+    hasEventType: Boolean(draft.event_type_id.trim()),
+    hasRoad: Boolean(draft.road_id.trim()),
+    patrolCallsign: draft.patrol_callsign,
+    patrolCallsignPrefix: draft.patrol_callsign_prefix,
+    patrolCallsignNumber: draft.patrol_callsign_number,
+  })
+}
+
+/**
+ * Which assignments get the דיווח מוכן להשלמה email after a save. Nobody hears
+ * about a טיוטה; the save that releases it tells every volunteer on it, and the
+ * edge function skips anyone already emailed.
+ */
+export function releaseAwareNotifyIds(input: {
+  releasedNow: boolean
+  releasedBefore: boolean
+  changed: readonly string[]
+  all: readonly string[]
+}): string[] {
+  if (!input.releasedNow) return []
+  if (!input.releasedBefore) return [...new Set(input.all)]
+  return [...input.changed]
+}
+
+/** Save hint while the form reads טיוטה: nobody assigned yet, or the event is held back. */
+export const FORM_DRAFT_SAVED_HINT = 'נשמר כטיוטה. עדיין לא מוצג למתנדבים.'
+
+/** The form header stamp: the lifecycle of what is typed, before it is saved. */
+export function deriveFormLifecycle(draft: EventFormDraft): LifecycleState {
+  return formLifecycle({
+    origin: 'manual',
+    storedStatus: deriveEventStatus(draft),
+    policeEventId: draft.police_event_id,
+    hasEventType: Boolean(draft.event_type_id.trim()),
+    hasRoad: Boolean(draft.road_id.trim()),
+    patrolCallsign: draft.patrol_callsign,
+    patrolCallsignPrefix: draft.patrol_callsign_prefix,
+    patrolCallsignNumber: draft.patrol_callsign_number,
+    hasDistrict: Boolean(draft.district_id.trim()),
+    location: draft.location,
+    startTime: draft.start_time,
+    endTime: draft.end_time,
+    responders: draft.responders.map((row) => ({
+      status: row.status,
+      kmOwed: row.hasVehicle && leadKmForSave(row.hasVehicle, row.total_km) == null,
+    })),
+  })
+}
+
 /** Attach DB assignment ids after insert so the next save updates instead of re-inserting. */
 export function mergeAssignmentIds(
   responders: ResponderDraft[],
@@ -1950,7 +2016,12 @@ export async function saveEventForm(input: {
       })
   if (!secondarySync.ok) return { ...secondarySync, eventId }
 
-  const notifyIds = fillReadyNotifyIds(sync.previousKm, sync.nextKmRows)
+  const notifyIds = releaseAwareNotifyIds({
+    releasedNow: draftReleasedToResponders(draft),
+    releasedBefore: input.previous ? draftReleasedToResponders(input.previous) : false,
+    changed: fillReadyNotifyIds(sync.previousKm, sync.nextKmRows),
+    all: Object.values(sync.assignmentIds),
+  })
   if (notifyIds.length > 0 && !draft.is_cancelled) {
     // Soft-fail: event save already succeeded.
     void notifyFillReady({ eventResponderIds: notifyIds }).catch(() => {})

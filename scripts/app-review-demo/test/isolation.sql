@@ -93,9 +93,20 @@ insert into public.user_roles (user_id, role) values
   ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'responder'),
   ('d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1', 'responder');
 
-insert into public.events (id, shift_lead_id, police_event_id, notes, is_demo) values
-  ('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', '33333333-3333-4333-8333-333333333333', '9001', 'אירוע אמיתי', false),
-  ('e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2', 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1', '4127', 'דמו - App Review', true);
+-- Both events are past טיוטה (סוג אירוע, או״ק, כביש, מספר אירוע), so their
+-- volunteers may read them (20261108120000_event_lifecycle_release.sql).
+insert into public.event_types (id, name) values
+  ('7e7e7e7e-7e7e-47e7-87e7-7e7e7e7e7e7e', 'בדיקה - סוג אירוע');
+insert into public.roads (id, name) values
+  ('70707070-7070-4707-8707-707070707070', 'בדיקה - כביש');
+
+insert into public.events (
+  id, shift_lead_id, police_event_id, notes, is_demo, event_type_id, road_id, patrol_callsign_number
+) values
+  ('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', '33333333-3333-4333-8333-333333333333', '9001', 'אירוע אמיתי', false,
+   '7e7e7e7e-7e7e-47e7-87e7-7e7e7e7e7e7e', '70707070-7070-4707-8707-707070707070', '411'),
+  ('e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2', 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1', '4127', 'דמו - App Review', true,
+   '7e7e7e7e-7e7e-47e7-87e7-7e7e7e7e7e7e', '70707070-7070-4707-8707-707070707070', '511');
 
 insert into public.event_responders (id, event_id, responder_id) values
   ('a1a1a1a1-0000-4000-8000-000000000001', 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', '11111111-1111-4111-8111-111111111111'),

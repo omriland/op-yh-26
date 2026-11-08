@@ -540,18 +540,16 @@ describe('fillHeaderStatus', () => {
     expect(fillHeaderStatus(base).note).toBe('אחמ״ש טרם הזין ק״מ')
   })
 
-  it('says תועד חלקית when the lead has not set an end time', () => {
-    // The mine list and the detail page both say תועד חלקית here; the fill
-    // page used to say סיימת לתעד and contradict them.
-    const open = { ...base, ended_at: null }
-    expect(fillHeaderStatus(open).stamp.label).toBe('תועד חלקית')
+  it('says סיימת לתעד when the lead has not set an end time', () => {
+    // The viewer's own part is done; the event stamp (ממתין למילוי פרטים) is
+    // what says the אחמ״ש still owes details.
+    const open = { ...base, ended_at: null, totalKm: 12 }
+    expect(fillHeaderStatus(open).stamp.label).toBe('סיימת לתעד')
     expect(fillHeaderStatus(open).note).toBe('ממתין לפרטים נוספים מאחמ״ש')
   })
 
   it('leaves a shift-born event out of the lead-details gate', () => {
-    expect(fillHeaderStatus({ ...base, origin: 'shift', ended_at: null }).stamp.label).not.toBe(
-      'תועד חלקית',
-    )
+    expect(fillHeaderStatus({ ...base, origin: 'shift', ended_at: null }).note).toBeNull()
   })
 
   it('reports a clean finish once the lead entered KM and an end time', () => {

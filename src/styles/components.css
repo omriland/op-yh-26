@@ -591,6 +591,15 @@ p.alert--info {
   white-space: nowrap;
 }
 
+/* תועד חלקית 1/2: the count is a numeral, so it takes the numeral face. */
+.stamp__progress {
+  margin-inline-start: 8px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .stamp--done {
   --stamp-ink: var(--status-done);
   --stamp-tint: var(--status-done-tint);

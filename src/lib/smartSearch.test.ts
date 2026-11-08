@@ -70,7 +70,7 @@ describe('chipsForFilter', () => {
     expect(chipsForFilter({ ...base, person: 'דני', person_role: 'responder' })[0].label).toBe('כונן: דני')
     expect(chipsForFilter({ ...base, person: 'דני', person_role: 'any' })[0].label).toBe('דני')
     expect(chipsForFilter({ ...base, plate: '76543' })[0].label).toBe('לוחית 76-543')
-    expect(chipsForFilter({ ...base, status: 'draft' })[0].label).toBe('אירוע בהזנה')
+    expect(chipsForFilter({ ...base, status: 'draft' })[0].label).toBe('טיוטה')
     expect(chipsForFilter({ ...base, damage_location: 'פגוש' })[0].label).toBe('נזק: פגוש')
     expect(chipsForFilter({ ...base, police_event_id: '99' })[0].label).toBe('אירוע 99')
   })

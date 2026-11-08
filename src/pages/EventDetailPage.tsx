@@ -26,22 +26,20 @@ import { SYSTEM_DISTRICT_NAMES, isUrbanRoadName } from '../lib/systemDistricts'
 import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
 import {
   cancelledStamp,
-  eventStamp,
   leadKmPendingNote,
   mineFillCtaLabel,
   mineParticipationStamp,
-  overlayMissingKmOnDoneStamp,
   participationStamp,
 } from '../lib/status'
-import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
 import {
-  eventHasMissingResponderKm,
-  missingEventFields,
-  partialStampHoverText,
-  RESPONDERS_HELD_FOR_POLICE_ID_NOTE,
-} from '../lib/eventIncomplete'
+  eventLifecycle,
+  lifecycleStamp,
+  lifecycleStampTip,
+  statusAudienceForRoles,
+} from '../lib/eventLifecycle'
+import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
+import { missingEventFields, RESPONDERS_HELD_FOR_POLICE_ID_NOTE } from '../lib/eventIncomplete'
 import { eventReleasedFromEvent } from '../lib/eventResponderRelease'
-import { shiftBornFillStamp } from '../lib/shiftBornEvents'
 import { StampChip } from '../components/ui/StampChip'
 import { StampWithNote } from '../components/ui/StampWithNote'
 import {
@@ -114,6 +112,7 @@ export function EventDetailPage({
     (roles.includes('admin') || roles.includes('shift_lead') || roles.includes('super_admin'))
   const isAdmin = roles.includes('admin') || roles.includes('super_admin')
   const canSeeLeadKm = isAdmin || roles.includes('shift_lead')
+  const audience = statusAudienceForRoles(roles)
   const [event, setEvent] = useState<EventDetail | null>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -218,7 +217,12 @@ export function EventDetailPage({
     return <ShiftBornFillPage eventId={eventId} onBack={onBack} onCompleted={onBack} />
   }
 
-  if (state === 'unavailable') {
+  // A draft is not the volunteer's yet. The database hides it once
+  // 20261108120000_event_lifecycle_release.sql lands; this covers the gap.
+  const heldFromViewer =
+    state === 'ready' && event != null && audience === 'responder' && !eventReleasedFromEvent(event)
+
+  if (state === 'unavailable' || heldFromViewer) {
     return (
       <div>
         {backButton}
@@ -288,24 +292,8 @@ export function EventDetailPage({
   const missingLeadDetails =
     event.origin !== 'shift' && eventMissingLeadDoneDetails(event.ended_at)
   const mineLeadKmNote = leadKmPendingNote(mine, mineKm, event.origin, missingLeadDetails)
-  const headerStamp =
-    event.origin === 'shift'
-      ? shiftBornFillStamp({
-          status: event.status,
-          police_event_id: event.police_event_id,
-          treatment_detail: event.treatment_detail,
-          treatment_notes: event.treatment_notes,
-          location: event.location,
-          treated_count: event.shared_treated?.length ?? 0,
-        })
-      : mine != null
-        ? mineParticipationStamp(mine, mineKm, { missingLeadDetails })
-        : overlayMissingKmOnDoneStamp(
-            eventStamp(event.status),
-            eventLead && eventHasMissingResponderKm(event),
-          )
-  const headerStampTip =
-    headerStamp.label === 'תועד חלקית' ? partialStampHoverText(event, user?.id) : null
+  const headerStamp = lifecycleStamp(eventLifecycle(event), audience)
+  const headerStampTip = lifecycleStampTip(event, audience, user?.id)
   const assignedEditBlocked = isAssignedVolunteerEventEditBlocked({
     viewerId: user?.id,
     responderIds: event.responders.map((row) => row.responder_id),

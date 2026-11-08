@@ -138,9 +138,11 @@ insert into public.shift_event_type_counts (shift_id, event_type_id, count) valu
   ('5a5a5a5a-0000-4000-8000-000000000001', 'e7e7e7e7-0000-4000-8000-000000000001', 3),
   ('5a5a5a5a-0000-4000-8000-000000000002', 'e7e7e7e7-0000-4000-8000-000000000001', 1);
 
--- A regular event for the regression checks.
-insert into public.events (id, shift_lead_id, police_event_id) values
-  ('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', '33333333-3333-4333-8333-333333333333', '9001');
+-- A regular event for the regression checks, past טיוטה so its crew may edit
+-- (20261108120000_event_lifecycle_release.sql).
+insert into public.events (id, shift_lead_id, police_event_id, event_type_id, road_id, patrol_callsign_number) values
+  ('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', '33333333-3333-4333-8333-333333333333', '9001',
+   'e7e7e7e7-0000-4000-8000-000000000001', 'f0f0f0f0-0000-4000-8000-000000000001', '411');
 insert into public.event_responders (event_id, responder_id) values
   ('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', '11111111-1111-4111-8111-111111111111');
 

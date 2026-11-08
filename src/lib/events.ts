@@ -7,9 +7,10 @@ import { addCalendarDays } from './mineListSections'
 import { searchQueryVariants } from './searchQuery'
 import type { EventOrigin } from './shiftBornEvents'
 import { supabase } from './supabase'
-import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
+import { EVENT_LEAD_KM_FIELD, RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
 import type { ResponderVehicleRow } from './responderVehicle'
 import type { EventStatus, ParticipationStatus } from './status'
+import { lifecycleMatches, type LifecycleFilterValue } from './eventLifecycle'
 import {
   SHIFT_KIND_LABELS,
   VEHICLE_TYPE_LABELS,
@@ -48,6 +49,8 @@ export type EventListItem = {
   ended_at?: string | null
   location: string | null
   status: EventStatus
+  /** Server-side `event_missing_lead_km`; absent until its migration lands. */
+  lead_km_owed?: boolean | null
   is_cancelled: boolean
   origin: EventOrigin
   shift_id: string | null
@@ -87,6 +90,7 @@ export const EVENT_LIST_SELECT = `
   ended_at,
   location,
   status,
+  ${EVENT_LEAD_KM_FIELD}
   is_cancelled,
   origin,
   shift_id,
@@ -362,6 +366,7 @@ const EVENT_DETAIL_SELECT = `
   station,
   bus_lane,
   status,
+  ${EVENT_LEAD_KM_FIELD}
   is_cancelled,
   origin,
   shift_id,
@@ -418,6 +423,7 @@ const EVENT_DETAIL_SELECT_NO_PLATES = `
   station,
   bus_lane,
   status,
+  ${EVENT_LEAD_KM_FIELD}
   is_cancelled,
   origin,
   shift_id,
@@ -801,7 +807,7 @@ export function narrowToExactMatches(events: EventListItem[], query: string): Ev
 export function filterUnitEventsForList(
   events: EventListItem[],
   opts: {
-    status: EventStatus | 'all'
+    status: LifecycleFilterValue
     searchIds: ReadonlySet<string> | null
     /** The text behind searchIds. Exact matches among the filtered rows hide the rest. */
     query?: string
@@ -811,8 +817,7 @@ export function filterUnitEventsForList(
 ): EventListItem[] {
   const rows = events.filter((event) => {
     if (opts.showShiftEvents === false && event.origin === 'shift') return false
-    const matchesStatus = opts.status === 'all' || event.status === opts.status
-    if (!matchesStatus) return false
+    if (!lifecycleMatches(opts.status, event)) return false
     if (opts.searchIds === null) return true
     return opts.searchIds.has(event.id)
   })

@@ -1,6 +1,6 @@
 import type { EventListItem } from './events'
 import { formatDate, formatPlate } from './format'
-import { eventStamp } from './status'
+import { eventLifecycle, lifecycleLabel } from './eventLifecycle'
 import { toCsv } from './reports/csv'
 import type { ArchiveRow } from './smartSearchApi'
 
@@ -45,7 +45,7 @@ export function eventsCsv(rows: CsvEvent[]): string {
         [e.road?.name, e.location].filter(Boolean).join(' · '),
         e.origin === 'shift' ? '' : (e.shift_lead?.full_name ?? ''),
         `${done}/${e.responders.length}`,
-        eventStamp(e.status).label,
+        lifecycleLabel(eventLifecycle(e).status, 'lead'),
         e.found_by,
         plates.map((p) => formatPlate(p.plate_number)).join('; '),
         plates.map((p) => [p.manufacturer, p.model].filter(Boolean).join(' ')).join('; '),

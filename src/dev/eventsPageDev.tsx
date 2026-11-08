@@ -7,6 +7,7 @@
 // ?table=1 forces the desktop table, ?table=0 the cards (default: table at ≥1025 px).
 // Saved views go to this browser's localStorage, as they do before the migration is applied.
 
+import type { LifecycleFilterValue } from '../lib/eventLifecycle'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AuthContext, type AuthState } from '../lib/auth'
@@ -200,7 +201,7 @@ function passes(event: EventListItem, filter: QueryFilter): boolean {
 
 function runPlans(
   rules: readonly FilterRule[],
-  opts: { shiftLeadId: string | null; status: EventListItem['status'] | 'all'; hideShiftEvents: boolean; limit: number; ids?: string[] },
+  opts: { shiftLeadId: string | null; status: LifecycleFilterValue; hideShiftEvents: boolean; limit: number; ids?: string[] },
 ) {
   const lists = ruleQueryPlans(rules, opts).map((plan) =>
     EVENTS.filter(
