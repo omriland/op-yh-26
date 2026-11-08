@@ -60,7 +60,7 @@ Column names reuse the existing stamp labels, so the board and the stamps say th
 
 **Ordering.** Each card has a position. A card that was never moved sorts by its submission time, newest first. A dropped card takes the midpoint between its neighbours.
 
-**Finished columns.** טופל and לא יטופל show the newest 20 cards; the rest sit behind "הצגת עוד".
+**Finished columns.** טופל and לא יטופל start folded to a narrow strip (count, title along the spine, expand mark), so פתוח and בטיפול get the width. The strip is one button; an open finished column has a fold button in its header. Each viewer's choice is kept in this browser (`localStorage`), and folded is the fallback. A card dropped on a strip moves there (טופל still asks about the SMS) and the toast confirms it; the strip stays folded. When open, the column shows the newest 20 cards; the rest sit behind "הצגת עוד". On a phone nothing folds: the column switcher already shows one column at a time, starting on פתוח.
 
 **Screens.** Desktop (1280 px and up): four columns side by side. Tablet: the same columns, scrolling sideways. Phone (640 px and below): one column at a time, chosen with a switcher that shows each column's count; moves happen through the card menu.
 

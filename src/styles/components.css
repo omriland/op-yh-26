@@ -9346,10 +9346,9 @@ fieldset.field {
 }
 
 .board {
-  display: grid;
+  display: flex;
   min-width: 0;
-  grid-template-columns: repeat(4, minmax(220px, 1fr));
-  align-items: start;
+  align-items: flex-start;
   gap: var(--space-3);
   overflow-x: auto;
   scroll-snap-type: x proximity;
@@ -9371,13 +9370,70 @@ fieldset.field {
   transition: border-color var(--duration-fast) var(--ease-standard);
 }
 
+/* Open columns share the width; a folded column keeps only its strip. */
+.board > .board-col {
+  flex: 1 1 0;
+  min-width: 220px;
+}
+
+.board > .board-col--folded {
+  flex: 0 0 56px;
+  min-width: 56px;
+  padding: 0;
+}
+
+/* The whole folded column is one button: count, title along the spine, expand mark. */
+.board-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 240px;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+@media (hover: hover) {
+  .board-strip:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+.board-strip:focus-visible {
+  outline-offset: -2px;
+}
+
+.board-strip__count {
+  color: var(--text-secondary);
+  font: 500 14px/20px var(--font-mono);
+}
+
+/* Vertical along the spine. In RTL the line runs bottom to top, so the Hebrew
+   reads correctly with the head tilted left, like a book spine. */
+.board-strip__title {
+  writing-mode: vertical-rl;
+  font: 600 16px/24px var(--font-ui);
+  white-space: nowrap;
+}
+
+.board-strip > svg {
+  margin-block-start: auto;
+  color: var(--text-secondary);
+}
+
 .board-col.is-drop-target {
   border-color: var(--accent);
 }
 
 .board-col__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   padding-inline: var(--space-1);
@@ -9385,9 +9441,21 @@ fieldset.field {
 
 .board-col__head > h2,
 .board-col__head > .t-label {
+  flex: 1;
   margin: 0;
   color: var(--text-primary);
   font: 600 16px/24px var(--font-ui);
+}
+
+/* 44 px target without making the header taller than its title row. */
+.board-col__fold {
+  margin-block: calc(var(--space-2) * -1);
+  margin-inline-end: calc(var(--space-2) * -1);
+}
+
+/* The button overlaps the column padding, so its ring sits inside it. */
+.board-col__fold:focus-visible {
+  outline-offset: -2px;
 }
 
 .board-col__count {

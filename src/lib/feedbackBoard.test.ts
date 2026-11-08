@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  BOARD_COLLAPSED_KEY,
   BOARD_COLUMNS,
   BOARD_POSITION_STEP,
   boardCardExcerpt,
@@ -12,7 +13,9 @@ import {
   boardSortKey,
   isFinishedColumn,
   planBoardMove,
+  readCollapsedColumns,
   sortBoardColumn,
+  writeCollapsedColumns,
 } from './feedbackBoard'
 import {
   FEEDBACK_ALL_COLUMN_GROUPS,
@@ -245,5 +248,50 @@ describe('feedback board migration', () => {
 
   it('caps the note like the feedback body', () => {
     expect(sql).toMatch(/char_length\(note\) <= 2000/)
+  })
+})
+
+describe('folded columns', () => {
+  function memory(initial: Record<string, string> = {}) {
+    const data = new Map(Object.entries(initial))
+    return {
+      data,
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => void data.set(key, value),
+    }
+  }
+
+  it('folds טופל and לא יטופל by default, never פתוח or בטיפול', () => {
+    expect([...readCollapsedColumns(memory())].sort()).toEqual(['fixed', 'wont_do'])
+  })
+
+  it('remembers a column the viewer opened', () => {
+    const storage = memory()
+    writeCollapsedColumns(storage, new Set(['wont_do']))
+    expect(JSON.parse(storage.data.get(BOARD_COLLAPSED_KEY) ?? '')).toEqual({ fixed: false, wont_do: true })
+    expect([...readCollapsedColumns(storage)]).toEqual(['wont_do'])
+  })
+
+  it('falls back to folded when storage is missing, blocked or holds junk', () => {
+    const blocked = {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {
+        throw new Error('blocked')
+      },
+    }
+    expect([...readCollapsedColumns(null)].sort()).toEqual(['fixed', 'wont_do'])
+    expect([...readCollapsedColumns(blocked)].sort()).toEqual(['fixed', 'wont_do'])
+    expect(() => writeCollapsedColumns(blocked, new Set())).not.toThrow()
+    expect(() => writeCollapsedColumns(null, new Set())).not.toThrow()
+    for (const junk of ['{', 'null', '7', '"x"']) {
+      expect([...readCollapsedColumns(memory({ [BOARD_COLLAPSED_KEY]: junk }))].sort()).toEqual(['fixed', 'wont_do'])
+    }
+  })
+
+  it('ignores stored flags for columns that never fold', () => {
+    const storage = memory({ [BOARD_COLLAPSED_KEY]: JSON.stringify({ open: true, in_progress: true, fixed: false }) })
+    expect([...readCollapsedColumns(storage)]).toEqual(['wont_do'])
   })
 })

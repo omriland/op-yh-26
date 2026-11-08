@@ -1,8 +1,18 @@
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
-import { Bug, ClipboardList, Lightbulb, MessageSquarePlus, Mic, Paperclip, Plus } from 'lucide-react'
+import {
+  Bug,
+  ChevronsLeftRight,
+  ChevronsRightLeft,
+  ClipboardList,
+  Lightbulb,
+  MessageSquarePlus,
+  Mic,
+  Paperclip,
+  Plus,
+} from 'lucide-react'
 import { AlertDialog } from '../components/ui/AlertDialog'
 import { Avatar } from '../components/ui/Avatar'
-import { Button } from '../components/ui/Button'
+import { Button, IconButton } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FilterChips } from '../components/ui/FilterChips'
@@ -14,6 +24,7 @@ import { TextAreaField } from '../components/ui/TextAreaField'
 import { TextField } from '../components/ui/TextField'
 import { useToast } from '../components/ui/Toast'
 import {
+  BOARD_COLLAPSIBLE,
   BOARD_COLUMNS,
   BOARD_FINISHED_LIMIT,
   boardCardExcerpt,
@@ -23,8 +34,11 @@ import {
   boardMoveNeedsSmsConfirm,
   isFinishedColumn,
   planBoardMove,
+  readCollapsedColumns,
+  writeCollapsedColumns,
 } from '../lib/feedbackBoard'
 import { formatDate, formatDateTime, monoClass } from '../lib/format'
+import { useMediaQuery } from '../lib/useMediaQuery'
 import * as userFeedbackApi from '../lib/userFeedback'
 import {
   FEEDBACK_ASSIGNEE_ALL,
@@ -70,6 +84,15 @@ type DropTarget = { status: FeedbackStatus; index: number }
 
 const HEADING = 'heading'
 
+/** localStorage can throw (blocked storage, some private windows); the board then folds by default. */
+function viewerStorage(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
 const STATUS_OPTIONS = BOARD_COLUMNS.map((status) => ({ value: status, label: boardColumnLabel(status) }))
 
 const COLUMN_EMPTY: Record<FeedbackStatus, string> = {
@@ -112,6 +135,12 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
   const [assigneeFilter, setAssigneeFilter] = useState<string>(FEEDBACK_ASSIGNEE_ALL)
   const [phoneColumn, setPhoneColumn] = useState<FeedbackStatus>('open')
   const [expanded, setExpanded] = useState<ReadonlySet<FeedbackStatus>>(() => new Set())
+  const [collapsed, setCollapsed] = useState<ReadonlySet<FeedbackStatus>>(() =>
+    readCollapsedColumns(viewerStorage()),
+  )
+  const [toggledColumn, setToggledColumn] = useState<FeedbackStatus | null>(null)
+  // The phone shows one column at a time from the switcher, so nothing folds there.
+  const isPhone = useMediaQuery('(max-width: 640px)')
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(() => new Set())
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
@@ -203,6 +232,22 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
     ;(target && target.offsetParent !== null ? target : headingRef.current)?.focus()
     setPendingFocus(null)
   }, [pendingFocus])
+
+  // The strip and the header button swap places on toggle; keep focus on whichever now shows.
+  useEffect(() => {
+    if (!toggledColumn) return
+    document.querySelector<HTMLElement>(`[data-col-toggle="${toggledColumn}"]`)?.focus()
+    setToggledColumn(null)
+  }, [toggledColumn])
+
+  function toggleColumn(status: FeedbackStatus) {
+    const next = new Set(collapsed)
+    if (next.has(status)) next.delete(status)
+    else next.add(status)
+    setCollapsed(next)
+    writeCollapsedColumns(viewerStorage(), next)
+    setToggledColumn(status)
+  }
 
   const columns = useMemo(
     () => (items ? boardColumns(items, assigneeFilter) : null),
@@ -435,7 +480,7 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
     setDrop(null)
   }
 
-  function onDrop(event: DragEvent<HTMLOListElement>, status: FeedbackStatus) {
+  function onDrop(event: DragEvent<HTMLElement>, status: FeedbackStatus) {
     event.preventDefault()
     const item = items?.find((row) => row.id === dragId)
     const index = drop?.status === status ? drop.index : 0
@@ -552,7 +597,51 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
     )
   }
 
+  function renderStrip(status: FeedbackStatus) {
+    const count = columns?.[status].length ?? 0
+    const label = boardColumnLabel(status)
+    const dropping = drop?.status === status
+    return (
+      <section
+        key={status}
+        className={['board-col', 'board-col--folded', dropping ? 'is-drop-target' : ''].filter(Boolean).join(' ')}
+        aria-label={label}
+        data-active={phoneColumn === status}
+        onDragOver={(event) => {
+          if (!dragId) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'move'
+          if (!dropping) setDrop({ status, index: 0 })
+        }}
+        onDragLeave={(event) => {
+          const next = event.relatedTarget as Node | null
+          if (!next || !event.currentTarget.contains(next)) setDrop(null)
+        }}
+        onDrop={(event) => onDrop(event, status)}
+      >
+        <button
+          type="button"
+          className="board-strip"
+          data-col-toggle={status}
+          aria-expanded={false}
+          aria-label={`הרחבת העמודה ${label}, ${count} כרטיסים`}
+          title={`הרחבת העמודה ${label}`}
+          onClick={() => toggleColumn(status)}
+        >
+          <span className="board-strip__count mono" aria-hidden="true">
+            {count}
+          </span>
+          <span className="board-strip__title" aria-hidden="true">
+            {label}
+          </span>
+          <ChevronsLeftRight size={20} strokeWidth={1.75} aria-hidden="true" />
+        </button>
+      </section>
+    )
+  }
+
   function renderColumn(status: FeedbackStatus) {
+    if (!isPhone && collapsed.has(status)) return renderStrip(status)
     const column = columns?.[status] ?? []
     const limited = isFinishedColumn(status) && !expanded.has(status)
     const shown = limited ? column.slice(0, BOARD_FINISHED_LIMIT) : column
@@ -576,6 +665,17 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
             {column.length}
             <span className="visually-hidden"> כרטיסים</span>
           </span>
+          {BOARD_COLLAPSIBLE.includes(status) && !isPhone ? (
+            <IconButton
+              className="board-col__fold"
+              data-col-toggle={status}
+              aria-expanded={true}
+              label={`כיווץ העמודה ${boardColumnLabel(status)}`}
+              onClick={() => toggleColumn(status)}
+            >
+              <ChevronsRightLeft size={20} strokeWidth={1.75} aria-hidden="true" />
+            </IconButton>
+          ) : null}
         </header>
         <ol
           className="board-col__list"
@@ -845,7 +945,7 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
             <div className="stack-2">
               <TextAreaField
                 label="הערה פנימית"
-                hint="רק מנהלי הלוח רואים את ההערה. השולח לא רואה אותה."
+                hint="ההערה תהיה חשופה רק למנהלי מערכת"
                 rows={3}
                 maxLength={FEEDBACK_BODY_MAX}
                 value={noteDraft}

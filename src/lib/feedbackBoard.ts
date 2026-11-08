@@ -118,3 +118,43 @@ export function boardMoveNeedsSmsConfirm(
 ): boolean {
   return to === 'fixed' && item.status !== 'fixed' && !item.title && !item.sms_sent_at
 }
+
+/** Columns a viewer can fold to a strip: the finished ones, folded unless the viewer opened them. */
+export const BOARD_COLLAPSIBLE: readonly FeedbackStatus[] = ['fixed', 'wont_do']
+
+export const BOARD_COLLAPSED_KEY = 'yahpaz.feedbackBoard.collapsed'
+
+/**
+ * The viewer's folded columns. Stored as `{ fixed: true, wont_do: false }`; anything
+ * missing, unreadable or malformed counts as folded, the default.
+ */
+export function readCollapsedColumns(
+  storage: Pick<Storage, 'getItem'> | null,
+): Set<FeedbackStatus> {
+  const folded = new Set(BOARD_COLLAPSIBLE)
+  try {
+    const raw = storage?.getItem(BOARD_COLLAPSED_KEY)
+    if (!raw) return folded
+    const saved: unknown = JSON.parse(raw)
+    if (!saved || typeof saved !== 'object') return folded
+    const flags = saved as Record<string, unknown>
+    return new Set(BOARD_COLLAPSIBLE.filter((status) => flags[status] !== false))
+  } catch {
+    return folded
+  }
+}
+
+/** Best effort: a private window or blocked storage just forgets the choice. */
+export function writeCollapsedColumns(
+  storage: Pick<Storage, 'setItem'> | null,
+  collapsed: ReadonlySet<FeedbackStatus>,
+): void {
+  try {
+    storage?.setItem(
+      BOARD_COLLAPSED_KEY,
+      JSON.stringify(Object.fromEntries(BOARD_COLLAPSIBLE.map((status) => [status, collapsed.has(status)]))),
+    )
+  } catch {
+    // Nothing to do: the board still works, folded by default next time.
+  }
+}
