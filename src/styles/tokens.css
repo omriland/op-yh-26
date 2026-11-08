@@ -190,8 +190,6 @@
   --dshell-text-muted: var(--warm-ink-500);
   --dshell-tooltip-bg: var(--warm-ink-900);
   --dshell-avatar-bg: var(--blue-700);
-  --dshell-nav-open: 240px;
-  --dshell-nav-rail: 64px;
   --dshell-bar-height: 56px;
   --dshell-card-radius: 24px;
   --dshell-menu-radius: 12px;

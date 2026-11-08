@@ -24,8 +24,6 @@ export type DesktopNavSection<V extends string, I> = {
   id: string
   title: string
   items: DesktopNavEntry<V, I>[]
-  /** Super admin keeps its own rail icon; other sections get theirs from the shell. */
-  icon?: I
 }
 
 export type DesktopNavModel<V extends string, I> = {
@@ -61,7 +59,6 @@ export function groupDesktopNav<V extends string, I>(
         id: SUPER_ADMIN_MENU_ID,
         title: entry.label,
         items: entry.children,
-        icon: entry.icon,
       }
       continue
     }
@@ -78,36 +75,13 @@ export function groupDesktopNav<V extends string, I>(
   return { top, sections, hasSearch, settings }
 }
 
-export function sectionHasAttention<V extends string, I>(
-  section: DesktopNavSection<V, I>,
-): boolean {
-  return section.items.some((item) => Boolean(item.attention))
-}
+// ---------- persisted prefs (per-section open state; width is lib/sidebarWidth.ts) ----------
 
-export function sectionIsCurrent<V extends string, I>(
-  section: DesktopNavSection<V, I>,
-  view: V,
-  creatingEvent: boolean,
-): boolean {
-  if (creatingEvent) return false
-  return section.items.some((item) => item.view === view)
-}
-
-// ---------- persisted prefs (open/collapsed, per-section open state) ----------
-
-export const DESKTOP_NAV_OPEN_KEY = 'yahpaz.desktopNav.open'
+/** Collapsed/open choice from an earlier preview of this shell; removed on load. */
+export const LEGACY_DESKTOP_NAV_OPEN_KEY = 'yahpaz.desktopNav.open'
 export const DESKTOP_NAV_SECTIONS_KEY = 'yahpaz.desktopNav.sections'
 
 type PrefStorage = Pick<Storage, 'getItem' | 'setItem'>
-
-/** First visit: open. */
-export function readNavOpen(storage: PrefStorage): boolean {
-  return storage.getItem(DESKTOP_NAV_OPEN_KEY) !== '0'
-}
-
-export function writeNavOpen(storage: PrefStorage, open: boolean): void {
-  storage.setItem(DESKTOP_NAV_OPEN_KEY, open ? '1' : '0')
-}
 
 /** Section ids the user closed. Every other section is open (first visit: all open). */
 export function readClosedSections(storage: PrefStorage): string[] {

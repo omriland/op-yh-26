@@ -17,7 +17,7 @@ import {
 import { createPortal } from 'react-dom'
 import { nextMenuIndex } from '../../lib/desktopNav'
 
-/* Desktop shell menus (Help, avatar, rail flyouts) and tooltips. One menu open at a
+/* Desktop shell menus (Help, avatar) and tooltips. One menu open at a
    time; tooltips never show while a menu is open. */
 
 type ShellMenus = {
@@ -42,7 +42,7 @@ export function isRtlDocument(): boolean {
   return getComputedStyle(document.documentElement).direction === 'rtl'
 }
 
-/** Portal inside the shell so tooltips and flyouts keep its scoped tokens. */
+/** Portal inside the shell so tooltips keep its scoped tokens. */
 export function shellPortalRoot(): HTMLElement {
   return document.querySelector<HTMLElement>('.shell--desktop') ?? document.body
 }

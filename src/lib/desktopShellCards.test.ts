@@ -44,10 +44,25 @@ describe('desktop shell', () => {
     expect(tokens).toMatch(/--dshell-card-radius:\s*24px/)
   })
 
-  it('collapses the nav from 240px to a 64px rail', () => {
-    expect(tokens).toMatch(/--dshell-nav-open:\s*240px/)
-    expect(tokens).toMatch(/--dshell-nav-rail:\s*64px/)
-    expect(ruleBody(shellCss, '.dnav--rail')).toMatch(/width:\s*var\(--dshell-nav-rail\)/)
+  it('resizes the nav by dragging its inner edge, with no collapse rail', () => {
+    expect(ruleBody(shellCss, '.dnav')).toMatch(/width:\s*var\(--sidebar-width\)/)
+    const handle = ruleBody(shellCss, '.dnav__resize')
+    expect(handle).toMatch(/inset-inline-end:\s*-4px/)
+    expect(handle).toMatch(/cursor:\s*col-resize/)
+    expect(shellCss).not.toMatch(/dnav--rail|dnav-rail|dshell-menu--flyout|dnav__toggle/)
+  })
+
+  it('gives the top bar availability control the warm states', () => {
+    expect(ruleBody(shellCss, '.dbar__account .availability-trigger:hover')).toMatch(
+      /background:\s*var\(--dshell-hover\)/,
+    )
+    expect(ruleBody(shellCss, '.dbar__account .availability-trigger:active')).toMatch(
+      /background:\s*var\(--dshell-pressed\)/,
+    )
+  })
+
+  it('has no page footer left', () => {
+    expect(css).not.toMatch(/app-footer/)
   })
 
   it('animates sections open and closed with grid rows', () => {

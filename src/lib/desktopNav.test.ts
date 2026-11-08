@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DESKTOP_NAV_OPEN_KEY,
   DESKTOP_NAV_SECTIONS_KEY,
   groupDesktopNav,
   nextMenuIndex,
   readClosedSections,
-  readNavOpen,
-  sectionHasAttention,
-  sectionIsCurrent,
   writeClosedSections,
-  writeNavOpen,
   type DesktopNavEntry,
 } from './desktopNav'
 
@@ -59,7 +54,6 @@ describe('groupDesktopNav', () => {
     expect(model.sections.map((s) => s.title)).toEqual(['כלים לאחמ״ש', 'ניהול', 'סופר־אדמין'])
     expect(model.sections[1].items.map((e) => e.view)).toEqual(['users', 'reports'])
     expect(model.sections[2].items.map((e) => e.view)).toEqual(['feedback', 'event_locations'])
-    expect(model.sections[2].icon).toBe('shield')
   })
 
   it('moves search and settings to the top bar', () => {
@@ -94,33 +88,14 @@ describe('groupDesktopNav', () => {
   })
 })
 
-describe('section state', () => {
-  const [, admin, superAdmin] = groupDesktopNav(superAdminDesktop).sections
-
-  it('flags attention when any item needs it', () => {
-    expect(sectionHasAttention(superAdmin)).toBe(true)
-    expect(sectionHasAttention(admin)).toBe(false)
-  })
-
-  it('is current when one of its items is the page, never while creating an event', () => {
-    expect(sectionIsCurrent(admin, 'users', false)).toBe(true)
-    expect(sectionIsCurrent(admin, 'mine', false)).toBe(false)
-    expect(sectionIsCurrent(admin, 'users', true)).toBe(false)
-  })
-})
-
 describe('nav prefs', () => {
-  it('starts open with every section open', () => {
-    const storage = memoryStorage()
-    expect(readNavOpen(storage)).toBe(true)
-    expect(readClosedSections(storage)).toEqual([])
+  it('starts with every section open', () => {
+    expect(readClosedSections(memoryStorage())).toEqual([])
   })
 
-  it('round-trips the collapsed choice and closed sections', () => {
+  it('round-trips closed sections', () => {
     const storage = memoryStorage()
-    writeNavOpen(storage, false)
     writeClosedSections(storage, ['ניהול'])
-    expect(readNavOpen(storage)).toBe(false)
     expect(readClosedSections(storage)).toEqual(['ניהול'])
   })
 
@@ -129,7 +104,6 @@ describe('nav prefs', () => {
     expect(readClosedSections(memoryStorage({ [DESKTOP_NAV_SECTIONS_KEY]: '[1,"a"]' }))).toEqual([
       'a',
     ])
-    expect(readNavOpen(memoryStorage({ [DESKTOP_NAV_OPEN_KEY]: 'x' }))).toBe(true)
   })
 })
 

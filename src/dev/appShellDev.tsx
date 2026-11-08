@@ -79,6 +79,7 @@ function DevApp() {
       onCreateEvent={manages ? () => setNote('אירוע חדש') : undefined}
       onOpenSupport={() => setNote('תמיכה')}
       onOpenPrivacy={() => setNote('מדיניות פרטיות')}
+      onOpenAndroid={() => setNote('הורדת אנדרואיד')}
       onSearch={(q) => {
         setView('search')
         setNote(`חיפוש: ${q}`)

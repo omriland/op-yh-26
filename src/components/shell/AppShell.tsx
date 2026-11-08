@@ -6,8 +6,10 @@ import {
   ChevronDown,
   ClipboardList,
   Contact,
+  Download,
   Ellipsis,
   Eye,
+  FileText,
   Fuel,
   History,
   ListChecks,
@@ -25,7 +27,9 @@ import {
   UserRound,
   Users,
 } from 'lucide-react'
+import { ANDROID_FOOTER_LINK, canOfferAndroidDownloadHere } from '../../lib/androidDownload'
 import { useAuth } from '../../lib/auth'
+import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
 import { stopImpersonation } from '../../lib/impersonation'
 import {
   IMPERSONATION_CHANGE_EVENT,
@@ -52,7 +56,6 @@ import { MOBILE_MORE_LABEL, splitMobileNav } from '../../lib/mobileNav'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../availability/AvailabilityControl'
 import { Dialog } from '../ui/Dialog'
-import { SnykBadge } from './SnykBadge'
 import { FeedbackFab } from '../feedback/FeedbackFab'
 import { DesktopShell } from './DesktopShell'
 import { TopBarMenu } from './desktopMenus'
@@ -96,8 +99,6 @@ export type NavEntry = {
 type AppShellProps = {
   withSidebar: boolean
   narrow: boolean
-  /** List/admin/profile only — hide on immersive form/fill/detail. */
-  showSecurityBadge?: boolean
   onOpenPrivacy?: () => void
   onOpenAndroid?: () => void
   /** Desktop Help menu: the support page. */
@@ -121,7 +122,6 @@ type AppShellProps = {
 export function AppShell({
   withSidebar,
   narrow,
-  showSecurityBadge = false,
   onOpenPrivacy,
   onOpenAndroid,
   onOpenSupport,
@@ -145,14 +145,6 @@ export function AppShell({
       <UpdateAvailableNotice />
     </>
   )
-  const content = (
-    <>
-      {children}
-      {showSecurityBadge && onOpenPrivacy ? (
-        <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} onHome={onHome} />
-      ) : null}
-    </>
-  )
 
   if (isDesktop && withSidebar) {
     return (
@@ -166,12 +158,13 @@ export function AppShell({
         onSearch={onSearch}
         onOpenSupport={onOpenSupport}
         onOpenPrivacy={onOpenPrivacy}
+        onOpenAndroid={onOpenAndroid}
         account={<UserChrome variant="desktop" onNavigate={onNavigate} onHome={onHome} />}
         banners={banners}
         mainClassName={mainClassName}
         overlay={<FeedbackFab pagePath={feedbackPagePath} />}
       >
-        {content}
+        {children}
       </DesktopShell>
     )
   }
@@ -182,12 +175,18 @@ export function AppShell({
         דילוג לתוכן
       </a>
       {isDesktop ? null : (
-        <TopAppBar view={view} onNavigate={onNavigate} onHome={onHome} />
+        <TopAppBar
+          view={view}
+          onNavigate={onNavigate}
+          onHome={onHome}
+          onOpenPrivacy={onOpenPrivacy}
+          onOpenAndroid={onOpenAndroid}
+        />
       )}
       {banners}
       <div className="shell__body">
         <main id="main" className={mainClassName} data-theme="field">
-          {content}
+          {children}
         </main>
       </div>
       {withSidebar ? null : <BottomTabBar view={view} onNavigate={onNavigate} entries={entries} />}
@@ -270,15 +269,24 @@ function TopAppBar({
   view,
   onNavigate,
   onHome,
+  onOpenPrivacy,
+  onOpenAndroid,
 }: {
   view: AppView
   onNavigate: (view: AppView) => void
   onHome: () => void
+  onOpenPrivacy?: () => void
+  onOpenAndroid?: () => void
 }) {
   return (
     <header className="appbar" data-theme="command">
       <BrandMark view={view} onHome={onHome} />
-      <UserChrome onNavigate={onNavigate} onHome={onHome} />
+      <UserChrome
+        onNavigate={onNavigate}
+        onHome={onHome}
+        onOpenPrivacy={onOpenPrivacy}
+        onOpenAndroid={onOpenAndroid}
+      />
     </header>
   )
 }
@@ -286,10 +294,15 @@ function TopAppBar({
 function UserChrome({
   onNavigate,
   onHome,
+  onOpenPrivacy,
+  onOpenAndroid,
   variant = 'appbar',
 }: {
   onNavigate: (view: AppView) => void
   onHome: () => void
+  /** Phone avatar menu: privacy and Android download (desktop has them under Help). */
+  onOpenPrivacy?: () => void
+  onOpenAndroid?: () => void
   /** `desktop`: availability + avatar menu in the desktop top bar. */
   variant?: 'appbar' | 'desktop'
 }) {
@@ -438,6 +451,34 @@ function UserChrome({
           >
             <Eye size={20} strokeWidth={1.75} aria-hidden="true" />
             חזרה לחשבון שלי
+          </button>
+        ) : null}
+        {variant === 'appbar' && onOpenPrivacy ? (
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClass}
+            onClick={() => {
+              close()
+              onOpenPrivacy()
+            }}
+          >
+            <FileText size={20} strokeWidth={1.75} aria-hidden="true" />
+            {PRIVACY_FOOTER_LINK.label}
+          </button>
+        ) : null}
+        {variant === 'appbar' && onOpenAndroid && canOfferAndroidDownloadHere() ? (
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClass}
+            onClick={() => {
+              close()
+              onOpenAndroid()
+            }}
+          >
+            <Download size={20} strokeWidth={1.75} aria-hidden="true" />
+            {ANDROID_FOOTER_LINK.label}
           </button>
         ) : null}
         <button type="button" role="menuitem" className={itemClass} onClick={() => void signOut()}>

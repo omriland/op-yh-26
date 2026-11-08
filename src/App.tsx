@@ -5,7 +5,6 @@ import { AppShell, type AppView } from './components/shell/AppShell'
 import { buildNavEntries } from './components/shell/navEntries'
 import { fetchNavAttention, type NavAttention } from './lib/navAttention'
 import { applyNavClick } from './lib/navReset'
-import { shouldShowSecurityBadge } from './lib/securityBadge'
 import { AdminSegmentBar } from './components/admin/AdminSegmentBar'
 import { EmptyState } from './components/ui/EmptyState'
 import { EventListSkeleton } from './components/ui/Skeleton'
@@ -927,7 +926,6 @@ function Gate() {
     <AppShell
       withSidebar={shellWithSidebar}
       narrow={shellNarrow}
-      showSecurityBadge={shouldShowSecurityBadge(immersiveSurface) && legalPage === null}
       onOpenPrivacy={() => setLegalPage('privacy')}
       onOpenAndroid={openAndroidDownload}
       onOpenSupport={() => setLegalPage('support')}

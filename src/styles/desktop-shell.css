@@ -49,78 +49,34 @@
 /* ---------- side nav ---------- */
 
 .dnav {
+  position: relative;
   display: flex;
   flex: none;
   flex-direction: column;
-  width: var(--dshell-nav-open);
+  width: var(--sidebar-width);
   min-height: 0;
-  overflow: hidden;
-  transition: width 0.2s ease;
 }
 
-.dnav--rail {
-  width: var(--dshell-nav-rail);
-}
-
+/* Brand: the logo's centre lines up with the item icons below (12px list + 10px row
+   padding + half a 16px icon = 30px; a 24px logo therefore starts at 18px). */
 .dnav__header {
   display: flex;
   flex: none;
-  align-items: flex-start;
-  height: var(--dshell-bar-height);
-}
-
-.dnav__toggle-zone {
-  display: flex;
-  flex: none;
-  justify-content: center;
-  width: var(--dshell-nav-rail);
-  padding-block-start: 6px;
-}
-
-.dnav__toggle {
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-full);
-  color: var(--dshell-text);
-  transition:
-    background-color 0.2s ease,
-    margin 0.2s ease;
-}
-
-/* Open: 2px toward inline-start so the icon lines up with the item icons below. */
-.dnav:not(.dnav--rail) .dnav__toggle {
-  margin-inline-end: 4px;
-}
-
-.dnav__toggle svg {
-  width: 20px;
-  height: 20px;
+  height: var(--dshell-bar-height);
+  padding-inline-start: 18px;
 }
 
 .dnav__brand {
   display: flex;
-  flex: none;
   align-items: center;
   gap: var(--space-2);
-  height: 24px;
-  margin-block-start: 12px;
-  margin-inline-start: calc(var(--space-2) * -1);
+  min-width: 0;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--dshell-text);
   white-space: nowrap;
-  transition: opacity 0.2s ease;
-}
-
-.dnav--rail .dnav__brand {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .dnav__logo {
@@ -130,6 +86,8 @@
 }
 
 .dnav__brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-family: var(--font-brand);
   font-weight: 400;
   font-size: 20px;
@@ -155,10 +113,8 @@
   background: var(--dshell-pressed);
 }
 
-/* Fixed width so rows do not reflow while the nav animates to the rail.
-   4px top room keeps the first row's focus ring inside the scrollport. */
+/* 4px top room keeps the first row's focus ring inside the scrollport. */
 .dnav__list {
-  width: var(--dshell-nav-open);
   padding: 4px var(--space-3) var(--space-3);
 }
 
@@ -173,7 +129,7 @@
   margin-block-end: var(--space-2);
 }
 
-/* Nav row: open list and flyouts. */
+/* Nav row. */
 .dnav-item {
   display: flex;
   align-items: center;
@@ -252,20 +208,12 @@
   pointer-events: none;
 }
 
-.dnav-item:hover .dnav-dot,
-.dnav-rail-btn:hover .dnav-dot,
-.dnav-rail-btn[aria-expanded='true'] .dnav-dot {
+.dnav-item:hover .dnav-dot {
   --dnav-dot-ring: var(--dshell-hover);
 }
 
-.dnav-item[aria-current='page'] .dnav-dot,
-.dnav-rail-btn[aria-current='page'] .dnav-dot,
-.dnav-rail-btn.is-current .dnav-dot {
+.dnav-item[aria-current='page'] .dnav-dot {
   --dnav-dot-ring: var(--dshell-selected);
-}
-
-.dshell-menu .dnav-dot {
-  --dnav-dot-ring: var(--dshell-card);
 }
 
 /* Section: the whole title row toggles it. */
@@ -335,49 +283,36 @@
   margin-block-end: var(--space-2);
 }
 
-/* Collapsed rail */
-.dnav__rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  width: var(--dshell-nav-rail);
-  padding-block: 4px var(--space-3);
+/* Resize handle on the nav's inner edge (left in RTL), straddling the gap to the card.
+   Invisible until hovered, dragged or focused; then a 2px line marks the edge. */
+.dnav__resize {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: -4px;
+  z-index: 2;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
 }
 
-.dnav-rail-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-md);
+.dnav__resize::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 3px;
+  width: 2px;
   background: transparent;
-  color: var(--dshell-text);
   transition: background-color 0.2s ease;
 }
 
-.dnav-rail-btn:hover,
-.dnav-rail-btn[aria-expanded='true'] {
-  background: var(--dshell-hover);
+.dnav__resize:hover::after,
+.dnav__resize[data-dragging]::after {
+  background: var(--dshell-text-muted);
 }
 
-.dnav-rail-btn:active {
-  background: var(--dshell-pressed);
-}
-
-.dnav-rail-btn[aria-current='page'],
-.dnav-rail-btn.is-current {
-  background: var(--dshell-selected);
-}
-
-.dnav__rail-divider {
-  width: 40px;
-  height: 1px;
-  margin-block: var(--space-1);
-  background: var(--dshell-stroke);
+.dnav__resize:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* ---------- top bar ---------- */
@@ -533,6 +468,26 @@
   gap: var(--space-2);
 }
 
+/* Availability: same warm states as the other top bar controls (not the Field blue). */
+.dbar__account .availability-trigger {
+  min-height: 32px;
+  padding-block: 0;
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s ease;
+}
+
+.dbar__account .availability-trigger:hover {
+  background: var(--dshell-hover);
+}
+
+.dbar__account .availability-trigger:active {
+  background: var(--dshell-pressed);
+}
+
+.dbar__account .availability-trigger[aria-expanded='true'] {
+  background: var(--dshell-selected);
+}
+
 .dbar__avatar-btn {
   display: inline-flex;
   align-items: center;
@@ -558,7 +513,7 @@
   font: 600 11px/16px var(--font-ui);
 }
 
-/* ---------- menus (Help, avatar, rail flyouts) ---------- */
+/* ---------- menus (Help, avatar) ---------- */
 
 .dshell-menu-anchor {
   position: relative;
@@ -591,10 +546,6 @@
   inset-inline: 0;
   inset-block-end: 100%;
   height: 10px;
-}
-
-.dshell-menu--flyout {
-  position: fixed;
 }
 
 .dshell-menu__list {
@@ -653,19 +604,6 @@
   width: 16px;
   height: 16px;
   stroke-width: 1.5;
-}
-
-/* Nav rows inside the white flyout hover with the nav background. */
-.dshell-menu .dnav-item:hover {
-  background: var(--dshell-bg);
-}
-
-.dshell-menu .dnav-item:active {
-  background: var(--dshell-pressed);
-}
-
-.dshell-menu .dnav-item[aria-current='page'] {
-  background: var(--dshell-selected);
 }
 
 /* ---------- tooltip ---------- */

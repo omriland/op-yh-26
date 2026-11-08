@@ -1,53 +1,51 @@
 import {
-  useLayoutEffect,
+  useEffect,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
-import { createPortal } from 'react-dom'
 import {
-  Building2,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   CircleHelp,
+  Download,
   FileText,
-  LayoutGrid,
   LifeBuoy,
   MessageSquarePlus,
-  PanelLeft,
   Plus,
   Search,
   Settings,
-  TrafficCone,
   X,
 } from 'lucide-react'
+import { ANDROID_FOOTER_LINK, canOfferAndroidDownloadHere } from '../../lib/androidDownload'
 import { appPath } from '../../lib/appRoute'
 import {
+  LEGACY_DESKTOP_NAV_OPEN_KEY,
   groupDesktopNav,
   readClosedSections,
-  readNavOpen,
-  sectionHasAttention,
-  sectionIsCurrent,
   writeClosedSections,
-  writeNavOpen,
   type DesktopNavSection,
 } from '../../lib/desktopNav'
 import { navAttentionAriaSuffix } from '../../lib/navAttention'
+import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
 import { useSearchShortcut } from '../../lib/searchShortcut'
-import { SHIFT_LEAD_NAV_SECTION, sidebarLeadNewEvent } from '../../lib/sidebarCreate'
+import { sidebarLeadNewEvent } from '../../lib/sidebarCreate'
+import {
+  SIDEBAR_WIDTH_DEFAULT,
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
+  clampSidebarWidth,
+  nextSidebarWidthFromPointer,
+  readSidebarWidth,
+  writeSidebarWidth,
+} from '../../lib/sidebarWidth'
 import { OPEN_FEEDBACK_EVENT } from '../feedback/FeedbackFab'
 import { NewEventButtonShell } from '../ui/NewEventButtonShell'
 import type { AppView, NavEntry } from './AppShell'
-import {
-  ShellMenuProvider,
-  TopBarMenu,
-  isRtlDocument,
-  shellPortalRoot,
-  useShellMenu,
-  useTooltip,
-} from './desktopMenus'
+import { ShellMenuProvider, TopBarMenu, isRtlDocument, useTooltip } from './desktopMenus'
 
 type Section = DesktopNavSection<AppView, ReactNode>
 
@@ -62,6 +60,8 @@ type DesktopShellProps = {
   onSearch?: (query: string) => void
   onOpenSupport?: () => void
   onOpenPrivacy?: () => void
+  /** Help menu: Android download page (omitted where the app cannot be installed). */
+  onOpenAndroid?: () => void
   /** Availability + avatar menu, after the top bar divider. */
   account: ReactNode
   /** Impersonation / role preview / cobrowse / update notices. */
@@ -70,11 +70,6 @@ type DesktopShellProps = {
   /** Floating controls outside the card (feedback button). */
   overlay: ReactNode
   children: ReactNode
-}
-
-const SECTION_ICONS: Record<string, ReactNode> = {
-  [SHIFT_LEAD_NAV_SECTION]: <TrafficCone aria-hidden="true" />,
-  ניהול: <Building2 aria-hidden="true" />,
 }
 
 function viewHref(view: AppView): string {
@@ -122,6 +117,7 @@ export function DesktopShell({
   onSearch,
   onOpenSupport,
   onOpenPrivacy,
+  onOpenAndroid,
   account,
   banners,
   mainClassName,
@@ -129,16 +125,12 @@ export function DesktopShell({
   children,
 }: DesktopShellProps) {
   const model = groupDesktopNav<AppView, ReactNode>(entries)
-  const [navOpen, setNavOpen] = useState(() => safeStorage(readNavOpen, true))
   const mainRef = useRef<HTMLElement>(null)
 
-  function toggleNav() {
-    setNavOpen((current) => {
-      const next = !current
-      safeWrite((storage) => writeNavOpen(storage, next))
-      return next
-    })
-  }
+  // The nav no longer collapses: drop the choice an earlier preview stored.
+  useEffect(() => {
+    safeWrite((storage) => storage.removeItem(LEGACY_DESKTOP_NAV_OPEN_KEY))
+  }, [])
 
   return (
     <ShellMenuProvider>
@@ -156,8 +148,6 @@ export function DesktopShell({
         {banners}
         <div className="dshell">
           <SideNav
-            open={navOpen}
-            onToggle={toggleNav}
             top={model.top}
             sections={model.sections}
             view={view}
@@ -170,7 +160,11 @@ export function DesktopShell({
             <header className="dbar">
               {model.hasSearch && onSearch ? <BarSearch onSearch={onSearch} /> : null}
               <div className="dbar__actions">
-                <HelpMenu onOpenSupport={onOpenSupport} onOpenPrivacy={onOpenPrivacy} />
+                <HelpMenu
+                  onOpenSupport={onOpenSupport}
+                  onOpenPrivacy={onOpenPrivacy}
+                  onOpenAndroid={onOpenAndroid}
+                />
                 {model.settings?.view ? (
                   <SettingsLink
                     label={model.settings.label}
@@ -205,8 +199,6 @@ export function DesktopShell({
 // ---------- side nav ----------
 
 function SideNav({
-  open,
-  onToggle,
   top,
   sections,
   view,
@@ -215,8 +207,6 @@ function SideNav({
   onCreateEvent,
   creatingEvent,
 }: {
-  open: boolean
-  onToggle: () => void
   top: NavEntry[]
   sections: Section[]
   view: AppView
@@ -225,66 +215,127 @@ function SideNav({
   onCreateEvent?: () => void
   creatingEvent: boolean
 }) {
-  const toggleLabel = open ? 'כיווץ תפריט הצד' : 'הרחבת תפריט הצד'
-  const toggleTip = useTooltip(toggleLabel, 'below')
   const brandLabel = view === 'cockpit' ? 'אבן דרך - הקוקפיט' : 'אבן דרך'
+  const { width, handleProps } = useResizableWidth()
 
   return (
-    <nav className={['dnav', open ? '' : 'dnav--rail'].filter(Boolean).join(' ')} aria-label="ניווט ראשי">
+    <nav className="dnav" aria-label="ניווט ראשי" style={{ width }}>
       <div className="dnav__header">
-        <div className="dnav__toggle-zone">
-          <button
-            type="button"
-            className="dnav__toggle"
-            aria-label={toggleLabel}
-            aria-expanded={open}
-            aria-controls="dnav-body"
-            {...toggleTip.triggerProps}
-            onClick={onToggle}
-          >
-            {open ? (
-              <PanelLeft className="icon-mirror" aria-hidden="true" />
-            ) : (
-              <ChevronRight className="icon-mirror" aria-hidden="true" />
-            )}
-          </button>
-          {toggleTip.tooltip}
-        </div>
-        <button
-          type="button"
-          className="dnav__brand"
-          onClick={onHome}
-          aria-label="חזרה למסך הראשי"
-          tabIndex={open ? undefined : -1}
-          aria-hidden={open ? undefined : true}
-        >
+        <button type="button" className="dnav__brand" onClick={onHome} aria-label="חזרה למסך הראשי">
           <img className="dnav__logo" src="/favicon.svg" width={24} height={24} alt="" />
           <span className="dnav__brand-name">{brandLabel}</span>
         </button>
       </div>
-      <div className="dnav__body" id="dnav-body">
-        {open ? (
-          <OpenNav
-            top={top}
-            sections={sections}
-            view={view}
-            onNavigate={onNavigate}
-            onCreateEvent={onCreateEvent}
-            creatingEvent={creatingEvent}
-          />
-        ) : (
-          <RailNav
-            top={top}
-            sections={sections}
-            view={view}
-            onNavigate={onNavigate}
-            onCreateEvent={onCreateEvent}
-            creatingEvent={creatingEvent}
-          />
-        )}
+      <div className="dnav__body">
+        <OpenNav
+          top={top}
+          sections={sections}
+          view={view}
+          onNavigate={onNavigate}
+          onCreateEvent={onCreateEvent}
+          creatingEvent={creatingEvent}
+        />
       </div>
+      <div
+        className="dnav__resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="שינוי רוחב תפריט הצד"
+        aria-valuemin={SIDEBAR_WIDTH_MIN}
+        aria-valuemax={SIDEBAR_WIDTH_MAX}
+        aria-valuenow={width}
+        tabIndex={0}
+        {...handleProps}
+      />
     </nav>
   )
+}
+
+/**
+ * Drag the nav's inner edge (or use arrow keys on it) between 190 and 265px. The width
+ * is remembered (lib/sidebarWidth.ts); double-click or Home resets to 240px.
+ */
+function useResizableWidth() {
+  const [width, setWidth] = useState(() => safeStorage(readSidebarWidth, SIDEBAR_WIDTH_DEFAULT))
+  const widthRef = useRef(width)
+  const dragRef = useRef<{ startWidth: number; startClientX: number } | null>(null)
+  const [dragging, setDragging] = useState(false)
+
+  useEffect(() => {
+    widthRef.current = width
+  }, [width])
+
+  useEffect(() => {
+    if (!dragging) return
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    return () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [dragging])
+
+  function apply(next: number, persist: boolean) {
+    const clamped = clampSidebarWidth(next)
+    setWidth(clamped)
+    if (persist) safeWrite((storage) => writeSidebarWidth(storage, clamped))
+  }
+
+  function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!dragRef.current) return
+    dragRef.current = null
+    setDragging(false)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    safeWrite((storage) => writeSidebarWidth(storage, widthRef.current))
+  }
+
+  return {
+    width,
+    handleProps: {
+      'data-dragging': dragging || undefined,
+      onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0) return
+        event.preventDefault()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        dragRef.current = { startWidth: widthRef.current, startClientX: event.clientX }
+        setDragging(true)
+      },
+      onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => {
+        const drag = dragRef.current
+        if (!drag) return
+        apply(
+          nextSidebarWidthFromPointer({
+            startWidth: drag.startWidth,
+            startClientX: drag.startClientX,
+            clientX: event.clientX,
+            rtl: isRtlDocument(),
+          }),
+          false,
+        )
+      },
+      onPointerUp: endDrag,
+      onPointerCancel: endDrag,
+      onDoubleClick: () => apply(SIDEBAR_WIDTH_DEFAULT, true),
+      onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        const step = 8
+        // Arrow toward the content narrows the nav, away from it widens (mirrored in RTL).
+        const widen = isRtlDocument() ? 'ArrowLeft' : 'ArrowRight'
+        const narrow = isRtlDocument() ? 'ArrowRight' : 'ArrowLeft'
+        if (event.key === widen) {
+          event.preventDefault()
+          apply(widthRef.current + step, true)
+        } else if (event.key === narrow) {
+          event.preventDefault()
+          apply(widthRef.current - step, true)
+        } else if (event.key === 'Home') {
+          event.preventDefault()
+          apply(SIDEBAR_WIDTH_DEFAULT, true)
+        }
+      },
+    },
+  }
 }
 
 function NavDotIcon({ icon, attention }: { icon: ReactNode; attention: boolean }) {
@@ -301,17 +352,14 @@ function NavRow({
   view,
   creatingEvent,
   onNavigate,
-  inMenu = false,
-  onDone,
 }: {
   entry: NavEntry
   view: AppView
   creatingEvent: boolean
   onNavigate: (view: AppView) => void
-  inMenu?: boolean
-  onDone?: () => void
 }) {
-  const tip = useTooltip(entry.label, 'side', { truncatedOnly: true, enabled: !inMenu })
+  // Full label on hover/focus only when the nav is narrowed enough to cut it off.
+  const tip = useTooltip(entry.label, 'side', { truncatedOnly: true })
   const target = entry.view
   if (!target) return null
   return (
@@ -319,14 +367,12 @@ function NavRow({
       <a
         href={viewHref(target)}
         className="dnav-item"
-        role={inMenu ? 'menuitem' : undefined}
         aria-current={isEntryCurrent(entry, view, creatingEvent) ? 'page' : undefined}
         aria-label={attentionLabel(entry)}
         {...tip.triggerProps}
         onClick={(event) => {
           if (!isPlainClick(event)) return
           event.preventDefault()
-          onDone?.()
           onNavigate(target)
         }}
       >
@@ -342,34 +388,26 @@ function CreateEventRow({
   label,
   current,
   onCreate,
-  inMenu = false,
-  onDone,
 }: {
   label: string
   current: boolean
   onCreate: () => void
-  inMenu?: boolean
-  onDone?: () => void
 }) {
-  const button = (
-    <button
-      type="button"
-      className="dnav-item dnav-item--create"
-      role={inMenu ? 'menuitem' : undefined}
-      aria-current={current ? 'page' : undefined}
-      onClick={() => {
-        onDone?.()
-        onCreate()
-      }}
-    >
-      <span className="dnav-icon">
-        <Plus aria-hidden="true" />
-      </span>
-      <span className="dnav-item__label">{label}</span>
-    </button>
+  return (
+    <NewEventButtonShell block>
+      <button
+        type="button"
+        className="dnav-item dnav-item--create"
+        aria-current={current ? 'page' : undefined}
+        onClick={onCreate}
+      >
+        <span className="dnav-icon">
+          <Plus aria-hidden="true" />
+        </span>
+        <span className="dnav-item__label">{label}</span>
+      </button>
+    </NewEventButtonShell>
   )
-  // The animated ring belongs to the open nav; inside a menu it is a plain row.
-  return inMenu ? button : <NewEventButtonShell block>{button}</NewEventButtonShell>
 }
 
 function OpenNav({
@@ -465,186 +503,6 @@ function OpenNav({
   )
 }
 
-// ---------- collapsed rail ----------
-
-function RailNav({
-  top,
-  sections,
-  view,
-  onNavigate,
-  onCreateEvent,
-  creatingEvent,
-}: {
-  top: NavEntry[]
-  sections: Section[]
-  view: AppView
-  onNavigate: (view: AppView) => void
-  onCreateEvent?: () => void
-  creatingEvent: boolean
-}) {
-  return (
-    <ul className="dnav__rail">
-      {top.map((entry) => (
-        <li key={entry.view ?? entry.label}>
-          <RailLink entry={entry} view={view} creatingEvent={creatingEvent} onNavigate={onNavigate} />
-        </li>
-      ))}
-      {top.length > 0 && sections.length > 0 ? (
-        <li className="dnav__rail-divider" role="separator" aria-hidden="true" />
-      ) : null}
-      {sections.map((section) => (
-        <li key={section.id}>
-          <RailSection
-            section={section}
-            view={view}
-            onNavigate={onNavigate}
-            onCreateEvent={onCreateEvent}
-            creatingEvent={creatingEvent}
-          />
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function RailLink({
-  entry,
-  view,
-  creatingEvent,
-  onNavigate,
-}: {
-  entry: NavEntry
-  view: AppView
-  creatingEvent: boolean
-  onNavigate: (view: AppView) => void
-}) {
-  const tip = useTooltip(entry.label, 'side')
-  const target = entry.view
-  if (!target) return null
-  return (
-    <>
-      <a
-        href={viewHref(target)}
-        className="dnav-rail-btn"
-        aria-label={attentionLabel(entry) ?? entry.label}
-        aria-current={isEntryCurrent(entry, view, creatingEvent) ? 'page' : undefined}
-        {...tip.triggerProps}
-        onClick={(event) => {
-          if (!isPlainClick(event)) return
-          event.preventDefault()
-          onNavigate(target)
-        }}
-      >
-        <NavDotIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-      </a>
-      {tip.tooltip}
-    </>
-  )
-}
-
-const FLYOUT_WIDTH_PX = 220
-/** Spec: the flyout starts 68px from the nav's start edge, i.e. 4px past the 64px rail. */
-const FLYOUT_RAIL_GAP_PX = 4
-const VIEWPORT_MARGIN_PX = 8
-
-function RailSection({
-  section,
-  view,
-  onNavigate,
-  onCreateEvent,
-  creatingEvent,
-}: {
-  section: Section
-  view: AppView
-  onNavigate: (view: AppView) => void
-  onCreateEvent?: () => void
-  creatingEvent: boolean
-}) {
-  const menu = useShellMenu(`flyout:${section.id}`)
-  const tip = useTooltip(section.title, 'side', { enabled: !menu.open })
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-  const attention = sectionHasAttention(section)
-  const current = sectionIsCurrent(section, view, creatingEvent)
-  const create = sidebarLeadNewEvent(section.id, onCreateEvent)
-  const menuId = `dnav-flyout-${section.id}`
-  const icon = section.icon ?? SECTION_ICONS[section.id] ?? <LayoutGrid aria-hidden="true" />
-  const { open, triggerRef, menuRef } = menu
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setPos(null)
-      return
-    }
-    const trigger = triggerRef.current
-    const nav = trigger?.closest('.dnav')
-    if (!trigger || !nav) return
-    const triggerRect = trigger.getBoundingClientRect()
-    const navRect = nav.getBoundingClientRect()
-    const panelHeight = menuRef.current?.offsetHeight ?? 0
-    const left = isRtlDocument()
-      ? navRect.left - FLYOUT_RAIL_GAP_PX - FLYOUT_WIDTH_PX
-      : navRect.right + FLYOUT_RAIL_GAP_PX
-    const maxTop = window.innerHeight - VIEWPORT_MARGIN_PX - panelHeight
-    setPos({ top: Math.max(VIEWPORT_MARGIN_PX, Math.min(triggerRect.top, maxTop)), left })
-  }, [open, triggerRef, menuRef])
-
-  return (
-    <>
-      <button
-        ref={menu.triggerRef}
-        type="button"
-        className={['dnav-rail-btn', current ? 'is-current' : ''].filter(Boolean).join(' ')}
-        aria-label={attentionLabel({ label: section.title, attention }) ?? section.title}
-        aria-haspopup="menu"
-        aria-expanded={menu.open}
-        aria-controls={menu.open ? menuId : undefined}
-        {...tip.triggerProps}
-        onClick={menu.onTriggerClick}
-        onKeyDown={menu.onTriggerKeyDown}
-      >
-        <NavDotIcon icon={icon} attention={attention} />
-      </button>
-      {tip.tooltip}
-      {menu.open
-        ? createPortal(
-            <div
-              ref={menu.menuRef}
-              className="dshell-menu dshell-menu--flyout"
-              // Unpositioned first frame stays focusable (opacity, not visibility) so
-              // keyboard opening can move focus to the first item.
-              style={pos ? { top: pos.top, left: pos.left } : { top: 0, left: 0, opacity: 0 }}
-              onKeyDown={menu.onMenuKeyDown}
-            >
-              <div id={menuId} role="menu" aria-label={section.title} className="dshell-menu__list">
-                {create ? (
-                  <CreateEventRow
-                    label={create.label}
-                    current={creatingEvent}
-                    onCreate={create.onCreate}
-                    inMenu
-                    onDone={() => menu.hide()}
-                  />
-                ) : null}
-                {section.items.map((entry) => (
-                  <NavRow
-                    key={entry.view ?? entry.label}
-                    entry={entry}
-                    view={view}
-                    creatingEvent={creatingEvent}
-                    onNavigate={onNavigate}
-                    inMenu
-                    onDone={() => menu.hide()}
-                  />
-                ))}
-              </div>
-            </div>,
-            shellPortalRoot(),
-          )
-        : null}
-    </>
-  )
-}
-
 // ---------- top bar ----------
 
 function BarSearch({ onSearch }: { onSearch: (query: string) => void }) {
@@ -720,10 +578,13 @@ function BarSearch({ onSearch }: { onSearch: (query: string) => void }) {
 function HelpMenu({
   onOpenSupport,
   onOpenPrivacy,
+  onOpenAndroid,
 }: {
   onOpenSupport?: () => void
   onOpenPrivacy?: () => void
+  onOpenAndroid?: () => void
 }) {
+  const showAndroid = Boolean(onOpenAndroid) && canOfferAndroidDownloadHere()
   return (
     <TopBarMenu
       id="help"
@@ -771,7 +632,21 @@ function HelpMenu({
               }}
             >
               <FileText aria-hidden="true" />
-              מדיניות פרטיות
+              {PRIVACY_FOOTER_LINK.label}
+            </button>
+          ) : null}
+          {showAndroid && onOpenAndroid ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="dshell-menu__item"
+              onClick={() => {
+                close()
+                onOpenAndroid()
+              }}
+            >
+              <Download aria-hidden="true" />
+              {ANDROID_FOOTER_LINK.label}
             </button>
           ) : null}
         </>

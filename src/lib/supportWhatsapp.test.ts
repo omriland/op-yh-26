@@ -14,7 +14,6 @@ describe('support WhatsApp', () => {
 
   it('shows the support number nowhere on the site', () => {
     for (const path of [
-      '../components/shell/SnykBadge.tsx',
       '../components/feedback/FeedbackFab.tsx',
       '../pages/SupportPage.tsx',
     ]) {

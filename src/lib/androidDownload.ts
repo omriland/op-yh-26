@@ -48,6 +48,16 @@ export function showLoginAndroidDownload(client: {
   return true
 }
 
+/** The same rule for the current browser (menus that used to live in the footer). */
+export function canOfferAndroidDownloadHere(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return showLoginAndroidDownload({
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    maxTouchPoints: navigator.maxTouchPoints,
+  })
+}
+
 export function isAndroidDownloadPath(pathname: string): boolean {
   const path = pathname.replace(/\/+$/, '') || '/'
   return path === ANDROID_DOWNLOAD_PATH
