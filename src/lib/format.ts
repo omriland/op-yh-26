@@ -134,12 +134,36 @@ export function formatDateInput(digits: string): string {
 }
 
 /**
+ * Digits spliced into `previous` to make `incoming`. Null when the edit is not
+ * a pure insertion (a replacement or a deletion).
+ */
+function digitsInsertedInto(previous: string, incoming: string): string | null {
+  if (incoming.length <= previous.length) return null
+  const extra = incoming.length - previous.length
+  for (let start = 0; start <= previous.length; start++) {
+    if (incoming.slice(0, start) + incoming.slice(start + extra) === previous) {
+      return incoming.slice(start, start + extra)
+    }
+  }
+  return null
+}
+
+/**
  * Same backspace semantics as the time field: deleting over `.` removes a digit.
  * Always day-first `D` / `DD` / `DD.M` / `DD.MM` / `DD.MM.Y…` — never month-first.
+ *
+ * A finished date has no room for another digit. iOS leaves the caret in the
+ * middle of the mask, so that digit would shift the day/month/year and blur
+ * would put the old date back. Treat the insertion as the start of a new date.
  */
 export function applyDateKeystroke(previous: string, incoming: string): string {
   const previousDigits = digitsOnly(previous)
-  let nextDigits = digitsOnly(incoming).slice(0, 8)
+  const rawIncoming = digitsOnly(incoming)
+  if (previousDigits.length === 8 && isCompleteDateInput(previous)) {
+    const inserted = digitsInsertedInto(previousDigits, rawIncoming)
+    if (inserted) return formatDateInput(inserted)
+  }
+  let nextDigits = rawIncoming.slice(0, 8)
   if (
     nextDigits === previousDigits &&
     incoming.length < previous.length &&
@@ -148,6 +172,15 @@ export function applyDateKeystroke(previous: string, incoming: string): string {
     nextDigits = previousDigits.slice(0, -1)
   }
   return formatDateInput(nextDigits)
+}
+
+/**
+ * Digit (or pasted digits) typed into a finished `DD.MM.YYYY`.
+ * Returns the new day-first display, or null when this is not that edit.
+ */
+export function replaceCompleteDateDigits(previous: string, text: string): string | null {
+  if (!/^\d+$/.test(text) || !isCompleteDateInput(previous)) return null
+  return formatDateInput(text)
 }
 
 function isValidCalendarYmd(year: number, month: number, day: number): boolean {
@@ -169,6 +202,20 @@ export function displayDateToIso(display: string): string | null {
 
 export function isCompleteDateInput(value: string): boolean {
   return displayDateToIso(value) != null
+}
+
+/**
+ * Value for `<input type="date">`. Empty when `iso` is blank or not a real
+ * calendar day — an invalid value makes iOS Safari ignore later edits.
+ */
+export function nativeDateValue(iso: string): string {
+  const match = iso.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return ''
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (!isValidCalendarYmd(year, month, day)) return ''
+  return `${match[1]}-${match[2]}-${match[3]}`
 }
 
 /** YYYY-MM-DD prefix from a wall `timestamp` / ISO string. */

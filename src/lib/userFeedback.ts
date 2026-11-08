@@ -59,6 +59,7 @@ export const FEEDBACK_SMS_FALLBACK_EXCERPT = 'המשוב'
 
 export type FeedbackSmsResult =
   | 'sent'
+  | 'already_sent'
   | 'skipped_no_phone'
   | 'failed'
   | 'skipped'
@@ -98,6 +99,9 @@ export function feedbackTreatedToast(sms?: FeedbackSmsResult): {
   }
   if (sms === 'failed' || sms === 'unavailable') {
     return { message: 'הסטטוס עודכן. שליחת ה-SMS נכשלה.', tone: 'alert' }
+  }
+  if (sms === 'already_sent') {
+    return { message: 'הסטטוס עודכן. השולח כבר קיבל SMS על המשוב הזה, ולא נשלח שוב.', tone: 'done' }
   }
   return { message: 'הסטטוס עודכן.', tone: 'done' }
 }
@@ -148,7 +152,16 @@ export type UserFeedback = {
   transcribed_at: string | null
   attachments: FeedbackAttachmentView[]
   created_at: string
+  updated_at: string
   signed_url: string | null
+  /** Place in its board column; null until a manager moves the card. */
+  board_position: number | null
+  /** Internal note, managers only. */
+  board_note: string | null
+  /** When the submitter was texted that this was treated. At most once, ever. */
+  sms_sent_at: string | null
+  /** True when the text predates the record (treated before the board existed). */
+  sms_sent_inferred: boolean
 }
 
 type FeedbackRow = {
@@ -167,6 +180,8 @@ type FeedbackRow = {
   transcribed_at?: string | null
   attachments?: unknown
   created_at: string
+  updated_at?: string
+  board?: FeedbackBoardRow | FeedbackBoardRow[] | null
   author?:
     | { full_name: string | null; callsign: string | null }
     | { full_name: string | null; callsign: string | null }[]
@@ -176,22 +191,31 @@ type FeedbackRow = {
 const FEEDBACK_SELECT_BASE =
   'id, user_id, kind, body, page_path, status, audio_storage_path, audio_mime_type, audio_byte_size'
 
+type FeedbackBoardRow = {
+  position: number | null
+  note: string | null
+  sms_sent_at?: string | null
+  sms_sent_inferred?: boolean | null
+}
+
 const FEEDBACK_SELECT_AUTHOR =
-  'created_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
+  'created_at, updated_at, author:profiles!user_feedback_user_id_fkey(full_name, callsign)'
 
 /** Columns later migrations added; each is dropped when the database does not have it yet. */
-export type FeedbackColumnGroup = 'task' | 'transcript' | 'attachments'
+export type FeedbackColumnGroup = 'task' | 'transcript' | 'attachments' | 'board'
 
 const FEEDBACK_COLUMN_GROUPS: Record<FeedbackColumnGroup, string> = {
   task: 'title, assignee_id',
   transcript: 'transcript, transcribed_at',
   attachments: 'attachments',
+  board: 'board:user_feedback_board(position, note, sms_sent_at, sms_sent_inferred)',
 }
 
 export const FEEDBACK_ALL_COLUMN_GROUPS: readonly FeedbackColumnGroup[] = [
   'task',
   'transcript',
   'attachments',
+  'board',
 ]
 
 export function feedbackSelect(groups: readonly FeedbackColumnGroup[]): string {
@@ -205,6 +229,7 @@ export function missingFeedbackColumnGroup(
   if (isMissingFeedbackTaskColumns(error)) return 'task'
   if (isMissingFeedbackTranscriptColumn(error)) return 'transcript'
   if (isMissingFeedbackAttachmentsColumn(error)) return 'attachments'
+  if (isMissingFeedbackBoardTable(error)) return 'board'
   return null
 }
 
@@ -341,6 +366,18 @@ export function isMissingFeedbackTaskColumns(
   )
 }
 
+/** Before 20261107120000 there is no user_feedback_board to embed or write. */
+export function isMissingFeedbackBoardTable(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false
+  const message = error.message ?? ''
+  return (
+    ((error.code === 'PGRST200' || error.code === 'PGRST205' || error.code === '42P01') &&
+      /user_feedback_board/.test(message))
+  )
+}
+
 export function parseFeedbackAttachments(raw: unknown): FeedbackAttachmentMeta[] {
   if (!Array.isArray(raw)) return []
   const out: FeedbackAttachmentMeta[] = []
@@ -470,6 +507,7 @@ function authorFromRow(row: FeedbackRow): { name: string | null; callsign: strin
 
 async function withSignedUrl(row: FeedbackRow): Promise<UserFeedback> {
   const author = authorFromRow(row)
+  const board = Array.isArray(row.board) ? row.board[0] : row.board
   let signed_url: string | null = null
   if (row.audio_storage_path) {
     const { data } = await supabase.storage
@@ -513,7 +551,12 @@ async function withSignedUrl(row: FeedbackRow): Promise<UserFeedback> {
     transcribed_at: row.transcribed_at ?? null,
     attachments,
     created_at: row.created_at,
+    updated_at: row.updated_at ?? row.created_at,
     signed_url,
+    board_position: board?.position ?? null,
+    board_note: board?.note ?? null,
+    sms_sent_at: board?.sms_sent_at ?? null,
+    sms_sent_inferred: board?.sms_sent_inferred === true,
   }
 }
 
@@ -703,9 +746,12 @@ async function updateFeedbackStatusRow(
   return { ok: true }
 }
 
-async function markFeedbackTreatedViaEdge(
-  id: string,
-): Promise<{ ok: true; sms: FeedbackSmsResult } | { ok: false; error: string }> {
+/** `smsSentAt` is when the submitter was texted, now or earlier; absent when they were not. */
+export type FeedbackStatusResult =
+  | { ok: true; sms?: FeedbackSmsResult; smsSentAt?: string | null; smsSentInferred?: boolean }
+  | { ok: false; error: string }
+
+async function markFeedbackTreatedViaEdge(id: string): Promise<FeedbackStatusResult> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
   if (sessionError || !token) {
@@ -739,9 +785,19 @@ async function markFeedbackTreatedViaEdge(
     return { ok: false, error: FEEDBACK_UPDATE_ERROR }
   }
 
-  const payload = data as { error?: string; sms?: FeedbackSmsResult }
+  const payload = data as {
+    error?: string
+    sms?: FeedbackSmsResult
+    sms_sent_at?: string | null
+    sms_sent_inferred?: boolean
+  }
   if (payload?.error) return { ok: false, error: payload.error }
-  return { ok: true, sms: payload.sms ?? 'sent' }
+  return {
+    ok: true,
+    sms: payload.sms ?? 'sent',
+    smsSentAt: payload.sms_sent_at ?? null,
+    smsSentInferred: payload.sms_sent_inferred === true,
+  }
 }
 
 const transcriptInflight = new Map<string, Promise<{ ok: true; transcript: string } | { ok: false; error: string }>>()
@@ -800,7 +856,7 @@ export async function updateUserFeedbackStatus(
   id: string,
   status: FeedbackStatus,
   options: { notifyAuthor?: boolean } = {},
-): Promise<{ ok: true; sms?: FeedbackSmsResult } | { ok: false; error: string }> {
+): Promise<FeedbackStatusResult> {
   if (status === 'fixed' && options.notifyAuthor !== false) {
     if (isImpersonating()) {
       const result = await updateFeedbackStatusRow(id, status)
@@ -932,5 +988,48 @@ export async function updateFeedbackTask(
     .update({ title: input.title.trim(), body: input.body.trim() || null })
     .eq('id', id)
   if (updateError) return { ok: false, error: FEEDBACK_TASK_SAVE_ERROR }
+  return { ok: true }
+}
+
+export const FEEDBACK_BOARD_ORDER_ERROR = 'הסדר בעמודה לא נשמר. נסו שוב.'
+export const FEEDBACK_BOARD_NOTE_ERROR = 'שמירת ההערה נכשלה. נסו שוב.'
+export const FEEDBACK_BOARD_UNAVAILABLE = 'סדר הכרטיסים וההערות עדיין לא זמינים במערכת.'
+
+/** Writes card positions in one call. Only the position column is sent, so a note is kept. */
+export async function saveFeedbackBoardPositions(
+  positions: readonly { id: string; position: number }[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (positions.length === 0) return { ok: true }
+  const { error } = await supabase
+    .from('user_feedback_board')
+    .upsert(
+      positions.map((item) => ({ feedback_id: item.id, position: item.position })),
+      { onConflict: 'feedback_id' },
+    )
+  if (error) {
+    return {
+      ok: false,
+      error: isMissingFeedbackBoardTable(error) ? FEEDBACK_BOARD_UNAVAILABLE : FEEDBACK_BOARD_ORDER_ERROR,
+    }
+  }
+  return { ok: true }
+}
+
+export async function saveFeedbackBoardNote(
+  id: string,
+  note: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const trimmed = note.trim()
+  const bodyErr = feedbackBodyError(trimmed)
+  if (bodyErr) return { ok: false, error: bodyErr }
+  const { error } = await supabase
+    .from('user_feedback_board')
+    .upsert({ feedback_id: id, note: trimmed || null }, { onConflict: 'feedback_id' })
+  if (error) {
+    return {
+      ok: false,
+      error: isMissingFeedbackBoardTable(error) ? FEEDBACK_BOARD_UNAVAILABLE : FEEDBACK_BOARD_NOTE_ERROR,
+    }
+  }
   return { ok: true }
 }

@@ -441,6 +441,55 @@ textarea.field__input {
   }
 }
 
+/* Calendar tap target. Not `.visually-hidden`: iOS Safari will not reopen a
+   date picker on a clipped 1px input, and showPicker() on that input throws.
+   Same 40px box as `.field__affix`. 16px type so iOS does not zoom on focus. */
+.field__date-picker {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: var(--space-1);
+  width: var(--space-10);
+  height: var(--space-10);
+  min-width: var(--space-10);
+  max-width: var(--space-10);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  font: 400 16px/24px var(--font-ui);
+  cursor: pointer;
+}
+
+.field__date-picker::-webkit-datetime-edit {
+  color: transparent;
+}
+
+.field__date-picker::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.field__control:has(.field__date-picker:focus-visible) .field__affix {
+  background: var(--accent-subtle);
+}
+
+@media (hover: hover) {
+  .field__control:has(.field__date-picker:hover) .field__affix {
+    background: var(--accent-subtle);
+  }
+}
+
+.field__date-picker:disabled {
+  cursor: default;
+}
+
 .field__counter {
   margin-block-end: var(--space-1);
   color: var(--text-muted);
@@ -7822,6 +7871,7 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .event-form__panel[data-readonly] .field__affix,
+.event-form__panel[data-readonly] .field__date-picker,
 .event-form__panel[data-readonly] .event-form__cancelled:not(.event-form__cancelled--on),
 .event-form__panel[data-readonly] .responder-assign__toolbar .btn,
 .event-form__panel[data-readonly] .assignment-empty .btn,
@@ -9196,9 +9246,7 @@ fieldset.field {
   flex: none;
 }
 
-.feedback-record__preview,
-.feedback-inbox__head,
-.feedback-inbox__actions {
+.feedback-record__preview {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -9222,91 +9270,6 @@ fieldset.field {
 
 .feedback-record__preview .feedback-record__audio {
   flex: 1;
-}
-
-.feedback-inbox {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.feedback-inbox__head {
-  justify-content: space-between;
-}
-
-.feedback-inbox__body {
-  white-space: pre-wrap;
-}
-
-.feedback-inbox__filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3) var(--space-4);
-}
-
-/* Five chips do not fit 320 to 360 px; wrap instead of the default sideways scroll. */
-.feedback-inbox__filters .chips {
-  flex-wrap: wrap;
-  overflow-x: visible;
-}
-
-.feedback-inbox__filter {
-  flex: 1 1 14em;
-}
-
-.feedback-inbox__filter,
-.feedback-inbox__assignee {
-  max-inline-size: 20em;
-}
-
-.feedback-inbox__assignee {
-  margin-block: var(--space-3);
-}
-
-.feedback-inbox__head {
-  flex-wrap: nowrap;
-  align-items: flex-start;
-}
-
-.feedback-inbox__head > .t-section {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.feedback-inbox__head > .stamp {
-  flex-shrink: 0;
-}
-
-/* A card mid-save keeps focus on its controls, so they are aria-disabled, not
-   disabled; same dimming as .btn:disabled. */
-.feedback-inbox .btn[aria-disabled='true'] {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.feedback-inbox__actions > .t-caption {
-  align-self: center;
-}
-
-/* On a card, מחיקה only opens the confirm, so it takes the lightest destructive
-   recipe (the Command theme's red outline); the confirm keeps the solid fill. */
-.feedback-inbox__actions .btn--destructive {
-  background: transparent;
-  border: 1px solid var(--status-alert);
-  color: var(--status-alert);
-}
-
-@media (hover: hover) {
-  .feedback-inbox__actions .btn--destructive:hover:not(:disabled) {
-    background: var(--status-alert-tint);
-  }
-}
-
-.feedback-inbox__transcript {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
 }
 
 .feedback-attach {
@@ -9350,7 +9313,7 @@ fieldset.field {
   text-align: start;
 }
 
-.feedback-inbox__files {
+.board-detail__files {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -9359,7 +9322,7 @@ fieldset.field {
   gap: var(--space-3);
 }
 
-.feedback-inbox__thumb {
+.board-detail__thumb {
   display: block;
   max-width: 100%;
   max-height: 240px;
@@ -9370,11 +9333,390 @@ fieldset.field {
   background: var(--surface-sunken);
 }
 
-.feedback-inbox__video {
+.board-detail__video {
   width: 100%;
   max-height: 240px;
   border-radius: var(--radius-sm);
   background: var(--surface-sunken);
+}
+
+/* ============================================================
+   משוב board (docs/feedback-board.md). Columns are sunken trays so the
+   raised cards read as paper laid on them; the accent marks only the drop.
+   ============================================================ */
+
+/* Four columns need the wide registry width. */
+.shell__main > .board-page {
+  max-width: calc(var(--content-max) * 1.2);
+}
+
+.board-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.board-toolbar .chips {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+/* Phone only: one column at a time. */
+.board-switch {
+  display: none;
+}
+
+.board {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--space-3);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-block-end: var(--space-2);
+}
+
+/* Positioned so visually hidden labels stay inside the board's scroll box on tablet. */
+.board-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  scroll-snap-align: start;
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+/* Open columns share the width; a folded column keeps only its strip. */
+.board > .board-col {
+  flex: 1 1 0;
+  min-width: 220px;
+}
+
+.board > .board-col--folded {
+  flex: 0 0 56px;
+  min-width: 56px;
+  padding: 0;
+}
+
+/* The whole folded column is one button: count, title along the spine, expand mark. */
+.board-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 240px;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+@media (hover: hover) {
+  .board-strip:hover {
+    background: var(--accent-subtle);
+  }
+}
+
+.board-strip:focus-visible {
+  outline-offset: -2px;
+}
+
+.board-strip__count {
+  color: var(--text-secondary);
+  font: 500 14px/20px var(--font-mono);
+}
+
+/* Vertical along the spine. In RTL the line runs bottom to top, so the Hebrew
+   reads correctly with the head tilted left, like a book spine. */
+.board-strip__title {
+  writing-mode: vertical-rl;
+  font: 600 16px/24px var(--font-ui);
+  white-space: nowrap;
+}
+
+.board-strip > svg {
+  margin-block-start: auto;
+  color: var(--text-secondary);
+}
+
+.board-col.is-drop-target {
+  border-color: var(--accent);
+}
+
+.board-col__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-inline: var(--space-1);
+}
+
+.board-col__head > h2,
+.board-col__head > .t-label {
+  flex: 1;
+  margin: 0;
+  color: var(--text-primary);
+  font: 600 16px/24px var(--font-ui);
+}
+
+/* 44 px target without making the header taller than its title row. */
+.board-col__fold {
+  margin-block: calc(var(--space-2) * -1);
+  margin-inline-end: calc(var(--space-2) * -1);
+}
+
+/* The button overlaps the column padding, so its ring sits inside it. */
+.board-col__fold:focus-visible {
+  outline-offset: -2px;
+}
+
+.board-col__count {
+  color: var(--text-secondary);
+  font: 500 14px/20px var(--font-mono);
+}
+
+.board-col__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 88px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-col__empty {
+  padding: var(--space-4) var(--space-3);
+  border: 1px dashed var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* Loading cards are blank paper on the tray, the same shape as a real card. */
+.board-col .skeleton {
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.board-col__line {
+  height: 2px;
+  margin-block: -1px;
+  background: var(--accent);
+}
+
+.board-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+@media (hover: hover) {
+  .board-card:hover {
+    border-color: var(--stroke-strong);
+  }
+}
+
+/* The card is one target (the title button stretched over it); its ring goes on the card. */
+.board-card:has(.board-card__open:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.board-card__open:focus-visible {
+  outline: none;
+}
+
+.board-card.is-dragging {
+  opacity: 0.4;
+}
+
+.board-card__top {
+  order: -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-block: calc(var(--space-2) * -1) calc(var(--space-1) * -1);
+  margin-inline-end: calc(var(--space-2) * -1);
+}
+
+/* Above the stretched title button, so the menu stays clickable. */
+.board-card__top .overflow-menu {
+  position: relative;
+  z-index: 1;
+}
+
+.board-card__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  letter-spacing: 0.01em;
+}
+
+.board-card__open {
+  display: -webkit-box;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: 400 16px/24px var(--font-ui);
+  text-align: start;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  cursor: pointer;
+}
+
+.board-card__open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+}
+
+.board-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 28px;
+  color: var(--text-secondary);
+}
+
+.board-card__who {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-card__when {
+  flex: none;
+}
+
+/* The marks sit at the far (inline-end) side of the row. */
+.board-card__marks {
+  margin-inline-start: auto;
+}
+
+.board-card__marks,
+.board-card__mark,
+.board-card__owner {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.board-card__marks {
+  gap: var(--space-2);
+}
+
+/* Card ⋮ menu (BoardCardMenu): rows that carry an icon at inline-end, and מחיקה
+   set apart below a hairline. */
+.board-menu {
+  width: 220px;
+}
+
+.board-menu .board-menu__sub,
+.board-menu .board-menu__choice,
+.board-menu .board-menu__back {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.board-menu .board-menu__back {
+  justify-content: flex-start;
+  color: var(--text-secondary);
+}
+
+.board-menu .board-menu__choice[aria-checked='true'] {
+  color: var(--accent);
+}
+
+.board-menu .board-menu__danger {
+  margin-block-start: var(--space-1);
+  border-block-start: 1px solid var(--stroke-hairline);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.board-menu button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.board-filter-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.board-detail__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.board-detail__body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.board-detail__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .board-switch {
+    display: block;
+    width: 100%;
+  }
+
+  /* Thumb targets: the filter and column chips are the phone's navigation. */
+  .board-toolbar .chip {
+    height: 44px;
+  }
+
+  .board {
+    display: block;
+    overflow: visible;
+  }
+
+  .board-col {
+    display: none;
+  }
+
+  .board-col[data-active='true'] {
+    display: flex;
+  }
 }
 
 /* ============================================================

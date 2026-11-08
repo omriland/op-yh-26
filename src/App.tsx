@@ -49,7 +49,7 @@ import { ShiftsPage } from './pages/ShiftsPage'
 import { ContactsPage } from './pages/ContactsPage'
 import { SearchPage } from './pages/SearchPage'
 import { useSearchShortcut } from './lib/searchShortcut'
-import { FeedbackInboxPage } from './pages/FeedbackInboxPage'
+import { FeedbackBoardPage } from './pages/FeedbackBoardPage'
 import { EventLocationsPage } from './pages/EventLocationsPage'
 import { EventAuditPage } from './pages/EventAuditPage'
 import { IosDevicesAdminPage } from './pages/IosDevicesAdminPage'
@@ -1209,7 +1209,7 @@ function Gate() {
           <UsersMapPage key={sectionReset} />
         </div>
       ) : activeView === 'feedback' && isSuperAdmin ? (
-        <FeedbackInboxPage key={sectionReset} />
+        <FeedbackBoardPage key={sectionReset} viewerId={user?.id ?? null} />
       ) : activeView === 'event_locations' && isSuperAdmin ? (
         <EventLocationsPage
           key={sectionReset}
@@ -1267,9 +1267,11 @@ function Gate() {
           scope={shiftScope}
           asTable={Boolean(commandShell && shiftScope === 'unit')}
           canManage={manages && shiftScope === 'unit'}
-          onOpen={(shiftId) => setShiftSurface({ kind: 'detail', shiftId })}
+          onOpen={(shiftId) => {
+            setEventSurface({ kind: 'list' })
+            setShiftSurface({ kind: 'detail', shiftId })
+          }}
           onFill={(shiftId) => setShiftSurface({ kind: 'form', shiftId })}
-          onOpenEvent={(eventId) => setEventSurface({ kind: 'detail', eventId })}
           onCreate={
             manages && shiftScope === 'unit'
               ? () => setShiftSurface({ kind: 'form' })

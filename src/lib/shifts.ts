@@ -43,6 +43,7 @@ export type ShiftLinkedEventSummary = {
 
 export type ShiftBornEventSummary = {
   id: string
+  event_type_id?: string | null
   event_date: string
   police_event_id: string | null
   status: EventStatus
@@ -343,6 +344,7 @@ const SHIFT_DETAIL_SELECT = `
   last_saved:profiles!shifts_last_saved_by_fkey(full_name),
   born_events:events!events_shift_id_fkey(
     id,
+    event_type_id,
     event_date,
     police_event_id,
     status,

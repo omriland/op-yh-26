@@ -111,6 +111,7 @@ function isOpenStandalone(row: {
   patrolCallsignNumber?: string | null;
   patrolCallsign?: string | null;
   hasRoad?: boolean;
+  event_type?: unknown;
 }): boolean {
   if (row.origin !== "manual") return false;
   if (row.isCancelled) return false;
@@ -128,10 +129,15 @@ function manualEventReleased(row: {
   patrol_callsign?: string | null;
   hasRoad?: boolean;
   road?: unknown;
+  hasEventType?: boolean;
+  event_type?: unknown;
+  eventType?: unknown;
 }): boolean {
   if (row.origin === "shift") return true;
   const policeId = String(row.policeEventId ?? row.police_event_id ?? "").trim();
   if (!policeId) return false;
+  const hasType = row.hasEventType ?? Boolean(row.eventType ?? row.event_type);
+  if (!hasType) return false;
   const road = row.road;
   const hasRoad = row.hasRoad ?? (Array.isArray(road) ? road.length > 0 : Boolean(road));
   if (!hasRoad) return false;
@@ -272,6 +278,7 @@ async function loadAssignment(
       patrol_callsign: event.patrol_callsign,
       patrol_callsign_number: event.patrol_callsign_number,
       road: event.road,
+      event_type: event.event_type,
     })
   ) {
     return null;
@@ -523,6 +530,7 @@ async function handleListOpen(admin: SupabaseClient, userId: string): Promise<Re
         patrolCallsign: event.patrol_callsign,
         patrolCallsignNumber: event.patrol_callsign_number,
         hasRoad: Boolean(event.road),
+        event_type: event.event_type,
       })
     ) {
       return [];

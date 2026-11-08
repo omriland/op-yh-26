@@ -161,10 +161,10 @@ export function incompleteNoticeLabel(fields: Set<IncompleteField>): string {
 export const HELD_FROM_RESPONDERS_LABEL = 'לא נשלח למתנדבים'
 
 export const RESPONDERS_HELD_FOR_POLICE_ID_NOTE =
-  'האירוע לא יוצג למתנדב עד שאו״ק, כביש ומספר אירוע מלאים.'
+  'האירוע לא יוצג למתנדב עד שסוג אירוע, או״ק, כביש ומספר אירוע מלאים.'
 
 export const RESPONDER_ADDED_HELD_TOAST =
-  'המתנדב נוסף. האירוע לא יוצג לו עד שאו״ק, כביש ומספר אירוע מלאים.'
+  'המתנדב נוסף. האירוע לא יוצג לו עד שסוג אירוע, או״ק, כביש ומספר אירוע מלאים.'
 
 /** Lead list chips: missing fields, plus a send-hold mark when volunteers are already assigned. */
 export function incompleteLeadNoticeLabels(

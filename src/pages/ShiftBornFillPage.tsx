@@ -6,6 +6,7 @@ import {
   fetchShiftBornFillContext,
   resolveShiftBornStash,
   saveShiftBornEventFill,
+  saveShiftBornEventType,
   type ShiftBornFillContext,
   shiftBornCompleteErrors,
   type ShiftBornFillDraft,
@@ -66,12 +67,15 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const { user, roles } = useAuth()
   const { show } = useToast()
   const canManage = roles.includes('admin') || roles.includes('shift_lead')
+  const isSuperAdmin = roles.includes('super_admin')
   const [ctx, setCtx] = useState<ShiftBornFillContext | null>(null)
   const [draft, setDraft] = useState<ShiftBornFillDraft | null>(null)
   const [expectedAt, setExpectedAt] = useState<string | null>(null)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading')
   const [saving, setSaving] = useState(false)
   const [completing, setCompleting] = useState(false)
+  const [eventTypeId, setEventTypeId] = useState('')
+  const [savingType, setSavingType] = useState(false)
   const [platePending, setPlatePending] = useState('')
   const [plateError, setPlateError] = useState<string | undefined>()
   const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
@@ -122,6 +126,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           return
         }
         setCtx(next)
+        setEventTypeId(next.event.event_type_id ?? '')
         savedDraftRef.current = next.draft
         const stashed = readFillDraft<ShiftBornStash>(
           SHIFT_BORN_STASH_SCOPE,
@@ -233,6 +238,49 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     }
   }
 
+  async function onEventTypeChange(nextTypeId: string) {
+    if (!ctx || savingType) return
+    const previousTypeId = ctx.event.event_type_id ?? eventTypeId
+    if (nextTypeId === previousTypeId) return
+    const expected = expectedAtRef.current
+    if (!expected) return
+    const shown = eventTypeId
+    setEventTypeId(nextTypeId)
+    setSavingType(true)
+    const result = await saveShiftBornEventType({
+      eventId,
+      previousTypeId,
+      nextTypeId,
+      expectedUpdatedAt: expected,
+    })
+    setSavingType(false)
+    if (!result.ok) {
+      setEventTypeId(shown)
+      show(result.error, 'alert')
+      return
+    }
+    if ('unchanged' in result) return
+    setExpectedAt(result.updated_at)
+    setCtx((current) => {
+      if (!current) return current
+      const name =
+        current.eventTypes.find((row) => row.id === nextTypeId)?.name ??
+        current.event.event_type?.name ??
+        null
+      return {
+        ...current,
+        expected_updated_at: result.updated_at,
+        event: {
+          ...current.event,
+          event_type_id: nextTypeId,
+          event_type: name ? { name } : current.event.event_type,
+          updated_at: result.updated_at,
+        },
+      }
+    })
+    show('סוג האירוע נשמר', 'done')
+  }
+
   function patchDraft(patch: Partial<ShiftBornFillDraft>) {
     setDraft((current) => (current ? { ...current, ...patch } : current))
   }
@@ -323,6 +371,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           // penalise precisely the person who was still working. Take the new
           // token so a deliberate re-save can win, keep their text, and say so.
           setCtx((current) => (current ? { ...current, ...next, draft: current.draft } : next))
+          setEventTypeId(next.event.event_type_id ?? '')
           setExpectedAt(next.expected_updated_at)
           setConflict(true)
         }
@@ -433,11 +482,29 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           </p>
         ) : null}
 
-        <section className="card responder-fill__context">
+        <section className="card responder-fill__context stack-4">
           <Ledger>
             <LedgerRow label="תאריך" value={formatDate(ctx.event.event_date)} numeric />
-            <LedgerRow label="סוג אירוע" value={ctx.event.event_type?.name ?? undefined} />
+            {isSuperAdmin ? null : (
+              <LedgerRow label="סוג אירוע" value={ctx.event.event_type?.name ?? undefined} />
+            )}
           </Ledger>
+          {isSuperAdmin ? (
+            <SelectField
+              label="סוג אירוע"
+              required
+              value={eventTypeId}
+              disabled={savingType}
+              options={ctx.eventTypes
+                .map((row) => ({ value: row.id, label: row.name }))
+                .concat(
+                  eventTypeId && !ctx.eventTypes.some((row) => row.id === eventTypeId)
+                    ? [{ value: eventTypeId, label: ctx.event.event_type?.name ?? 'סוג אירוע' }]
+                    : [],
+                )}
+              onChange={(event) => void onEventTypeChange(event.target.value)}
+            />
+          ) : null}
         </section>
 
         <section className="form-section responder-fill__section">

@@ -8,33 +8,60 @@ export type MarkTreatedRow = {
   author: { full_name: string | null; phone: string | null };
 };
 
-export type MarkTreatedSms = "sent" | "skipped" | "skipped_no_phone" | "failed";
+export type MarkTreatedSms =
+  | "sent"
+  | "already_sent"
+  | "skipped"
+  | "skipped_no_phone"
+  | "failed";
 
 /**
- * Sets the row to fixed and texts the submitter once. A task (title set) was
- * opened by a super admin, so it never texts anyone.
+ * Result of claiming the one SMS a feedback item may send: `claimed` (this
+ * request sends), `already_sent` (sent, or a send was claimed and never
+ * released), or `error` (the record could not be read or written).
+ */
+export type SmsClaim = "claimed" | "already_sent" | "error";
+
+/**
+ * Sets the row to fixed and texts the submitter at most once, ever. A task
+ * (title set) was opened by a super admin, so it never texts anyone.
+ *
+ * The once-only rule is the claim: an atomic write that succeeds for one
+ * request only. A failed send releases it so a later טופל can try again; a
+ * successful send records sms_sent_at. If recording fails after Soprano
+ * accepted the message, the claim stays, so nothing is sent again.
  */
 export async function markFeedbackTreated(
   row: MarkTreatedRow,
   deps: {
     setFixed: () => Promise<boolean>;
     smsDestination: (phone: string | null) => string | null;
+    claimSms: () => Promise<SmsClaim>;
     sendSms: (destination: string, message: string) => Promise<boolean>;
+    markSmsSent: () => Promise<void>;
+    releaseSms: () => Promise<void>;
   },
 ): Promise<{ ok: true; sms: MarkTreatedSms } | { ok: false }> {
-  const alreadyFixed = row.status === "fixed";
-  if (!alreadyFixed && !(await deps.setFixed())) return { ok: false };
+  if (row.status !== "fixed" && !(await deps.setFixed())) return { ok: false };
   if (row.title !== null) return { ok: true, sms: "skipped" };
-  if (alreadyFixed) return { ok: true, sms: "sent" };
 
   const destination = deps.smsDestination(row.author.phone);
   if (!destination) return { ok: true, sms: "skipped_no_phone" };
+
+  const claim = await deps.claimSms();
+  if (claim === "already_sent") return { ok: true, sms: "already_sent" };
+  // Fail closed: without a record of the claim, texting could repeat.
+  if (claim !== "claimed") return { ok: true, sms: "failed" };
 
   const message = buildFeedbackTreatedSms({
     fullName: row.author.full_name,
     body: row.body,
     hasAudio: Boolean(row.audio_storage_path),
   });
-  const sent = await deps.sendSms(destination, message);
-  return { ok: true, sms: sent ? "sent" : "failed" };
+  if (!(await deps.sendSms(destination, message))) {
+    await deps.releaseSms();
+    return { ok: true, sms: "failed" };
+  }
+  await deps.markSmsSent();
+  return { ok: true, sms: "sent" };
 }

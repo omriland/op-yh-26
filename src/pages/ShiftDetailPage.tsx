@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronRight, ClipboardList } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { listShiftEvents } from '../lib/shiftListEvents'
 import {
   lastSavedByLabel,
   policeEventLabel,
@@ -157,7 +158,7 @@ export function ShiftDetailPage({
     canManage || (viewerAssigned && canEditShiftByDate(shift.shift_date))
 
   const eventTypeCounts = shift.event_type_counts.filter((row) => row.count > 0)
-  const bornEvents = shift.born_events ?? []
+  const bornEvents = listShiftEvents(shift.born_events)
   const savedLabel = lastSavedByLabel(shift.last_saved?.full_name)
 
   async function confirmDeleteShift() {

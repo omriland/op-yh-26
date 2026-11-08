@@ -41,7 +41,6 @@ type ShiftsPageProps = {
   canManage?: boolean
   onOpen: (shiftId: string) => void
   onFill?: (shiftId: string) => void
-  onOpenEvent?: (eventId: string) => void
   onCreate?: () => void
 }
 
@@ -51,7 +50,6 @@ export function ShiftsPage({
   canManage = false,
   onOpen,
   onFill,
-  onOpenEvent,
   onCreate,
 }: ShiftsPageProps) {
   const isDesktop = useIsDesktop()
@@ -272,7 +270,6 @@ export function ShiftsPage({
                   shifts={mineSections.pending}
                   onOpen={onOpen}
                   onFill={onFill}
-                  onOpenEvent={onOpenEvent}
                   canManageLead={canManageLead}
                 />
               )}
@@ -284,7 +281,6 @@ export function ShiftsPage({
                 shifts={mineSections.future}
                 onOpen={onOpen}
                 onFill={onFill}
-                onOpenEvent={onOpenEvent}
                 canManageLead={canManageLead}
               />
             </DateGroup>
@@ -300,7 +296,6 @@ export function ShiftsPage({
                   shifts={mineSections.logged}
                   onOpen={onOpen}
                   onFill={onFill}
-                  onOpenEvent={onOpenEvent}
                   canManageLead={canManageLead}
                 />
               )}
@@ -333,7 +328,6 @@ export function ShiftsPage({
           <ShiftsTable
             shifts={visible}
             onOpen={onOpen}
-            onOpenEvent={onOpenEvent}
             viewer={freezeViewer}
           />
           {scope === 'unit' && unitWindow?.hasMore ? (
@@ -351,7 +345,6 @@ export function ShiftsPage({
                   shifts={items}
                   onOpen={onOpen}
                   onFill={onFill}
-                  onOpenEvent={onOpenEvent}
                   canManageLead={canManageLead}
                 />
               </DateGroup>
@@ -383,13 +376,11 @@ function ShiftCards({
   shifts,
   onOpen,
   onFill,
-  onOpenEvent,
   canManageLead,
 }: {
   shifts: ShiftListItem[]
   onOpen: (shiftId: string) => void
   onFill?: (shiftId: string) => void
-  onOpenEvent?: (eventId: string) => void
   canManageLead: boolean
 }) {
   const freezeViewer = useFreezeViewer()
@@ -401,7 +392,6 @@ function ShiftCards({
           shift={shift}
           onOpen={onOpen}
           onFill={onFill}
-          onOpenEvent={onOpenEvent}
           viewer={freezeViewer}
           fillDisabled={!canDocumentShift({ shiftDate: shift.shift_date, canManageLead })}
           fillDisabledReason={SHIFT_TOO_EARLY_MESSAGE}
