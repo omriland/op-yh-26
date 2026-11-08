@@ -38,13 +38,21 @@ describe('shouldClearInviteOnPasswordSignIn', () => {
 })
 
 describe('hasAvailability', () => {
+  const status = 'active_volunteer'
+
   it('is false while registration is pending', () => {
-    expect(hasAvailability({ active: true, invite_pending: true })).toBe(false)
+    expect(hasAvailability({ active: true, invite_pending: true, volunteer_status: status })).toBe(false)
   })
 
   it('is true for registered users, including inactive', () => {
-    expect(hasAvailability({ active: true, invite_pending: false })).toBe(true)
-    expect(hasAvailability({ active: false, invite_pending: false })).toBe(true)
+    expect(hasAvailability({ active: true, invite_pending: false, volunteer_status: status })).toBe(true)
+    expect(hasAvailability({ active: false, invite_pending: false, volunteer_status: status })).toBe(true)
+  })
+
+  it('is false for מנהלה, חניכה בסיסית and משמרות בלבד', () => {
+    for (const volunteer_status of ['administration', 'basic_training', 'shifts_only']) {
+      expect(hasAvailability({ active: true, invite_pending: false, volunteer_status })).toBe(false)
+    }
   })
 })
 

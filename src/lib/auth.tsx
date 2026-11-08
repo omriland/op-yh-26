@@ -33,6 +33,7 @@ import {
   readRolePreviewStash,
 } from './rolePreviewStash'
 import { parseAvailabilityStatus, type AvailabilityStatus } from './availability'
+import { parseVolunteerStatus, type VolunteerStatus } from './volunteerStatus'
 import { captureEvent, identifyPosthogUser, resetPosthogUser } from './posthog'
 import { shouldClearInviteOnPasswordSignIn } from './adminUserStatus'
 import { passwordStrengthError } from './passwordRules'
@@ -56,6 +57,7 @@ export type Profile = {
   must_change_password: boolean
   otp_login_enabled: boolean
   otp_users_page_enabled: boolean
+  volunteer_status: VolunteerStatus
   availability: AvailabilityStatus
   available_from: string | null
   lifetime_event_count: number
@@ -102,7 +104,7 @@ async function loadProfileAndRoles(userId: string) {
     supabase
       .from('profiles')
       .select(
-        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled, availability, available_from, lifetime_event_count, lifetime_km, lifetime_stats_updated_at, invite_pending',
+        'id, full_name, email, callsign, phone, active, must_change_password, otp_login_enabled, otp_users_page_enabled, volunteer_status, availability, available_from, lifetime_event_count, lifetime_km, lifetime_stats_updated_at, invite_pending',
       )
       .eq('id', userId)
       .maybeSingle(),
@@ -116,6 +118,7 @@ async function loadProfileAndRoles(userId: string) {
           ...row,
           otp_login_enabled: Boolean(row.otp_login_enabled),
           otp_users_page_enabled: Boolean(row.otp_users_page_enabled),
+          volunteer_status: parseVolunteerStatus(row.volunteer_status),
           availability: parseAvailabilityStatus(row.availability),
           available_from:
             typeof row.available_from === 'string' && row.available_from

@@ -74,6 +74,7 @@ import { MOBILE_MORE_LABEL, splitMobileNav } from '../../lib/mobileNav'
 import { NAV_FLYOUT_MIN_WIDTH, placeNavFlyout } from '../../lib/navFlyoutPlacement'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../availability/AvailabilityControl'
+import { hasAvailabilityStatus } from '../../lib/volunteerStatus'
 import { Dialog } from '../ui/Dialog'
 import { SnykBadge } from './SnykBadge'
 import { FeedbackFab } from '../feedback/FeedbackFab'
@@ -362,7 +363,7 @@ function UserChrome({
   return (
     <>
       <div className="appbar__cluster">
-          {isDesktop && profile ? (
+          {isDesktop && profile && hasAvailabilityStatus(profile.volunteer_status) ? (
             <AvailabilityPopoverTrigger
               target={{
                 id: profile.id,
@@ -397,7 +398,7 @@ function UserChrome({
                   או״ק{' '}
                   <span className={monoClass(profile?.callsign)}>{profile?.callsign ?? '—'}</span>
                 </p>
-                {!isDesktop && profile ? (
+                {!isDesktop && profile && hasAvailabilityStatus(profile.volunteer_status) ? (
                   <AvailabilityTrigger
                     target={{
                       id: profile.id,

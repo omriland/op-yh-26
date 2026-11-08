@@ -121,6 +121,7 @@ import {
 import {
   DEFAULT_VOLUNTEER_STATUS,
   VOLUNTEER_STATUS_OPTIONS,
+  hasAvailabilityStatus,
   volunteerStatusLabel,
   type VolunteerStatus,
 } from '../lib/volunteerStatus'
@@ -1287,9 +1288,9 @@ export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
                         disabled={!canMutate}
                         onSaved={patchUserAvailability}
                       />
-                    ) : (
+                    ) : hasAvailabilityStatus(user.volunteer_status) ? (
                       <span className="text-muted">—</span>
-                    )}
+                    ) : null}
                   </td>
                   <td className="table-col--otp table-cell--nowrap">
                     {otpLabel ? (
