@@ -52,6 +52,7 @@ describe('validateSmartSearchFilter', () => {
   })
   it('keeps booleans and drops non-booleans', () => {
     expect(validateSmartSearchFilter({ damaged: true, include_cancelled: 'yes' }, vocab)).toEqual({ ...base, damaged: true })
+    expect(validateSmartSearchFilter({ damaged: false }, vocab)).toEqual(base)
   })
 })
 
@@ -80,8 +81,36 @@ describe('new keys', () => {
   })
 })
 
+/** Parameters Claude counts as union-typed: anyOf/oneOf, or a type array. */
+function unionParams(schema: any): number {
+  let n = 0
+  const walk = (node: any) => {
+    if (!node || typeof node !== 'object') return
+    if (Array.isArray(node.anyOf) || Array.isArray(node.oneOf) || Array.isArray(node.type)) n++
+    for (const value of Object.values(node.properties ?? {})) walk(value)
+    if (node.items) walk(node.items)
+    for (const branch of [...(node.anyOf ?? []), ...(node.oneOf ?? [])]) walk(branch)
+  }
+  walk(schema)
+  return n
+}
+
 describe('smartSearchJsonSchema', () => {
-  it('requires every parser key, allows nothing else and lists the vocab', () => {
+  const big = {
+    eventTypes: Array.from({ length: 30 }, (_, i) => `סוג ${i}`),
+    districts: ['צפון', 'מרכז', 'דרום'],
+    hitTypes: ['גג'],
+  }
+
+  it('stays within the structured-output limit of 16 union-typed parameters', () => {
+    expect(unionParams(smartSearchJsonSchema(vocab))).toBeLessThanOrEqual(16)
+    expect(unionParams(smartSearchJsonSchema(big))).toBeLessThanOrEqual(16)
+  })
+  it('uses no unions at all: an unused key is "" or false, never null', () => {
+    expect(unionParams(smartSearchJsonSchema(big))).toBe(0)
+    expect(JSON.stringify(smartSearchJsonSchema(big))).not.toContain('"null"')
+  })
+  it('requires every parser key, so no key is optional (optional keys made the schema "too complex")', () => {
     const s = smartSearchJsonSchema(vocab) as any
     expect(s.type).toBe('object')
     expect(s.additionalProperties).toBe(false)
@@ -90,16 +119,17 @@ describe('smartSearchJsonSchema', () => {
     expect(JSON.stringify(s)).toContain('פגוש קדמי')
     expect(s.properties).not.toHaveProperty('person_ids')
   })
-  it('uses anyOf with null for optional keys, not a type array', () => {
-    const s = smartSearchJsonSchema(vocab) as any
-    expect(s.properties.road).toEqual({ anyOf: [{ type: 'string' }, { type: 'null' }] })
-    expect(JSON.stringify(s)).not.toMatch(/"type":\[/)
-  })
-  it('turns an empty closed list into null-only instead of an empty enum', () => {
+  it('gives every closed list "" as its empty value, so an empty list is still a valid enum', () => {
     const s = smartSearchJsonSchema({ ...vocab, districts: [] }) as any
-    expect(s.properties.district).toEqual({ type: 'null' })
+    expect(s.properties.district).toEqual({ type: 'string', enum: [''] })
+    expect(s.properties.event_type.enum[0]).toBe('')
   })
   it('has no numeric or length constraints structured outputs would reject', () => {
     expect(JSON.stringify(smartSearchJsonSchema(vocab))).not.toMatch(/minLength|maxLength|minimum|maximum|pattern/)
+  })
+  it('reads the empty values "" and false as absent', () => {
+    const empty = Object.fromEntries(SMART_SEARCH_FILTER_KEYS.map((k) => [k, '']))
+    const reply = { ...empty, intent: 'find', entity: 'events', source: 'both', road: '6', damaged: false, include_cancelled: false }
+    expect(validateSmartSearchFilter(reply, vocab)).toEqual({ intent: 'find', entity: 'events', source: 'both', road: '6' })
   })
 })

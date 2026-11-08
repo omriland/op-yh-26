@@ -133,8 +133,9 @@ export function validateSmartSearchFilter(raw: unknown, vocab: SmartSearchVocab)
     f.no_shift_to = noTo
   }
 
-  if (typeof r.include_cancelled === 'boolean') f.include_cancelled = r.include_cancelled
-  if (typeof r.damaged === 'boolean') f.damaged = r.damaged
+  // false is the parser's empty value, the same as leaving the flag out.
+  if (r.include_cancelled === true) f.include_cancelled = true
+  if (r.damaged === true) f.damaged = true
 
   if (Array.isArray(r.person_ids)) {
     const ids = [...new Set(r.person_ids.filter((id): id is string => typeof id === 'string' && UUID.test(id)))]
@@ -157,15 +158,17 @@ export function validateSmartSearchFilter(raw: unknown, vocab: SmartSearchVocab)
 
 /**
  * The structured-output schema for the parser (Claude `output_config.format`).
- * Nullable fields are `anyOf` with null, every key is required, and an empty
- * closed list becomes null-only (an empty enum is not a valid schema).
+ * Every key is required and none is a union: structured outputs allow at most 16
+ * union-typed parameters, and optional keys make the grammar grow until the API
+ * answers "Schema is too complex" (19 optional keys took 144 s to fail). So an
+ * unused string is "" and an unused flag is false, both of which
+ * validateSmartSearchFilter reads as absent. Closed lists carry "" as their empty
+ * value.
  */
 export function smartSearchJsonSchema(vocab: SmartSearchVocab): Record<string, unknown> {
-  const nullable = (schema: Record<string, unknown>) => ({ anyOf: [schema, { type: 'null' }] })
-  const str = nullable({ type: 'string' })
-  const bool = nullable({ type: 'boolean' })
-  const nullableEnum = (values: readonly string[]) =>
-    values.length > 0 ? nullable({ type: 'string', enum: [...values] }) : { type: 'null' }
+  const str = { type: 'string' }
+  const bool = { type: 'boolean' }
+  const list = (values: readonly string[]) => ({ type: 'string', enum: ['', ...values] })
   const properties: Record<(typeof SMART_SEARCH_FILTER_KEYS)[number], unknown> = {
     intent: { type: 'string', enum: INTENTS },
     entity: { type: 'string', enum: ENTITIES },
@@ -175,18 +178,18 @@ export function smartSearchJsonSchema(vocab: SmartSearchVocab): Record<string, u
     police_event_id: str,
     road: str,
     location_text: str,
-    event_type: nullableEnum(vocab.eventTypes),
-    district: nullableEnum(vocab.districts),
+    event_type: list(vocab.eventTypes),
+    district: list(vocab.districts),
     plate: str,
     vehicle_text: str,
     person: str,
-    person_role: nullableEnum(PERSON_ROLES),
+    person_role: list(PERSON_ROLES),
     text: str,
-    status: nullableEnum(STATUSES),
+    status: list(STATUSES),
     include_cancelled: bool,
     damaged: bool,
-    damage_location: nullableEnum(vocab.hitTypes),
-    volunteer_status: nullableEnum(VOLUNTEER_STATUS_VALUES),
+    damage_location: list(vocab.hitTypes),
+    volunteer_status: list(VOLUNTEER_STATUS_VALUES),
     no_shift_from: str,
     no_shift_to: str,
   }

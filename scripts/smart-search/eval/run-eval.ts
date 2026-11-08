@@ -37,7 +37,7 @@ const cases = set.cases.filter((c) => !only || c.q.includes(only)).slice(0, limi
 const schema = smartSearchJsonSchema(set.vocab)
 const client = new Anthropic({ timeout: 5000, maxRetries: 0 })
 
-/** The raw reply holds every key, with null or a value the validator keeps unchanged. */
+/** The raw reply holds every key, no others, and only values the validator keeps ("" and false are empty). */
 function schemaProblems(raw: Record<string, unknown>): string[] {
   const problems: string[] = []
   for (const key of SMART_SEARCH_FILTER_KEYS) if (!(key in raw)) problems.push(`missing ${key}`)
@@ -45,10 +45,30 @@ function schemaProblems(raw: Record<string, unknown>): string[] {
     if (!(SMART_SEARCH_FILTER_KEYS as readonly string[]).includes(key)) problems.push(`extra ${key}`)
   const kept = validateSmartSearchFilter(raw, set.vocab) as Record<string, unknown>
   for (const [key, value] of Object.entries(raw)) {
-    if (value === null || key === 'plate') continue
+    if (value === null || value === '' || value === false || key === 'plate') continue
     if (JSON.stringify(kept[key]) !== JSON.stringify(value)) problems.push(`${key}=${JSON.stringify(value)} rejected`)
   }
   return problems
+}
+
+/** One bucket per query, by the key that makes it hardest. */
+function category(expect: Partial<SmartSearchFilter>): string {
+  if (expect.intent) return 'intent (export, counting)'
+  if (expect.volunteer_status || expect.no_shift_from || expect.entity === 'people') return 'people and shifts'
+  if (expect.person) return 'person'
+  if (expect.vehicle_text || expect.damaged || expect.damage_location) return 'vehicle and damage'
+  if (expect.source || expect.status || expect.include_cancelled) return 'source and status'
+  if (expect.event_type || expect.district || expect.location_text) return 'type, district, place'
+  if (expect.plate || expect.police_event_id || expect.road) return 'road, plate, number'
+  return 'dates only'
+}
+const byCategory = new Map<string, { n: number; ok: number }>()
+const tally = (c: (typeof cases)[number], ok: boolean) => {
+  const key = category(c.expect)
+  const row = byCategory.get(key) ?? { n: 0, ok: 0 }
+  row.n++
+  if (ok) row.ok++
+  byCategory.set(key, row)
 }
 
 const latencies: number[] = []
@@ -72,6 +92,7 @@ for (const c of cases) {
     if ('error' in parsed) {
       if (parsed.error === 'refusal') refusals++
       schemaFailures++
+      tally(c, false)
       console.log(`FAIL  ${c.q}  (${parsed.error})`)
       continue
     }
@@ -82,6 +103,7 @@ for (const c of cases) {
       ([k, v]) => JSON.stringify(parsed.filter[k as keyof SmartSearchFilter]) !== JSON.stringify(v),
     )
     if (wrong.length === 0 && problems.length === 0) correct++
+    tally(c, wrong.length === 0 && problems.length === 0)
     line = `${wrong.length === 0 && problems.length === 0 ? 'PASS' : 'FAIL'}  ${c.q}  ${Date.now() - started}ms`
     console.log(line)
     for (const p of problems) console.log(`        schema: ${p}`)
@@ -89,6 +111,7 @@ for (const c of cases) {
       console.log(`        ${k}: expected ${JSON.stringify(v)}, got ${JSON.stringify(parsed.filter[k as keyof SmartSearchFilter])}`)
   } catch (err) {
     schemaFailures++
+    tally(c, false)
     const what =
       err instanceof Anthropic.APIConnectionTimeoutError
         ? 'timeout'
@@ -106,7 +129,9 @@ const pct = (p: number) => (sorted.length ? sorted[Math.min(sorted.length - 1, M
 // Haiku 5.5 list price for prompts under 100K tokens: $0.10 / $0.50 per million.
 const cost = (inputTokens * 0.1 + outputTokens * 0.5) / 1_000_000
 console.log(`\nAccuracy ${correct}/${cases.length} (${Math.round((100 * correct) / Math.max(1, cases.length))}%)`)
+for (const [name, row] of [...byCategory].sort()) console.log(`  ${name}: ${row.ok}/${row.n}`)
 console.log(`Schema or call failures ${schemaFailures} · refusals ${refusals}`)
 console.log(`Latency p50 ${pct(0.5)} ms · p90 ${pct(0.9)} ms`)
 console.log(`Tokens in ${inputTokens} · out ${outputTokens} · about $${cost.toFixed(4)}`)
+console.log(`Per 1,000 queries about $${((cost / Math.max(1, cases.length)) * 1000).toFixed(2)}`)
 process.exit(schemaFailures > 0 ? 1 : 0)
