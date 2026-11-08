@@ -5,6 +5,7 @@ import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
 import { FuelFrozenEventsMark } from '../events/FuelFrozenEventsMark'
+import { DataTable, type DataTableColumn } from '../ui/DataTable'
 import { formatNumber, monoClass } from '../../lib/format'
 import { isValidFuelRefundRange, loadFuelRefundReport } from '../../lib/fuelRefundReport'
 import { formatLiters, toUsageRows, usageTotals, type FuelUsageRow } from '../../lib/fuelUsage'
@@ -136,62 +137,34 @@ export function FuelUsagePanel() {
             <span className="mono">{formatNumber(totals.withKm)}</span> מתנדבים עם ק״מ
           </p>
 
-          {isDesktop ? (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">מתנדב</th>
-                    <th scope="col">קילומטרים</th>
-                    <th scope="col">אירועים</th>
-                    <th scope="col">ליטרים</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <div className="fuel-responder-name">
-                          <span>{row.full_name}</span>
-                          <FuelFrozenEventsMark count={row.frozen_event_count} />
-                        </div>
-                        <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
-                          {row.callsign}
-                        </div>
-                      </td>
-                      <td className="num mono">{formatNumber(row.total_km)}</td>
-                      <td className="num mono">{formatNumber(row.event_count)}</td>
-                      <td className="num mono">{formatLiters(row.total_km)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <ul className="stack-3">
-              {filtered.map((row) => (
-                <li key={row.id} className="card stack-2">
-                  <span className="t-body fuel-responder-name">
-                    <span>{row.full_name}</span>
-                    <FuelFrozenEventsMark count={row.frozen_event_count} />
-                  </span>
-                  <span className={`t-caption text-muted ${monoClass(row.callsign)}`}>
-                    {row.callsign}
-                  </span>
-                  <span className="t-caption text-muted">
-                    קילומטרים:{' '}
-                    <span className="mono">{formatNumber(row.total_km)}</span>
-                  </span>
-                  <span className="t-caption text-muted">
-                    אירועים: <span className="mono">{formatNumber(row.event_count)}</span>
-                  </span>
-                  <span className="t-caption text-muted">
-                    ליטרים: <span className="mono">{formatLiters(row.total_km)}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <DataTable
+            rows={filtered}
+            columns={USAGE_COLUMNS}
+            rowKey={(row) => row.id}
+            asTable={isDesktop}
+            defaultSort={{ columnId: 'name', direction: 'asc' }}
+            renderCard={(row) => (
+              <li className="card stack-2">
+                <span className="t-body fuel-responder-name">
+                  <span>{row.full_name}</span>
+                  <FuelFrozenEventsMark count={row.frozen_event_count} />
+                </span>
+                <span className={`t-caption text-muted ${monoClass(row.callsign)}`}>
+                  {row.callsign}
+                </span>
+                <span className="t-caption text-muted">
+                  קילומטרים:{' '}
+                  <span className="mono">{formatNumber(row.total_km)}</span>
+                </span>
+                <span className="t-caption text-muted">
+                  אירועים: <span className="mono">{formatNumber(row.event_count)}</span>
+                </span>
+                <span className="t-caption text-muted">
+                  ליטרים: <span className="mono">{formatLiters(row.total_km)}</span>
+                </span>
+              </li>
+            )}
+          />
         </div>
       ) : null}
     </div>
@@ -214,3 +187,41 @@ function filterUsageRows(rows: FuelUsageRow[], query: string): FuelUsageRow[] {
     ),
   )
 }
+
+const USAGE_COLUMNS: DataTableColumn<FuelUsageRow>[] = [
+  {
+    id: 'name',
+    header: 'מתנדב',
+    sortValue: (row) => row.full_name,
+    cell: (row) => (
+      <>
+        <div className="fuel-responder-name">
+          <span>{row.full_name}</span>
+          <FuelFrozenEventsMark count={row.frozen_event_count} />
+        </div>
+        <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>{row.callsign}</div>
+      </>
+    ),
+  },
+  {
+    id: 'km',
+    header: 'קילומטרים',
+    className: 'num mono',
+    sortValue: (row) => row.total_km,
+    cell: (row) => formatNumber(row.total_km),
+  },
+  {
+    id: 'events',
+    header: 'אירועים',
+    className: 'num mono',
+    sortValue: (row) => row.event_count,
+    cell: (row) => formatNumber(row.event_count),
+  },
+  {
+    id: 'liters',
+    header: 'ליטרים',
+    className: 'num mono',
+    sortValue: (row) => row.liters,
+    cell: (row) => formatLiters(row.total_km),
+  },
+]

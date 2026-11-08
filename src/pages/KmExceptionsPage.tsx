@@ -10,6 +10,8 @@ import { DateGroup, DateGroups } from '../components/ui/DateGroups'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { EventTypeLabel } from '../components/events/EventTypeLabel'
+import { DataTable, type DataTableColumn } from '../components/ui/DataTable'
+import { isoSortValue } from '../lib/tableSort'
 
 type KmExceptionsPageProps = {
   asTable: boolean
@@ -69,7 +71,7 @@ export function KmExceptionsPage({ asTable, onOpen }: KmExceptionsPageProps) {
               <ul className="stack-3">
                 {items.map((row) => (
                   <KmExceptionCard
-                    key={`${row.event_id}:${row.responder_callsign}:${row.total_km}`}
+                    key={kmRowKey(row)}
                     row={row}
                     onOpen={onOpen}
                   />
@@ -126,6 +128,69 @@ function KmExceptionCard({
   )
 }
 
+function kmRowKey(row: KmExceptionRow): string {
+  return `${row.event_id}:${row.responder_callsign}:${row.total_km}`
+}
+
+function kmResponder(row: KmExceptionRow): string {
+  return [row.responder_name, row.responder_callsign].filter(Boolean).join(' · ')
+}
+
+function kmPlace(row: KmExceptionRow): string {
+  return [row.road_name, row.location].filter(Boolean).join(' · ')
+}
+
+const KM_COLUMNS: DataTableColumn<KmExceptionRow>[] = [
+  {
+    id: 'date',
+    header: 'תאריך',
+    className: 'num mono',
+    sortValue: (row) => isoSortValue(row.event_date),
+    cell: (row) => formatDate(row.event_date),
+  },
+  { id: 'responder', header: 'מתנדב', sortValue: kmResponder, cell: (row) => kmResponder(row) || '—' },
+  {
+    id: 'km',
+    header: 'ק״מ',
+    className: 'num mono',
+    sortValue: (row) => row.total_km,
+    cell: (row) => formatNumber(row.total_km),
+  },
+  {
+    id: 'type',
+    header: 'סוג אירוע',
+    sortValue: (row) => row.event_type_name,
+    cell: (row) => (
+      <EventTypeLabel
+        event={{
+          event_type: row.event_type_name ? { name: row.event_type_name } : null,
+          is_cancelled: row.is_cancelled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'place',
+    header: 'כביש / מיקום',
+    className: 'truncate',
+    sortValue: kmPlace,
+    cell: (row) => kmPlace(row) || '—',
+  },
+  {
+    id: 'lead',
+    header: 'אחמ״ש',
+    sortValue: (row) => row.shift_lead_name,
+    cell: (row) => row.shift_lead_name ?? '—',
+  },
+  {
+    id: 'police',
+    header: 'מספר אירוע',
+    className: (row) => `num ${monoClass(row.police_event_id)}`,
+    sortValue: (row) => row.police_event_id,
+    cell: (row) => row.police_event_id ?? '—',
+  },
+]
+
 function KmExceptionsTable({
   rows,
   onOpen,
@@ -134,50 +199,14 @@ function KmExceptionsTable({
   onOpen: (eventId: string) => void
 }) {
   return (
-    <div className="table-wrap">
-      <table className="table">
-        <thead>
-          <tr>
-            <th scope="col">תאריך</th>
-            <th scope="col">מתנדב</th>
-            <th scope="col">ק״מ</th>
-            <th scope="col">סוג אירוע</th>
-            <th scope="col">כביש / מיקום</th>
-            <th scope="col">אחמ״ש</th>
-            <th scope="col">מספר אירוע</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={`${row.event_id}:${row.responder_callsign}:${row.total_km}`}
-              onClick={() => onOpen(row.event_id)}
-            >
-              <td className="num mono">{formatDate(row.event_date)}</td>
-              <td>
-                {[row.responder_name, row.responder_callsign].filter(Boolean).join(' · ') || '—'}
-              </td>
-              <td className="num mono">{formatNumber(row.total_km)}</td>
-              <td>
-                <EventTypeLabel
-                  event={{
-                    event_type: row.event_type_name ? { name: row.event_type_name } : null,
-                    is_cancelled: row.is_cancelled,
-                  }}
-                />
-              </td>
-              <td className="truncate">
-                {[row.road_name, row.location].filter(Boolean).join(' · ') || '—'}
-              </td>
-              <td>{row.shift_lead_name ?? '—'}</td>
-              <td className={`num ${monoClass(row.police_event_id)}`}>
-                {row.police_event_id ?? '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      rows={rows}
+      columns={KM_COLUMNS}
+      rowKey={kmRowKey}
+      defaultSort={{ columnId: 'date', direction: 'desc' }}
+      onRowClick={(row) => onOpen(row.event_id)}
+      rowLabel={(row) => `פתיחת אירוע ${row.police_event_id ?? formatDate(row.event_date)}`}
+    />
   )
 }
 

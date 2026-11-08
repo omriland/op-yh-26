@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useFreezeViewer } from '../lib/freezeViewer'
+import type { TableSort } from '../lib/tableSort'
 import { textIncludesQuery } from '../lib/searchQuery'
 import {
   UNIT_EVENTS_LIST_LIMIT,
@@ -1251,10 +1252,14 @@ function UnitTableList({
   onLoadMore: () => void
 }) {
   const freezeViewer = useFreezeViewer()
+  const [sort, setSort] = useState<TableSort | null>({ columnId: 'date', direction: 'desc' })
   const { incomplete, rest } =
     scope === 'unit'
       ? partitionIncompleteEventsForViewer(visible, viewerId)
       : { incomplete: [], rest: visible }
+  const partialSortNote = hasMore
+    ? 'המיון כולל רק את האירועים המוצגים. טעינת אירועים נוספים תכלול גם אותם.'
+    : undefined
 
   return (
     <div className="stack-4">
@@ -1265,6 +1270,8 @@ function UnitTableList({
           onOpen={onOpen}
           viewer={freezeViewer}
           onContextDelete={onContextDelete}
+          sort={sort}
+          onSortChange={setSort}
           incompleteNoticeFor={(event) => {
             const labels = incompleteLeadNoticeLabels(event, viewerId)
             return {
@@ -1280,6 +1287,9 @@ function UnitTableList({
           onOpen={onOpen}
           viewer={freezeViewer}
           onContextDelete={onContextDelete}
+          sort={sort}
+          onSortChange={setSort}
+          partialSortNote={partialSortNote}
         />
       ) : null}
       {hasMore ? (

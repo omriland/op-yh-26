@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   filterContacts,
-  sortContacts,
   toTelHref,
   toWhatsAppHref,
   type UnitContact,
 } from './contacts'
+import { sortRows, type SortDirection } from './tableSort'
 
 const omri: UnitContact = {
   id: '1',
@@ -75,8 +75,13 @@ describe('filterContacts', () => {
   })
 })
 
-describe('sortContacts', () => {
+describe('contacts table sort', () => {
   const ids = (rows: UnitContact[]) => rows.map((row) => row.id)
+  const sortContacts = (
+    rows: UnitContact[],
+    key: 'full_name' | 'callsign' | 'phone' | 'email',
+    direction: SortDirection,
+  ) => sortRows(rows, (row) => row[key], direction)
 
   it('sorts by name in Hebrew order, A to Z and back', () => {
     expect(ids(sortContacts([omri, dana, noPhone], 'full_name', 'asc'))).toEqual(['3', '2', '1'])

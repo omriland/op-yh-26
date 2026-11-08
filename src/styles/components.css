@@ -3468,6 +3468,7 @@ html[data-keyboard-open] .event-form__footer {
 
 .events-card__body {
   overflow: hidden;
+  overflow: clip;
   border-end-start-radius: var(--radius-md);
   border-end-end-radius: var(--radius-md);
 }
@@ -3486,7 +3487,8 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .events-card__body > :not(.stack-4, .empty),
-.events-card__body > .stack-4 > .btn {
+.events-card__body > .stack-4 > .btn,
+.events-card__body .data-table__note {
   margin: var(--space-4) var(--space-5);
 }
 
@@ -3778,11 +3780,37 @@ html[data-keyboard-open] .event-form__footer {
    Table (Command desktop only)
    ============================================================ */
 
+/* clip, not hidden: a hidden box is a scroll container and would stop the sticky header
+   from pinning to the page scroller. */
 .table-wrap {
   border: 1px solid var(--stroke-hairline);
   border-radius: var(--radius-md);
   overflow: hidden;
+  overflow: clip;
   background: var(--surface-raised);
+}
+
+/* Shared DataTable: the header row stays pinned while the rows scroll under it. */
+.data-table thead th {
+  position: sticky;
+  inset-block-start: var(--data-table-sticky-top, 0);
+  z-index: 3;
+  box-shadow: inset 0 -1px 0 var(--stroke-hairline);
+}
+
+/* Wider than its card: scroll inside the card on both axes so the header still pins. */
+.data-table[data-scroll='inner'] {
+  max-height: min(70vh, calc(100vh - 16rem));
+  overflow: auto;
+}
+
+.data-table tbody tr[tabindex='0']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.data-table__note {
+  margin-block-end: var(--space-2);
 }
 
 .table {
@@ -3890,13 +3918,10 @@ html[data-keyboard-open] .event-form__footer {
   white-space: nowrap;
 }
 
-/* Events table: when the content column is narrower than the table (sidebar
-   open, small laptop), scroll sideways instead of clipping the status column.
-   Tooltips portal to <body>, so this does not clip them. */
+/* Events table: sized by its own width for the container query below. If it is still
+   wider than the column, DataTable scrolls it sideways rather than clipping the status. */
 .table-wrap--events {
   container-type: inline-size;
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 
 /* Keep each cell on one line (lead names were breaking word-by-word);
@@ -3911,6 +3936,15 @@ html[data-keyboard-open] .event-form__footer {
   .table--events th,
   .table--events td {
     padding-inline: 6px;
+  }
+
+  /* Sort arrows add width; let the header labels wrap rather than push the status column out. */
+  .table--events thead th {
+    white-space: normal;
+  }
+
+  .table--events .table-sort {
+    text-align: start;
   }
 
   .table--events tbody tr:not(.table-row--completion-meta):not(.table-row--found-by) > td:not(.num, .table-cell--status) {
@@ -6254,6 +6288,10 @@ html[data-keyboard-open] .event-form__footer {
 
 .table--fuel-quarter__cards {
   min-width: 10rem;
+}
+
+.table--fuel-quarter .table-sort {
+  min-height: 36px;
 }
 
 .table--fuel-quarter .table-input {

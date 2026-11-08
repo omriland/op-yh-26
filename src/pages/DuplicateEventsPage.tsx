@@ -10,6 +10,8 @@ import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { EventTypeLabel } from '../components/events/EventTypeLabel'
+import { DataTable, type DataTableColumn } from '../components/ui/DataTable'
+import { isoSortValue } from '../lib/tableSort'
 
 type DuplicateEventsPageProps = {
   asTable: boolean
@@ -74,15 +76,7 @@ export function DuplicateEventsPage({ asTable, onOpen }: DuplicateEventsPageProp
             <h2 className="group-head">{formatDate(cluster.event_date)}</h2>
             <span className="t-caption text-muted">{cluster.sizeLabel}</span>
           </div>
-          {asTable ? (
-            <DuplicateTable members={cluster.members} onOpen={onOpen} />
-          ) : (
-            <ul className="stack-3">
-              {cluster.members.map((member) => (
-                <DuplicateCard key={member.event_id} member={member} onOpen={onOpen} />
-              ))}
-            </ul>
-          )}
+          <DuplicateTable members={cluster.members} asTable={asTable} onOpen={onOpen} />
         </section>
       ))}
     </div>
@@ -129,50 +123,76 @@ function DuplicateCard({
   )
 }
 
+function memberResponder(member: DuplicateMember): string {
+  return [member.full_name, member.callsign].filter(Boolean).join(' · ')
+}
+
+function memberPlace(member: DuplicateMember): string {
+  return [member.road_name, member.location].filter(Boolean).join(' · ')
+}
+
+const DUPLICATE_COLUMNS: DataTableColumn<DuplicateMember>[] = [
+  {
+    id: 'time',
+    header: 'שעה',
+    className: 'num mono',
+    sortValue: (member) => isoSortValue(member.started_at),
+    cell: (member) => formatTime(member.started_at) ?? '—',
+  },
+  {
+    id: 'responder',
+    header: 'מתנדב',
+    sortValue: memberResponder,
+    cell: (member) => memberResponder(member) || '—',
+  },
+  {
+    id: 'type',
+    header: 'סוג אירוע',
+    sortValue: (member) => member.event_type_name,
+    cell: (member) => (
+      <EventTypeLabel
+        event={{
+          event_type: member.event_type_name ? { name: member.event_type_name } : null,
+          is_cancelled: member.is_cancelled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'place',
+    header: 'כביש / מיקום',
+    className: 'truncate',
+    sortValue: memberPlace,
+    cell: (member) => memberPlace(member) || '—',
+  },
+  {
+    id: 'police',
+    header: 'מספר אירוע',
+    className: (member) => `num ${monoClass(member.police_event_id)}`,
+    sortValue: (member) => member.police_event_id,
+    cell: (member) => member.police_event_id ?? '—',
+  },
+]
+
 function DuplicateTable({
   members,
+  asTable,
   onOpen,
 }: {
   members: DuplicateMember[]
+  asTable: boolean
   onOpen: (eventId: string) => void
 }) {
   return (
-    <div className="table-wrap">
-      <table className="table">
-        <thead>
-          <tr>
-            <th scope="col">שעה</th>
-            <th scope="col">מתנדב</th>
-            <th scope="col">סוג אירוע</th>
-            <th scope="col">כביש / מיקום</th>
-            <th scope="col">מספר אירוע</th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((member) => (
-            <tr key={member.event_id} onClick={() => onOpen(member.event_id)}>
-              <td className="num mono">{formatTime(member.started_at) ?? '—'}</td>
-              <td>
-                {[member.full_name, member.callsign].filter(Boolean).join(' · ') || '—'}
-              </td>
-              <td>
-                <EventTypeLabel
-                  event={{
-                    event_type: member.event_type_name ? { name: member.event_type_name } : null,
-                    is_cancelled: member.is_cancelled,
-                  }}
-                />
-              </td>
-              <td className="truncate">
-                {[member.road_name, member.location].filter(Boolean).join(' · ') || '—'}
-              </td>
-              <td className={`num ${monoClass(member.police_event_id)}`}>
-                {member.police_event_id ?? '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      rows={members}
+      columns={DUPLICATE_COLUMNS}
+      rowKey={(member) => member.event_id}
+      asTable={asTable}
+      renderCard={(member) => <DuplicateCard member={member} onOpen={onOpen} />}
+      defaultSort={{ columnId: 'time', direction: 'asc' }}
+      onRowClick={(member) => onOpen(member.event_id)}
+      rowLabel={(member) => `פתיחת אירוע ${member.police_event_id ?? memberResponder(member)}`}
+    />
   )
 }
