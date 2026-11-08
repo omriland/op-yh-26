@@ -4142,6 +4142,7 @@ html[data-keyboard-open] .event-form__footer {
    open, small laptop), scroll sideways instead of clipping the status column.
    Tooltips portal to <body>, so this does not clip them. */
 .table-wrap--events {
+  container-type: inline-size;
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -4151,6 +4152,27 @@ html[data-keyboard-open] .event-form__footer {
    "found by" meta rows may wrap. */
 .table--events tbody tr:not(.table-row--completion-meta):not(.table-row--found-by) > td {
   white-space: nowrap;
+}
+
+/* Below the table's one-line width, tighten it so the status column fits without scrolling. */
+@container (max-width: 939px) {
+  .table--events th,
+  .table--events td {
+    padding-inline: 6px;
+  }
+
+  .table--events tbody tr:not(.table-row--completion-meta):not(.table-row--found-by) > td:not(.num, .table-cell--status) {
+    white-space: normal;
+  }
+
+  .table--events .table-col--location {
+    width: 18%;
+    min-width: 4rem;
+  }
+
+  .table--events .event-status-trail {
+    min-width: 148px;
+  }
 }
 
 .table--events tbody tr.table-row--done {
