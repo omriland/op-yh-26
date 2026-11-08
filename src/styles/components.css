@@ -2517,19 +2517,9 @@ p.alert--info {
   padding-block-end: var(--space-6);
 }
 
-/* Extra end inset only while the משוב control is actually on screen.
-   When the document footer is in the scrollport, that inset would leave an
-   empty band under the footer — the footer itself clears the button instead. */
+/* Extra end inset while the משוב control is on screen, so it never covers the last row. */
 .shell:has(.feedback-fab):not(:has(.event-form__footer)) .shell__main {
   padding-block-end: calc(var(--space-6) + 44px + var(--space-4));
-}
-
-.shell:has(.feedback-fab):has(.app-footer):not(:has(.event-form__footer)) .shell__main {
-  padding-block-end: 0;
-}
-
-.shell:has(.feedback-fab) .app-footer {
-  padding-inline-end: calc(44px + var(--space-4));
 }
 
 .shell__main > * {
@@ -2551,254 +2541,6 @@ p.alert--info {
 
 .shell__main--narrow > * {
   max-width: var(--form-max);
-}
-
-.shell__main > :has(+ .app-footer) {
-  margin-block-end: var(--space-6);
-}
-
-.shell__main > .app-footer,
-.shell__main--narrow > .app-footer,
-.shell__main:has(.event-groups) > .app-footer {
-  max-width: none;
-  padding-block: var(--space-4);
-}
-
-.app-footer {
-  box-sizing: border-box;
-  display: flex;
-  flex: none;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  width: 100%;
-  margin-block-start: auto;
-  padding-block: var(--space-4);
-  border-block-start: 1px solid var(--stroke-hairline);
-  color: var(--text-muted);
-}
-
-.app-footer__line {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  max-width: 100%;
-}
-
-.app-footer__line:first-child {
-  justify-content: flex-start;
-}
-
-.app-footer__line:last-child {
-  justify-content: flex-end;
-}
-
-.app-footer__group {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  min-height: 36px;
-  max-width: 100%;
-}
-
-.app-footer__line > .app-footer__group + .app-footer__group {
-  padding-inline-start: var(--space-4);
-  border-inline-start: 1px solid var(--stroke-hairline);
-}
-
-@media (min-width: 641px) and (max-width: 1280px) {
-  .app-footer {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-  }
-
-  .app-footer__line,
-  .app-footer__line:first-child,
-  .app-footer__line:last-child {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .app-footer__line + .app-footer__line {
-    padding-block-start: var(--space-2);
-    border-block-start: 1px solid var(--stroke-hairline);
-  }
-
-  .app-footer__line > .app-footer__group + .app-footer__group {
-    padding-inline-start: 0;
-    border-inline-start: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .app-footer {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-  }
-
-  .app-footer__line,
-  .app-footer__line:first-child,
-  .app-footer__line:last-child {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: var(--space-1);
-    width: 100%;
-  }
-
-  .app-footer__line + .app-footer__line {
-    padding-block-start: var(--space-2);
-    border-block-start: 1px solid var(--stroke-hairline);
-  }
-
-  .app-footer__group {
-    width: 100%;
-    min-height: 44px;
-    justify-content: space-between;
-  }
-
-  .app-footer__line > .app-footer__group + .app-footer__group {
-    padding-inline-start: 0;
-    border-inline-start: 0;
-  }
-}
-
-.app-footer__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  text-align: start;
-}
-
-button.app-footer__brand {
-  cursor: pointer;
-}
-
-div.app-footer__brand {
-  cursor: default;
-}
-
-.app-footer__favicon {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-sm);
-}
-
-.app-footer__vendors {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.app-footer__vendor-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 36px;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-.app-footer__vendor-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.app-footer__vendor-logo {
-  flex: none;
-  width: 16px;
-  height: 16px;
-}
-
-.app-footer__security-label {
-  margin: 0;
-}
-
-.app-footer__legal {
-  margin: 0;
-}
-
-.app-footer__link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  text-decoration: none;
-  text-underline-offset: 0.2em;
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-@media (max-width: 640px) {
-  .app-footer__brand,
-  .app-footer__link {
-    min-height: 44px;
-  }
-
-  .app-footer__vendors {
-    gap: var(--space-2);
-  }
-
-  .app-footer__vendor-btn {
-    min-width: 44px;
-    min-height: 44px;
-  }
-}
-
-.app-footer__link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-@media (hover: hover) {
-  .app-footer__vendor-btn:hover {
-    color: var(--text-secondary);
-  }
-
-  .app-footer__link:hover {
-    color: var(--text-secondary);
-    text-decoration: underline;
-  }
-
-  .app-footer__link:has(.app-footer__link-label):hover {
-    text-decoration: none;
-  }
-
-  .app-footer__link:hover > .app-footer__link-label {
-    text-decoration: underline;
-  }
-}
-
-.app-footer__link:active {
-  color: var(--text-secondary);
 }
 
 .android-download,
@@ -2894,20 +2636,43 @@ div.app-footer__brand {
   scroll-padding-block: var(--space-6);
 }
 
-html[data-keyboard-open] .login .app-footer {
-  display: none;
-}
-
 .login__stage .field__input {
   scroll-margin-block: var(--space-8);
 }
 
-.login .app-footer {
-  width: 100%;
+/* The one legal link left on the logged-out page (the footer was removed). */
+.login__legal {
   flex: none;
-  margin-block-start: 0;
+  display: flex;
+  justify-content: center;
   padding-block-start: var(--space-4);
-  padding-block-end: 0;
+}
+
+html[data-keyboard-open] .login__legal {
+  display: none;
+}
+
+.login__legal-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 400 13px/18px var(--font-ui);
+  text-underline-offset: 0.2em;
+}
+
+@media (hover: hover) {
+  .login__legal-link:hover {
+    text-decoration: underline;
+  }
+}
+
+.login__legal-link:active {
+  color: var(--text-primary);
 }
 
 /* Password setup is taller than the sign-in card and still has to scroll. */
@@ -3036,28 +2801,6 @@ html[data-keyboard-open] .event-form__footer {
 
   .shell__main {
     padding: var(--space-12) var(--space-8);
-  }
-
-  .shell--cards {
-    background: var(--surface-sunken);
-  }
-
-  .shell--cards .shell__body {
-    padding: var(--space-3);
-    gap: var(--space-3);
-  }
-
-  .shell--cards .sidebar {
-    overflow: visible;
-    border-inline-end: 0;
-    border: 1px solid var(--stroke-hairline);
-    border-radius: var(--radius-lg);
-  }
-
-  .shell--cards .shell__main {
-    background: var(--surface-page);
-    border: 1px solid var(--stroke-hairline);
-    border-radius: var(--radius-lg);
   }
 }
 

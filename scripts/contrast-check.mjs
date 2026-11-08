@@ -46,6 +46,14 @@ const P = {
   commandTextSecondary: '#C3CEDC',
   commandTextMuted: '#9FB0C4',
   plateField: '#F5C400',
+  warm50: '#FAF6F1',
+  warm100: '#F4EEE6',
+  warm200: '#EBE5DC',
+  warm300: '#D7D2CA',
+  warm400: '#9C9993',
+  warmInk500: '#726C66',
+  warmInk700: '#544E48',
+  warmInk900: '#1B1918',
 }
 
 const STROKE_STRONG_FIELD = rgba(15, 27, 45, 0.55)
@@ -188,6 +196,28 @@ for (const [surface, bg] of [
 pair('command', 'top app bar text', P.commandText, P.navyPage, TEXT)
 pair('command', 'toast text', P.commandText, P.navyOverlay, TEXT)
 
+// ===== Desktop shell chrome (warm paper, .shell--desktop only) =====
+for (const [surface, bg] of [
+  ['nav bg', P.warm50],
+  ['hover', P.warm100],
+  ['selected', P.warm200],
+  ['pressed', P.warm300],
+  ['menu', P.paper0],
+]) {
+  pair('desktop', `text on ${surface}`, P.warmInk900, bg, TEXT)
+}
+pair('desktop', 'section title / secondary on nav bg', P.warmInk700, P.warm50, TEXT)
+pair('desktop', 'secondary on hover', P.warmInk700, P.warm100, TEXT)
+pair('desktop', 'muted section titles on nav bg', P.warmInk500, P.warm50, TEXT)
+pair('desktop', 'search placeholder (secondary) on hover field', P.warmInk700, P.warm100, TEXT)
+pair('desktop', 'muted on menu', P.warmInk500, P.paper0, TEXT)
+pair('desktop', 'tooltip text', P.paper0, P.warmInk900, TEXT)
+pair('desktop', 'avatar initials on brand navy', P.paper0, P.blue700, TEXT)
+pair('desktop', 'focus ring on nav bg', P.blue700, P.warm50, UI)
+pair('desktop', 'focus ring on search field', P.blue700, P.warm100, UI)
+pair('desktop', 'attention dot on nav bg', P.warmInk900, P.warm50, UI)
+pair('desktop', 'attention dot on selected', P.warmInk900, P.warm200, UI)
+
 // Israeli civil plate mark — theme-invariant (02-color.md).
 pair('artifact', 'plate serial on yellow', P.ink900, P.plateField, TEXT)
 pair('artifact', 'IL letters on euroband', P.paper0, P.blue800, TEXT)
@@ -227,7 +257,13 @@ for (const { theme, name, fg, bg, min } of pairs) {
   if (theme !== currentTheme) {
     currentTheme = theme
     const heading =
-      theme === 'field' ? 'שטח / Field' : theme === 'command' ? 'מפקדה / Command' : 'Artifact'
+      theme === 'field'
+        ? 'שטח / Field'
+        : theme === 'command'
+          ? 'מפקדה / Command'
+          : theme === 'desktop'
+            ? 'Desktop shell (warm paper)'
+            : 'Artifact'
     console.log(`\n${heading}`)
   }
   const ratio = contrast(fg, bg)
