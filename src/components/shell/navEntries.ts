@@ -124,11 +124,7 @@ export function buildNavEntries({
           label: 'יומן שינויים',
           icon: NAV_ICONS.event_audit,
         },
-        {
-          view: 'ios_devices',
-          label: 'מכשירי iOS',
-          icon: NAV_ICONS.ios_devices,
-        },
+        // מכשירי iOS: no nav entry by request; /ios-devices still opens the page.
       ],
     })
   }
