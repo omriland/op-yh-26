@@ -171,6 +171,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const feedback = row as FeedbackRow;
+    // The SMS record lives on the board row (20261107120000). At most one SMS per
+    // feedback, ever: see markFeedbackTreated.
+    const board = () => adminClient.from("user_feedback_board");
+    let sentAt: string | null = null;
     const result = await markFeedbackTreated(
       { ...feedback, author: authorFrom(feedback) },
       {
@@ -183,13 +187,62 @@ Deno.serve(async (req: Request) => {
           return !updateError;
         },
         smsDestination: toSopranoDestination,
+        claimSms: async () => {
+          const { error: rowError } = await board().upsert(
+            { feedback_id: id },
+            { onConflict: "feedback_id", ignoreDuplicates: true },
+          );
+          if (rowError) {
+            console.error("user-feedback: sms row", rowError);
+            return "error";
+          }
+          // One atomic update: a second request (double click, second tab) finds the claim taken.
+          const { data: claimed, error: claimError } = await board()
+            .update({ sms_sending_at: new Date().toISOString() })
+            .eq("feedback_id", id)
+            .is("sms_sent_at", null)
+            .is("sms_sending_at", null)
+            .select("feedback_id");
+          if (claimError) {
+            console.error("user-feedback: sms claim", claimError);
+            return "error";
+          }
+          return (claimed ?? []).length === 1 ? "claimed" : "already_sent";
+        },
         sendSms: async (destination, message) =>
           (await sendSopranoSms(destination, message)).ok,
+        markSmsSent: async () => {
+          sentAt = new Date().toISOString();
+          const { error: sentError } = await board()
+            .update({ sms_sent_at: sentAt })
+            .eq("feedback_id", id);
+          // The claim stays either way, so this item is never texted again.
+          if (sentError) console.error("user-feedback: sms sent", sentError);
+        },
+        releaseSms: async () => {
+          const { error: releaseError } = await board()
+            .update({ sms_sending_at: null })
+            .eq("feedback_id", id)
+            .is("sms_sent_at", null);
+          if (releaseError) console.error("user-feedback: sms release", releaseError);
+        },
       },
     );
     if (!result.ok) {
       return json(500, { error: "עדכון הסטטוס נכשל. נסו שוב." });
     }
-    return json(200, { ok: true, sms: result.sms });
+    if (result.sms === "already_sent") {
+      const { data: record } = await board()
+        .select("sms_sent_at, sms_sent_inferred")
+        .eq("feedback_id", id)
+        .maybeSingle();
+      return json(200, {
+        ok: true,
+        sms: result.sms,
+        sms_sent_at: record?.sms_sent_at ?? null,
+        sms_sent_inferred: record?.sms_sent_inferred ?? false,
+      });
+    }
+    return json(200, { ok: true, sms: result.sms, sms_sent_at: sentAt, sms_sent_inferred: false });
   });
 });

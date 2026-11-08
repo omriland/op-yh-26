@@ -276,8 +276,28 @@ describe('feedback select fallback', () => {
 })
 
 describe('mark_treated', () => {
-  function deps() {
+  /** In-memory stand-in for the user_feedback_board SMS columns; the claim is one atomic step, as in SQL. */
+  function store(initial: { sentAt?: string | null; sending?: boolean } = {}) {
+    const record = { sentAt: initial.sentAt ?? null, sending: initial.sending ?? false }
     return {
+      record,
+      claimSms: vi.fn(async () => {
+        if (record.sentAt || record.sending) return 'already_sent' as const
+        record.sending = true
+        return 'claimed' as const
+      }),
+      markSmsSent: vi.fn(async () => {
+        record.sentAt = '2026-11-07T10:00:00Z'
+      }),
+      releaseSms: vi.fn(async () => {
+        if (!record.sentAt) record.sending = false
+      }),
+    }
+  }
+
+  function deps(shared = store()) {
+    return {
+      ...shared,
       setFixed: vi.fn(async () => true),
       smsDestination: vi.fn((phone: string | null) => (phone ? '972501234567' : null)),
       sendSms: vi.fn(async () => true),
@@ -298,17 +318,80 @@ describe('mark_treated', () => {
       const result = await markFeedbackTreated({ ...feedback, status, title: 'לבדוק את המפה' }, d)
       expect(result).toEqual({ ok: true, sms: 'skipped' })
       expect(d.sendSms).not.toHaveBeenCalled()
+      expect(d.claimSms).not.toHaveBeenCalled()
       expect(d.setFixed).toHaveBeenCalledTimes(status === 'fixed' ? 0 : 1)
     }
   })
 
-  it('still texts the submitter of feedback once', async () => {
+  it('texts on the first טופל and records it only after the send succeeded', async () => {
     const d = deps()
+    d.sendSms.mockImplementationOnce(async () => {
+      expect(d.record.sentAt).toBeNull()
+      return true
+    })
     expect(await markFeedbackTreated(feedback, d)).toEqual({ ok: true, sms: 'sent' })
     expect(d.sendSms).toHaveBeenCalledTimes(1)
-    const repeat = deps()
-    await markFeedbackTreated({ ...feedback, status: 'fixed' }, repeat)
-    expect(repeat.sendSms).not.toHaveBeenCalled()
+    expect(d.record.sentAt).not.toBeNull()
+  })
+
+  it('never texts again after a reopen and a second טופל', async () => {
+    const shared = store()
+    await markFeedbackTreated(feedback, deps(shared))
+    const second = deps(shared)
+    expect(await markFeedbackTreated({ ...feedback, status: 'open' }, second)).toEqual({
+      ok: true,
+      sms: 'already_sent',
+    })
+    expect(second.setFixed).toHaveBeenCalledTimes(1)
+    expect(second.sendSms).not.toHaveBeenCalled()
+  })
+
+  it('sends once when two requests race (double click, second tab)', async () => {
+    const shared = store()
+    const a = deps(shared)
+    const b = deps(shared)
+    const results = await Promise.all([markFeedbackTreated(feedback, a), markFeedbackTreated(feedback, b)])
+    expect(a.sendSms.mock.calls.length + b.sendSms.mock.calls.length).toBe(1)
+    expect(results.map((r) => (r.ok ? r.sms : null)).sort()).toEqual(['already_sent', 'sent'])
+  })
+
+  it('does not record a failed send, so a later טופל may try again', async () => {
+    const shared = store()
+    const first = deps(shared)
+    first.sendSms.mockResolvedValueOnce(false)
+    expect(await markFeedbackTreated(feedback, first)).toEqual({ ok: true, sms: 'failed' })
+    expect(shared.record).toEqual({ sentAt: null, sending: false })
+    const retry = deps(shared)
+    expect(await markFeedbackTreated(feedback, retry)).toEqual({ ok: true, sms: 'sent' })
+  })
+
+  it('treats feedback marked as texted before the record existed as sent', async () => {
+    const d = deps(store({ sentAt: '2026-11-02T09:00:00Z' }))
+    expect(await markFeedbackTreated({ ...feedback, status: 'in_progress' }, d)).toEqual({
+      ok: true,
+      sms: 'already_sent',
+    })
+    expect(d.sendSms).not.toHaveBeenCalled()
+  })
+
+  it('keeps a claim that was never released from texting again', async () => {
+    const d = deps(store({ sending: true }))
+    expect(await markFeedbackTreated(feedback, d)).toEqual({ ok: true, sms: 'already_sent' })
+    expect(d.sendSms).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the SMS record cannot be written', async () => {
+    const d = deps()
+    d.claimSms.mockResolvedValueOnce('error' as never)
+    expect(await markFeedbackTreated(feedback, d)).toEqual({ ok: true, sms: 'failed' })
+    expect(d.sendSms).not.toHaveBeenCalled()
+  })
+
+  it('does not claim when there is no mobile number', async () => {
+    const d = deps()
+    const result = await markFeedbackTreated({ ...feedback, author: { full_name: 'דני', phone: null } }, d)
+    expect(result).toEqual({ ok: true, sms: 'skipped_no_phone' })
+    expect(d.claimSms).not.toHaveBeenCalled()
   })
 
   it('reports a failed status update without texting', async () => {
@@ -329,6 +412,13 @@ describe('user-feedback edge function', () => {
     expect(edge).toContain('"id, title, body, status, audio_storage_path, author:')
     expect(edge).toContain('await markFeedbackTreated(')
     expect(edge).not.toContain('buildFeedbackTreatedSms')
+  })
+
+  it('claims the one SMS with a single conditional update before sending', () => {
+    expect(edge).toContain('.is("sms_sent_at", null)\n            .is("sms_sending_at", null)')
+    expect(edge).toContain('claimSms:')
+    expect(edge).toContain('releaseSms:')
+    expect(edge).toContain('sms_sent_at: sentAt')
   })
 })
 

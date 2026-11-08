@@ -71,6 +71,12 @@ export function OverflowMenu({
     }
   }, [open, items.length])
 
+  // The panel is portaled to the end of <body>, so Tab from the trigger never reaches it.
+  const placed = coords !== null
+  useEffect(() => {
+    if (open && placed) panelRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }, [open, placed])
+
   useEffect(() => {
     if (!open) return
 
@@ -83,7 +89,17 @@ export function OverflowMenu({
       if (event.key === 'Escape') {
         onOpenChange(false)
         triggerRef.current?.focus()
+        return
       }
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+      const buttons = [
+        ...(panelRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? []),
+      ]
+      if (buttons.length === 0) return
+      event.preventDefault()
+      const at = buttons.indexOf(document.activeElement as HTMLButtonElement)
+      const step = event.key === 'ArrowDown' ? 1 : -1
+      buttons[(at + step + buttons.length) % buttons.length].focus()
     }
 
     document.addEventListener('mousedown', onPointerDown)
@@ -131,6 +147,8 @@ export function OverflowMenu({
                     event.stopPropagation()
                     if (item.disabled) return
                     onOpenChange(false)
+                    // Back to the trigger first, so a dialog the item opens returns focus there.
+                    triggerRef.current?.focus()
                     item.onSelect()
                   }}
                 >
