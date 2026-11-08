@@ -5,6 +5,7 @@ import {
   MAP_LEGEND_VOLUNTEER,
   VOLUNTEER_STATUS_LABELS,
   VOLUNTEER_STATUS_OPTIONS,
+  hasAvailabilityStatus,
   isMapVisibleVolunteerStatus,
   isVolunteerStatus,
   parseVolunteerStatus,
@@ -61,5 +62,18 @@ describe('volunteerStatus', () => {
   it('uses the product volunteer-status labels on the map legend', () => {
     expect(MAP_LEGEND_VOLUNTEER).toBe('מתנדב פעיל / חניכה ברכב פרטי')
     expect(MAP_LEGEND_PHONE).toBe('חניכה טלפונית')
+  })
+
+  it('gives availability only to מתנדב פעיל, חניכה טלפונית and חניכה ברכב פרטי', () => {
+    const eligible = VOLUNTEER_STATUS_OPTIONS.filter((option) => hasAvailabilityStatus(option.value)).map(
+      (option) => option.label,
+    )
+    expect(eligible).toEqual(['חניכה טלפונית', 'חניכה ברכב פרטי', 'מתנדב פעיל'])
+  })
+
+  it('gives no availability to an unknown or missing status', () => {
+    expect(hasAvailabilityStatus(null)).toBe(false)
+    expect(hasAvailabilityStatus(undefined)).toBe(false)
+    expect(hasAvailabilityStatus('volunteer')).toBe(false)
   })
 })

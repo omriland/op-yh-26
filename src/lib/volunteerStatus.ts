@@ -53,6 +53,17 @@ export function isMapVisibleVolunteerStatus(value: unknown): boolean {
   return !MAP_HIDDEN_VOLUNTEER_STATUSES.has(parseVolunteerStatus(value))
 }
 
+const AVAILABILITY_VOLUNTEER_STATUSES = new Set<VolunteerStatus>([
+  'active_volunteer',
+  'phone_training',
+  'personal_vehicle_training',
+])
+
+/** Duty availability exists only for מתנדב פעיל, חניכה טלפונית and חניכה ברכב פרטי. Mirrors `guard_profile_availability`. */
+export function hasAvailabilityStatus(value: unknown): boolean {
+  return isVolunteerStatus(value) && AVAILABILITY_VOLUNTEER_STATUSES.has(value)
+}
+
 /** Green map pins: מתנדב פעיל and חניכה ברכב פרטי. */
 export const MAP_LEGEND_VOLUNTEER = `${VOLUNTEER_STATUS_LABELS.active_volunteer} / ${VOLUNTEER_STATUS_LABELS.personal_vehicle_training}`
 

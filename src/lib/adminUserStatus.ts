@@ -1,3 +1,5 @@
+import { hasAvailabilityStatus } from './volunteerStatus'
+
 /** Invite not completed — profile still marked pending in the app. */
 export function isInvitePending(user: {
   active: boolean
@@ -18,12 +20,13 @@ export function shouldClearInviteOnPasswordSignIn(
   return user?.invite_pending === true && !passwordSetupReason
 }
 
-/** Invitees who have not registered yet have no duty availability. */
+/** Invitees who have not registered yet, and statuses outside the duty set, have no duty availability. */
 export function hasAvailability(user: {
   active: boolean
   invite_pending: boolean
+  volunteer_status: unknown
 }): boolean {
-  return !isInvitePending(user)
+  return !isInvitePending(user) && hasAvailabilityStatus(user.volunteer_status)
 }
 
 /**
