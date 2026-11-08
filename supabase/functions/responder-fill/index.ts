@@ -13,6 +13,12 @@ import {
   isFillTokenExpired,
   sha256Hex,
 } from "../_shared/fillTokenTtl.ts";
+import {
+  EVENT_RELEASE_SELECT,
+  NOT_RELEASED_MESSAGE,
+  eventReleasedToResponders,
+  type EventReleaseRow,
+} from "../_shared/eventRelease.ts";
 import { isPrelaunchBlocked, PRELAUNCH_BLOCKED_MESSAGE } from "../_shared/prelaunch.ts";
 
 type LoadBody = { action: "load_by_token"; fill_token: string };
@@ -308,6 +314,20 @@ async function isShiftBornEvent(adminClient: SupabaseClient, eventId: string): P
   return (data as { origin?: string } | null)?.origin === "shift";
 }
 
+/** A טיוטה stays closed to the volunteer even through an email link already sent. */
+function notReleasedResponse(eventId: string) {
+  return json(400, { error: NOT_RELEASED_MESSAGE, code: "gone", event_id: eventId });
+}
+
+async function isEventReleased(adminClient: SupabaseClient, eventId: string): Promise<boolean> {
+  const { data } = await adminClient
+    .from("events")
+    .select(EVENT_RELEASE_SELECT)
+    .eq("id", eventId)
+    .maybeSingle();
+  return Boolean(data) && eventReleasedToResponders(data as EventReleaseRow);
+}
+
 async function handleLoadByToken(adminClient: SupabaseClient, body: LoadBody) {
   const fillToken = trim(body.fill_token);
   if (!fillToken) {
@@ -324,6 +344,9 @@ async function handleLoadByToken(adminClient: SupabaseClient, body: LoadBody) {
 
   if (await isShiftBornEvent(adminClient, assignment.event_id)) {
     return shiftBornResponse(assignment.event_id);
+  }
+  if (!(await isEventReleased(adminClient, assignment.event_id))) {
+    return notReleasedResponse(assignment.event_id);
   }
 
   // Opening or refreshing the same email link must keep working — do not
@@ -494,7 +517,7 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
 
   const { data: event } = await adminClient
     .from("events")
-    .select("id, status, is_cancelled, origin")
+    .select(`id, status, is_cancelled, ${EVENT_RELEASE_SELECT}`)
     .eq("id", assignment.event_id)
     .maybeSingle();
 
@@ -503,6 +526,9 @@ async function handleSaveByToken(adminClient: SupabaseClient, body: SaveBody) {
   }
   if (event.origin === "shift") {
     return shiftBornResponse(assignment.event_id);
+  }
+  if (!eventReleasedToResponders(event as EventReleaseRow)) {
+    return notReleasedResponse(assignment.event_id);
   }
 
   if (assignment.status === "done") {
@@ -729,7 +755,7 @@ async function handleNotifyFillReady(
     .from("event_responders")
     .select(
       `id, event_id, responder_id, total_km, status, fill_token_hash, fill_token_expires_at, fill_ready_emailed_at,
-       event:events!inner(id, is_cancelled, event_date, status, origin,
+       event:events!inner(id, is_cancelled, event_date, status, ${EVENT_RELEASE_SELECT},
          event_type:event_types(name),
          road:roads(name)
        ),
@@ -751,7 +777,7 @@ async function handleNotifyFillReady(
   const skipped: { id: string; reason: string }[] = [];
 
   for (const row of rows ?? []) {
-    const assignment = row as {
+    const assignment = row as unknown as {
       id: string;
       event_id: string;
       responder_id: string;
@@ -760,7 +786,7 @@ async function handleNotifyFillReady(
       fill_token_hash: string | null;
       fill_token_expires_at: string | null;
       fill_ready_emailed_at: string | null;
-      event: {
+      event: EventReleaseRow & {
         id: string;
         is_cancelled: boolean;
         event_date: string;
@@ -791,6 +817,11 @@ async function handleNotifyFillReady(
     }
     if (assignment.event?.origin === "shift") {
       skipped.push({ id: assignment.id, reason: "shift_born" });
+      continue;
+    }
+    // Not marked as emailed: the save that releases the event asks again.
+    if (!eventReleasedToResponders(assignment.event)) {
+      skipped.push({ id: assignment.id, reason: "not_released" });
       continue;
     }
     if (!assignment.profile || assignment.profile.active !== true) {
@@ -964,7 +995,7 @@ async function handleNotifyOverdueFills(
     .select(
       `id, responder_id, status, fill_completable_at, overdue_48h_emailed_at, overdue_7d_emailed_at,
        fill_token_hash, fill_token_expires_at,
-       event:events!inner(id, is_cancelled, event_date, origin,
+       event:events!inner(id, is_cancelled, event_date, ${EVENT_RELEASE_SELECT},
          event_type:event_types(name),
          road:roads(name)
        ),
@@ -982,7 +1013,7 @@ async function handleNotifyOverdueFills(
   const skipped: { id: string; reason: string }[] = [];
 
   for (const row of rows ?? []) {
-    const assignment = row as {
+    const assignment = row as unknown as {
       id: string;
       responder_id: string;
       status: string;
@@ -991,7 +1022,7 @@ async function handleNotifyOverdueFills(
       overdue_7d_emailed_at: string | null;
       fill_token_hash: string | null;
       fill_token_expires_at: string | null;
-      event: {
+      event: EventReleaseRow & {
         id: string;
         is_cancelled: boolean;
         event_date: string;
@@ -1017,6 +1048,10 @@ async function handleNotifyOverdueFills(
     }
     if (assignment.event?.origin === "shift") {
       skipped.push({ id: assignment.id, reason: "shift_born" });
+      continue;
+    }
+    if (!eventReleasedToResponders(assignment.event)) {
+      skipped.push({ id: assignment.id, reason: "not_released" });
       continue;
     }
     if (!assignment.profile || assignment.profile.active !== true) {

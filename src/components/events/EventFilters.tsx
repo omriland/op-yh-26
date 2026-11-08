@@ -56,7 +56,7 @@ import {
   type EventFilterPreset,
 } from '../../lib/eventFilterPresets'
 import { digitsOnly, policeEventIdForInput } from '../../lib/format'
-import { EVENT_FILTERS } from '../../lib/status'
+import { lifecycleFilters } from '../../lib/eventLifecycle'
 import { AlertDialog } from '../ui/AlertDialog'
 import { Button } from '../ui/Button'
 import { Checkbox } from '../ui/Checkbox'
@@ -122,9 +122,16 @@ const FIELD_ICONS: Record<FilterField, ReactNode> = {
 const STATUS_DOT: Record<string, string> = {
   all: 'var(--text-secondary)',
   draft: 'var(--status-draft)',
-  in_progress: 'var(--status-pending)',
+  missing_details: 'var(--status-alert)',
+  awaiting_responder: 'var(--status-pending)',
   partial: 'var(--status-partial)',
   done: 'var(--status-done)',
+}
+
+/** A כונן's ממתין למילוי פרטים is a waiting stamp, so its dot is too. */
+function statusDot(value: string, scope: ListScope): string {
+  if (scope === 'mine' && value === 'missing_details') return STATUS_DOT.awaiting_responder
+  return STATUS_DOT[value] ?? STATUS_DOT.all
 }
 
 const STATUS_ALL_LABEL = 'כל הסטטוסים'
@@ -431,7 +438,8 @@ export function EventFilters({
   const pills = drafts.filter((rule) => rule.field !== 'event_date')
   const unused = PILL_FIELDS.filter((def) => !drafts.some((rule) => rule.field === def.field))
   const dateDraft = drafts.find((rule): rule is DateRule => rule.field === 'event_date')
-  const statusRow = EVENT_FILTERS.find((row) => row.value === view.status)
+  const statusRows = lifecycleFilters(scope === 'mine' ? 'responder' : 'lead')
+  const statusRow = statusRows.find((row) => row.value === view.status)
   const otherRules = activeRules(view.rules).some((rule) => rule.field !== 'event_date')
 
   const countLabel = resultCount === null ? null : resultCount === 1 ? 'אירוע אחד' : `${resultCount} אירועים`
@@ -608,7 +616,7 @@ export function EventFilters({
               aria-expanded={openId === 'status'}
               onClick={() => toggle('status')}
             >
-              <span className="fdot" style={{ background: STATUS_DOT[view.status] }} aria-hidden="true" />
+              <span className="fdot" style={{ background: statusDot(view.status, scope) }} aria-hidden="true" />
               <span className="fpill__value">
                 {statusRow && view.status !== 'all' ? statusRow.label : STATUS_ALL_LABEL}
               </span>
@@ -616,13 +624,13 @@ export function EventFilters({
             </button>
           }
         >
-          {EVENT_FILTERS.filter((row) => scope !== 'mine' || row.value !== 'draft').map((row) => (
+          {statusRows.map((row) => (
             <MenuItem
               key={row.value}
               role="menuitemradio"
               checked={view.status === row.value}
               icon={
-                <span className="fdot" style={{ background: STATUS_DOT[row.value] }} aria-hidden="true" />
+                <span className="fdot" style={{ background: statusDot(row.value, scope) }} aria-hidden="true" />
               }
               label={row.value === 'all' ? STATUS_ALL_LABEL : row.label}
               description={row.tip}

@@ -48,7 +48,7 @@ The product is built around the record itself rather than around a dashboard. It
 
 **Domain terminology (Hebrew is the canonical form):** אחמ״ש (shift-lead), כונן (responder), שלוחה (district), או״ק (callsign), ניידת (patrol), אירוע (event), כביש (road), ק״מ.
 
-**Status model:** participation is `pending` / `in_progress` / `done`; event is `draft` / `in_progress` / `partial` / `done`, where `done` is computed from all responders being done. UI labels are viewer-relative.
+**Status model:** participation is `pending` / `in_progress` / `done`; stored `events.status` is `draft` / `in_progress` / `partial` / `done` (what the database gates on). What people see is the lifecycle in `src/lib/eventLifecycle.ts`: טיוטה · פרטים חסרים · ממתין למתנדב · תועד חלקית X/Y · תועד. A כונן never sees טיוטה (RLS) and reads פרטים חסרים as ממתין למילוי פרטים; admins read the אחמ״ש labels.
 
 **Records and freeze:** a volunteer's participation can be frozen — high km or a suspected duplicate — and the event carries that as an "at least one frozen record" aggregate (see `src/lib/eventFreeze.ts` and the `event_freeze` migrations). The user did **not** declare legal or regulatory auditability a binding product constraint, so future work should treat freeze as an existing capability with real semantics, not as a compliance obligation — and must still never make a frozen record look editable.
 

@@ -1,3 +1,4 @@
+import { eventReleasedFromEvent } from './eventResponderRelease'
 import { plateDigits, plateNumberForSave } from './format'
 import {
   EVENT_SECONDARY_LEADS_EMBED,
@@ -296,7 +297,7 @@ export async function fetchResponderFillContext(
       .select(
         `
           id, status, event_date, police_event_id, location, is_cancelled,
-          origin, ended_at,
+          origin, ended_at, patrol_callsign, patrol_callsign_prefix, patrol_callsign_number,
           event_type:event_types(name),
           road:roads(name),
           shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
@@ -330,6 +331,8 @@ export async function fetchResponderFillContext(
     throw new Error(eventError.message)
   }
   if (!event) return null
+  // A טיוטה is nobody's to document yet, not even through a typed-in link.
+  if (!eventReleasedFromEvent(event as Parameters<typeof eventReleasedFromEvent>[0])) return null
 
   const row = event as unknown as {
     id: string
@@ -384,7 +387,7 @@ async function fetchResponderFillContextWithPlateQuery(
       .select(
         `
           id, status, event_date, police_event_id, location, is_cancelled,
-          origin, ended_at,
+          origin, ended_at, patrol_callsign, patrol_callsign_prefix, patrol_callsign_number,
           event_type:event_types(name),
           road:roads(name),
           shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
@@ -411,6 +414,8 @@ async function fetchResponderFillContextWithPlateQuery(
 
   if (eventError) throw new Error(eventError.message)
   if (!event) return null
+  // A טיוטה is nobody's to document yet, not even through a typed-in link.
+  if (!eventReleasedFromEvent(event as Parameters<typeof eventReleasedFromEvent>[0])) return null
 
   const row = event as unknown as {
     id: string

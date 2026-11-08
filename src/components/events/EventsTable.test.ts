@@ -104,10 +104,9 @@ describe('EventsTable incomplete pin', () => {
     expect(html.indexOf('event-card__type')).toBeLessThan(html.indexOf('incomplete-notice'))
   })
 
-  it('shows red חסר ק״מ on the last trail step when done but KM is missing', () => {
+  it('puts a done-but-KM-missing event on פרטים חסרים, the second of five steps', () => {
     const html = renderToStaticMarkup(
       createElement(EventsTable, {
-        viewerId: 'lead',
         events: [
           event({
             status: 'done',
@@ -133,22 +132,21 @@ describe('EventsTable incomplete pin', () => {
       }),
     )
 
-    expect(html).toContain('חסר ק״מ')
-    expect(html).toContain('event-status-trail__node--tone-alert')
-    expect(html).toContain('event-status-trail__label--alert')
-    expect(html).toContain('פרטים חסרים:')
+    expect(html).toContain('event-status-trail__label--alert">פרטים חסרים<')
+    expect(html.match(/event-status-trail__step /g)).toHaveLength(5)
+    expect(html).toContain('event-status-trail__step--past"><span')
     expect(html).not.toContain('event-status-trail__label--done')
     expect(html).not.toContain('table-row--done')
   })
 
-  it('does not show חסר ק״מ to a lead-role responder who is not the event lead', () => {
+  it('reads פרטים חסרים whoever leads the event: admins see the אחמ״ש view', () => {
     const html = renderToStaticMarkup(
       createElement(EventsTable, {
-        viewerId: 'u1',
         events: [
           event({
             status: 'done',
             shift_lead_id: 'other-lead',
+            lead_km_owed: true,
             responders: [
               {
                 id: 'r1',
@@ -166,8 +164,8 @@ describe('EventsTable incomplete pin', () => {
       }),
     )
 
-    expect(html).not.toContain('חסר ק״מ')
-    expect(html).toContain('הושלם')
+    expect(html).toContain('פרטים חסרים')
+    expect(html).not.toContain('>תועד<')
   })
 
   it('keeps done tint when the row is complete', () => {
@@ -220,7 +218,7 @@ describe('EventsTable incomplete pin', () => {
     )
 
     expect(withImage).toContain('יש תמונה מצורפת')
-    expect(withImage).toContain('הושלם')
+    expect(withImage).toContain('>תועד<')
     expect(without).not.toContain('יש תמונה מצורפת')
   })
 })

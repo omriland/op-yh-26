@@ -1,6 +1,6 @@
 import type { SmartSearchFilter } from '../../supabase/functions/_shared/smartSearchFilter.ts'
 import { formatDate, formatPlate } from './format.ts'
-import { eventStamp } from './status.ts'
+import { storedStatusLabel } from './status.ts'
 
 export function isBlankQuery(q: string): boolean {
   return q.replace(/[\s\p{P}\p{S}\p{Cf}]/gu, '') === ''
@@ -43,7 +43,7 @@ export function chipsForFilter(f: SmartSearchFilter): SearchChip[] {
   if (f.text) add('text', `״${f.text}״`)
   if (f.damaged) add('damaged', 'עם נזק')
   if (f.damage_location) add('damage_location', `נזק: ${f.damage_location}`)
-  if (f.status) add('status', eventStamp(f.status).label)
+  if (f.status) add('status', storedStatusLabel(f.status))
   if (f.include_cancelled) add('include_cancelled', 'כולל מבוטלים')
   if (f.source === 'new') add('source', 'אירועים חדשים בלבד')
   if (f.source === 'archive') add('source', 'ארכיון בלבד')

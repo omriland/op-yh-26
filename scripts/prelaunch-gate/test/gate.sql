@@ -128,9 +128,18 @@ insert into public.user_roles (user_id, role) values
   ('b0000000-0000-4000-8000-00000000000d', 'responder'),
   ('b0000000-0000-4000-8000-00000000000e', 'responder');
 
-insert into public.events (id, shift_lead_id, police_event_id, notes, is_demo) values
-  ('e0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000002', '7001', 'אירוע אמיתי', false),
-  ('e0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-00000000000e', '7002', 'דמו - App Review', true);
+-- Both past טיוטה, so their volunteers may read them (20261108120000_event_lifecycle_release.sql).
+insert into public.event_types (id, name) values
+  ('7e7e7e7e-7e7e-47e7-87e7-7e7e7e7e7e7e', 'בדיקה - סוג אירוע');
+insert into public.roads (id, name) values
+  ('70707070-7070-4707-8707-707070707070', 'בדיקה - כביש');
+insert into public.events (
+  id, shift_lead_id, police_event_id, notes, is_demo, event_type_id, road_id, patrol_callsign_number
+) values
+  ('e0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000002', '7001', 'אירוע אמיתי', false,
+   '7e7e7e7e-7e7e-47e7-87e7-7e7e7e7e7e7e', '70707070-7070-4707-8707-707070707070', '411'),
+  ('e0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-00000000000e', '7002', 'דמו - App Review', true,
+   '7e7e7e7e-7e7e-47e7-87e7-7e7e7e7e7e7e', '70707070-7070-4707-8707-707070707070', '511');
 insert into public.event_responders (event_id, responder_id) values
   ('e0000000-0000-4000-8000-000000000001', 'b0000000-0000-4000-8000-000000000001'),
   ('e0000000-0000-4000-8000-000000000002', 'b0000000-0000-4000-8000-00000000000d');

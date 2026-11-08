@@ -61,12 +61,16 @@ The register is **official but human**: the tone of a professional duty log, not
 
 ## Canonical status vocabulary (fixed — do not rephrase)
 
+Event stamps show the lifecycle from `src/lib/eventLifecycle.ts`, not `events.status`. A כונן never sees `טיוטה`.
+
 | Context | Status | Hebrew label |
 |---|---|---|
-| Event | `draft` | `אירוע בהזנה` |
-| Event | `in_progress` | `ממתין לתיעוד` |
-| Event | `partial` | `תועד חלקית` |
-| Event | `done` | `הושלם` |
+| Event (אחמ״ש, admin) | `draft` lifecycle | `טיוטה` |
+| Event (אחמ״ש, admin) | `missing_details` lifecycle | `פרטים חסרים` |
+| Event (כונן) | `missing_details` lifecycle | `ממתין למילוי פרטים` |
+| Event (both) | `awaiting_responder` lifecycle | `ממתין למתנדב` |
+| Event (both) | `partial` lifecycle | `תועד חלקית` + `X/Y` |
+| Event (both) | `done` lifecycle | `תועד` |
 | My participation (responder viewing own open row) | `pending` | `ממתין לתיעוד שלך` |
 | My participation (own draft saved) | `in_progress` | `טיוטה נשמרה` |
 | Participation (viewing another's open row) | `pending`/`in_progress` | `ממתין לכונן` |

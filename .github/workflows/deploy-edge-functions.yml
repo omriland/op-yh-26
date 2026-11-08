@@ -41,6 +41,7 @@ on:
       - "supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql"
       - "supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql"
       - "supabase/migrations/20261106160000_super_admin_reopen_log_and_shift_event_type.sql"
+      - "supabase/migrations/20261108120000_event_lifecycle_release.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -194,6 +195,15 @@ jobs:
           # event's type tally. Nothing later replaces these functions.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261106160000_super_admin_reopen_log_and_shift_event_type.sql
+          # Keep LAST. Volunteers stop seeing, writing or hearing about a טיוטה
+          # (events_select, event_is_open_for_responder_edit, both partner-webhook
+          # triggers) and lists get events.lead_km_owed. 20260922143000 and
+          # 20261103100000 above restore the older bodies of those functions and
+          # the police-id-only webhook trigger, so this has to run after them.
+          # Must land before responder-fill, whose fill-ready mail now waits for
+          # release.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261108120000_event_lifecycle_release.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

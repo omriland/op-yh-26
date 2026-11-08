@@ -54,10 +54,10 @@ Unit list (`/events`) and, with the differences listed in `responder-fill.md`, `
 
 ## Status logic (viewer-relative — from product spec)
 
-- Desktop **table** column: compact 4-node pipeline + current stamp (`אירוע בהזנה` / `ממתין לתיעוד` / `תועד חלקית` / `הושלם`); no participation override. Exception for אחמ״ש: if the event would otherwise be `הושלם` but any responder `total_km` is still missing, the last node stays on the `done` slot but uses `--status-alert` and the label `חסר ק״מ`. Responder `done` in the DB is unchanged.
-- Unit **cards** (mobile אחמ״ש list): same overlay — stamp `חסר ק״מ` / `--status-alert` instead of green `הושלם` when KM is missing. Mine-list / fill stamps for a finished responder whose own `total_km` is still null use `סיימת לתעד` (green) plus caption `אחמ״ש טרם הזין ק״מ` (red `--status-alert`). Once the lead enters KM the stamp becomes `הושלם`. Those rows stay on `ממתינים לתיעוד` until the lead enters KM.
-- Cards / detail / form stamps otherwise: Event `done` → `הושלם`; `partial` → `תועד חלקית`; `in_progress` → `ממתין לתיעוד`; `draft` → `אירוע בהזנה`.
-- Cards / detail only: viewer's own open participation may still override to `ממתין לתיעוד שלך` / `טיוטה נשמרה`.
+- One lifecycle everywhere (`src/lib/eventLifecycle.ts`), in the order of the work: `טיוטה` (nobody assigned, or סוג אירוע / או״ק / כביש / מספר אירוע still empty, so no volunteer sees it) → `פרטים חסרים` (released; the אחמ״ש still owes שלוחה, מיקום, שעות or ק״מ) → `ממתין למתנדב` (no volunteer finished) → `תועד חלקית X/Y` → `תועד`. `פרטים חסרים` wins over the volunteers' progress. Shift-born events read `ממתין למתנדב` until the shared report is done with פירוט הטיפול, then `תועד`; never `טיוטה`.
+- Desktop **table** column: compact 5-node pipeline + current label. `פרטים חסרים` uses `--status-alert`; its hover lists the missing fields. The unit list, cards, search, cockpit and the event form header use the אחמ״ש labels; admins see the same.
+- האירועים שלי, and event detail for a member without a lead or admin role, use the כונן labels: `פרטים חסרים` reads `ממתין למילוי פרטים` (`--status-pending`). A finished volunteer whose lead still owes ק״מ or שעת סיום keeps the caption `אחמ״ש טרם הזין ק״מ` / `ממתין לפרטים נוספים מאחמ״ש` under the event stamp.
+- Participation stamps (own section on the fill page and event detail) are unchanged: `ממתין לתיעוד`, `טיוטה נשמרה`, `ממתין למתנדב`, `הושלם`, and `סיימת לתעד` while the lead still owes ק״מ or שעת סיום.
 
 ## States
 

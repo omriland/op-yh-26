@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  EVENT_FILTERS,
-  EVENT_STATUS_ORDER,
-  eventStamp,
-  eventStatusTrailSteps,
   AWAITING_LEAD_DETAILS_NOTE,
   leadKmPendingNote,
   mineInboxIsOpen,
   mineParticipationStamp,
-  overlayMissingKmOnDoneStamp,
-  reportingDocumentationStamp,
   shiftStamp,
+  storedStatusLabel,
   splitRespondersByParticipation,
 } from './status'
 
@@ -22,43 +17,12 @@ describe('shift status vocabulary', () => {
   })
 })
 
-describe('event status vocabulary', () => {
-  it('uses the approved Hebrew labels for each event status', () => {
-    expect(eventStamp('draft').label).toBe('אירוע בהזנה')
-    expect(eventStamp('in_progress').label).toBe('ממתין לתיעוד')
-    expect(eventStamp('partial').label).toBe('תועד חלקית')
-    expect(eventStamp('done').label).toBe('הושלם')
-  })
-
-  it('exposes filter chips with the same labels', () => {
-    const byValue = Object.fromEntries(EVENT_FILTERS.map((row) => [row.value, row.label]))
-    expect(byValue.draft).toBe('אירוע בהזנה')
-    expect(byValue.in_progress).toBe('ממתין לתיעוד')
-    expect(byValue.partial).toBe('תועד חלקית')
-    expect(byValue.done).toBe('הושלם')
-  })
-
-  it('explains each status filter on hover, except הכול', () => {
-    const byValue = Object.fromEntries(EVENT_FILTERS.map((row) => [row.value, row.tip]))
-    expect(byValue.all).toBeUndefined()
-    expect(byValue.in_progress).toBe('הוזן ע״י אחמ״ש וטרם תועד ע״י מתנדב')
-    expect(byValue.partial).toBe(
-      'חלק מהתיעוד הושלם. ממתין למתנדבים נוספים או לשעת סיום וק״מ מהאחמ״ש',
-    )
-    expect(byValue.done).toBe('אירוע סגור שתועד במלואו')
-    expect(byValue.draft).toBe('טיוטה נשמרה ע״י אחמ״ש. טרם זמין למתנדב לתיעוד')
-  })
-
-  it('spells אחמ״ש and ק״מ with gershayim in every filter tip', () => {
-    // These strings sat unrendered for months, which is how three spellings of
-    // אחמ״ש drifted into two adjacent lines. Now that they are on screen, keep
-    // them to the same typography rule as the rest of the app.
-    for (const row of EVENT_FILTERS) {
-      if (!row.tip) continue
-      expect(row.tip).not.toMatch(/"/)
-      expect(row.tip).not.toMatch(/!/)
-      expect(row.tip).not.toMatch(/אחמש/)
-    }
+describe('storedStatusLabel', () => {
+  it('reads a stored status in the lifecycle vocabulary', () => {
+    expect(storedStatusLabel('draft')).toBe('טיוטה')
+    expect(storedStatusLabel('in_progress')).toBe('ממתין למתנדב')
+    expect(storedStatusLabel('partial')).toBe('תועד חלקית')
+    expect(storedStatusLabel('done')).toBe('תועד')
   })
 })
 
@@ -71,88 +35,6 @@ describe('splitRespondersByParticipation', () => {
         { status: 'pending', name: 'ג' },
       ]),
     ).toEqual({ done: ['א'], draft: ['ב'], pending: ['ג'] })
-  })
-})
-
-describe('eventStatusTrailSteps', () => {
-  it('orders the four event statuses', () => {
-    expect(EVENT_STATUS_ORDER).toEqual(['draft', 'in_progress', 'partial', 'done'])
-  })
-
-  it('marks past, current, and future around the active status', () => {
-    const steps = eventStatusTrailSteps('partial')
-    expect(steps.map((step) => step.phase)).toEqual(['past', 'past', 'current', 'future'])
-    expect(steps[2]?.label).toBe('תועד חלקית')
-    expect(steps[2]?.tone).toBe('partial')
-  })
-
-  it('marks the first step current when draft', () => {
-    expect(eventStatusTrailSteps('draft').map((step) => step.phase)).toEqual([
-      'current',
-      'future',
-      'future',
-      'future',
-    ])
-  })
-
-  it('marks all steps past or current when done', () => {
-    expect(eventStatusTrailSteps('done').map((step) => step.phase)).toEqual([
-      'past',
-      'past',
-      'past',
-      'current',
-    ])
-  })
-
-  it('keeps the last node on done but labels it חסר ק״מ when KM is missing', () => {
-    const steps = eventStatusTrailSteps('done', { missingKm: true })
-    expect(steps.map((step) => step.phase)).toEqual(['past', 'past', 'past', 'current'])
-    expect(steps[3]).toMatchObject({
-      status: 'done',
-      label: 'חסר ק״מ',
-      tone: 'alert',
-      phase: 'current',
-    })
-    expect(steps.slice(0, 3).every((step) => step.tone !== 'alert')).toBe(true)
-  })
-
-  it('does not overlay חסר ק״מ when the trail is not yet הושלם', () => {
-    const steps = eventStatusTrailSteps('partial', { missingKm: true })
-    expect(steps[2]).toMatchObject({ label: 'תועד חלקית', tone: 'partial', phase: 'current' })
-    expect(steps[3]).toMatchObject({ label: 'הושלם', tone: 'done', phase: 'future' })
-  })
-})
-
-describe('reportingDocumentationStamp', () => {
-  it('maps done + missing KM to red חסר ק״מ without inventing a status', () => {
-    expect(reportingDocumentationStamp('done', true)).toEqual({
-      label: 'חסר ק״מ',
-      tone: 'alert',
-    })
-    expect(reportingDocumentationStamp('done', false)).toEqual({
-      label: 'הושלם',
-      tone: 'done',
-    })
-  })
-
-  it('does not override earlier pipeline stamps even if KM is missing', () => {
-    expect(reportingDocumentationStamp('partial', true)).toEqual(eventStamp('partial'))
-    expect(reportingDocumentationStamp('in_progress', true)).toEqual(eventStamp('in_progress'))
-  })
-
-  it('overlays only a green הושלם stamp', () => {
-    expect(overlayMissingKmOnDoneStamp({ label: 'הושלם', tone: 'done' }, true)).toEqual({
-      label: 'חסר ק״מ',
-      tone: 'alert',
-    })
-    expect(overlayMissingKmOnDoneStamp({ label: 'הושלם', tone: 'done' }, false)).toEqual({
-      label: 'הושלם',
-      tone: 'done',
-    })
-    expect(overlayMissingKmOnDoneStamp({ label: 'טיוטה נשמרה', tone: 'draft' }, true)).toEqual({
-      label: 'טיוטה נשמרה',
-      tone: 'draft',
-    })
   })
 })
 
@@ -196,10 +78,10 @@ describe('mineParticipationStamp', () => {
     expect(mineParticipationStamp('done', 12)).toEqual({ label: 'הושלם', tone: 'done' })
   })
 
-  it('shows תועד חלקית when the responder finished but the lead still owes details', () => {
+  it('shows סיימת לתעד when the responder finished but the lead still owes details', () => {
     expect(mineParticipationStamp('done', 12, { missingLeadDetails: true })).toEqual({
-      label: 'תועד חלקית',
-      tone: 'partial',
+      label: 'סיימת לתעד',
+      tone: 'done',
     })
   })
 
