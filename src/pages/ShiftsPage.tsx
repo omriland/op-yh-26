@@ -329,6 +329,11 @@ export function ShiftsPage({
             shifts={visible}
             onOpen={onOpen}
             viewer={freezeViewer}
+            partialSortNote={
+              scope === 'unit' && unitWindow?.hasMore
+                ? 'המיון כולל רק את המשמרות המוצגות. טעינת משמרות נוספות תכלול גם אותן.'
+                : undefined
+            }
           />
           {scope === 'unit' && unitWindow?.hasMore ? (
             <Button variant="secondary" block onClick={() => setUnitWindows((windows) => windows + 1)}>

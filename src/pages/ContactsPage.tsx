@@ -1,23 +1,20 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Phone, Search, UserRound } from 'lucide-react'
+import { Phone, Search, UserRound } from 'lucide-react'
 import {
   fetchUnitContacts,
   filterContacts,
-  sortContacts,
   toTelHref,
   toWhatsAppHref,
-  type ContactSortKey,
-  type SortDirection,
   type UnitContact,
 } from '../lib/contacts'
 import { formatPhone, monoClass } from '../lib/format'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
+import { DataTable, type DataTableColumn } from '../components/ui/DataTable'
 import { EmptyState } from '../components/ui/EmptyState'
 import { HoverTip } from '../components/ui/HoverTip'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
-import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon'
 
 export function ContactsPage() {
@@ -26,10 +23,6 @@ export function ContactsPage() {
   const [failed, setFailed] = useState(false)
   const [query, setQuery] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
-  const [sort, setSort] = useState<{ key: ContactSortKey; direction: SortDirection }>({
-    key: 'full_name',
-    direction: 'asc',
-  })
 
   useEffect(() => {
     let active = true
@@ -47,17 +40,7 @@ export function ContactsPage() {
     }
   }, [reloadKey])
 
-  const filtered = useMemo(
-    () => sortContacts(filterContacts(contacts ?? [], query), sort.key, sort.direction),
-    [contacts, query, sort],
-  )
-
-  const onSort = (key: ContactSortKey) =>
-    setSort((current) =>
-      current.key === key
-        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
-        : { key, direction: 'asc' },
-    )
+  const filtered = useMemo(() => filterContacts(contacts ?? [], query), [contacts, query])
 
   return (
     <>
@@ -77,186 +60,135 @@ export function ContactsPage() {
         </label>
       </div>
 
-      {contacts === null && !failed ? (
-        isDesktop ? (
-          <EventRowsSkeleton />
-        ) : (
-          <EventListSkeleton />
-        )
-      ) : null}
-
-      {failed ? (
-        <EmptyState
-          icon={<UserRound size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title="טעינת אנשי הקשר נכשלה. בדקו את החיבור ונסו שוב."
-          action={
-            <Button variant="secondary" onClick={() => setReloadKey((key) => key + 1)}>
-              רענון
-            </Button>
-          }
-        />
-      ) : null}
-
-      {contacts && filtered.length === 0 && query.trim() ? (
-        <EmptyState
-          icon={<Search size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title="לא נמצאו אנשי קשר תואמים"
-          action={
-            <Button variant="ghost" onClick={() => setQuery('')}>
-              ניקוי חיפוש
-            </Button>
-          }
-        />
-      ) : null}
-
-      {contacts && filtered.length === 0 && !query.trim() ? (
-        <EmptyState
-          icon={<UserRound size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title="אין אנשי קשר להצגה"
-        />
-      ) : null}
-
-      {contacts && filtered.length > 0 && isDesktop ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                {SORT_COLUMNS.map((column) => (
-                  <SortHeader
-                    key={column.key}
-                    label={column.label}
-                    direction={sort.key === column.key ? sort.direction : null}
-                    onSort={() => onSort(column.key)}
-                  />
-                ))}
-                <th>
-                  <span className="visually-hidden">פעולות</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((contact) => {
-                const tel = toTelHref(contact.phone)
-                return (
-                  <tr key={contact.id} className="is-static">
-                    <td>{contact.full_name}</td>
-                    <td className={monoClass(contact.callsign)}>{contact.callsign}</td>
-                    <td className="num table-cell--nowrap">
-                      {contact.phone ? (
-                        tel ? (
-                          <a
-                            className={`ltr ${monoClass(contact.phone)}`}
-                            href={tel}
-                          >
-                            {formatPhone(contact.phone)}
-                          </a>
-                        ) : (
-                          <span className={`ltr ${monoClass(contact.phone)}`}>
-                            {formatPhone(contact.phone)}
-                          </span>
-                        )
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td>
-                      <a className="ltr" href={`mailto:${contact.email}`}>
-                        {contact.email}
-                      </a>
-                    </td>
-                    <td>
-                      <ContactActions contact={contact} labeled={false} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {contacts && filtered.length > 0 && !isDesktop ? (
-        <ul className="stack-3">
-          {filtered.map((contact) => {
-            const tel = toTelHref(contact.phone)
-            return (
-              <li key={contact.id} className="card contact-card">
-                <div className="contact-card__head">
-                  <Avatar name={contact.full_name} size="lg" />
-                  <div className="contact-card__identity">
-                    <p className="t-section">{contact.full_name}</p>
-                    <p className={`t-caption text-muted ${monoClass(contact.callsign)}`}>
-                      {contact.callsign}
-                    </p>
-                  </div>
+      <DataTable
+        loading={contacts === null && !failed}
+        error={
+          failed ? (
+            <EmptyState
+              icon={<UserRound size={40} strokeWidth={1.75} aria-hidden="true" />}
+              title="טעינת אנשי הקשר נכשלה. בדקו את החיבור ונסו שוב."
+              action={
+                <Button variant="secondary" onClick={() => setReloadKey((key) => key + 1)}>
+                  רענון
+                </Button>
+              }
+            />
+          ) : undefined
+        }
+        empty={
+          query.trim() ? (
+            <EmptyState
+              icon={<Search size={40} strokeWidth={1.75} aria-hidden="true" />}
+              title="לא נמצאו אנשי קשר תואמים"
+              action={
+                <Button variant="ghost" onClick={() => setQuery('')}>
+                  ניקוי חיפוש
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<UserRound size={40} strokeWidth={1.75} aria-hidden="true" />}
+              title="אין אנשי קשר להצגה"
+            />
+          )
+        }
+        rows={filtered}
+        columns={CONTACT_COLUMNS}
+        rowKey={(contact) => contact.id}
+        asTable={isDesktop}
+        defaultSort={{ columnId: 'full_name', direction: 'asc' }}
+        renderCard={(contact) => {
+          const tel = toTelHref(contact.phone)
+          return (
+            <li className="card contact-card">
+              <div className="contact-card__head">
+                <Avatar name={contact.full_name} size="lg" />
+                <div className="contact-card__identity">
+                  <p className="t-section">{contact.full_name}</p>
+                  <p className={`t-caption text-muted ${monoClass(contact.callsign)}`}>
+                    {contact.callsign}
+                  </p>
                 </div>
-                <Ledger>
-                  <LedgerRow
-                    label="טלפון"
-                    numeric
-                    isolate
-                    value={
-                      contact.phone ? (
-                        tel ? (
-                          <a href={tel}>{formatPhone(contact.phone)}</a>
-                        ) : (
-                          formatPhone(contact.phone)
-                        )
-                      ) : undefined
-                    }
-                  />
-                  <LedgerRow
-                    label="דוא״ל"
-                    isolate
-                    value={
-                      <a href={`mailto:${contact.email}`}>{contact.email}</a>
-                    }
-                  />
-                </Ledger>
-                <ContactActions contact={contact} labeled />
-              </li>
-            )
-          })}
-        </ul>
-      ) : null}
+              </div>
+              <Ledger>
+                <LedgerRow
+                  label="טלפון"
+                  numeric
+                  isolate
+                  value={
+                    contact.phone ? (
+                      tel ? (
+                        <a href={tel}>{formatPhone(contact.phone)}</a>
+                      ) : (
+                        formatPhone(contact.phone)
+                      )
+                    ) : undefined
+                  }
+                />
+                <LedgerRow
+                  label="דוא״ל"
+                  isolate
+                  value={<a href={`mailto:${contact.email}`}>{contact.email}</a>}
+                />
+              </Ledger>
+              <ContactActions contact={contact} labeled />
+            </li>
+          )
+        }}
+      />
     </>
   )
 }
 
-const SORT_COLUMNS: { key: ContactSortKey; label: string }[] = [
-  { key: 'full_name', label: 'שם מלא' },
-  { key: 'callsign', label: 'או״ק' },
-  { key: 'phone', label: 'טלפון' },
-  { key: 'email', label: 'דוא״ל' },
+const CONTACT_COLUMNS: DataTableColumn<UnitContact>[] = [
+  {
+    id: 'full_name',
+    header: 'שם מלא',
+    sortValue: (contact) => contact.full_name,
+    cell: (contact) => contact.full_name,
+  },
+  {
+    id: 'callsign',
+    header: 'או״ק',
+    className: (contact) => monoClass(contact.callsign),
+    sortValue: (contact) => contact.callsign,
+    cell: (contact) => contact.callsign,
+  },
+  {
+    id: 'phone',
+    header: 'טלפון',
+    className: 'num table-cell--nowrap',
+    sortValue: (contact) => contact.phone,
+    cell: (contact) => {
+      if (!contact.phone) return '—'
+      const tel = toTelHref(contact.phone)
+      return tel ? (
+        <a className={`ltr ${monoClass(contact.phone)}`} href={tel}>
+          {formatPhone(contact.phone)}
+        </a>
+      ) : (
+        <span className={`ltr ${monoClass(contact.phone)}`}>{formatPhone(contact.phone)}</span>
+      )
+    },
+  },
+  {
+    id: 'email',
+    header: 'דוא״ל',
+    sortValue: (contact) => contact.email,
+    cell: (contact) => (
+      <a className="ltr" href={`mailto:${contact.email}`}>
+        {contact.email}
+      </a>
+    ),
+  },
+  {
+    id: 'actions',
+    header: 'פעולות',
+    hideHeader: true,
+    cell: (contact) => <ContactActions contact={contact} labeled={false} />,
+  },
 ]
-
-function SortHeader({
-  label,
-  direction,
-  onSort,
-}: {
-  label: string
-  direction: SortDirection | null
-  onSort: () => void
-}) {
-  const Icon = direction === 'asc' ? ArrowUp : direction === 'desc' ? ArrowDown : ArrowUpDown
-  return (
-    <th
-      aria-sort={
-        direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'
-      }
-    >
-      <button
-        type="button"
-        className={direction ? 'table-sort table-sort--active' : 'table-sort'}
-        onClick={onSort}
-      >
-        {label}
-        <Icon size={14} strokeWidth={1.75} aria-hidden="true" />
-      </button>
-    </th>
-  )
-}
 
 function ContactActions({
   contact,

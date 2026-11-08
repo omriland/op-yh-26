@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DEV · טבלאות (Table pages)</title>
+    <style>
+      /* Dev only: reserve the desktop sidebar card (240 px + gutters) so the content
+         column is as wide as in the real shell. */
+      @media (min-width: 1025px) {
+        .dev-shell { padding-inline-start: 276px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/dev/tablePagesDev.tsx"></script>
+  </body>
+</html>

@@ -314,6 +314,8 @@ export function SearchPage({
           {isDesktop ? (
             <EventsTable
               events={rows}
+              defaultSort={null}
+              partialSortNote={rows.length >= SCREEN_CAP ? 'המיון כולל רק את 200 התוצאות המוצגות.' : undefined}
               onOpen={onOpenEvent}
               viewer={freezeViewer}
               viewerId={user?.id}
@@ -342,7 +344,12 @@ export function SearchPage({
         <section key={section} className="search-section" aria-label="ארכיון האתר הישן">
           <SectionHead title={`ארכיון האתר הישן · נמצאו ${rows.length}`} action={exportButton('archive')} />
           {capCaption(rows.length)}
-          <ArchiveResultsTable rows={rows} asTable={isDesktop} onOpen={(fk) => void openArchiveReport(fk)} />
+          <ArchiveResultsTable
+            rows={rows}
+            asTable={isDesktop}
+            onOpen={(fk) => void openArchiveReport(fk)}
+            partialSortNote={rows.length >= SCREEN_CAP ? 'המיון כולל רק את 200 התוצאות המוצגות.' : undefined}
+          />
         </section>
       )
     }

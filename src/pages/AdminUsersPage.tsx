@@ -95,6 +95,8 @@ import {
   vehicleRemoveMode,
 } from '../lib/vehicles'
 import { useIsDesktop } from '../lib/useMediaQuery'
+import { isoSortValue } from '../lib/tableSort'
+import { DataTable, type DataTableColumn } from '../components/ui/DataTable'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
@@ -1103,6 +1105,146 @@ export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
     )
   }
 
+  const userColumns: DataTableColumn<AdminUserRow>[] = [
+    {
+      id: 'name',
+      header: 'שם מלא',
+      sortValue: (user) => user.full_name,
+      cell: (user) => {
+        const presence = presenceFromLastActive(user.last_active_at, Date.now(), user)
+        return (
+          <span className="user-name-with-presence">
+            <UserDataGapMark user={user} />
+            {presence ? <UserPresenceDot status={presence} /> : null}
+            <UserAndroidInstallMark
+              user={user}
+              roles={roles}
+              impersonating={viewingAsOther}
+              latestVersionCode={latestAndroidVersionCode}
+            />
+            {user.full_name}
+          </span>
+        )
+      },
+    },
+    {
+      id: 'callsign',
+      header: 'או״ק',
+      className: (user) => monoClass(user.callsign),
+      sortValue: (user) => user.callsign,
+      cell: (user) => user.callsign,
+    },
+    {
+      id: 'phone',
+      header: 'טלפון',
+      className: 'num table-cell--nowrap',
+      sortValue: (user) => user.phone,
+      cell: (user) =>
+        user.phone ? (
+          <span className={`ltr ${monoClass(user.phone)}`}>{formatPhone(user.phone)}</span>
+        ) : (
+          '—'
+        ),
+    },
+    {
+      id: 'role',
+      header: 'תפקיד',
+      sortValue: (user) => highestRoleLabel(user.roles),
+      cell: (user) => (
+        <div className="tags">
+          <RoleTag roles={user.roles} />
+          {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
+        </div>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'סטטוס',
+      sortValue: (user) => volunteerStatusLabel(user.volunteer_status),
+      cell: (user) => volunteerStatusLabel(user.volunteer_status),
+    },
+    {
+      id: 'availability',
+      header: 'זמינות',
+      interactive: true,
+      sortValue: (user) => (hasAvailability(user) ? user.availability : null),
+      cell: (user) =>
+        hasAvailability(user) ? (
+          <AvailabilityPopoverTrigger
+            target={{
+              id: user.id,
+              availability: user.availability,
+              available_from: user.available_from,
+            }}
+            disabled={!canMutateAdminUser(isSuperAdmin, user.roles)}
+            onSaved={patchUserAvailability}
+          />
+        ) : (
+          <span className="text-muted">—</span>
+        ),
+    },
+    {
+      id: 'otp',
+      header: 'OTP',
+      className: 'table-col--otp table-cell--nowrap',
+      headerClassName: 'table-col--otp',
+      sortValue: (user) => otpUserLabel(user),
+      cell: (user) => {
+        const otpLabel = otpUserLabel(user)
+        return otpLabel ? (
+          <span
+            className="t-caption text-secondary"
+            title={otpLabel === 'שניהם' ? 'OTP כניסה ו-OTP משתמשים' : undefined}
+          >
+            {otpLabel}
+          </span>
+        ) : (
+          <span className="text-muted">—</span>
+        )
+      },
+    },
+    {
+      id: 'vehicles',
+      header: 'רכבים',
+      className: 'num mono',
+      sortValue: (user) => user.vehicles.filter((vehicle) => !vehicle.archived).length,
+      cell: (user) => user.vehicles.filter((vehicle) => !vehicle.archived).length,
+    },
+    {
+      id: 'last_login',
+      header: 'כניסה אחרונה',
+      sortValue: (user) => (isInvitePending(user) ? null : isoSortValue(user.last_sign_in_at)),
+      cell: (user) =>
+        isInvitePending(user) ? (
+          <span className="text-muted">ממתין להרשמה</span>
+        ) : user.last_sign_in_at ? (
+          formatLastLogin(user.last_sign_in_at)
+        ) : (
+          <span className="text-muted">טרם התחבר</span>
+        ),
+    },
+    {
+      id: 'actions',
+      header: 'פעולות',
+      hideHeader: true,
+      interactive: true,
+      cell: (user) => {
+        const menuItems = buildUserMenuItems(
+          user,
+          menuActionsFor(user),
+          canMutateAdminUser(isSuperAdmin, user.roles),
+        )
+        return menuItems.length > 0 ? (
+          <OverflowMenu
+            open={menuUserId === user.id}
+            onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
+            items={menuItems}
+          />
+        ) : null
+      },
+    },
+  ]
+
   return (
     <div>
       <div className="page-head">
@@ -1208,130 +1350,22 @@ export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
         />
       ) : null}
 
-      {users && filtered.length > 0 && isDesktop ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>שם מלא</th>
-                <th>או״ק</th>
-                <th>טלפון</th>
-                <th>תפקיד</th>
-                <th>סטטוס</th>
-                <th>זמינות</th>
-                <th className="table-col--otp">OTP</th>
-                <th>רכבים</th>
-                <th>כניסה אחרונה</th>
-                <th>
-                  <span className="visually-hidden">פעולות</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((user) => {
-                const otpLabel = otpUserLabel(user)
-                const canMutate = canMutateAdminUser(isSuperAdmin, user.roles)
-                const presence = presenceFromLastActive(user.last_active_at, Date.now(), user)
-                const menuItems = buildUserMenuItems(user, menuActionsFor(user), canMutate)
-                const showMenu = menuItems.length > 0
-                return (
-                <tr
-                  key={user.id}
-                  className={[!user.active ? 'is-muted' : '', !canMutate ? 'is-static' : '']
-                    .filter(Boolean)
-                    .join(' ')}
-                  onClick={() => {
-                    if (!canMutate) return
-                    setFormError(null)
-                    setDraft(draftFromUser(user))
-                  }}
-                >
-                  <td>
-                    <span className="user-name-with-presence">
-                      <UserDataGapMark user={user} />
-                      {presence ? <UserPresenceDot status={presence} /> : null}
-                      <UserAndroidInstallMark
-                        user={user}
-                        roles={roles}
-                        impersonating={viewingAsOther}
-                        latestVersionCode={latestAndroidVersionCode}
-                      />
-                      {user.full_name}
-                    </span>
-                  </td>
-                  <td className={monoClass(user.callsign)}>{user.callsign}</td>
-                  <td className="num table-cell--nowrap">
-                    {user.phone ? (
-                      <span className={`ltr ${monoClass(user.phone)}`}>
-                        {formatPhone(user.phone)}
-                      </span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    <div className="tags">
-                      <RoleTag roles={user.roles} />
-                      {!user.active ? <span className="tag tag--alert">מושבת</span> : null}
-                    </div>
-                  </td>
-                  <td>{volunteerStatusLabel(user.volunteer_status)}</td>
-                  <td onClick={(event) => event.stopPropagation()}>
-                    {hasAvailability(user) ? (
-                      <AvailabilityPopoverTrigger
-                        target={{
-                          id: user.id,
-                          availability: user.availability,
-                          available_from: user.available_from,
-                        }}
-                        disabled={!canMutate}
-                        onSaved={patchUserAvailability}
-                      />
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                  <td className="table-col--otp table-cell--nowrap">
-                    {otpLabel ? (
-                      <span className="t-caption text-secondary" title={otpLabel === 'שניהם' ? 'OTP כניסה ו-OTP משתמשים' : undefined}>
-                        {otpLabel}
-                      </span>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                  <td className="num mono">
-                    {user.vehicles.filter((vehicle) => !vehicle.archived).length}
-                  </td>
-                  <td>
-                    {isInvitePending(user) ? (
-                      <span className="text-muted">ממתין להרשמה</span>
-                    ) : user.last_sign_in_at ? (
-                      formatLastLogin(user.last_sign_in_at)
-                    ) : (
-                      <span className="text-muted">טרם התחבר</span>
-                    )}
-                  </td>
-                  <td onClick={(event) => event.stopPropagation()}>
-                    {showMenu ? (
-                      <OverflowMenu
-                        open={menuUserId === user.id}
-                        onOpenChange={(next) => setMenuUserId(next ? user.id : null)}
-                        items={menuItems}
-                      />
-                    ) : null}
-                  </td>
-                </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {users && filtered.length > 0 && !isDesktop ? (
-        <div className="stack-3">
-          {filtered.map((user) => {
+      {users && filtered.length > 0 ? (
+        <DataTable
+          rows={filtered}
+          columns={userColumns}
+          rowKey={(user) => user.id}
+          asTable={isDesktop}
+          cards={{ as: 'div', className: 'stack-3' }}
+          defaultSort={{ columnId: 'name', direction: 'asc' }}
+          onRowClick={(user) => {
+            setFormError(null)
+            setDraft(draftFromUser(user))
+          }}
+          rowClickable={(user) => canMutateAdminUser(isSuperAdmin, user.roles)}
+          rowLabel={(user) => `עריכת ${user.full_name}`}
+          rowClassName={(user) => (!user.active ? 'is-muted' : undefined)}
+          renderCard={(user) => {
             const canMutate = canMutateAdminUser(isSuperAdmin, user.roles)
             const openEdit = () => {
               if (!canMutate) return
@@ -1367,7 +1401,6 @@ export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
             )
             return (
               <div
-                key={user.id}
                 className={['card', 'user-card', !user.active ? 'is-muted' : ''].join(' ')}
               >
                 <div className="user-card__head">
@@ -1444,8 +1477,8 @@ export function AdminUsersPage({ editUserId }: { editUserId?: string } = {}) {
                 )}
               </div>
             )
-          })}
-        </div>
+          }}
+        />
       ) : null}
 
       <Dialog
