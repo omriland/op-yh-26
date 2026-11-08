@@ -29,6 +29,9 @@ type FeedbackFabProps = {
   pagePath: string | null
 }
 
+/** Dispatched on window to open this dialog from elsewhere (desktop Help menu). */
+export const OPEN_FEEDBACK_EVENT = 'yahpaz:open-feedback'
+
 export function FeedbackFab({ pagePath }: FeedbackFabProps) {
   const { show } = useToast()
   const [open, setOpen] = useState(false)
@@ -47,6 +50,12 @@ export function FeedbackFab({ pagePath }: FeedbackFabProps) {
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    const onOpen = () => setOpen(true)
+    window.addEventListener(OPEN_FEEDBACK_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_FEEDBACK_EVENT, onOpen)
+  }, [])
 
   useEffect(() => {
     return () => {

@@ -1,14 +1,4 @@
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   BarChart3,
   CalendarCheck,
@@ -24,7 +14,6 @@ import {
   LogOut,
   MapPin,
   MapPinned,
-  Plus,
   Radar,
   MessageSquarePlus,
   Search,
@@ -49,9 +38,7 @@ import {
   clearRolePreviewStash,
   isRolePreviewing,
 } from '../../lib/rolePreviewStash'
-import { sidebarLeadNewEvent } from '../../lib/sidebarCreate'
 import { Avatar } from '../ui/Avatar'
-import { NewEventButtonShell } from '../ui/NewEventButtonShell'
 import { monoClass } from '../../lib/format'
 import { useToast } from '../ui/Toast'
 import { CobrowseSupport } from './CobrowseSupport'
@@ -60,23 +47,15 @@ import { RolePreviewBar } from './RolePreviewBar'
 import { UpdateAvailableNotice } from './UpdateAvailableNotice'
 import { ImpersonationPickerDialog } from './ImpersonationPickerDialog'
 import { RolePreviewPickerDialog } from './RolePreviewPickerDialog'
-import {
-  SIDEBAR_WIDTH_DEFAULT,
-  SIDEBAR_WIDTH_MAX,
-  SIDEBAR_WIDTH_MIN,
-  clampSidebarWidth,
-  nextSidebarWidthFromPointer,
-  readSidebarWidth,
-  writeSidebarWidth,
-} from '../../lib/sidebarWidth'
 import { navAttentionAriaSuffix } from '../../lib/navAttention'
 import { MOBILE_MORE_LABEL, splitMobileNav } from '../../lib/mobileNav'
-import { NAV_FLYOUT_MIN_WIDTH, placeNavFlyout } from '../../lib/navFlyoutPlacement'
 import { useIsDesktop } from '../../lib/useMediaQuery'
 import { AvailabilityPopoverTrigger, AvailabilityTrigger } from '../availability/AvailabilityControl'
 import { Dialog } from '../ui/Dialog'
 import { SnykBadge } from './SnykBadge'
 import { FeedbackFab } from '../feedback/FeedbackFab'
+import { DesktopShell } from './DesktopShell'
+import { TopBarMenu } from './desktopMenus'
 
 export type AppView =
   | 'events'
@@ -121,12 +100,16 @@ type AppShellProps = {
   showSecurityBadge?: boolean
   onOpenPrivacy?: () => void
   onOpenAndroid?: () => void
+  /** Desktop Help menu: the support page. */
+  onOpenSupport?: () => void
+  /** Desktop top bar search (admins): open the search page with this query. */
+  onSearch?: (query: string) => void
   view: AppView
   onNavigate: (view: AppView) => void
   /** Wordmark → role home (unit events / mine / profile). */
   onHome: () => void
   entries: NavEntry[]
-  /** Desktop sidebar — אירוע חדש at the top of כלים לאחמ״ש. Shift create lives on the shifts page. */
+  /** Desktop side nav: אירוע חדש at the top of כלים לאחמ״ש. Shift create lives on the shifts page. */
   onCreateEvent?: () => void
   /** Create route (`/events/new`) — marks אירוע חדש current, not the previous dest. */
   creatingEvent?: boolean
@@ -141,6 +124,8 @@ export function AppShell({
   showSecurityBadge = false,
   onOpenPrivacy,
   onOpenAndroid,
+  onOpenSupport,
+  onSearch,
   view,
   onNavigate,
   onHome,
@@ -151,46 +136,58 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const isDesktop = useIsDesktop()
+  const mainClassName = ['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')
+  const banners = (
+    <>
+      <ImpersonationBar onRestored={onHome} />
+      <RolePreviewBar onRestored={onHome} />
+      <CobrowseSupport />
+      <UpdateAvailableNotice />
+    </>
+  )
+  const content = (
+    <>
+      {children}
+      {showSecurityBadge && onOpenPrivacy ? (
+        <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} onHome={onHome} />
+      ) : null}
+    </>
+  )
+
+  if (isDesktop && withSidebar) {
+    return (
+      <DesktopShell
+        view={view}
+        onNavigate={onNavigate}
+        onHome={onHome}
+        entries={entries}
+        onCreateEvent={onCreateEvent}
+        creatingEvent={creatingEvent}
+        onSearch={onSearch}
+        onOpenSupport={onOpenSupport}
+        onOpenPrivacy={onOpenPrivacy}
+        account={<UserChrome variant="desktop" onNavigate={onNavigate} onHome={onHome} />}
+        banners={banners}
+        mainClassName={mainClassName}
+        overlay={<FeedbackFab pagePath={feedbackPagePath} />}
+      >
+        {content}
+      </DesktopShell>
+    )
+  }
 
   return (
-    <div
-      className={['shell', isDesktop ? 'shell--cards' : ''].filter(Boolean).join(' ')}
-      data-theme="field"
-    >
+    <div className="shell" data-theme="field">
       <a className="skip-link" href="#main">
         דילוג לתוכן
       </a>
       {isDesktop ? null : (
         <TopAppBar view={view} onNavigate={onNavigate} onHome={onHome} />
       )}
-      <ImpersonationBar onRestored={onHome} />
-      <RolePreviewBar onRestored={onHome} />
-      <CobrowseSupport />
-      <UpdateAvailableNotice />
+      {banners}
       <div className="shell__body">
-        {withSidebar ? (
-          <Sidebar
-            view={view}
-            onNavigate={onNavigate}
-            onHome={onHome}
-            entries={entries}
-            onCreateEvent={onCreateEvent}
-            creatingEvent={creatingEvent}
-          />
-        ) : null}
-        <main
-          id="main"
-          className={['shell__main', narrow ? 'shell__main--narrow' : ''].join(' ')}
-          data-theme="field"
-        >
-          {children}
-          {showSecurityBadge && onOpenPrivacy ? (
-            <SnykBadge
-              onOpenPrivacy={onOpenPrivacy}
-              onOpenAndroid={onOpenAndroid}
-              onHome={onHome}
-            />
-          ) : null}
+        <main id="main" className={mainClassName} data-theme="field">
+          {content}
         </main>
       </div>
       {withSidebar ? null : <BottomTabBar view={view} onNavigate={onNavigate} entries={entries} />}
@@ -289,11 +286,12 @@ function TopAppBar({
 function UserChrome({
   onNavigate,
   onHome,
-  menuRise = false,
+  variant = 'appbar',
 }: {
   onNavigate: (view: AppView) => void
   onHome: () => void
-  menuRise?: boolean
+  /** `desktop`: availability + avatar menu in the desktop top bar. */
+  variant?: 'appbar' | 'desktop'
 }) {
   const { profile, user, roles, signOut, reloadProfile } = useAuth()
   const isDesktop = useIsDesktop()
@@ -359,140 +357,106 @@ function UserChrome({
     }
   }, [open])
 
-  return (
-    <>
-      <div className="appbar__cluster">
-          {isDesktop && profile ? (
-            <AvailabilityPopoverTrigger
-              target={{
-                id: profile.id,
-                availability: profile.availability,
-                available_from: profile.available_from,
-              }}
-              disabled={viewingAsOther}
-              disabledCaption="צפייה כמשתמש — לא ניתן לשנות זמינות."
-              onSaved={() => void reloadProfile()}
-            />
-          ) : null}
-          <div className="menu-anchor" ref={anchorRef}>
+  const availabilityTarget = profile
+    ? {
+        id: profile.id,
+        availability: profile.availability,
+        available_from: profile.available_from,
+      }
+    : null
+
+  function menuItems(itemClass: string, close: () => void) {
+    return (
+      <>
+        <button
+          type="button"
+          role="menuitem"
+          className={itemClass}
+          onClick={() => {
+            close()
+            onNavigate('profile')
+          }}
+        >
+          <UserRound size={20} strokeWidth={1.75} aria-hidden="true" />
+          פרופיל
+        </button>
+        {isSuperAdmin && !viewingAsOther && user?.id ? (
           <button
-            ref={triggerRef}
             type="button"
-            className="appbar__user"
-            aria-label="תפריט משתמש"
-            aria-haspopup="menu"
-            aria-expanded={open}
-            onClick={() => setOpen((current) => !current)}
+            role="menuitem"
+            className={itemClass}
+            onClick={() => {
+              close()
+              setPickerOpen(true)
+            }}
           >
-            <Avatar name={profile?.full_name ?? 'משתמש'} />
+            <Eye size={20} strokeWidth={1.75} aria-hidden="true" />
+            צפייה כמשתמש
           </button>
-          {open ? (
-            <div
-              className={['menu', menuRise ? 'menu--rise' : ''].filter(Boolean).join(' ')}
-              role="menu"
-            >
-              <div className="menu__header">
-                <p className="t-body-strong">{profile?.full_name ?? 'משתמש'}</p>
-                <p className="t-caption text-muted">
-                  או״ק{' '}
-                  <span className={monoClass(profile?.callsign)}>{profile?.callsign ?? '—'}</span>
-                </p>
-                {!isDesktop && profile ? (
-                  <AvailabilityTrigger
-                    target={{
-                      id: profile.id,
-                      availability: profile.availability,
-                      available_from: profile.available_from,
-                    }}
-                    disabled={viewingAsOther}
-                    disabledCaption="צפייה כמשתמש — לא ניתן לשנות זמינות."
-                    onSaved={() => {
-                      setOpen(false)
-                      void reloadProfile()
-                    }}
-                  />
-                ) : null}
-              </div>
-              <button
-                type="button"
-                role="menuitem"
-                className="menu__item"
-                onClick={() => {
-                  setOpen(false)
-                  onNavigate('profile')
-                }}
-              >
-                <UserRound size={20} strokeWidth={1.75} aria-hidden="true" />
-                פרופיל
-              </button>
-              {isSuperAdmin && !viewingAsOther && user?.id ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="menu__item"
-                  onClick={() => {
-                    setOpen(false)
-                    setPickerOpen(true)
-                  }}
-                >
-                  <Eye size={20} strokeWidth={1.75} aria-hidden="true" />
-                  צפייה כמשתמש
-                </button>
-              ) : null}
-              {showRolePreview ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="menu__item"
-                  onClick={() => {
-                    setOpen(false)
-                    setRolePickerOpen(true)
-                  }}
-                >
-                  <UserCog size={20} strokeWidth={1.75} aria-hidden="true" />
-                  צפייה בתפקיד אחר
-                </button>
-              ) : null}
-              {previewingRole ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="menu__item"
-                  onClick={() => {
-                    setOpen(false)
-                    clearRolePreviewStash()
-                    setPreviewingRole(false)
-                    show('חזרת בהצלחה לתפקיד שלך.', 'done')
-                    onHome()
-                  }}
-                >
-                  <UserCog size={20} strokeWidth={1.75} aria-hidden="true" />
-                  חזרה לתפקיד שלי
-                </button>
-              ) : null}
-              {viewingAsOther ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="menu__item"
-                  disabled={restoreBusy}
-                  onClick={() => {
-                    setOpen(false)
-                    void restoreOwnAccount()
-                  }}
-                >
-                  <Eye size={20} strokeWidth={1.75} aria-hidden="true" />
-                  חזרה לחשבון שלי
-                </button>
-              ) : null}
-              <button type="button" role="menuitem" className="menu__item" onClick={() => void signOut()}>
-                <LogOut size={20} strokeWidth={1.75} className="icon-mirror" aria-hidden="true" />
-                התנתקות
-              </button>
-            </div>
-          ) : null}
-        </div>
-        </div>
+        ) : null}
+        {showRolePreview ? (
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClass}
+            onClick={() => {
+              close()
+              setRolePickerOpen(true)
+            }}
+          >
+            <UserCog size={20} strokeWidth={1.75} aria-hidden="true" />
+            צפייה בתפקיד אחר
+          </button>
+        ) : null}
+        {previewingRole ? (
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClass}
+            onClick={() => {
+              close()
+              clearRolePreviewStash()
+              setPreviewingRole(false)
+              show('חזרת בהצלחה לתפקיד שלך.', 'done')
+              onHome()
+            }}
+          >
+            <UserCog size={20} strokeWidth={1.75} aria-hidden="true" />
+            חזרה לתפקיד שלי
+          </button>
+        ) : null}
+        {viewingAsOther ? (
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClass}
+            disabled={restoreBusy}
+            onClick={() => {
+              close()
+              void restoreOwnAccount()
+            }}
+          >
+            <Eye size={20} strokeWidth={1.75} aria-hidden="true" />
+            חזרה לחשבון שלי
+          </button>
+        ) : null}
+        <button type="button" role="menuitem" className={itemClass} onClick={() => void signOut()}>
+          <LogOut size={20} strokeWidth={1.75} className="icon-mirror" aria-hidden="true" />
+          התנתקות
+        </button>
+      </>
+    )
+  }
+
+  const name = profile?.full_name ?? 'משתמש'
+  const callsign = (
+    <p className="t-caption text-muted">
+      או״ק <span className={monoClass(profile?.callsign)}>{profile?.callsign ?? '—'}</span>
+    </p>
+  )
+
+  const dialogs = (
+    <>
       {user?.id ? (
         <ImpersonationPickerDialog
           open={pickerOpen}
@@ -508,388 +472,86 @@ function UserChrome({
       />
     </>
   )
-}
 
-function isDocumentRtl() {
-  return getComputedStyle(document.documentElement).direction === 'rtl'
-}
-
-function persistSidebarWidth(width: number) {
-  try {
-    writeSidebarWidth(window.localStorage, width)
-  } catch {
-    // Private mode / quota — keep in-session only.
-  }
-}
-
-const SIDEBAR_END_ORDER: AppView[] = ['profile', 'lists']
-
-function splitSidebarEntries(entries: NavEntry[]) {
-  const main: NavEntry[] = []
-  const end: NavEntry[] = []
-  for (const entry of entries) {
-    if (entry.pin === 'end') end.push(entry)
-    else main.push(entry)
-  }
-  end.sort((a, b) => {
-    const left = a.view ? SIDEBAR_END_ORDER.indexOf(a.view) : SIDEBAR_END_ORDER.length
-    const right = b.view ? SIDEBAR_END_ORDER.indexOf(b.view) : SIDEBAR_END_ORDER.length
-    return left - right
-  })
-  return { main, end }
-}
-
-function Sidebar({
-  view,
-  onNavigate,
-  onHome,
-  entries,
-  onCreateEvent,
-  creatingEvent,
-}: {
-  view: AppView
-  onNavigate: (view: AppView) => void
-  onHome: () => void
-  entries: NavEntry[]
-  onCreateEvent?: () => void
-  creatingEvent: boolean
-}) {
-  const [width, setWidth] = useState(() => {
-    try {
-      return readSidebarWidth(window.localStorage)
-    } catch {
-      return SIDEBAR_WIDTH_DEFAULT
-    }
-  })
-  const widthRef = useRef(width)
-  const dragRef = useRef<{ startWidth: number; startClientX: number } | null>(null)
-
-  useEffect(() => {
-    widthRef.current = width
-  }, [width])
-
-  useEffect(() => {
-    return () => {
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [])
-
-  function applyWidth(next: number, persist: boolean) {
-    const clamped = clampSidebarWidth(next)
-    setWidth(clamped)
-    if (persist) persistSidebarWidth(clamped)
-  }
-
-  function onResizePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    dragRef.current = { startWidth: widthRef.current, startClientX: event.clientX }
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }
-
-  function onResizePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current
-    if (!drag) return
-    applyWidth(
-      nextSidebarWidthFromPointer({
-        startWidth: drag.startWidth,
-        startClientX: drag.startClientX,
-        clientX: event.clientX,
-        rtl: isDocumentRtl(),
-      }),
-      false,
+  if (variant === 'desktop') {
+    return (
+      <>
+        <div className="dbar__account">
+          {availabilityTarget ? (
+            <AvailabilityPopoverTrigger
+              target={availabilityTarget}
+              disabled={viewingAsOther}
+              disabledCaption="צפייה כמשתמש — לא ניתן לשנות זמינות."
+              onSaved={() => void reloadProfile()}
+            />
+          ) : null}
+          <TopBarMenu
+            id="account"
+            label="תפריט משתמש"
+            triggerClassName="dbar__avatar-btn"
+            triggerContent={<Avatar name={name} size="sm" />}
+            header={
+              <div className="dshell-menu__header">
+                <p className="dshell-menu__name">{name}</p>
+                {callsign}
+              </div>
+            }
+          >
+            {(close) => menuItems('dshell-menu__item', close)}
+          </TopBarMenu>
+        </div>
+        {dialogs}
+      </>
     )
   }
 
-  function onResizePointerUp(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!dragRef.current) return
-    dragRef.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    persistSidebarWidth(widthRef.current)
-  }
-
-  function onResizeDoubleClick() {
-    applyWidth(SIDEBAR_WIDTH_DEFAULT, true)
-  }
-
-  function onResizeKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    const rtl = isDocumentRtl()
-    const step = 8
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault()
-      applyWidth(widthRef.current + (rtl ? step : -step), true)
-    } else if (event.key === 'ArrowRight') {
-      event.preventDefault()
-      applyWidth(widthRef.current + (rtl ? -step : step), true)
-    } else if (event.key === 'Home') {
-      event.preventDefault()
-      applyWidth(SIDEBAR_WIDTH_DEFAULT, true)
-    }
-  }
-
-  const { main, end } = splitSidebarEntries(entries)
-
-  return (
-    <nav className="sidebar" aria-label="ניווט ראשי" data-theme="command" style={{ width }}>
-      <BrandMark layout="sidebar" view={view} onHome={onHome} />
-      <div className="sidebar__nav">
-        <SidebarNavItems
-          entries={main}
-          view={view}
-          onNavigate={onNavigate}
-          onCreateEvent={onCreateEvent}
-          creatingEvent={creatingEvent}
-        />
-      </div>
-      <div className="sidebar__footer">
-        {end.length > 0 ? (
-          <SidebarNavItems
-            entries={end}
-            view={view}
-            onNavigate={onNavigate}
-            onCreateEvent={onCreateEvent}
-            creatingEvent={creatingEvent}
-          />
-        ) : null}
-        <UserChrome
-          onNavigate={onNavigate}
-          onHome={onHome}
-          menuRise
-        />
-      </div>
-      <div
-        className="sidebar__resize"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="שינוי רוחב תפריט הצד"
-        aria-valuemin={SIDEBAR_WIDTH_MIN}
-        aria-valuemax={SIDEBAR_WIDTH_MAX}
-        aria-valuenow={width}
-        tabIndex={0}
-        onPointerDown={onResizePointerDown}
-        onPointerMove={onResizePointerMove}
-        onPointerUp={onResizePointerUp}
-        onPointerCancel={onResizePointerUp}
-        onDoubleClick={onResizeDoubleClick}
-        onKeyDown={onResizeKeyDown}
-      />
-    </nav>
-  )
-}
-
-function SidebarNavItems({
-  entries,
-  view,
-  onNavigate,
-  onCreateEvent,
-  creatingEvent,
-}: {
-  entries: NavEntry[]
-  view: AppView
-  onNavigate: (view: AppView) => void
-  onCreateEvent?: () => void
-  creatingEvent: boolean
-}) {
   return (
     <>
-      {entries.map((entry, index) => {
-        const prev = entries[index - 1]
-        const showSection = entry.section && entry.section !== prev?.section
-        const leadNewEvent =
-          showSection ? sidebarLeadNewEvent(entry.section, onCreateEvent) : null
-        return (
-          <div key={navEntryKey(entry)}>
-            {showSection ? <p className="sidebar__section">{entry.section}</p> : null}
-            {leadNewEvent ? (
-              <NewEventButtonShell className="sidebar__new-event-shell">
-                <button
-                  type="button"
-                  className="nav-item sidebar__new-event"
-                  aria-current={creatingEvent ? 'page' : undefined}
-                  onClick={leadNewEvent.onCreate}
-                >
-                  <Plus size={16} strokeWidth={2} aria-hidden="true" />
-                  {leadNewEvent.label}
-                </button>
-              </NewEventButtonShell>
-            ) : null}
-            {entry.children && entry.children.length > 0 ? (
-              <SidebarNavMenu
-                entry={entry}
-                view={view}
-                onNavigate={onNavigate}
-                creatingEvent={creatingEvent}
-              />
-            ) : (
-              <button
-                type="button"
-                className={
-                  entry.view === 'cockpit' ? 'nav-item nav-item--cockpit' : 'nav-item'
-                }
-                aria-current={isNavCurrent(entry, view, creatingEvent) ? 'page' : undefined}
-                aria-label={
-                  entry.attention
-                    ? `${entry.label}${navAttentionAriaSuffix(true)}`
-                    : undefined
-                }
-                onClick={() => {
-                  if (entry.view) onNavigate(entry.view)
-                }}
-              >
-                <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-                {entry.label}
-              </button>
-            )}
-          </div>
-        )
-      })}
+      <div className="appbar__cluster">
+        {isDesktop && availabilityTarget ? (
+          <AvailabilityPopoverTrigger
+            target={availabilityTarget}
+            disabled={viewingAsOther}
+            disabledCaption="צפייה כמשתמש — לא ניתן לשנות זמינות."
+            onSaved={() => void reloadProfile()}
+          />
+        ) : null}
+        <div className="menu-anchor" ref={anchorRef}>
+          <button
+            ref={triggerRef}
+            type="button"
+            className="appbar__user"
+            aria-label="תפריט משתמש"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((current) => !current)}
+          >
+            <Avatar name={name} />
+          </button>
+          {open ? (
+            <div className="menu" role="menu">
+              <div className="menu__header">
+                <p className="t-body-strong">{name}</p>
+                {callsign}
+                {!isDesktop && availabilityTarget ? (
+                  <AvailabilityTrigger
+                    target={availabilityTarget}
+                    disabled={viewingAsOther}
+                    disabledCaption="צפייה כמשתמש — לא ניתן לשנות זמינות."
+                    onSaved={() => {
+                      setOpen(false)
+                      void reloadProfile()
+                    }}
+                  />
+                ) : null}
+              </div>
+              {menuItems('menu__item', () => setOpen(false))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      {dialogs}
     </>
-  )
-}
-
-function SidebarNavMenu({
-  entry,
-  view,
-  onNavigate,
-  creatingEvent,
-}: {
-  entry: NavEntry
-  view: AppView
-  onNavigate: (view: AppView) => void
-  creatingEvent: boolean
-}) {
-  const children = entry.children ?? []
-  const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-  const closeTimer = useRef<number | null>(null)
-  const menuId = useId()
-  const current = isNavCurrent(entry, view, creatingEvent)
-
-  function clearCloseTimer() {
-    if (closeTimer.current != null) {
-      window.clearTimeout(closeTimer.current)
-      closeTimer.current = null
-    }
-  }
-
-  function openMenu() {
-    clearCloseTimer()
-    setOpen(true)
-  }
-
-  function scheduleClose() {
-    clearCloseTimer()
-    closeTimer.current = window.setTimeout(() => setOpen(false), 120)
-  }
-
-  useEffect(() => () => clearCloseTimer(), [])
-
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) {
-      setCoords(null)
-      return
-    }
-
-    function place() {
-      const triggerEl = triggerRef.current
-      const panelEl = panelRef.current
-      if (!triggerEl) return
-      const rect = triggerEl.getBoundingClientRect()
-      const panelWidth = panelEl?.offsetWidth ?? NAV_FLYOUT_MIN_WIDTH
-      setCoords(
-        placeNavFlyout({
-          trigger: { top: rect.top, left: rect.left, right: rect.right },
-          panelWidth,
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          rtl: isDocumentRtl(),
-        }),
-      )
-    }
-
-    place()
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    return () => {
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
-    }
-  }, [open, children.length])
-
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false)
-        triggerRef.current?.focus()
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open])
-
-  return (
-    <div className="nav-flyout">
-      <button
-        ref={triggerRef}
-        type="button"
-        className="nav-item nav-item--menu"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        aria-current={current ? 'page' : undefined}
-        aria-label={
-          entry.attention ? `${entry.label}${navAttentionAriaSuffix(true)}` : undefined
-        }
-        onPointerEnter={openMenu}
-        onPointerLeave={scheduleClose}
-        onClick={() => setOpen((currentOpen) => !currentOpen)}
-      >
-        <NavIcon icon={entry.icon} attention={Boolean(entry.attention)} />
-        <span className="nav-item__label">{entry.label}</span>
-        <ChevronDown size={16} strokeWidth={1.75} className="nav-item__chevron" aria-hidden="true" />
-      </button>
-      {open
-        ? createPortal(
-            <div
-              ref={panelRef}
-              id={menuId}
-              className="menu nav-flyout__panel"
-              role="menu"
-              style={coords ? { top: coords.top, left: coords.left } : undefined}
-              onPointerEnter={openMenu}
-              onPointerLeave={scheduleClose}
-            >
-              {children.map((child) => (
-                <button
-                  key={navEntryKey(child)}
-                  type="button"
-                  role="menuitem"
-                  className="menu__item"
-                  aria-current={isNavCurrent(child, view, creatingEvent) ? 'page' : undefined}
-                  onClick={() => {
-                    if (!child.view) return
-                    setOpen(false)
-                    onNavigate(child.view)
-                  }}
-                >
-                  <NavIcon icon={child.icon} attention={Boolean(child.attention)} />
-                  {child.label}
-                </button>
-              ))}
-            </div>,
-            document.body,
-          )
-        : null}
-    </div>
   )
 }
 

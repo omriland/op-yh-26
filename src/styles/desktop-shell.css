@@ -1,0 +1,684 @@
+/* ============================================================
+   Desktop shell (≥1025px): warm side nav + top bar around a white page card.
+   Rendered by components/shell/DesktopShell.tsx only, so these classes never reach
+   the phone layout. Colors come from the --dshell-* tokens (tokens.css). RTL first:
+   logical properties throughout, so the nav sits at inline-start (right).
+   ============================================================ */
+
+.shell--desktop {
+  background: var(--dshell-bg);
+  color: var(--dshell-text);
+}
+
+.dshell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dshell__column {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Page card: starts where the nav ends, 12px from the far edge, only its main scrolls. */
+.dshell__card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-inline-end: var(--space-3);
+  overflow: hidden;
+  border-start-start-radius: var(--dshell-card-radius);
+  border-start-end-radius: var(--dshell-card-radius);
+  background: var(--dshell-card);
+}
+
+.shell--desktop .shell__main {
+  background: transparent;
+}
+
+.shell--desktop .shell__main:focus {
+  outline: none;
+}
+
+/* ---------- side nav ---------- */
+
+.dnav {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--dshell-nav-open);
+  min-height: 0;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.dnav--rail {
+  width: var(--dshell-nav-rail);
+}
+
+.dnav__header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  height: var(--dshell-bar-height);
+}
+
+.dnav__toggle-zone {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  width: var(--dshell-nav-rail);
+  padding-block-start: 6px;
+}
+
+.dnav__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  color: var(--dshell-text);
+  transition:
+    background-color 0.2s ease,
+    margin 0.2s ease;
+}
+
+/* Open: 2px toward inline-start so the icon lines up with the item icons below. */
+.dnav:not(.dnav--rail) .dnav__toggle {
+  margin-inline-end: 4px;
+}
+
+.dnav__toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dnav__brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  height: 24px;
+  margin-block-start: 12px;
+  margin-inline-start: calc(var(--space-2) * -1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--dshell-text);
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+}
+
+.dnav--rail .dnav__brand {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dnav__logo {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.dnav__brand-name {
+  font-family: var(--font-brand);
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 24px;
+}
+
+.dnav__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dshell-pressed) transparent;
+}
+
+.dnav__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dnav__body::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-full);
+  background: var(--dshell-pressed);
+}
+
+/* Fixed width so rows do not reflow while the nav animates to the rail.
+   4px top room keeps the first row's focus ring inside the scrollport. */
+.dnav__list {
+  width: var(--dshell-nav-open);
+  padding: 4px var(--space-3) var(--space-3);
+}
+
+.dnav__group,
+.dnav-section__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dnav__group {
+  margin-block-end: var(--space-2);
+}
+
+/* Nav row: open list and flyouts. */
+.dnav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--dshell-text);
+  font: 500 14px/20px var(--font-ui);
+  text-align: start;
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+}
+
+.dnav-item:hover {
+  background: var(--dshell-hover);
+}
+
+.dnav-item:active {
+  background: var(--dshell-pressed);
+}
+
+.dnav-item[aria-current='page'] {
+  background: var(--dshell-selected);
+  font-weight: 600;
+}
+
+.dnav-item__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* אירוע חדש: outlined row (the animated ring comes from NewEventButtonShell). */
+.dnav-item--create {
+  border: 1px solid var(--dshell-text-muted);
+}
+
+.dnav .create-event-btn {
+  border-radius: var(--radius-md);
+}
+
+.dnav-icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.dnav-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
+}
+
+/* Attention: an 8px dark dot at the icon's top inline-end corner (nav attention is a
+   yes/no flag, there is no count to badge). The ring takes the row's own background. */
+.dnav-dot {
+  --dnav-dot-ring: var(--dshell-bg);
+  position: absolute;
+  inset-block-start: -3px;
+  inset-inline-end: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--dshell-text);
+  box-shadow: 0 0 0 2px var(--dnav-dot-ring);
+  pointer-events: none;
+}
+
+.dnav-item:hover .dnav-dot,
+.dnav-rail-btn:hover .dnav-dot,
+.dnav-rail-btn[aria-expanded='true'] .dnav-dot {
+  --dnav-dot-ring: var(--dshell-hover);
+}
+
+.dnav-item[aria-current='page'] .dnav-dot,
+.dnav-rail-btn[aria-current='page'] .dnav-dot,
+.dnav-rail-btn.is-current .dnav-dot {
+  --dnav-dot-ring: var(--dshell-selected);
+}
+
+.dshell-menu .dnav-dot {
+  --dnav-dot-ring: var(--dshell-card);
+}
+
+/* Section: the whole title row toggles it. */
+.dnav-section__header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  padding-inline: 10px var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--dshell-text-muted);
+  font: 500 12px/16px var(--font-ui);
+  text-align: start;
+  transition: color 0.2s ease;
+}
+
+.dnav-section__header:hover {
+  color: var(--dshell-text-secondary);
+}
+
+.dnav-section__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dnav-section__chevron {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.dnav-section__chevron svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Height animation: grid rows 0fr ↔ 1fr. Closed sections are also `inert`. */
+.dnav-section__body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.dnav-section__body.is-open {
+  grid-template-rows: 1fr;
+}
+
+.dnav-section__items {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Clip for the animation but leave room for the 2px + 2px focus ring. */
+@supports (overflow-clip-margin: 4px) {
+  .dnav-section__items {
+    overflow: clip;
+    overflow-clip-margin: 4px;
+  }
+}
+
+.dnav-section__items > li:last-child {
+  margin-block-end: var(--space-2);
+}
+
+/* Collapsed rail */
+.dnav__rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  width: var(--dshell-nav-rail);
+  padding-block: 4px var(--space-3);
+}
+
+.dnav-rail-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--dshell-text);
+  transition: background-color 0.2s ease;
+}
+
+.dnav-rail-btn:hover,
+.dnav-rail-btn[aria-expanded='true'] {
+  background: var(--dshell-hover);
+}
+
+.dnav-rail-btn:active {
+  background: var(--dshell-pressed);
+}
+
+.dnav-rail-btn[aria-current='page'],
+.dnav-rail-btn.is-current {
+  background: var(--dshell-selected);
+}
+
+.dnav__rail-divider {
+  width: 40px;
+  height: 1px;
+  margin-block: var(--space-1);
+  background: var(--dshell-stroke);
+}
+
+/* ---------- top bar ---------- */
+
+.dbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--dshell-bar-height);
+  padding-inline: 0 var(--space-4);
+}
+
+.dbar-search {
+  display: flex;
+  flex: 0 1 560px;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: calc(100% - 240px);
+  height: 36px;
+  padding-inline: 10px var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--dshell-text-secondary);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.dbar-search:hover,
+.dbar-search[data-focus] {
+  background: var(--dshell-hover);
+}
+
+/* Keyboard focus (Tab, ⌘K): the focus colour. After a click: a light line. */
+.dbar-search[data-focus='keyboard'] {
+  border-color: var(--accent);
+}
+
+.dbar-search[data-focus='pointer'] {
+  border-color: var(--dshell-field-line);
+}
+
+.dbar-search__icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.dbar-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dshell-text);
+  font: 400 14px/20px var(--font-ui);
+  appearance: none;
+}
+
+/* The form's border is the focus indicator (see data-focus above). */
+.dbar-search__input:focus,
+.dbar-search__input:focus-visible {
+  outline: none;
+}
+
+.dbar-search__input::placeholder {
+  color: var(--dshell-text-secondary);
+  opacity: 1;
+}
+
+.dbar-search__input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.dbar-search__clear {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  color: var(--dshell-text-secondary);
+}
+
+.dbar-search__clear:hover {
+  background: var(--dshell-selected);
+  color: var(--dshell-text);
+}
+
+.dbar-search__clear svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dbar__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.dbar__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--dshell-text);
+  transition: background-color 0.2s ease;
+}
+
+.dbar__icon-btn:hover,
+.dbar__icon-btn[aria-expanded='true'] {
+  background: var(--dshell-hover);
+}
+
+.dbar__icon-btn:active {
+  background: var(--dshell-pressed);
+}
+
+.dbar__icon-btn[aria-current='page'] {
+  background: var(--dshell-selected);
+}
+
+.dbar__icon-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.5;
+}
+
+.dbar__divider {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  margin-inline: var(--space-2);
+  background: var(--dshell-stroke);
+}
+
+.dbar__account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dbar__avatar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+}
+
+.dbar__avatar-btn:hover,
+.dbar__avatar-btn[aria-expanded='true'] {
+  background: var(--dshell-hover);
+}
+
+.dbar__avatar-btn .avatar {
+  width: 28px;
+  height: 28px;
+  background: var(--dshell-avatar-bg);
+  color: var(--paper-0);
+  font: 600 11px/16px var(--font-ui);
+}
+
+/* ---------- menus (Help, avatar, rail flyouts) ---------- */
+
+.dshell-menu-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.dshell-menu {
+  z-index: 40;
+  width: 220px;
+  padding: 6px;
+  border: 1px solid var(--dshell-stroke);
+  border-radius: var(--dshell-menu-radius);
+  background: var(--dshell-card);
+  box-shadow: var(--dshell-shadow-menu);
+  color: var(--dshell-text);
+  animation: menu-in var(--duration-base) var(--ease-standard);
+}
+
+/* 40px below the button's top, aligned to its inline end (left in RTL). */
+.dshell-menu--bar {
+  position: absolute;
+  inset-block-start: 40px;
+  inset-inline-end: 0;
+}
+
+/* Invisible 10px bridge over the gap, so hover survives the trip into the menu. */
+.dshell-menu--bar::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 100%;
+  height: 10px;
+}
+
+.dshell-menu--flyout {
+  position: fixed;
+}
+
+.dshell-menu__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dshell-menu__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) 10px;
+  margin-block-end: 6px;
+  border-block-end: 1px solid var(--dshell-stroke);
+}
+
+.dshell-menu__header .text-muted {
+  color: var(--dshell-text-muted);
+}
+
+.dshell-menu__name {
+  font: 600 14px/20px var(--font-ui);
+}
+
+.dshell-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  height: 36px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dshell-text);
+  font: 400 14px/20px var(--font-ui);
+  text-align: start;
+}
+
+.dshell-menu__item:hover {
+  background: var(--dshell-hover);
+}
+
+.dshell-menu__item:active {
+  background: var(--dshell-pressed);
+}
+
+.dshell-menu__item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.dshell-menu__item svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
+}
+
+/* Nav rows inside the white flyout hover with the nav background. */
+.dshell-menu .dnav-item:hover {
+  background: var(--dshell-bg);
+}
+
+.dshell-menu .dnav-item:active {
+  background: var(--dshell-pressed);
+}
+
+.dshell-menu .dnav-item[aria-current='page'] {
+  background: var(--dshell-selected);
+}
+
+/* ---------- tooltip ---------- */
+
+.dshell-tooltip {
+  position: fixed;
+  z-index: 60;
+  max-width: 280px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 6px;
+  background: var(--dshell-tooltip-bg);
+  color: var(--paper-0);
+  font: 500 12px/16px var(--font-ui);
+  white-space: nowrap;
+  pointer-events: none;
+}

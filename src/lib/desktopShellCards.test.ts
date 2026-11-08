@@ -21,35 +21,38 @@ function ruleBody(source: string, selector: string): string {
   return match[1]
 }
 
-describe('desktop shell cards', () => {
-  it('defines the shell-card radius token', () => {
-    expect(tokens).toMatch(/--radius-lg:\s*16px/)
+const shellCss = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../styles/desktop-shell.css'),
+  'utf8',
+)
+
+describe('desktop shell', () => {
+  it('keeps the warm palette in tokens, scoped to the desktop shell', () => {
+    for (const hex of ['#faf6f1', '#f4eee6', '#ebe5dc', '#d7d2ca', '#1b1918', '#544e48', '#726c66']) {
+      expect(tokens).toContain(hex)
+    }
+    expect(ruleBody(tokens, '.shell--desktop')).toMatch(/--dshell-bg:\s*var\(--warm-50\)/)
+    // No raw hex in the shell stylesheet: colors come from tokens.
+    expect(shellCss).not.toMatch(/#[0-9a-f]{3,8}\b/i)
   })
 
-  it('floats the sidebar and main as rounded cards on desktop', () => {
-    expect(ruleBody(css, '.shell--cards .sidebar')).toMatch(/border-radius:\s*var\(--radius-lg\)/)
-    expect(ruleBody(css, '.shell--cards .shell__main')).toMatch(/border-radius:\s*var\(--radius-lg\)/)
-    expect(ruleBody(css, '.shell--cards .shell__main')).toMatch(
-      /background:\s*var\(--surface-page\)/,
-    )
+  it('sits the page in a white card with rounded top corners and an inline-end gap', () => {
+    const card = ruleBody(shellCss, '.dshell__card')
+    expect(card).toMatch(/background:\s*var\(--dshell-card\)/)
+    expect(card).toMatch(/border-start-start-radius:\s*var\(--dshell-card-radius\)/)
+    expect(card).toMatch(/margin-inline-end:\s*var\(--space-3\)/)
+    expect(tokens).toMatch(/--dshell-card-radius:\s*24px/)
   })
 
-  it('keeps the wordmark in the sidebar, not a full-width desktop bar', () => {
-    expect(css).toMatch(/\.sidebar__brand\s*\{/)
-    expect(ruleBody(css, '.shell--cards')).toMatch(/background:\s*var\(--surface-sunken\)/)
+  it('collapses the nav from 240px to a 64px rail', () => {
+    expect(tokens).toMatch(/--dshell-nav-open:\s*240px/)
+    expect(tokens).toMatch(/--dshell-nav-rail:\s*64px/)
+    expect(ruleBody(shellCss, '.dnav--rail')).toMatch(/width:\s*var\(--dshell-nav-rail\)/)
   })
 
-  it('keeps the desktop sidebar always expanded — no collapse rail or toggle', () => {
-    expect(tokens).not.toMatch(/--sidebar-width-collapsed/)
-    expect(css).not.toMatch(/\.sidebar--collapsed/)
-    expect(css).not.toMatch(/\.sidebar__collapse/)
-    expect(css).not.toMatch(/\.sidebar__toggle/)
-  })
-
-  it('opens the sidebar user menu toward the content card', () => {
-    const body = ruleBody(css, '.menu--rise')
-    expect(body).toMatch(/inset-inline-start:\s*0/)
-    expect(body).toMatch(/inset-inline-end:\s*auto/)
+  it('animates sections open and closed with grid rows', () => {
+    expect(ruleBody(shellCss, '.dnav-section__body')).toMatch(/grid-template-rows:\s*0fr/)
+    expect(ruleBody(shellCss, '.dnav-section__body.is-open')).toMatch(/grid-template-rows:\s*1fr/)
   })
 
   it('rings אירוע חדש with an animated outline border', () => {

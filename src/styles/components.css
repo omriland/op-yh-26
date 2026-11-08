@@ -3037,28 +3037,6 @@ html[data-keyboard-open] .event-form__footer {
   .shell__main {
     padding: var(--space-12) var(--space-8);
   }
-
-  .shell--cards {
-    background: var(--surface-sunken);
-  }
-
-  .shell--cards .shell__body {
-    padding: var(--space-3);
-    gap: var(--space-3);
-  }
-
-  .shell--cards .sidebar {
-    overflow: visible;
-    border-inline-end: 0;
-    border: 1px solid var(--stroke-hairline);
-    border-radius: var(--radius-lg);
-  }
-
-  .shell--cards .shell__main {
-    background: var(--surface-page);
-    border: 1px solid var(--stroke-hairline);
-    border-radius: var(--radius-lg);
-  }
 }
 
 @media (min-width: 641px) and (max-width: 1024px) {

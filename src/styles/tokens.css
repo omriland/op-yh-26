@@ -33,6 +33,16 @@
   --blue-100: #dce8f5;
   --blue-50: #edf4fb;
 
+  /* ---- Raw palette: warm paper (desktop shell chrome only, never page content) ---- */
+  --warm-50: #faf6f1;
+  --warm-100: #f4eee6;
+  --warm-200: #ebe5dc;
+  --warm-300: #d7d2ca;
+  --warm-400: #9c9993;
+  --warm-ink-500: #726c66;
+  --warm-ink-700: #544e48;
+  --warm-ink-900: #1b1918;
+
   /* ---- Raw palette: status inks ---- */
   --green-field: #2e7d5b;
   --green-field-tint: #e3f1ea;
@@ -161,6 +171,31 @@
   --status-draft-on-tint: var(--ink-400);
 
   color-scheme: light;
+}
+
+/* ============ Desktop shell chrome (≥1025px) ============
+   Warm paper around the white page card: side nav, top bar and their menus.
+   Scoped to .shell--desktop so page content keeps the Field tokens. */
+.shell--desktop {
+  --dshell-bg: var(--warm-50);
+  --dshell-card: var(--paper-0);
+  --dshell-hover: var(--warm-100);
+  --dshell-selected: var(--warm-200);
+  --dshell-stroke: var(--warm-200);
+  --dshell-pressed: var(--warm-300);
+  --dshell-field-line: var(--warm-400);
+  --dshell-text: var(--warm-ink-900);
+  --dshell-text-secondary: var(--warm-ink-700);
+  /* Muted: 12px section titles and ≥14px text, on --dshell-bg or white only. */
+  --dshell-text-muted: var(--warm-ink-500);
+  --dshell-tooltip-bg: var(--warm-ink-900);
+  --dshell-avatar-bg: var(--blue-700);
+  --dshell-nav-open: 240px;
+  --dshell-nav-rail: 64px;
+  --dshell-bar-height: 56px;
+  --dshell-card-radius: 24px;
+  --dshell-menu-radius: 12px;
+  --dshell-shadow-menu: 0 8px 24px rgba(27, 25, 24, 0.12);
 }
 
 /* ============ מפקדה / Command theme ============
