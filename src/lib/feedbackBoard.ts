@@ -1,6 +1,7 @@
 import {
   FEEDBACK_STATUS_STAMP,
   filterFeedbackByAssignee,
+  type FeedbackAssignee,
   type FeedbackStatus,
   type UserFeedback,
 } from './userFeedback'
@@ -157,4 +158,62 @@ export function writeCollapsedColumns(
   } catch {
     // Nothing to do: the board still works, folded by default next time.
   }
+}
+
+export type BoardCardMenuKey = 'top' | 'bottom' | 'assign' | 'assign_me' | 'delete'
+
+export type BoardCardMenuEntry = { key: BoardCardMenuKey; label: string; disabled?: boolean }
+
+/**
+ * The card's ⋮ menu, in order. Status moves live in the card detail (and drag),
+ * not here. "שיוך אליי" only when the viewer can be assigned and is not already.
+ */
+export function boardCardMenu(
+  item: Pick<UserFeedback, 'id' | 'assignee_id'>,
+  column: readonly Pick<UserFeedback, 'id'>[],
+  viewerId: string | null,
+  assignees: readonly FeedbackAssignee[],
+): BoardCardMenuEntry[] {
+  const at = column.findIndex((row) => row.id === item.id)
+  const viewerAssignable = assignees.some((person) => person.id === viewerId && person.assignable)
+  return [
+    { key: 'top', label: 'העברה לראש העמודה', disabled: at <= 0 },
+    { key: 'bottom', label: 'העברה לתחתית העמודה', disabled: at < 0 || at >= column.length - 1 },
+    { key: 'assign', label: 'שיוך' },
+    ...(viewerAssignable && item.assignee_id !== viewerId
+      ? [{ key: 'assign_me' as const, label: 'שיוך אליי' }]
+      : []),
+    { key: 'delete', label: 'מחיקה' },
+  ]
+}
+
+/** Index (among the other cards) that puts a card at the top or bottom of its column. */
+export function boardEdgeIndex(column: readonly unknown[], edge: 'top' | 'bottom'): number {
+  return edge === 'top' ? 0 : Math.max(0, column.length - 1)
+}
+
+export type BoardAssignChoice = { id: string | null; label: string; checked: boolean; disabled?: boolean }
+
+/**
+ * The שיוך submenu: every active super admin, the current assignee marked; someone
+ * who lost the role still shows (checked, not choosable); "ללא שיוך" once assigned.
+ */
+export function boardAssignChoices(
+  item: Pick<UserFeedback, 'assignee_id'>,
+  assignees: readonly FeedbackAssignee[],
+): BoardAssignChoice[] {
+  const choices: BoardAssignChoice[] = assignees
+    .filter((person) => person.assignable)
+    .map((person) => ({ id: person.id, label: person.full_name, checked: person.id === item.assignee_id }))
+  if (item.assignee_id && !choices.some((choice) => choice.checked)) {
+    const stored = assignees.find((person) => person.id === item.assignee_id)
+    choices.push({
+      id: item.assignee_id,
+      label: `${stored?.full_name ?? 'משתמש'} (לא פעיל)`,
+      checked: true,
+      disabled: true,
+    })
+  }
+  if (item.assignee_id) choices.push({ id: null, label: 'ללא שיוך', checked: false })
+  return choices
 }

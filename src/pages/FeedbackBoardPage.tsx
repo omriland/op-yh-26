@@ -10,13 +10,13 @@ import {
   Paperclip,
   Plus,
 } from 'lucide-react'
+import { BoardCardMenu } from '../components/feedback/BoardCardMenu'
 import { AlertDialog } from '../components/ui/AlertDialog'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FilterChips } from '../components/ui/FilterChips'
-import { OverflowMenu, type OverflowMenuItem } from '../components/ui/OverflowMenu'
 import { SelectField } from '../components/ui/SelectField'
 import { Skeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
@@ -27,10 +27,13 @@ import {
   BOARD_COLLAPSIBLE,
   BOARD_COLUMNS,
   BOARD_FINISHED_LIMIT,
+  boardAssignChoices,
   boardCardExcerpt,
+  boardCardMenu,
   boardColumnLabel,
   boardColumns,
   boardDropIndex,
+  boardEdgeIndex,
   boardMoveNeedsSmsConfirm,
   isFinishedColumn,
   planBoardMove,
@@ -52,7 +55,6 @@ import {
   feedbackRowsNeedingTranscript,
   feedbackTaskError,
   feedbackTreatedToast,
-  firstNameFromFullName,
   isFeedbackTask,
   type FeedbackAssignee,
   type FeedbackStatus,
@@ -125,7 +127,14 @@ function KindMark({ item }: { item: UserFeedback }) {
   )
 }
 
-export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoardApi } = {}) {
+export function FeedbackBoardPage({
+  api = userFeedbackApi,
+  viewerId = null,
+}: {
+  api?: FeedbackBoardApi
+  /** The signed-in manager, for "שיוך אליי". */
+  viewerId?: string | null
+} = {}) {
   const { show } = useToast()
   const formId = useId()
   const [items, setItems] = useState<UserFeedback[] | null>(null)
@@ -497,34 +506,16 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
     setDrop(null)
   }
 
-  function menuItems(item: UserFeedback, column: UserFeedback[]): OverflowMenuItem[] {
-    const at = column.findIndex((row) => row.id === item.id)
-    const moves = BOARD_COLUMNS.filter((status) => status !== item.status).map((status) => ({
-      label: `סימון כ${boardColumnLabel(status)}`,
-      onSelect: () => requestMove(item, status, 0, true),
-    }))
-    const assigns = assignable
-      .filter((person) => person.id !== item.assignee_id)
-      .map((person) => ({
-        label: `שיוך ל${firstNameFromFullName(person.full_name) || person.full_name}`,
-        onSelect: () => void assign(item, person.id),
-      }))
-    return [
-      { label: 'פתיחת הכרטיס', onSelect: () => openDetail(item) },
-      ...moves,
-      {
-        label: 'הזזה למעלה',
-        disabled: at <= 0,
-        onSelect: () => requestMove(item, item.status, at - 1, true),
-      },
-      {
-        label: 'הזזה למטה',
-        disabled: at < 0 || at >= column.length - 1,
-        onSelect: () => requestMove(item, item.status, at + 1, true),
-      },
-      ...assigns,
-      ...(item.assignee_id ? [{ label: 'ביטול שיוך', onSelect: () => void assign(item, null) }] : []),
-    ]
+  function onMenuSelect(item: UserFeedback, column: UserFeedback[], key: 'top' | 'bottom' | 'assign_me' | 'delete') {
+    if (key === 'top' || key === 'bottom') {
+      requestMove(item, item.status, boardEdgeIndex(column, key), true)
+      return
+    }
+    if (key === 'assign_me') {
+      if (viewerId) void assign(item, viewerId)
+      return
+    }
+    setConfirmDelete(item)
   }
 
   function renderCard(item: UserFeedback, column: UserFeedback[]) {
@@ -552,11 +543,14 @@ export function FeedbackBoardPage({ api = userFeedbackApi }: { api?: FeedbackBoa
         </button>
         <div className="board-card__top">
           <KindMark item={item} />
-          <OverflowMenu
+          <BoardCardMenu
             open={menuFor === item.id}
             onOpenChange={(open) => setMenuFor(open ? item.id : null)}
             label={`פעולות לכרטיס: ${cardText(item).slice(0, 40)}`}
-            items={menuItems(item, column)}
+            entries={boardCardMenu(item, column, viewerId, assignees)}
+            assignChoices={boardAssignChoices(item, assignees)}
+            onSelect={(key) => onMenuSelect(item, column, key)}
+            onAssign={(assigneeId) => void assign(item, assigneeId)}
           />
         </div>
         <div className="board-card__meta t-caption">

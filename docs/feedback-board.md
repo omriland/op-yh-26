@@ -54,7 +54,9 @@ Column names reuse the existing stamp labels, so the board and the stamps say th
 - Feedback already `fixed` when the migration runs counts as texted (`sms_sent_inferred`), because the old flow texted on every טופל. The detail says so instead of showing a send time.
 - Not covered: feedback that was texted, then reopened, and is open, in progress or לא יטופל when the migration runs. Nothing in the data shows it was texted, so its next טופל may text again. At the 7 Nov count that is at most the 5 rows not `fixed`.
 
-**Moving.** Drag between and within columns. The keyboard and touch alternative is the card's menu (⋮): move to any other column, move up or down, assign. New submissions sort to the top of פתוח by date until someone moves them.
+**Moving.** Drag between and within columns. Without a mouse (keyboard, touch, phone), status changes in the card detail: open the card, pick the status (טופל still asks about the SMS). New submissions sort to the top of פתוח by date until someone moves them.
+
+**Card menu (⋮).** העברה לראש העמודה, העברה לתחתית העמודה (each off when the card is already there), שיוך (a second panel listing the managers, the current one checked, plus ללא שיוך when assigned), שיוך אליי (hidden when the card is already yours), and מחיקה last, apart, in red. The שיוך panel replaces the menu with a חזרה row rather than flying out, so it stays on screen at every width; ArrowLeft opens it, ArrowRight or Escape goes back.
 
 **Assignment.** One assignee or none, chosen from active super admins. Filter chips above the board: הכול, one chip per manager, לא משויך.
 

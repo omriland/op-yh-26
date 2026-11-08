@@ -295,7 +295,7 @@ createRoot(document.getElementById('root')!).render(
       <div className="shell dev-shell" data-theme="field">
         <main className="shell__main">
           {params.has('bare') ? null : <DevBar />}
-          <FeedbackBoardPage api={api} />
+          <FeedbackBoardPage api={api} viewerId={OMRI} />
         </main>
       </div>
     </ToastProvider>

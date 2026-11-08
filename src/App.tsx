@@ -1209,7 +1209,7 @@ function Gate() {
           <UsersMapPage key={sectionReset} />
         </div>
       ) : activeView === 'feedback' && isSuperAdmin ? (
-        <FeedbackBoardPage key={sectionReset} />
+        <FeedbackBoardPage key={sectionReset} viewerId={user?.id ?? null} />
       ) : activeView === 'event_locations' && isSuperAdmin ? (
         <EventLocationsPage
           key={sectionReset}

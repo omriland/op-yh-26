@@ -5,10 +5,13 @@ import {
   BOARD_COLLAPSED_KEY,
   BOARD_COLUMNS,
   BOARD_POSITION_STEP,
+  boardAssignChoices,
   boardCardExcerpt,
+  boardCardMenu,
   boardColumnLabel,
   boardColumns,
   boardDropIndex,
+  boardEdgeIndex,
   boardMoveNeedsSmsConfirm,
   boardSortKey,
   isFinishedColumn,
@@ -293,5 +296,87 @@ describe('folded columns', () => {
   it('ignores stored flags for columns that never fold', () => {
     const storage = memory({ [BOARD_COLLAPSED_KEY]: JSON.stringify({ open: true, in_progress: true, fixed: false }) })
     expect([...readCollapsedColumns(storage)]).toEqual(['wont_do'])
+  })
+})
+
+describe('card menu', () => {
+  const people = [
+    { id: 'omri', full_name: 'עמרי ל.', assignable: true },
+    { id: 'saar', full_name: 'סער מ.', assignable: true },
+    { id: 'former', full_name: 'מנהל לשעבר', assignable: false },
+  ]
+  const column = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+  const keys = (entries: ReturnType<typeof boardCardMenu>) => entries.map((entry) => entry.key)
+
+  it('has only top, bottom, שיוך, שיוך אליי and מחיקה, with no status or open items', () => {
+    const entries = boardCardMenu({ id: 'b', assignee_id: null }, column, 'omri', people)
+    expect(keys(entries)).toEqual(['top', 'bottom', 'assign', 'assign_me', 'delete'])
+    expect(entries.map((entry) => entry.label)).toEqual([
+      'העברה לראש העמודה',
+      'העברה לתחתית העמודה',
+      'שיוך',
+      'שיוך אליי',
+      'מחיקה',
+    ])
+    expect(entries.every((entry) => !entry.disabled)).toBe(true)
+  })
+
+  it('disables top for the first card and bottom for the last', () => {
+    const first = boardCardMenu({ id: 'a', assignee_id: null }, column, 'omri', people)
+    expect(first.find((entry) => entry.key === 'top')?.disabled).toBe(true)
+    expect(first.find((entry) => entry.key === 'bottom')?.disabled).toBe(false)
+    const last = boardCardMenu({ id: 'c', assignee_id: null }, column, 'omri', people)
+    expect(last.find((entry) => entry.key === 'bottom')?.disabled).toBe(true)
+    const only = boardCardMenu({ id: 'a', assignee_id: null }, [{ id: 'a' }], 'omri', people)
+    expect(only.filter((entry) => entry.disabled).map((entry) => entry.key)).toEqual(['top', 'bottom'])
+  })
+
+  it('hides שיוך אליי when the card is already mine or I cannot be assigned', () => {
+    expect(keys(boardCardMenu({ id: 'b', assignee_id: 'omri' }, column, 'omri', people))).not.toContain('assign_me')
+    expect(keys(boardCardMenu({ id: 'b', assignee_id: 'saar' }, column, 'omri', people))).toContain('assign_me')
+    expect(keys(boardCardMenu({ id: 'b', assignee_id: null }, column, 'former', people))).not.toContain('assign_me')
+    expect(keys(boardCardMenu({ id: 'b', assignee_id: null }, column, null, people))).not.toContain('assign_me')
+  })
+
+  it('moves a card to the very top or bottom of its column', () => {
+    const cards = [
+      card('a', '2026-11-05T10:00:00Z'),
+      card('b', '2026-11-04T10:00:00Z'),
+      card('c', '2026-11-03T10:00:00Z'),
+    ]
+    expect(keysOf(cards, planBoardMove(cards, 'c', boardEdgeIndex(cards, 'top'), 'open'))).toEqual(['c', 'a', 'b'])
+    expect(keysOf(cards, planBoardMove(cards, 'a', boardEdgeIndex(cards, 'bottom'), 'open'))).toEqual(['b', 'c', 'a'])
+    expect(keysOf(cards, planBoardMove(cards, 'b', boardEdgeIndex(cards, 'bottom'), 'open'))).toEqual(['a', 'c', 'b'])
+  })
+})
+
+describe('assign submenu', () => {
+  const people = [
+    { id: 'omri', full_name: 'עמרי ל.', assignable: true },
+    { id: 'saar', full_name: 'סער מ.', assignable: true },
+    { id: 'former', full_name: 'מנהל לשעבר', assignable: false },
+  ]
+
+  it('lists the active super admins, unchecked, with no unassign row when unassigned', () => {
+    expect(boardAssignChoices({ assignee_id: null }, people)).toEqual([
+      { id: 'omri', label: 'עמרי ל.', checked: false },
+      { id: 'saar', label: 'סער מ.', checked: false },
+    ])
+  })
+
+  it('marks the current assignee and offers ללא שיוך', () => {
+    const choices = boardAssignChoices({ assignee_id: 'saar' }, people)
+    expect(choices.filter((choice) => choice.checked).map((choice) => choice.id)).toEqual(['saar'])
+    expect(choices[choices.length - 1]).toEqual({ id: null, label: 'ללא שיוך', checked: false })
+  })
+
+  it('keeps a former manager visible as the current assignee without offering them', () => {
+    const choices = boardAssignChoices({ assignee_id: 'former' }, people)
+    expect(choices.find((choice) => choice.id === 'former')).toEqual({
+      id: 'former',
+      label: 'מנהל לשעבר (לא פעיל)',
+      checked: true,
+      disabled: true,
+    })
   })
 })

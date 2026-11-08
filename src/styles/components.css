@@ -9612,6 +9612,41 @@ fieldset.field {
   gap: var(--space-2);
 }
 
+/* Card ⋮ menu (BoardCardMenu): rows that carry an icon at inline-end, and מחיקה
+   set apart below a hairline. */
+.board-menu {
+  width: 220px;
+}
+
+.board-menu .board-menu__sub,
+.board-menu .board-menu__choice,
+.board-menu .board-menu__back {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.board-menu .board-menu__back {
+  justify-content: flex-start;
+  color: var(--text-secondary);
+}
+
+.board-menu .board-menu__choice[aria-checked='true'] {
+  color: var(--accent);
+}
+
+.board-menu .board-menu__danger {
+  margin-block-start: var(--space-1);
+  border-block-start: 1px solid var(--stroke-hairline);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.board-menu button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
 .board-filter-empty {
   display: flex;
   flex-wrap: wrap;
