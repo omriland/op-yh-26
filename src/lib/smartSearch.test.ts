@@ -46,10 +46,32 @@ describe('isDirectQuery / directFilter', () => {
   })
 })
 
+describe('chipsForFilter people keys', () => {
+  it('renders volunteer status, shift coverage and people-only', () => {
+    expect(
+      chipsForFilter({
+        ...base,
+        entity: 'people',
+        volunteer_status: 'active_volunteer',
+        no_shift_from: '2026-11-08',
+        no_shift_to: '2026-11-14',
+      }).map((c) => [c.key, c.label]),
+    ).toEqual([
+      ['volunteer_status', 'מעמד: מתנדב פעיל'],
+      ['no_shift', 'בלי משמרת: 08.11.2026–14.11.2026'],
+      ['entity', 'אנשים בלבד'],
+    ])
+  })
+  it('removing the person chip drops the resolved people too', () => {
+    expect(removeChip({ ...base, person: 'יוסי', person_ids: ['x'], person_callsigns: ['1'] }, 'person')).toEqual(base)
+    expect(removeChip({ ...base, no_shift_from: 'a', no_shift_to: 'b' }, 'no_shift')).toEqual(base)
+  })
+})
+
 describe('chipsForFilter', () => {
   it('renders road and a date range', () => {
     expect(chipsForFilter({ ...base, road: '531', date_from: '2026-10-25', date_to: '2026-10-31' })).toEqual([
-      { key: 'road', label: 'כביש 531', numeric: false },
+      { key: 'road', label: 'כביש 531', numeric: true },
       { key: 'dates', label: '25.10.2026–31.10.2026', numeric: true },
     ])
   })
@@ -68,9 +90,11 @@ describe('chipsForFilter', () => {
     expect(chipsForFilter({ ...base, text: 'שפך' })[0].label).toBe('״שפך״')
     expect(chipsForFilter({ ...base, person: 'דני', person_role: 'lead' })[0].label).toBe('אחמ״ש: דני')
     expect(chipsForFilter({ ...base, person: 'דני', person_role: 'responder' })[0].label).toBe('כונן: דני')
-    expect(chipsForFilter({ ...base, person: 'דני', person_role: 'any' })[0].label).toBe('דני')
+    expect(chipsForFilter({ ...base, person: 'דני', person_role: 'any' })[0].label).toBe('אדם: דני')
     expect(chipsForFilter({ ...base, plate: '76543' })[0].label).toBe('לוחית 76-543')
-    expect(chipsForFilter({ ...base, status: 'draft' })[0].label).toBe('טיוטה')
+    expect(chipsForFilter({ ...base, status: 'draft' })[0].label).toBe('סטטוס: טיוטה')
+    expect(chipsForFilter({ ...base, status: 'in_progress' })[0].label).toBe('סטטוס: ממתין למתנדב')
+    expect(chipsForFilter({ ...base, status: 'draft' }, 'responder')).toEqual([])
     expect(chipsForFilter({ ...base, damage_location: 'פגוש' })[0].label).toBe('נזק: פגוש')
     expect(chipsForFilter({ ...base, police_event_id: '99' })[0].label).toBe('אירוע 99')
   })

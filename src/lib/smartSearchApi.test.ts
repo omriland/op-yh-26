@@ -13,8 +13,15 @@ vi.mock('./responderFreezeSchema', async (orig) => {
   return { ...actual, withResponderFreeze: async (s: string) => s.split(actual.RESPONDER_FREEZE_FIELDS).join('frozen_over_60km,') }
 })
 
-import { interpretQuery, reportChipRemoved, reportCounts, runSearch } from './smartSearchApi'
+import { interpretQuery as interpretWith, reportChipRemoved, reportCounts, runSearch as runWith } from './smartSearchApi'
+import type { SmartSearchFilter } from '../../supabase/functions/_shared/smartSearchFilter'
 import { directFilter } from './smartSearch'
+
+const vocab = { eventTypes: ['תאונה'], districts: ['צפון'] }
+const interpretQuery = (q: string, role: 'admin' | 'lead' | 'responder' = 'admin') =>
+  interpretWith(q, { role, vocab, today: '2026-11-08' })
+const runSearch = (f: SmartSearchFilter, limit: number, role: 'admin' | 'lead' | 'responder' = 'admin') =>
+  runWith(f, limit, { role })
 
 const httpError = (status: number, body: unknown) => ({
   data: null,
@@ -35,7 +42,7 @@ describe('interpretQuery', () => {
     expect(sb.invoke).not.toHaveBeenCalled()
     expect(r).toMatchObject({ filter: directFilter('12-345-67'), lane: 'direct' })
     expect(await r.logId).toBe('log-1')
-    expect(sb.rpc).toHaveBeenCalledWith('log_smart_search', expect.objectContaining({ p_lane: 'direct', p_query: '12-345-67' }))
+    expect(sb.rpc).toHaveBeenCalledWith('app_search_log', expect.objectContaining({ p_lane: 'direct', p_query: '12-345-67' }))
   })
 
   it('a log failure gives logId null, not an error', async () => {
@@ -58,7 +65,7 @@ describe('interpretQuery', () => {
     sb.rpc.mockReturnValue(new Promise((resolve) => { finishLog = resolve }))
     const r = await interpretQuery('4471')
     expect(r.lane).toBe('direct')
-    expect(sb.rpc).toHaveBeenCalledWith('log_smart_search', expect.objectContaining({ p_lane: 'direct' }))
+    expect(sb.rpc).toHaveBeenCalledWith('app_search_log', expect.objectContaining({ p_lane: 'direct' }))
     finishLog({ data: 'late-log', error: null })
     expect(await r.logId).toBe('late-log')
   })
@@ -98,7 +105,40 @@ describe('interpretQuery', () => {
     const r = await interpretQuery('סוזוקי')
     expect(r).toMatchObject({ filter: directFilter('סוזוקי'), lane: 'fallback' })
     expect(await r.logId).toBe('log-1')
-    expect(sb.rpc).toHaveBeenCalledWith('log_smart_search', expect.objectContaining({ p_lane: 'fallback' }))
+    expect(sb.rpc).toHaveBeenCalledWith('app_search_log', expect.objectContaining({ p_lane: 'fallback' }))
+  })
+
+  it('reuses the logId the function wrote for its own failure, with the reason', async () => {
+    sb.invoke.mockResolvedValue(httpError(502, { error: 'refusal', logId: 'fn-log' }))
+    const r = await interpretQuery('סוזוקי')
+    expect(r).toMatchObject({ lane: 'fallback', reason: 'refusal' })
+    expect(await r.logId).toBe('fn-log')
+    expect(sb.rpc).not.toHaveBeenCalled()
+  })
+
+  it('logs a fallback the function never saw with reason network', async () => {
+    sb.invoke.mockResolvedValue({ data: null, error: new Error('offline') })
+    const r = await interpretQuery('סוזוקי')
+    expect(r.reason).toBe('network')
+    await r.logId
+    expect(sb.rpc).toHaveBeenCalledWith('app_search_log', expect.objectContaining({ p_lane: 'fallback', p_reason: 'network' }))
+  })
+
+  it('answers from the rules lane without the model when every word is known', async () => {
+    const r = await interpretQuery('תאונה בצפון אתמול')
+    expect(sb.invoke).not.toHaveBeenCalled()
+    expect(r).toMatchObject({
+      lane: 'rules',
+      filter: { event_type: 'תאונה', district: 'צפון', date_from: '2026-11-07', date_to: '2026-11-07' },
+    })
+    await r.logId
+    expect(sb.rpc).toHaveBeenCalledWith('app_search_log', expect.objectContaining({ p_lane: 'rules' }))
+  })
+
+  it('asks the model for every role when words are left over', async () => {
+    sb.invoke.mockResolvedValue({ data: { filter: { intent: 'find', entity: 'both', source: 'both' }, logId: 'x' }, error: null })
+    await interpretQuery('האירועים של יוסי בצפון', 'responder')
+    expect(sb.invoke).toHaveBeenCalledTimes(1)
   })
 
   it('network error falls back', async () => {
@@ -122,7 +162,7 @@ describe('interpretQuery', () => {
 describe('runSearch', () => {
   it('runs once per variant on a text-only filter and merges without duplicates', async () => {
     sb.rpc.mockImplementation(async (name: string, args: { p_filter: { text: string } }) => {
-      if (name === 'admin_search') {
+      if (name === 'app_search') {
         return args.p_filter.text === 'xuzuei'
           ? { data: { events: [{ id: 'a', found_by: 'א' }, { id: 'b', found_by: 'ב' }], people: [] }, error: null }
           : { data: { events: [{ id: 'b', found_by: 'ב2' }, { id: 'c', found_by: 'ג' }], people: [] }, error: null }
@@ -134,9 +174,9 @@ describe('runSearch', () => {
       error: null,
     }))
     const r = await runSearch(directFilter('xuzuei'), 200)
-    const calls = sb.rpc.mock.calls.filter((c) => c[0] === 'admin_search')
+    const calls = sb.rpc.mock.calls.filter((c) => c[0] === 'app_search')
     expect(calls).toHaveLength(2)
-    expect(sb.rpc.mock.calls.filter((c) => c[0] === 'admin_search_archive')).toHaveLength(2)
+    expect(sb.rpc.mock.calls.filter((c) => c[0] === 'app_search_archive')).toHaveLength(2)
     expect(r.events.map((e) => e.id)).toEqual(['a', 'b', 'c'])
     expect(r.events[1].found_by).toBe('ב')
   })
@@ -144,12 +184,12 @@ describe('runSearch', () => {
   it('one call for digits-only text', async () => {
     sb.rpc.mockResolvedValue({ data: { events: [], people: [], rows: [] }, error: null })
     await runSearch(directFilter('12345'), 50)
-    expect(sb.rpc.mock.calls.filter((c) => c[0] === 'admin_search')).toHaveLength(1)
+    expect(sb.rpc.mock.calls.filter((c) => c[0] === 'app_search')).toHaveLength(1)
   })
 
   it('throws when an RPC errors', async () => {
     sb.rpc.mockImplementation(async (name: string) =>
-      name === 'admin_search_archive'
+      name === 'app_search_archive'
         ? { data: null, error: { message: 'x', code: '42501' } }
         : { data: { events: [], people: [] }, error: null },
     )
@@ -157,10 +197,34 @@ describe('runSearch', () => {
   })
 })
 
+describe('runSearch by role', () => {
+  beforeEach(() => {
+    sb.rpc.mockResolvedValue({ data: { events: [], people: [], rows: [] }, error: null })
+  })
+  it('never calls the archive for a shift lead or a responder, even when the filter asks', async () => {
+    for (const role of ['lead', 'responder'] as const) {
+      sb.rpc.mockClear()
+      const r = await runSearch({ ...directFilter('גשר'), source: 'archive' }, 50, role)
+      expect(sb.rpc.mock.calls.filter((c) => c[0] === 'app_search_archive')).toHaveLength(0)
+      expect(sb.rpc.mock.calls[0][1].p_filter.source).toBe('new')
+      expect(r.archive).toEqual([])
+    }
+  })
+  it('passes the typing session to the archive so it audits once', async () => {
+    await runWith(directFilter('גשר'), 5, { role: 'admin', session: 's-1' })
+    expect(sb.rpc).toHaveBeenCalledWith('app_search_archive', expect.objectContaining({ p_session: 's-1' }))
+  })
+  it('reports the keys a responder cannot use', async () => {
+    const r = await runSearch({ ...directFilter(''), entity: 'people', volunteer_status: 'active_volunteer' }, 50, 'responder')
+    expect(r.dropped.map((d) => d.key)).toEqual(['volunteer_status'])
+    expect(sb.rpc.mock.calls[0][1].p_filter).not.toHaveProperty('volunteer_status')
+  })
+})
+
 describe('runSearch errors and hydration', () => {
   it('resolves the responder-freeze token in the hydration select', async () => {
     sb.rpc.mockImplementation(async (name: string) =>
-      name === 'admin_search'
+      name === 'app_search'
         ? { data: { events: [{ id: 'a', found_by: 'x' }], people: [] }, error: null }
         : { data: { rows: [] }, error: null },
     )
@@ -173,7 +237,7 @@ describe('runSearch errors and hydration', () => {
 
   it('embeds event-owned and responder-owned treated plates', async () => {
     sb.rpc.mockImplementation(async (name: string) =>
-      name === 'admin_search'
+      name === 'app_search'
         ? { data: { events: [{ id: 'a', found_by: 'x' }], people: [] }, error: null }
         : { data: { rows: [] }, error: null },
     )
@@ -192,9 +256,9 @@ describe('runSearch errors and hydration', () => {
     expect(select.split('(').length).toBe(select.split(')').length)
   })
 
-  it('throws when admin_search errors', async () => {
+  it('throws when app_search errors', async () => {
     sb.rpc.mockImplementation(async (name: string) =>
-      name === 'admin_search'
+      name === 'app_search'
         ? { data: null, error: { message: 'x' } }
         : { data: { rows: [] }, error: null },
     )
@@ -203,7 +267,7 @@ describe('runSearch errors and hydration', () => {
 
   it('throws when hydration errors', async () => {
     sb.rpc.mockImplementation(async (name: string) =>
-      name === 'admin_search'
+      name === 'app_search'
         ? { data: { events: [{ id: 'a', found_by: 'x' }], people: [] }, error: null }
         : { data: { rows: [] }, error: null },
     )
