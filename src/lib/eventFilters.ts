@@ -13,7 +13,12 @@ import { mineEventMatchesQuery } from './mineInbox'
 import { mapSecondaryLeadRows } from './eventShiftLeads'
 import { partitionMineList, type MineListBucket, type MineListSections } from './mineListSections'
 import { keepShiftLeadRecentEvent, shouldApplyShiftLeadRecentWindow } from './shiftLeadEventsWindow'
-import type { EventStatus } from './status'
+import {
+  lifecycleMatches,
+  parseLifecycleFilter,
+  storedStatusesForLifecycle,
+  type LifecycleFilterValue,
+} from './eventLifecycle'
 import { unitEventsCreatedByFilter } from './unitEventsScope'
 
 export type FilterField =
@@ -248,7 +253,7 @@ export function withPeriodWindow(
 }
 
 export type EventListView = {
-  status: EventStatus | 'all'
+  status: LifecycleFilterValue
   showShiftEvents: boolean
   showOlder: boolean
   showOthers: boolean
@@ -291,8 +296,6 @@ export function sameView(a: EventListView, b: EventListView): boolean {
   )
 }
 
-const STATUSES: readonly (EventStatus | 'all')[] = ['all', 'draft', 'in_progress', 'partial', 'done']
-
 function parseRule(raw: unknown): FilterRule | null {
   if (!raw || typeof raw !== 'object') return null
   const { field, op, value } = raw as { field?: unknown; op?: unknown; value?: unknown }
@@ -334,9 +337,7 @@ export function parseView(raw: unknown): EventListView | null {
   if (!raw || typeof raw !== 'object') return null
   const row = raw as Record<string, unknown>
   if (row.v !== undefined && (typeof row.v !== 'number' || row.v > VIEW_VERSION)) return null
-  const status = STATUSES.includes(row.status as EventStatus | 'all')
-    ? (row.status as EventStatus | 'all')
-    : 'all'
+  const status = parseLifecycleFilter(row.status)
   const rules = Array.isArray(row.rules)
     ? row.rules.map(parseRule).filter((rule): rule is FilterRule => rule !== null)
     : []
@@ -432,13 +433,16 @@ const KIND_BY_RESPONDER = 'kr:event_responders!inner(tv:event_treated_vehicles!i
  */
 export function ruleQueryPlans(
   rules: readonly FilterRule[],
-  base: { shiftLeadId: string | null; status: EventStatus | 'all'; hideShiftEvents: boolean },
+  base: { shiftLeadId: string | null; status: LifecycleFilterValue; hideShiftEvents: boolean },
 ): RuleQueryPlan[] {
   const active = activeRules(rules)
   const embeds: string[] = []
   const filters: QueryFilter[] = []
   if (base.shiftLeadId) filters.push({ op: 'eq', column: 'shift_lead_id', value: base.shiftLeadId })
-  if (base.status !== 'all') filters.push({ op: 'eq', column: 'status', value: base.status })
+  // The status menu is the on-screen lifecycle; the server can only narrow by the
+  // stored statuses it may come from, and the page keeps the exact match.
+  const stored = base.status === 'all' ? null : storedStatusesForLifecycle(base.status)
+  if (stored) filters.push({ op: 'in', column: 'status', value: stored })
   if (base.hideShiftEvents) filters.push({ op: 'neq', column: 'origin', value: 'shift' })
 
   let leads: string[] | null = null
@@ -591,17 +595,17 @@ const STATUS_STORAGE_KEY = 'yahpaz:unitEventsStatus'
 const QUERY_STORAGE_KEY = 'yahpaz:unitEventsQuery'
 
 /** Status and search text survive a reload with the rules, per browser session. */
-export function readSessionStatus(storage?: Storage | null, scope: ListScope = 'unit'): EventStatus | 'all' {
+export function readSessionStatus(storage?: Storage | null, scope: ListScope = 'unit'): LifecycleFilterValue {
   try {
     const raw = sessionStore(storage)?.getItem(scopedKey(STATUS_STORAGE_KEY, scope))
-    return STATUSES.includes(raw as EventStatus | 'all') ? (raw as EventStatus | 'all') : 'all'
+    return parseLifecycleFilter(raw)
   } catch {
     return 'all'
   }
 }
 
 export function writeSessionStatus(
-  status: EventStatus | 'all',
+  status: LifecycleFilterValue,
   storage?: Storage | null,
   scope: ListScope = 'unit',
 ): void {
@@ -647,7 +651,7 @@ const MINE_ALL_WINDOWS = 1000
 export function mineFilteredSections<T extends EventListItem>(
   events: T[],
   opts: {
-    status: EventStatus | 'all'
+    status: LifecycleFilterValue
     query: string
     ruleIds: ReadonlySet<string> | null
     bucket: (event: T) => MineListBucket
@@ -657,7 +661,7 @@ export function mineFilteredSections<T extends EventListItem>(
 ): MineListSections<T> {
   const source = events.filter(
     (event) =>
-      (opts.status === 'all' || event.status === opts.status) &&
+      lifecycleMatches(opts.status, event) &&
       (opts.ruleIds === null || opts.ruleIds.has(event.id)),
   )
   const sections = partitionMineList(source, {

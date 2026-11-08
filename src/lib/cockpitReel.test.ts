@@ -4,6 +4,7 @@ const { filters } = vi.hoisted(() => ({ filters: [] as [string, string, unknown]
 
 vi.mock('./responderFreezeSchema', () => ({
   RESPONDER_FREEZE_FIELDS: '',
+  EVENT_LEAD_KM_FIELD: '',
   withResponderFreeze: (select: string) => Promise.resolve(select),
 }))
 

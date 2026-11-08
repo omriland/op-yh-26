@@ -42,16 +42,22 @@ export function isShiftBornEventEmpty(event: ShiftBornEventSnapshot): boolean {
 }
 
 /**
- * Shift-born documentation stamp.
- * Missing פירוט הטיפול always stays pending — never סיימת לתעד / הושלם.
+ * Shift-born documentation stamp, in the event lifecycle's words. The crew's
+ * shared report is the whole event, so it is ממתין למתנדב until the report is
+ * done with פירוט הטיפול filled, then תועד. It is never טיוטה: the crew sees a
+ * shift-born event from the start.
  */
 export function shiftBornFillStamp(event: ShiftBornEventSnapshot): StampDescriptor {
-  if (blank(event.treatment_detail)) {
-    return { label: 'ממתין לתיעוד', tone: 'pending' }
-  }
-  if (event.status === 'done') return { label: 'הושלם', tone: 'done' }
-  if (isShiftBornEventEmpty(event)) return { label: 'ממתין לתיעוד', tone: 'draft' }
-  return { label: 'טיוטה נשמרה', tone: 'draft' }
+  if (shiftBornReportDone(event)) return { label: 'תועד', tone: 'done' }
+  return { label: 'ממתין למתנדב', tone: 'pending' }
+}
+
+/** Done in the database and פירוט הטיפול filled; the report's own done gate. */
+export function shiftBornReportDone(event: {
+  status: EventStatus
+  treatment_detail?: string | null
+}): boolean {
+  return event.status === 'done' && !blank(event.treatment_detail)
 }
 
 /** Mine inbox: shift-born stays pending until פירוט הטיפול is filled and status is done. */

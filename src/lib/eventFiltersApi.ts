@@ -8,7 +8,7 @@ import {
   type RuleQueryPlan,
 } from './eventFilters'
 import { fetchEventsByIds, type EventListItem } from './events'
-import type { EventStatus } from './status'
+import type { LifecycleFilterValue } from './eventLifecycle'
 import { supabase } from './supabase'
 
 const ID_CHUNK = 100
@@ -54,7 +54,7 @@ async function runPlan(plan: RuleQueryPlan, limit: number, ids?: string[]): Prom
 
 type RuleQueryOpts = {
   shiftLeadId: string | null
-  status: EventStatus | 'all'
+  status: LifecycleFilterValue
   hideShiftEvents: boolean
   limit: number
   ids?: string[]

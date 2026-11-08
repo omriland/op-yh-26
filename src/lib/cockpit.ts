@@ -5,7 +5,10 @@ import { isUrbanRoadName } from './systemDistricts'
 import { locationPinIsLocked, type LocationPinSource } from './locationPin'
 import { geocodePlaceQuery } from './googlePlaces'
 import { supabase } from './supabase'
-import { RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
+import { EVENT_LEAD_KM_FIELD, RESPONDER_FREEZE_FIELDS, withResponderFreeze } from './responderFreezeSchema'
+import { eventLifecycle, type LifecycleState } from './eventLifecycle'
+import type { EventListItem, EventResponderSummary } from './events'
+import type { ParticipationStatus } from './status'
 import { withoutDiscardedEvents } from './discardedEvents'
 
 export const COCKPIT_WINDOW_MS = 5 * 60 * 60 * 1000
@@ -33,13 +36,49 @@ export type CockpitReelItem = {
   road: { name: string } | null
   shift_lead: { full_name: string; callsign: string } | null
   secondary_leads?: SecondaryLead[]
+  /** Lifecycle inputs; absent on the optimistic row a new draft inserts. */
+  origin?: EventListItem['origin']
+  patrol_callsign?: string | null
+  patrol_callsign_prefix?: string | null
+  patrol_callsign_number?: string | null
+  started_at?: string | null
+  ended_at?: string | null
+  lead_km_owed?: boolean | null
+  district?: { name: string } | null
   responders: {
     id: string
     responder_id: string
     ended_at: string | null
+    status?: ParticipationStatus
+    total_km?: number | null
+    profile?: EventResponderSummary['profile']
     frozen_over_60km?: boolean
     frozen_suspicious_duplicate?: boolean
   }[]
+}
+
+/** The reel stamp reads the same lifecycle as the events list. */
+export function cockpitReelLifecycle(event: CockpitReelItem): LifecycleState {
+  return eventLifecycle({
+    origin: event.origin ?? 'manual',
+    status: event.status,
+    police_event_id: event.police_event_id,
+    patrol_callsign: event.patrol_callsign ?? null,
+    patrol_callsign_prefix: event.patrol_callsign_prefix ?? null,
+    patrol_callsign_number: event.patrol_callsign_number ?? null,
+    district: event.district ?? null,
+    event_type: event.event_type,
+    road: event.road,
+    location: event.location,
+    started_at: event.started_at ?? null,
+    ended_at: event.ended_at ?? null,
+    lead_km_owed: event.lead_km_owed,
+    responders: event.responders.map((row) => ({
+      status: row.status ?? 'pending',
+      total_km: row.total_km ?? null,
+      profile: row.profile ?? null,
+    })),
+  })
 }
 
 const COCKPIT_REEL_SELECT = `
@@ -48,6 +87,13 @@ const COCKPIT_REEL_SELECT = `
   event_date,
   police_event_id,
   status,
+  ${EVENT_LEAD_KM_FIELD}
+  origin,
+  patrol_callsign,
+  patrol_callsign_prefix,
+  patrol_callsign_number,
+  started_at,
+  ended_at,
   is_cancelled,
   location,
   location_lat,
@@ -56,11 +102,15 @@ const COCKPIT_REEL_SELECT = `
   frozen_over_60km,
   frozen_suspicious_duplicate,
   shift_lead_id,
+  district:districts(name),
   event_type:event_types(name),
   road:roads(name),
   shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
   ${EVENT_SECONDARY_LEADS_EMBED},
-  responders:event_responders(id, responder_id, ${RESPONDER_FREEZE_FIELDS} ended_at)
+  responders:event_responders(
+    id, responder_id, status, total_km, ${RESPONDER_FREEZE_FIELDS} ended_at,
+    profile:profiles(full_name, callsign, vehicles(archived))
+  )
 `
 
 export function isInCockpitWindow(createdAt: string, now: Date): boolean {

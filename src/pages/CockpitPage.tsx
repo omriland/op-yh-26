@@ -24,6 +24,7 @@ import {
   saveEventLocationPin,
   shouldReuseCockpitCreate,
   type CockpitEventPin,
+  cockpitReelLifecycle,
   type CockpitReelItem,
 } from '../lib/cockpit'
 import { hasSeenCockpitIntro, markCockpitIntroSeen } from '../lib/cockpitIntro'
@@ -38,7 +39,8 @@ import {
   todayJerusalem,
 } from '../lib/eventForm'
 import { monoClass } from '../lib/format'
-import { cancelledStamp, eventStamp } from '../lib/status'
+import { cancelledStamp } from '../lib/status'
+import { lifecycleStamp } from '../lib/eventLifecycle'
 import { Button, IconButton } from '../components/ui/Button'
 import { NewEventButtonShell } from '../components/ui/NewEventButtonShell'
 import { AlertDialog } from '../components/ui/AlertDialog'
@@ -389,7 +391,9 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
           <ul className="cockpit__list">
             {reel.map((event) => {
               const current = event.id === selectedEventId
-              const stamp = event.is_cancelled ? cancelledStamp() : eventStamp(event.status)
+              const stamp = event.is_cancelled
+                ? cancelledStamp()
+                : lifecycleStamp(cockpitReelLifecycle(event), 'lead')
               const policeId = event.police_event_id?.trim()
               const detail = cockpitReelDetail(event)
               const lead = cockpitReelLead(event)

@@ -3,20 +3,19 @@ import { createPortal } from 'react-dom'
 import { ChevronRight, Printer, Search } from 'lucide-react'
 import type { SmartSearchFilter } from '../../supabase/functions/_shared/smartSearchFilter.ts'
 import { useAuth } from '../lib/auth'
-import { leadFacingMissingKm } from '../lib/eventIncomplete'
-import { ownParticipation, ownResponderKm, type EventListItem } from '../lib/events'
+import type { EventListItem } from '../lib/events'
 import { useFreezeViewer } from '../lib/freezeViewer'
 import { downloadCsv } from '../lib/reports/csv'
 import { loadLegacyReport, type LegacyReport } from '../lib/reports/legacyReport'
 import { searchViewState, type SearchCounts } from '../lib/searchPageState'
 import { isSearchShortcut } from '../lib/searchShortcut'
-import { shiftBornFillStamp } from '../lib/shiftBornEvents'
 import { jerusalemToday } from '../lib/shifts'
 import { chipsForFilter, isBlankQuery, removeChip, sectionOrder, type SearchChip, type SearchSection } from '../lib/smartSearch'
 import * as smartSearchApi from '../lib/smartSearchApi'
 import type { Interpretation } from '../lib/smartSearchApi'
 import { archiveCsv, eventsCsv, searchCsvFilename } from '../lib/smartSearchCsv'
-import { overlayMissingKmOnDoneStamp, viewerStamp, type StampDescriptor } from '../lib/status'
+import type { StampDescriptor } from '../lib/status'
+import { eventLifecycle, lifecycleStamp, lifecycleStampTip } from '../lib/eventLifecycle'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { EventCard } from '../components/events/EventCard'
 import { EventsTable } from '../components/events/EventsTable'
@@ -52,25 +51,9 @@ function countsOf(found: Results): SearchCounts {
   return { events: found.events.length, archive: found.archive.length, people: found.people.length }
 }
 
-/** Same stamp as the unit events list. */
-function cardStamp(event: EventListItem, userId?: string): StampDescriptor {
-  const missingKm = leadFacingMissingKm(event, userId)
-  if (event.origin === 'shift') {
-    const stamp = shiftBornFillStamp({
-      status: event.status,
-      police_event_id: event.police_event_id,
-      treatment_detail: event.treatment_detail,
-      treatment_notes: event.treatment_notes,
-      location: event.location,
-      road_id: event.road?.name,
-      treated_count: event.shared_treated?.length ?? 0,
-    })
-    return overlayMissingKmOnDoneStamp(stamp, missingKm)
-  }
-  return overlayMissingKmOnDoneStamp(
-    viewerStamp(event.status, ownParticipation(event, userId), ownResponderKm(event, userId)),
-    missingKm,
-  )
+/** Same stamp as the unit events list. Search is admin-only, so it reads the אחמ״ש labels. */
+function cardStamp(event: EventListItem): StampDescriptor {
+  return lifecycleStamp(eventLifecycle(event), 'lead')
 }
 
 function SectionHead({ title, action }: { title: string; action?: ReactNode }) {
@@ -316,7 +299,6 @@ export function SearchPage({
               events={rows}
               onOpen={onOpenEvent}
               viewer={freezeViewer}
-              viewerId={user?.id}
               foundBy={(event) => (event as SearchEvent).found_by}
             />
           ) : (
@@ -325,7 +307,8 @@ export function SearchPage({
                 <EventCard
                   key={event.id}
                   event={event}
-                  stamp={cardStamp(event, user?.id)}
+                  stamp={cardStamp(event)}
+                  stampTip={lifecycleStampTip(event, 'lead', user?.id)}
                   viewer={freezeViewer}
                   onOpen={onOpenEvent}
                   foundBy={event.found_by}

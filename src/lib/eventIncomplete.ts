@@ -44,11 +44,32 @@ function isMissing(value: string | null | undefined): boolean {
   return !value || !value.trim()
 }
 
+export type IncompleteCheckEvent = Pick<
+  EventListItem,
+  | 'origin'
+  | 'police_event_id'
+  | 'patrol_callsign'
+  | 'patrol_callsign_prefix'
+  | 'patrol_callsign_number'
+  | 'district'
+  | 'event_type'
+  | 'road'
+  | 'location'
+  | 'started_at'
+  | 'ended_at'
+  | 'lead_km_owed'
+> & {
+  responders: readonly (Pick<EventListItem['responders'][number], 'total_km' | 'profile'> & {
+    started_at?: string | null
+    ended_at?: string | null
+  })[]
+}
+
 /**
  * Returns the set of missing fields for a given event.
  * Returns an empty set when the event is fully documented.
  */
-export function missingEventFields(event: EventListItem): Set<IncompleteField> {
+export function missingEventFields(event: IncompleteCheckEvent): Set<IncompleteField> {
   const missing = new Set<IncompleteField>()
   // Shift-born: the shared report gates its own completion, and it has no input
   // for או״ק, שלוחה, times or KM. Its stamp says when it still needs work.
@@ -79,10 +100,15 @@ export function missingEventFields(event: EventListItem): Set<IncompleteField> {
     }
   }
 
-  for (const responder of event.responders) {
-    if (responderKmMissing(responder)) {
-      missing.add('responder_km')
-      break
+  // The server flag sees every volunteer's car; a plain כונן's client does not.
+  if (typeof event.lead_km_owed === 'boolean') {
+    if (event.lead_km_owed) missing.add('responder_km')
+  } else {
+    for (const responder of event.responders) {
+      if (responderKmMissing(responder)) {
+        missing.add('responder_km')
+        break
+      }
     }
   }
 
@@ -114,7 +140,14 @@ export function missingFullyLoggedFieldLabels(
   event: EventListItem,
   viewerId: string | null | undefined,
 ): string[] {
-  const missing = missingEventFieldsForViewer(event, viewerId)
+  return gapFieldLabels(event, missingEventFieldsForViewer(event, viewerId))
+}
+
+/** Field names for a gap set, with שעות split into שעת התחלה / שעת סיום. */
+export function gapFieldLabels(
+  event: Pick<EventListItem, 'started_at' | 'ended_at'>,
+  missing: ReadonlySet<IncompleteField>,
+): string[] {
   const labels: string[] = []
   for (const field of FIELD_ORDER) {
     if (!missing.has(field)) continue

@@ -1,10 +1,6 @@
 import { HoverTip } from '../ui/HoverTip'
-import {
-  eventStatusTrailSteps,
-  reportingDocumentationStamp,
-  type EventStatus,
-  type ParticipationStatus,
-} from '../../lib/status'
+import { EVENT_LIFECYCLE_ORDER, lifecycleStamp, type LifecycleState } from '../../lib/eventLifecycle'
+import type { ParticipationStatus } from '../../lib/status'
 
 type TrailResponder = {
   id: string
@@ -13,35 +9,42 @@ type TrailResponder = {
 }
 
 type EventStatusTrailProps = {
-  status: EventStatus
-  missingKm?: boolean
+  state: LifecycleState
   responders?: TrailResponder[]
   /** Lead-facing: fields that still keep the event from being fully logged. */
   missingFields?: string[]
 }
 
-/** Desktop Events table — compact pipeline with current label under the active node. */
+type TrailPhase = 'past' | 'current' | 'future'
+
+/** Desktop Events table: the five-step lifecycle, current label under the active node. */
 export function EventStatusTrail({
-  status,
-  missingKm = false,
+  state,
   responders = [],
   missingFields = [],
 }: EventStatusTrailProps) {
-  const steps = eventStatusTrailSteps(status, { missingKm })
-  const current = reportingDocumentationStamp(status, missingKm)
+  const currentIndex = EVENT_LIFECYCLE_ORDER.indexOf(state.status)
+  const steps = EVENT_LIFECYCLE_ORDER.map((stepStatus, index) => {
+    const phase: TrailPhase =
+      index < currentIndex ? 'past' : index === currentIndex ? 'current' : 'future'
+    return { status: stepStatus, phase, tone: lifecycleStamp(stepStatus, 'lead').tone }
+  })
+  const current = lifecycleStamp(state, 'lead')
   const done = responders.filter((row) => row.status === 'done')
   const draft = responders.filter((row) => row.status === 'in_progress')
   const pending = responders.filter((row) => row.status === 'pending')
   const showTip =
     missingFields.length > 0 ||
-    (responders.length > 0 &&
-      (status === 'partial' || status === 'in_progress' || draft.length > 0))
+    (responders.length > 0 && state.status !== 'draft' && state.status !== 'done')
 
   const label = (
     <span className={`event-status-trail__label event-status-trail__label--${current.tone}`}>
       {current.label}
     </span>
   )
+  const spoken = current.progress
+    ? `${current.label}, ${current.progress.done} מתוך ${current.progress.total} תיעדו`
+    : current.label
 
   const tipContent = (
     <div className="hover-tip__sections">
@@ -57,7 +60,7 @@ export function EventStatusTrail({
       ) : null}
       {done.length > 0 ? (
         <section className="hover-tip__section">
-          <p className="hover-tip__heading">הושלם</p>
+          <p className="hover-tip__heading">תיעדו</p>
           <ul className="hover-tip__list">
             {done.map((row) => (
               <li key={row.id}>{row.name}</li>
@@ -89,7 +92,7 @@ export function EventStatusTrail({
   )
 
   return (
-    <div className="event-status-trail" aria-label={current.label}>
+    <div className="event-status-trail" aria-label={spoken}>
       <ol className="event-status-trail__steps">
         {steps.map((step) => (
           <li

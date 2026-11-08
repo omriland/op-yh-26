@@ -10,7 +10,8 @@ import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
 import { EventAttachmentMark } from './EventAttachmentMark'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
-import { leadFacingMissingKm, missingFullyLoggedFieldLabels } from '../../lib/eventIncomplete'
+import { gapFieldLabels, missingEventFields } from '../../lib/eventIncomplete'
+import { eventLifecycle } from '../../lib/eventLifecycle'
 
 type IncompleteNotice = {
   fields: string[]
@@ -22,8 +23,6 @@ type EventsTableProps = {
   onOpen: (eventId: string) => void
   /** Freeze reader. Without it the table shows no freeze marks. */
   viewer?: FreezeViewer | null
-  /** Current user — lead-facing חסר ק״מ only when they lead this event. */
-  viewerId?: string
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
   /** Unit list: missing required fields as a full-width ledger line under the data row. */
   incompleteNoticeFor?: (event: EventListItem) => IncompleteNotice | undefined
@@ -64,7 +63,6 @@ export function EventsTable({
   events,
   onOpen,
   viewer,
-  viewerId,
   onContextDelete,
   incompleteNoticeFor,
   caption,
@@ -94,8 +92,9 @@ export function EventsTable({
             const notice = incompleteNoticeFor?.(event)
             const reason = foundBy?.(event)
             const incomplete = Boolean(notice && notice.fields.length > 0)
+            const lifecycle = eventLifecycle(event)
             const rowClass = [
-              event.status === 'done' && !incomplete ? 'table-row--done' : '',
+              lifecycle.status === 'done' && !incomplete ? 'table-row--done' : '',
               incomplete ? 'table-row--needs-completion' : '',
             ]
               .filter(Boolean)
@@ -164,11 +163,10 @@ export function EventsTable({
                   <td className="table-cell--status">
                     <div className="table-cell--status__row">
                       <EventStatusTrail
-                        status={event.status}
-                        missingKm={leadFacingMissingKm(event, viewerId)}
+                        state={lifecycle}
                         missingFields={
-                          event.status === 'partial' || event.status === 'in_progress'
-                            ? missingFullyLoggedFieldLabels(event, viewerId)
+                          lifecycle.status === 'missing_details'
+                            ? gapFieldLabels(event, missingEventFields(event))
                             : []
                         }
                         responders={event.responders.map((row) => ({
@@ -197,7 +195,7 @@ export function EventsTable({
                 ) : null}
                 {reason ? (
                   <tr
-                    className={`table-row--found-by${event.status === 'done' && !incomplete ? ' table-row--done' : ''}`}
+                    className={`table-row--found-by${lifecycle.status === 'done' && !incomplete ? ' table-row--done' : ''}`}
                     onClick={(click) => {
                       if (click.button !== 0) return
                       openRow()

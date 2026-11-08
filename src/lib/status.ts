@@ -1,80 +1,33 @@
-/** Canonical status vocabulary — 05-rtl-language.md. Do not rephrase these labels. */
+/**
+ * Canonical status vocabulary (05-rtl-language.md). Do not rephrase these labels.
+ * Event-level stamps live in eventLifecycle.ts.
+ */
 
 export type EventStatus = 'draft' | 'in_progress' | 'partial' | 'done'
 export type ParticipationStatus = 'pending' | 'in_progress' | 'done'
 export type StampTone = 'done' | 'partial' | 'pending' | 'draft' | 'alert'
-export type TrailPhase = 'past' | 'current' | 'future'
 
-export type StampDescriptor = { label: string; tone: StampTone }
-
-export type EventStatusTrailStep = StampDescriptor & {
-  status: EventStatus
-  phase: TrailPhase
+export type StampDescriptor = {
+  label: string
+  tone: StampTone
+  /** תועד חלקית: how many of the assigned volunteers finished their log. */
+  progress?: { done: number; total: number }
 }
-
-export const EVENT_STATUS_ORDER: EventStatus[] = [
-  'draft',
-  'in_progress',
-  'partial',
-  'done',
-]
-
-const EVENT_STAMPS: Record<EventStatus, StampDescriptor> = {
-  draft: { label: 'אירוע בהזנה', tone: 'draft' },
-  in_progress: { label: 'ממתין לתיעוד', tone: 'pending' },
-  partial: { label: 'תועד חלקית', tone: 'partial' },
-  done: { label: 'הושלם', tone: 'done' },
-}
-
-export const EVENT_FILTERS: { value: EventStatus | 'all'; label: string; tip?: string }[] = [
-  { value: 'all', label: 'הכול' },
-  {
-    value: 'in_progress',
-    label: 'ממתין לתיעוד',
-    tip: 'הוזן ע״י אחמ״ש וטרם תועד ע״י מתנדב',
-  },
-  {
-    value: 'partial',
-    label: 'תועד חלקית',
-    // Not only a half-finished volunteer: an event where everyone documented
-    // and the אחמ״ש still owes שעת סיום or ק״מ also lands here.
-    tip: 'חלק מהתיעוד הושלם. ממתין למתנדבים נוספים או לשעת סיום וק״מ מהאחמ״ש',
-  },
-  { value: 'done', label: 'הושלם', tip: 'אירוע סגור שתועד במלואו' },
-  {
-    value: 'draft',
-    label: 'אירוע בהזנה',
-    tip: 'טיוטה נשמרה ע״י אחמ״ש. טרם זמין למתנדב לתיעוד',
-  },
-]
-
-export function eventStamp(status: EventStatus): StampDescriptor {
-  return EVENT_STAMPS[status]
-}
-
-/** Lead-facing last-step copy when documentation is `done` but responder KM is still missing. */
-export const MISSING_KM_STAMP: StampDescriptor = { label: 'חסר ק״מ', tone: 'alert' }
 
 /**
- * Viewer-relative documentation stamp for אחמ״ש lists.
- * Does not change event/participation status — only the lead-facing label.
+ * Stored `events.status`, read as the nearest on-screen status. Only for places
+ * that have the stored value and nothing else (the admin search status chip);
+ * everything that has the event row uses `eventLifecycle` instead.
  */
-export function reportingDocumentationStamp(
-  status: EventStatus,
-  missingKm: boolean,
-): StampDescriptor {
-  return overlayMissingKmOnDoneStamp(eventStamp(status), missingKm)
+const STORED_STATUS_LABELS: Record<EventStatus, string> = {
+  draft: 'טיוטה',
+  in_progress: 'ממתין למתנדב',
+  partial: 'תועד חלקית',
+  done: 'תועד',
 }
 
-/** Replace a green הושלם stamp when any responder KM is still missing. */
-export function overlayMissingKmOnDoneStamp(
-  stamp: StampDescriptor,
-  missingKm: boolean,
-): StampDescriptor {
-  if (missingKm && stamp.tone === 'done' && stamp.label === 'הושלם') {
-    return MISSING_KM_STAMP
-  }
-  return stamp
+export function storedStatusLabel(status: EventStatus): string {
+  return STORED_STATUS_LABELS[status]
 }
 
 export type ParticipationNameSplit = {
@@ -97,24 +50,6 @@ export function splitRespondersByParticipation(
     else pending.push(name)
   }
   return { done, draft, pending }
-}
-
-/** Full pipeline for the desktop Events table status column. */
-export function eventStatusTrailSteps(
-  status: EventStatus,
-  options?: { missingKm?: boolean },
-): EventStatusTrailStep[] {
-  const currentIndex = EVENT_STATUS_ORDER.indexOf(status)
-  const missingKm = options?.missingKm === true
-  return EVENT_STATUS_ORDER.map((stepStatus, index) => {
-    const phase: TrailPhase =
-      index < currentIndex ? 'past' : index === currentIndex ? 'current' : 'future'
-    const stamp =
-      phase === 'current' && stepStatus === 'done' && missingKm
-        ? MISSING_KM_STAMP
-        : EVENT_STAMPS[stepStatus]
-    return { status: stepStatus, label: stamp.label, tone: stamp.tone, phase }
-  })
 }
 
 export function cancelledStamp(): StampDescriptor {
@@ -152,17 +87,18 @@ export function leadKmPendingNote(
   return LEAD_KM_PENDING_NOTE
 }
 
-/** Own-row stamp for mine inbox / fill / detail: סיימת לתעד when lead KM is still null. */
+/**
+ * The viewer's own section (fill page, their card on event detail): סיימת לתעד
+ * while the אחמ״ש still owes ק״מ or שעת סיום. The event's own stamp is
+ * `lifecycleStamp`; this one only speaks for the viewer's part.
+ */
 export function mineParticipationStamp(
   status: ParticipationStatus | null | undefined,
   totalKm: number | null | undefined,
   options?: { missingLeadDetails?: boolean },
 ): StampDescriptor {
   const resolved = status ?? 'pending'
-  if (resolved === 'done' && options?.missingLeadDetails) {
-    return eventStamp('partial')
-  }
-  if (resolved === 'done' && totalKm == null) {
+  if (resolved === 'done' && (options?.missingLeadDetails || totalKm == null)) {
     return { label: FILL_DONE_AWAITING_KM_LABEL, tone: 'done' }
   }
   return participationStamp(resolved, true)
@@ -182,27 +118,6 @@ export function mineFillCtaLabel(status: ParticipationStatus): string | null {
   if (status === 'done') return null
   if (status === 'in_progress') return 'המשך התיעוד'
   return 'השלמת התיעוד שלי'
-}
-
-/**
- * Viewer-relative stamp: an open participation of the viewer's own overrides the
- * event-level label, per screens/event-list.md.
- */
-export function viewerStamp(
-  status: EventStatus,
-  ownParticipation: ParticipationStatus | null,
-  ownTotalKm?: number | null,
-): StampDescriptor {
-  if (ownParticipation === 'in_progress') {
-    return { label: 'טיוטה נשמרה', tone: 'draft' }
-  }
-  if (ownParticipation && ownParticipation !== 'done') {
-    return { label: 'ממתין לתיעוד', tone: 'pending' }
-  }
-  if (ownParticipation === 'done' && ownTotalKm == null) {
-    return { label: FILL_DONE_AWAITING_KM_LABEL, tone: 'done' }
-  }
-  return eventStamp(status)
 }
 
 export type ShiftStatus = 'draft' | 'in_progress' | 'closed'
