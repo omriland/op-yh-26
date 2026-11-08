@@ -244,13 +244,8 @@ function BrandMark({
   layout?: 'bar' | 'sidebar'
 }) {
   const cockpit = view === 'cockpit'
-  return (
-    <button
-      type="button"
-      className={layout === 'sidebar' ? 'sidebar__brand' : 'appbar__brand'}
-      onClick={onHome}
-      aria-label="חזרה למסך הראשי"
-    >
+  const text = (
+    <>
       <span className="appbar__system">{cockpit ? 'אבן דרך - הקוקפיט' : 'אבן דרך'}</span>
       {cockpit ? null : (
         <>
@@ -260,7 +255,46 @@ function BrandMark({
           </span>
         </>
       )}
+    </>
+  )
+  return (
+    <button
+      type="button"
+      className={layout === 'sidebar' ? 'sidebar__brand' : 'appbar__brand'}
+      onClick={onHome}
+      aria-label="חזרה למסך הראשי"
+    >
+      {layout === 'sidebar' ? (
+        <>
+          <BrandLogo />
+          <span className="sidebar__brand-text">{text}</span>
+        </>
+      ) : (
+        text
+      )}
     </button>
+  )
+}
+
+/**
+ * The favicon mark (public/favicon.svg) without its navy tile: the road is
+ * drawn in currentColor and the lane marks are cut out, so the sidebar's navy
+ * shows through them.
+ */
+function BrandLogo() {
+  return (
+    <svg
+      className="sidebar__brand-logo"
+      viewBox="30 22 68 84"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M30 106 L52 22 H76 L98 106 Z M60 86 h8 v14 h-8 Z M60 58 h8 v14 h-8 Z M60 32 h8 v12 h-8 Z"
+      />
+    </svg>
   )
 }
 

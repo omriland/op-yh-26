@@ -2202,9 +2202,8 @@ p.alert--info {
 .sidebar__brand {
   display: flex;
   flex: none;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-3);
   width: 100%;
   margin: 0 0 var(--space-4);
   padding: var(--space-2) var(--space-3);
@@ -2225,6 +2224,22 @@ p.alert--info {
   .sidebar__brand:hover {
     opacity: 0.9;
   }
+}
+
+/* First child in RTL, so it sits at the outer (right) edge before the title. */
+.sidebar__brand-logo {
+  flex: none;
+  width: auto;
+  height: 40px;
+  color: var(--text-primary);
+}
+
+.sidebar__brand-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .sidebar__brand-unit {
