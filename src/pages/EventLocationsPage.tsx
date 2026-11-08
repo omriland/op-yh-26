@@ -167,6 +167,11 @@ export function EventLocationsPage({ onOpenEvent }: EventLocationsPageProps) {
             }
             onPlaceCommit={(item, place) => void commitPlace(item, place)}
             onOpen={onOpenEvent}
+            partialSortNote={
+              hasMore
+                ? `המיון כולל רק את ${rows.length} האירועים שנטענו. טענו עוד כדי לכלול את כל הרשימה.`
+                : undefined
+            }
           />
           {hasMore ? (
             <Button

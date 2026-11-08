@@ -12,6 +12,8 @@ import { downloadCsv, toCsv } from '../../lib/reports/csv'
 import { filterReportRows } from '../../lib/reports/search'
 import type { ReportKind, ReportRowCommand, ReportTableRow, ReportViewer } from '../../lib/reports/types'
 import { EventFrozenMark } from '../events/EventFrozenMark'
+import { DataTable, type DataTableColumn } from '../ui/DataTable'
+import { displayTextSortValue } from '../../lib/tableSort'
 import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
@@ -228,30 +230,15 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
           {sections.map((section) => (
             <section key={section.key || 'all'} className="stack-3">
               {section.label ? <h2 className="group-head">{section.label}</h2> : null}
-              {asTable ? (
-                <ReportTable
-                  kind={kind}
-                  viewer={viewer}
-                  rows={section.rows}
-                  onOpenEvent={onOpenEvent}
-                  onAction={kind.action ? setPendingRow : undefined}
-                  onCommand={(command, row) => setPendingCommand({ command, row })}
-                />
-              ) : (
-                <ul className="stack-3">
-                  {section.rows.map((row) => (
-                    <ReportCard
-                      key={row.id}
-                      kind={kind}
-                      viewer={viewer}
-                      row={row}
-                      onOpenEvent={onOpenEvent}
-                      onAction={kind.action ? setPendingRow : undefined}
-                      onCommand={(command, nextRow) => setPendingCommand({ command, row: nextRow })}
-                    />
-                  ))}
-                </ul>
-              )}
+              <ReportTable
+                kind={kind}
+                viewer={viewer}
+                rows={section.rows}
+                asTable={asTable}
+                onOpenEvent={onOpenEvent}
+                onAction={kind.action ? setPendingRow : undefined}
+                onCommand={(command, row) => setPendingCommand({ command, row })}
+              />
             </section>
           ))}
         </div>
@@ -419,6 +406,7 @@ function ReportTable({
   kind,
   viewer,
   rows,
+  asTable,
   onOpenEvent,
   onAction,
   onCommand,
@@ -426,69 +414,60 @@ function ReportTable({
   kind: ReportKind
   viewer: ReportViewer
   rows: ReportTableRow[]
+  asTable: boolean
   onOpenEvent?: (eventId: string) => void
   onAction?: (row: ReportTableRow) => void
   onCommand?: (command: ReportRowCommand, row: ReportTableRow) => void
 }) {
   const actionColumnId = kind.action?.columnId
-  const showCommands = Boolean(kind.commands?.length)
+  const columns: DataTableColumn<ReportTableRow>[] = kind.columns.map((column, index) => {
+    const isActionCell = Boolean(kind.action && actionColumnId === column.id)
+    return {
+      id: column.id,
+      header: column.header,
+      className: column.numeric ? 'num mono' : undefined,
+      interactive: isActionCell,
+      sortValue: (row) => displayTextSortValue(row.values[index]),
+      cell: (row) => {
+        const value = row.values[index] ?? '—'
+        if (isActionCell) {
+          return <ReportActionValue kind={kind} row={row} value={value} onAction={onAction} />
+        }
+        return index === 0 ? <ReportTitle row={row} value={value} viewer={viewer} /> : value
+      },
+    }
+  })
+  if (kind.commands?.length) {
+    columns.push({
+      id: 'commands',
+      header: 'פעולות',
+      interactive: true,
+      cell: (row) => (
+        <ReportCommandButtons commands={visibleCommands(kind, row, viewer)} row={row} onCommand={onCommand} />
+      ),
+    })
+  }
 
   return (
-    <div className="table-wrap">
-      <table className="table">
-        <thead>
-          <tr>
-            {kind.columns.map((column) => (
-              <th key={column.id} scope="col">
-                {column.header}
-              </th>
-            ))}
-            {showCommands ? <th scope="col">פעולות</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const commands = visibleCommands(kind, row, viewer)
-            return (
-            <tr
-              key={row.id}
-              onClick={row.eventId && onOpenEvent ? () => onOpenEvent(row.eventId!) : undefined}
-            >
-              {kind.columns.map((column, index) => {
-                const isActionCell = Boolean(kind.action && actionColumnId === column.id)
-                const value = row.values[index] ?? '—'
-                return (
-                <td
-                  key={column.id}
-                  className={column.numeric ? 'num mono' : undefined}
-                  onClick={isActionCell ? (event) => event.stopPropagation() : undefined}
-                >
-                  {isActionCell ? (
-                    <ReportActionValue
-                      kind={kind}
-                      row={row}
-                      value={value}
-                      onAction={onAction}
-                    />
-                  ) : index === 0 ? (
-                    <ReportTitle row={row} value={value} viewer={viewer} />
-                  ) : (
-                    value
-                  )}
-                </td>
-                )
-              })}
-              {showCommands ? (
-                <td onClick={(event) => event.stopPropagation()}>
-                  <ReportCommandButtons commands={commands} row={row} onCommand={onCommand} />
-                </td>
-              ) : null}
-            </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      rows={rows}
+      columns={columns}
+      rowKey={(row) => row.id}
+      asTable={asTable}
+      onRowClick={onOpenEvent ? (row) => onOpenEvent(row.eventId!) : undefined}
+      rowClickable={(row) => Boolean(row.eventId)}
+      rowLabel={(row) => `פתיחת אירוע ${row.values[0] ?? ''}`.trim()}
+      renderCard={(row) => (
+        <ReportCard
+          kind={kind}
+          viewer={viewer}
+          row={row}
+          onOpenEvent={onOpenEvent}
+          onAction={onAction}
+          onCommand={onCommand}
+        />
+      )}
+    />
   )
 }
 

@@ -20,6 +20,8 @@ import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../components/ui/Skeleton'
 import { DateField } from '../components/ui/DateField'
+import { DataTable, type DataTableColumn } from '../components/ui/DataTable'
+import { displayTextSortValue, isoSortValue } from '../lib/tableSort'
 
 export function FuelRefundPage() {
   const isDesktop = useIsDesktop()
@@ -153,38 +155,16 @@ export function FuelRefundPage() {
         />
       ) : null}
 
-      {segment === 'summary' && summaryRows && summaryRows.length > 0 && isDesktop ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">מתנדב</th>
-                <th scope="col">קילומטרים</th>
-                <th scope="col">אירועים</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summaryRows.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <div>{row.full_name}</div>
-                    <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
-                      {row.callsign}
-                    </div>
-                  </td>
-                  <td className="num mono">{formatNumber(row.total_km)}</td>
-                  <td className="num mono">{formatNumber(row.event_count)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {segment === 'summary' && summaryRows && summaryRows.length > 0 && !isDesktop ? (
-        <div className="stack-4">
-          {summaryRows.map((row) => (
-            <article key={row.id} className="card">
+      {segment === 'summary' && summaryRows && summaryRows.length > 0 ? (
+        <DataTable
+          rows={summaryRows}
+          columns={SUMMARY_COLUMNS}
+          rowKey={(row) => row.id}
+          asTable={isDesktop}
+          cards={{ as: 'div', className: 'stack-4' }}
+          defaultSort={{ columnId: 'name', direction: 'asc' }}
+          renderCard={(row) => (
+            <article className="card">
               <div className="row-between">
                 <div>
                   <div className="t-body">{row.full_name}</div>
@@ -198,50 +178,20 @@ export function FuelRefundPage() {
                 אירועים: <span className="num mono">{formatNumber(row.event_count)}</span>
               </p>
             </article>
-          ))}
-        </div>
+          )}
+        />
       ) : null}
 
-      {segment === 'detail' && detailRows && detailRows.length > 0 && isDesktop ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">מתנדב</th>
-                <th scope="col">תאריך</th>
-                <th scope="col">שעה</th>
-                <th scope="col">מיקום</th>
-                <th scope="col">סוג אירוע</th>
-                <th scope="col">סה״כ ק״מ</th>
-                <th scope="col">הערות</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detailRows.map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <div>{row.full_name}</div>
-                    <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
-                      {row.callsign}
-                    </div>
-                  </td>
-                  <td className="num mono">{formatDate(row.created_at)}</td>
-                  <td className="num mono">{formatTime(row.started_at) ?? '—'}</td>
-                  <td>{row.location || '—'}</td>
-                  <td>{row.event_type_name || '—'}</td>
-                  <td className="num mono">{formatNumber(row.total_km)}</td>
-                  <td>{row.notes || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {segment === 'detail' && detailRows && detailRows.length > 0 && !isDesktop ? (
-        <div className="stack-4">
-          {detailRows.map((row) => (
-            <article key={row.id} className="card">
+      {segment === 'detail' && detailRows && detailRows.length > 0 ? (
+        <DataTable
+          rows={detailRows}
+          columns={DETAIL_COLUMNS}
+          rowKey={(row) => row.id}
+          asTable={isDesktop}
+          cards={{ as: 'div', className: 'stack-4' }}
+          defaultSort={{ columnId: 'date', direction: 'desc' }}
+          renderCard={(row) => (
+            <article className="card">
               <div className="row-between">
                 <div>
                   <div className="t-body">{row.full_name}</div>
@@ -276,9 +226,79 @@ export function FuelRefundPage() {
                 </p>
               ) : null}
             </article>
-          ))}
-        </div>
+          )}
+        />
       ) : null}
     </div>
   )
 }
+
+function ResponderCell({ name, callsign }: { name: string; callsign: string | null }) {
+  return (
+    <>
+      <div>{name}</div>
+      <div className={`t-caption text-muted ${monoClass(callsign)}`}>{callsign}</div>
+    </>
+  )
+}
+
+const SUMMARY_COLUMNS: DataTableColumn<FuelRefundRow>[] = [
+  {
+    id: 'name',
+    header: 'מתנדב',
+    sortValue: (row) => row.full_name,
+    cell: (row) => <ResponderCell name={row.full_name} callsign={row.callsign} />,
+  },
+  {
+    id: 'km',
+    header: 'קילומטרים',
+    className: 'num mono',
+    sortValue: (row) => row.total_km,
+    cell: (row) => formatNumber(row.total_km),
+  },
+  {
+    id: 'events',
+    header: 'אירועים',
+    className: 'num mono',
+    sortValue: (row) => row.event_count,
+    cell: (row) => formatNumber(row.event_count),
+  },
+]
+
+const DETAIL_COLUMNS: DataTableColumn<FuelDetailRow>[] = [
+  {
+    id: 'name',
+    header: 'מתנדב',
+    sortValue: (row) => row.full_name,
+    cell: (row) => <ResponderCell name={row.full_name} callsign={row.callsign} />,
+  },
+  {
+    id: 'date',
+    header: 'תאריך',
+    className: 'num mono',
+    sortValue: (row) => isoSortValue(row.created_at),
+    cell: (row) => formatDate(row.created_at),
+  },
+  {
+    id: 'time',
+    header: 'שעה',
+    className: 'num mono',
+    sortValue: (row) => displayTextSortValue(formatTime(row.started_at)),
+    cell: (row) => formatTime(row.started_at) ?? '—',
+  },
+  { id: 'location', header: 'מיקום', sortValue: (row) => row.location, cell: (row) => row.location || '—' },
+  {
+    id: 'type',
+    header: 'סוג אירוע',
+    sortValue: (row) => row.event_type_name,
+    cell: (row) => row.event_type_name || '—',
+  },
+  {
+    id: 'km',
+    header: 'סה״כ ק״מ',
+    className: 'num mono',
+    sortValue: (row) => row.total_km,
+    cell: (row) => formatNumber(row.total_km),
+  },
+  { id: 'notes', header: 'הערות', sortValue: (row) => row.notes, cell: (row) => row.notes || '—' },
+]

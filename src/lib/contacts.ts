@@ -55,24 +55,6 @@ export function filterContacts(
   })
 }
 
-export type ContactSortKey = 'full_name' | 'callsign' | 'phone' | 'email'
-export type SortDirection = 'asc' | 'desc'
-
-/** Hebrew-aware, numbers in numeric order (D2 before D12). Missing phones stay last. */
-export function sortContacts(
-  contacts: readonly UnitContact[],
-  key: ContactSortKey,
-  direction: SortDirection,
-): UnitContact[] {
-  const sign = direction === 'asc' ? 1 : -1
-  return [...contacts].sort((a, b) => {
-    const left = a[key] ?? ''
-    const right = b[key] ?? ''
-    if (!left || !right) return left ? -1 : right ? 1 : 0
-    return sign * left.localeCompare(right, 'he', { numeric: true, sensitivity: 'base' })
-  })
-}
-
 export async function fetchUnitContacts(): Promise<UnitContact[]> {
   const { data, error } = await supabase.rpc('list_unit_contacts')
   if (error) throw new Error(error.message)
