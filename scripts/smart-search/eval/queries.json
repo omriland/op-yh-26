@@ -362,6 +362,245 @@
         "date_from": "2026-01-01",
         "date_to": "2026-01-31"
       }
+    },
+    {
+      "q": "האירועים של יוסי בצפון בחודש שעבר",
+      "today": "2026-11-08",
+      "expect": {
+        "person": "יוסי",
+        "district": "צפון",
+        "date_from": "2026-10-01",
+        "date_to": "2026-10-31"
+      }
+    },
+    {
+      "q": "אחמ״ש רונית אתמול",
+      "today": "2026-11-08",
+      "expect": {
+        "person": "רונית",
+        "person_role": "lead",
+        "date_from": "2026-11-07",
+        "date_to": "2026-11-07"
+      }
+    },
+    {
+      "q": "אחמש רונית בשבוע שעבר",
+      "today": "2026-11-08",
+      "expect": {
+        "person": "רונית",
+        "person_role": "lead",
+        "date_from": "2026-11-01",
+        "date_to": "2026-11-07"
+      }
+    },
+    {
+      "q": "מתנדבים פעילים בלי משמרת השבוע",
+      "today": "2026-11-08",
+      "expect": {
+        "entity": "people",
+        "volunteer_status": "active_volunteer",
+        "no_shift_from": "2026-11-08",
+        "no_shift_to": "2026-11-14"
+      }
+    },
+    {
+      "q": "מי לא עשה משמרת בחודש שעבר",
+      "today": "2026-11-08",
+      "expect": {
+        "entity": "people",
+        "no_shift_from": "2026-10-01",
+        "no_shift_to": "2026-10-31"
+      }
+    },
+    {
+      "q": "חניכים טלפוניים",
+      "today": "2026-11-08",
+      "expect": {
+        "entity": "people",
+        "volunteer_status": "phone_training"
+      }
+    },
+    {
+      "q": "חניכה ברכב פרטי",
+      "today": "2026-11-08",
+      "expect": {
+        "entity": "people",
+        "volunteer_status": "personal_vehicle_training"
+      }
+    },
+    {
+      "q": "אנשי מנהלה",
+      "today": "2026-11-08",
+      "expect": {
+        "entity": "people",
+        "volunteer_status": "administration"
+      }
+    },
+    {
+      "q": "תאונות בכביש 6 אתמול",
+      "today": "2026-11-08",
+      "expect": {
+        "event_type": "תאונה",
+        "road": "6",
+        "date_from": "2026-11-07",
+        "date_to": "2026-11-07"
+      }
+    },
+    {
+      "q": "גרירה בכביש 1 ליד מחלף חמד",
+      "today": "2026-11-08",
+      "expect": {
+        "event_type": "גרירה",
+        "road": "1",
+        "location_text": "מחלף חמד"
+      }
+    },
+    {
+      "q": "חילוץ במנהרות הכרמל",
+      "today": "2026-11-08",
+      "expect": {
+        "event_type": "חילוץ",
+        "location_text": "מנהרות הכרמל"
+      }
+    },
+    {
+      "q": "רכב תקוע על גשר עין גדי",
+      "today": "2026-11-08",
+      "expect": {
+        "location_text": "גשר עין גדי"
+      }
+    },
+    {
+      "q": "סקודה אוקטביה עם נזק בכנף שמאל קדמית",
+      "today": "2026-11-08",
+      "expect": {
+        "damaged": true,
+        "damage_location": "כנף שמאל קדמית"
+      }
+    },
+    {
+      "q": "מאזדה 3 לבנה בשבוע שעבר",
+      "today": "2026-11-08",
+      "expect": {
+        "date_from": "2026-11-01",
+        "date_to": "2026-11-07"
+      }
+    },
+    {
+      "q": "יונדאי שנפגעה בדרום",
+      "today": "2026-11-08",
+      "expect": {
+        "damaged": true,
+        "district": "דרום"
+      }
+    },
+    {
+      "q": "לוחית 45-678-90 בינואר",
+      "today": "2026-11-08",
+      "expect": {
+        "plate": "4567890",
+        "date_from": "2026-01-01",
+        "date_to": "2026-01-31"
+      }
+    },
+    {
+      "q": "אירוע 77412",
+      "today": "2026-11-08",
+      "expect": {
+        "police_event_id": "77412"
+      }
+    },
+    {
+      "q": "מספר אירוע 3301 מהאתר הישן",
+      "today": "2026-11-08",
+      "expect": {
+        "police_event_id": "3301",
+        "source": "archive"
+      }
+    },
+    {
+      "q": "כמה אירועים היו בכביש 90 השנה",
+      "today": "2026-11-08",
+      "expect": {
+        "intent": "unsupported_question"
+      }
+    },
+    {
+      "q": "כמה קילומטרים נסע אבי החודש",
+      "today": "2026-11-08",
+      "expect": {
+        "intent": "unsupported_question"
+      }
+    },
+    {
+      "q": "ממוצע זמן הגעה בצפון",
+      "today": "2026-11-08",
+      "expect": {
+        "intent": "unsupported_question"
+      }
+    },
+    {
+      "q": "ייצוא אירועי כביש 6 מאוקטובר",
+      "today": "2026-11-08",
+      "expect": {
+        "intent": "export",
+        "road": "6",
+        "date_from": "2026-10-01",
+        "date_to": "2026-10-31"
+      }
+    },
+    {
+      "q": "תוריד לי לאקסל את התאונות של החודש",
+      "today": "2026-11-08",
+      "expect": {
+        "intent": "export",
+        "event_type": "תאונה",
+        "date_from": "2026-11-01",
+        "date_to": "2026-11-30"
+      }
+    },
+    {
+      "q": "כוננים בשם שירה",
+      "today": "2026-11-08",
+      "expect": {
+        "entity": "people",
+        "person": "שירה",
+        "person_role": "responder"
+      }
+    },
+    {
+      "q": "הטלפון של עמית",
+      "today": "2026-11-08",
+      "expect": {
+        "entity": "people",
+        "person": "עמית"
+      }
+    },
+    {
+      "q": "אירועים של דנה ברק עם נזק",
+      "today": "2026-11-08",
+      "expect": {
+        "person": "דנה ברק",
+        "damaged": true
+      }
+    },
+    {
+      "q": "מה עשה משה לוי ב-14.10",
+      "today": "2026-11-08",
+      "expect": {
+        "person": "משה לוי",
+        "date_from": "2026-10-14",
+        "date_to": "2026-10-14"
+      }
+    },
+    {
+      "q": "אירועים מבוטלים בשבוע שעבר",
+      "today": "2026-11-08",
+      "expect": {
+        "include_cancelled": true,
+        "date_from": "2026-11-01",
+        "date_to": "2026-11-07"
+      }
     }
   ]
 }

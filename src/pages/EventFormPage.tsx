@@ -13,7 +13,6 @@ import {
   cockpitIdentityDraftWarning,
   attachEventIdAfterFailedSave,
   fetchSameDayPoliceEventIdRows,
-  deriveEventStatus,
   emptyEventDraft,
   eventCreateBlockedMessage,
   eventDraftBaselineSnapshot,
@@ -26,6 +25,8 @@ import {
   saveLockedEventLeadKm,
   stripStoredTimeBaseline,
   canAssignResponder,
+  deriveFormLifecycle,
+  FORM_DRAFT_SAVED_HINT,
   validateEventMinimum,
   isOtherEventTypeId,
   EVENT_TYPE_DETAIL_MAX_LENGTH,
@@ -70,7 +71,7 @@ import {
   RESPONDER_ADDED_HELD_TOAST,
   RESPONDERS_HELD_FOR_POLICE_ID_NOTE,
 } from '../lib/eventIncomplete'
-import { viewerStamp } from '../lib/status'
+import { lifecycleStamp } from '../lib/eventLifecycle'
 import { monoClass, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
@@ -1454,7 +1455,7 @@ export function EventFormPage({
     return <EventListSkeleton count={4} />
   }
 
-  const displayStatus = deriveEventStatus(draft)
+  const formStatus = deriveFormLifecycle(draft)
   const isEdit = Boolean(draft.id)
   const sheetResponder =
     sheetResponderKey == null
@@ -1498,8 +1499,8 @@ export function EventFormPage({
             ? 'שומר…'
             : savePulse === 'saved'
               ? 'נשמר'
-              : displayStatus === 'draft'
-                ? 'נשמר כאירוע בהזנה עד שישובץ מתנדב.'
+              : formStatus.status === 'draft'
+                ? FORM_DRAFT_SAVED_HINT
                 : 'השינויים נשמרים אוטומטית.'
 
   return (
@@ -1588,7 +1589,7 @@ export function EventFormPage({
               )}
             </div>
             <div className="event-form__stamps">
-              <StampChip {...viewerStamp(displayStatus, null)} />
+              <StampChip {...lifecycleStamp(formStatus, 'lead')} />
             </div>
           </div>
         </header>

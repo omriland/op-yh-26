@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ClipboardList, Plus, Search } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useFreezeViewer } from '../lib/freezeViewer'
+import type { TableSort } from '../lib/tableSort'
 import { textIncludesQuery } from '../lib/searchQuery'
 import {
   UNIT_EVENTS_LIST_LIMIT,
@@ -30,19 +31,22 @@ import {
   leadKmPendingNote,
   mineFillCtaLabel,
   mineInboxIsOpen,
-  mineParticipationStamp,
-  viewerStamp,
-  overlayMissingKmOnDoneStamp,
-  type EventStatus,
   type ParticipationStatus,
   type StampDescriptor,
 } from '../lib/status'
 import {
   shiftBornBeforeShiftDate,
   shiftBornFillCtaLabel,
-  shiftBornFillStamp,
   mineShiftBornIsOpen,
 } from '../lib/shiftBornEvents'
+import {
+  eventLifecycle,
+  lifecycleMatches,
+  lifecycleStamp,
+  lifecycleStampTip,
+  type LifecycleFilterValue,
+  type StatusAudience,
+} from '../lib/eventLifecycle'
 import {
   INCOMPLETE_FUEL_REFUND_NOTICE,
   shouldShowIncompleteFuelNotice,
@@ -93,9 +97,7 @@ import {
 } from '../lib/shiftLeadEventsWindow'
 import {
   incompleteLeadNoticeLabels,
-  leadFacingMissingKm,
   partitionIncompleteEventsForViewer,
-  partialStampHoverText,
 } from '../lib/eventIncomplete'
 import { eventReleasedFromEvent } from '../lib/eventResponderRelease'
 import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
@@ -183,7 +185,7 @@ export function EventsPage({
   const { show } = useToast()
   const [events, setEvents] = useState<EventListItem[] | null>(null)
   const [failed, setFailed] = useState(false)
-  const [filter, setFilter] = useState<EventStatus | 'all'>(() => readSessionStatus(null, scope))
+  const [filter, setFilter] = useState<LifecycleFilterValue>(() => readSessionStatus(null, scope))
   const [query, setQuery] = useState(() => readSessionQuery(null, scope))
   const [filtersResetKey, setFiltersResetKey] = useState(0)
   const [showOthersCreated, setShowOthersCreated] = useState(readShowOthersCreatedEvents)
@@ -213,7 +215,7 @@ export function EventsPage({
       rulesKey
         ? (JSON.parse(rulesKey) as {
             rules: FilterRule[]
-            status: EventStatus | 'all'
+            status: LifecycleFilterValue
             hideShiftEvents: boolean
           })
         : null,
@@ -468,48 +470,16 @@ export function EventsPage({
     }
   }, [api, createdById, events, query, rulesQuery, scope, show])
 
+  // האירועים שלי is the volunteer's view of their own events; the unit list is the
+  // אחמ״ש view, which admins share.
+  const audience: StatusAudience = scope === 'mine' ? 'responder' : 'lead'
   const stampFor = useMemo(
-    () => (event: EventListItem) => {
-      const mine = ownParticipation(event, user?.id)
-      const ownKm = ownResponderKm(event, user?.id)
-      if (scope === 'mine') {
-        // Shift-born: shared documentation stamp — never סיימת לתעד / lead-KM waiting.
-        if (event.origin === 'shift') {
-          return shiftBornFillStamp({
-            status: event.status,
-            police_event_id: event.police_event_id,
-            treatment_detail: event.treatment_detail,
-            treatment_notes: event.treatment_notes,
-            location: event.location,
-            road_id: event.road?.name,
-            treated_count: event.shared_treated?.length ?? 0,
-          })
-        }
-        if (mine === 'done') {
-          return mineParticipationStamp(mine, ownKm, {
-            missingLeadDetails: mineLeadDetailsMissing(event),
-          })
-        }
-        return mineParticipationStamp(mine ?? 'pending', ownKm)
-      }
-      if (event.origin === 'shift') {
-        const stamp = shiftBornFillStamp({
-          status: event.status,
-          police_event_id: event.police_event_id,
-          treatment_detail: event.treatment_detail,
-          treatment_notes: event.treatment_notes,
-          location: event.location,
-          road_id: event.road?.name,
-          treated_count: event.shared_treated?.length ?? 0,
-        })
-        return overlayMissingKmOnDoneStamp(stamp, leadFacingMissingKm(event, user?.id))
-      }
-      return overlayMissingKmOnDoneStamp(
-        viewerStamp(event.status, mine, ownKm),
-        leadFacingMissingKm(event, user?.id),
-      )
-    },
-    [scope, user?.id],
+    () => (event: EventListItem) => lifecycleStamp(eventLifecycle(event), audience),
+    [audience],
+  )
+  const stampTipFor = useMemo(
+    () => (event: EventListItem) => lifecycleStampTip(event, audience, user?.id),
+    [audience, user?.id],
   )
 
   function mineEventIsOpen(event: EventListItem): boolean {
@@ -554,7 +524,7 @@ export function EventsPage({
 
     const needle = query.trim()
     const filtered = events.filter((event) => {
-      const matchesStatus = filter === 'all' || event.status === filter
+      const matchesStatus = lifecycleMatches(filter, event)
       const haystack = [event.police_event_id, event.road?.name, event.location]
         .filter(Boolean)
         .join(' ')
@@ -647,6 +617,7 @@ export function EventsPage({
         <EventCards
           events={mineSections.pending}
           stampFor={stampFor}
+          stampTipFor={stampTipFor}
           onOpen={onOpen}
           onFill={onFill}
           userId={user?.id}
@@ -671,6 +642,7 @@ export function EventsPage({
           ) : null
         }
         stampFor={stampFor}
+        stampTipFor={stampTipFor}
         onOpen={onOpen}
         userId={user?.id}
         hasMore={mineSections.hasMoreLogged}
@@ -719,6 +691,7 @@ export function EventsPage({
       visible={visible}
       grouped={grouped}
       stampFor={stampFor}
+      stampTipFor={stampTipFor}
       viewerId={user?.id}
       onOpen={onOpen}
       onContextDelete={canListDelete ? openDeleteMenu : undefined}
@@ -1061,6 +1034,7 @@ function MineLoggedList({
   caption,
   filteredEmpty,
   stampFor,
+  stampTipFor,
   onOpen,
   userId,
   hasMore,
@@ -1072,6 +1046,7 @@ function MineLoggedList({
   /** The empty state while status, search or rules narrow the list; null when none do. */
   filteredEmpty: ReactNode
   stampFor: (event: EventListItem) => StampDescriptor
+  stampTipFor: (event: EventListItem) => string | null
   onOpen: (eventId: string) => void
   userId?: string
   hasMore: boolean
@@ -1104,7 +1079,7 @@ function MineLoggedList({
                   event.origin,
                   mineLeadDetailsMissing(event),
                 )}
-                stampTip={unitPartialStampTip(event, stamp, userId)}
+                stampTip={stampTipFor(event)}
                 onOpen={onOpen}
               />
             )
@@ -1143,6 +1118,7 @@ function mineFillLabel(
 function EventCards({
   events,
   stampFor,
+  stampTipFor,
   onOpen,
   onFill,
   userId,
@@ -1152,6 +1128,7 @@ function EventCards({
 }: {
   events: EventListItem[]
   stampFor: (event: EventListItem) => StampDescriptor
+  stampTipFor: (event: EventListItem) => string | null
   onOpen: (eventId: string) => void
   onFill?: (eventId: string) => void
   userId?: string
@@ -1180,7 +1157,7 @@ function EventCards({
                   event.origin,
                   mineLeadDetailsMissing(event),
                 )}
-                stampTip={unitPartialStampTip(event, stampFor(event), userId)}
+                stampTip={stampTipFor(event)}
                 onOpen={onOpen}
                 onFill={fillLabel && onFill ? onFill : undefined}
                 fillLabel={fillLabel ?? undefined}
@@ -1236,7 +1213,7 @@ function EventCards({
               event.origin,
               mineLeadDetailsMissing(event),
             )}
-            stampTip={unitPartialStampTip(event, stampFor(event), userId)}
+            stampTip={stampTipFor(event)}
             onOpen={onOpen}
             onFill={fillLabel && onFill ? onFill : undefined}
             fillLabel={fillLabel ?? undefined}
@@ -1275,10 +1252,14 @@ function UnitTableList({
   onLoadMore: () => void
 }) {
   const freezeViewer = useFreezeViewer()
+  const [sort, setSort] = useState<TableSort | null>({ columnId: 'date', direction: 'desc' })
   const { incomplete, rest } =
     scope === 'unit'
       ? partitionIncompleteEventsForViewer(visible, viewerId)
       : { incomplete: [], rest: visible }
+  const partialSortNote = hasMore
+    ? 'המיון כולל רק את האירועים המוצגים. טעינת אירועים נוספים תכלול גם אותם.'
+    : undefined
 
   return (
     <div className="stack-4">
@@ -1288,8 +1269,9 @@ function UnitTableList({
           events={incomplete}
           onOpen={onOpen}
           viewer={freezeViewer}
-          viewerId={viewerId}
           onContextDelete={onContextDelete}
+          sort={sort}
+          onSortChange={setSort}
           incompleteNoticeFor={(event) => {
             const labels = incompleteLeadNoticeLabels(event, viewerId)
             return {
@@ -1304,8 +1286,10 @@ function UnitTableList({
           events={rest}
           onOpen={onOpen}
           viewer={freezeViewer}
-          viewerId={viewerId}
           onContextDelete={onContextDelete}
+          sort={sort}
+          onSortChange={setSort}
+          partialSortNote={partialSortNote}
         />
       ) : null}
       {hasMore ? (
@@ -1322,6 +1306,7 @@ function UnitCardList({
   visible,
   grouped,
   stampFor,
+  stampTipFor,
   viewerId,
   onOpen,
   onContextDelete,
@@ -1332,6 +1317,7 @@ function UnitCardList({
   visible: EventListItem[]
   grouped: [string, EventListItem[]][]
   stampFor: (event: EventListItem) => StampDescriptor
+  stampTipFor: (event: EventListItem) => string | null
   viewerId?: string
   onOpen: (eventId: string) => void
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
@@ -1363,7 +1349,7 @@ function UnitCardList({
                   event={event}
                   stamp={stampFor(event)}
                   viewer={freezeViewer}
-                  stampTip={unitPartialStampTip(event, stampFor(event), viewerId)}
+                  stampTip={stampTipFor(event)}
                   onOpen={onOpen}
                   onContextDelete={onContextDelete}
                   incompleteFields={labels}
@@ -1380,6 +1366,7 @@ function UnitCardList({
             <EventCards
               events={items}
               stampFor={stampFor}
+          stampTipFor={stampTipFor}
               onOpen={onOpen}
               onContextDelete={onContextDelete}
             />
@@ -1397,15 +1384,6 @@ function UnitCardList({
 
 function mineLeadDetailsMissing(event: EventListItem): boolean {
   return event.origin !== 'shift' && eventMissingLeadDoneDetails(event.ended_at)
-}
-
-function unitPartialStampTip(
-  event: EventListItem,
-  stamp: StampDescriptor,
-  viewerId: string | null | undefined,
-): string | null {
-  if (stamp.label !== 'תועד חלקית') return null
-  return partialStampHoverText(event, viewerId)
 }
 
 function groupByDate(events: EventListItem[]): [string, EventListItem[]][] {

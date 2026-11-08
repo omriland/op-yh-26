@@ -17,7 +17,7 @@ import { StampChip } from '../components/ui/StampChip'
 import { PasswordField, TextField } from '../components/ui/TextField'
 import { captureEvent } from '../lib/posthog'
 import { ANDROID_BETA_LABEL, fetchAndroidApkHref, isAndroidMobile } from '../lib/androidDownload'
-import { SnykBadge } from '../components/shell/SnykBadge'
+import { PRIVACY_FOOTER_LINK } from '../lib/privacyPolicy'
 
 type Mode = 'signin' | 'reset' | 'reset-sent' | 'set-password' | 'password-set'
 
@@ -494,7 +494,11 @@ export function LoginPage({
         <p className="login__public t-body text-secondary">{PUBLIC_DESCRIPTION}</p>
       </div>
       {onOpenPrivacy ? (
-        <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} />
+        <p className="login__legal">
+          <button type="button" className="login__legal-link" onClick={onOpenPrivacy}>
+            {PRIVACY_FOOTER_LINK.label}
+          </button>
+        </p>
       ) : null}
       </div>
     </div>

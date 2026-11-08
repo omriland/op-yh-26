@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import Anthropic from "npm:@anthropic-ai/sdk@1.4.0";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import {
   buildCorsHeaders,
   jsonResponse as json,
@@ -11,19 +12,50 @@ import {
   smartSearchJsonSchema,
 } from "../_shared/smartSearchFilter.ts";
 import type { SmartSearchVocab } from "../_shared/smartSearchFilter.ts";
-import { openAiRequestBody, parseOpenAiFilter } from "../_shared/smartSearchOpenAi.ts";
-import { buildSmartSearchMessages, jerusalemToday } from "../_shared/smartSearchPrompt.ts";
+import { claudeRequestBody, parseClaudeFilter } from "../_shared/smartSearchClaude.ts";
+import { buildSmartSearchPrompt, jerusalemToday } from "../_shared/smartSearchPrompt.ts";
 
 /**
- * Admin smart search: turns a sentence into a validated filter via OpenAI.
- * Sends the model only the sentence, today's date and name lists. Never reads unit data.
+ * Sentence search for any signed-in user: turns a sentence into a validated filter
+ * with Claude Haiku 5.5. Sends the model only the sentence, today's date and the
+ * closed lists (event types, districts, damage locations). Never reads unit data,
+ * so the filter cannot reveal anything; the app runs it through RLS.
+ *
+ * Secret: ANTHROPIC_API_KEY.
  */
 
 const ALLOW_HEADERS = "authorization, x-client-info, apikey, content-type";
-const OPENAI_TIMEOUT_MS = 5000;
+const MODEL_TIMEOUT_MS = 5000;
 const VOCAB_TTL_MS = 10 * 60 * 1000;
+/** Model calls per user per minute. Each costs well under a tenth of a cent. */
+const PARSES_PER_MINUTE = 20;
 
 let vocabCache: { at: number; vocab: SmartSearchVocab } | null = null;
+
+type Reason = "not_configured" | "rate_limited" | "timeout" | "model_error" | "refusal" | "invalid_output";
+
+/** Logging must not break search; a missing migration only loses the row. */
+async function logParse(
+  userClient: SupabaseClient,
+  q: string,
+  filter: unknown,
+  lane: "ai" | "fallback",
+  latencyMs: number,
+  reason: Reason | null,
+): Promise<string | null> {
+  const { data, error } = await userClient.rpc("app_search_log", {
+    p_query: q,
+    p_filter: filter ?? {},
+    p_lane: lane,
+    p_latency_ms: latencyMs,
+    p_reason: reason,
+  });
+  if (error) {
+    console.error("smart-search log failed", error.message);
+    return null;
+  }
+  return typeof data === "string" ? data : null;
+}
 
 Deno.serve(async (req) => {
   const corsHeaders = buildCorsHeaders(req, ALLOW_HEADERS);
@@ -40,9 +72,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const openAiKey = Deno.env.get("OPENAI_API_KEY");
-    const model = Deno.env.get("SMART_SEARCH_MODEL");
-    if (!supabaseUrl || !anonKey || !serviceKey || !openAiKey || !model) {
+    if (!supabaseUrl || !anonKey || !serviceKey) {
       return json(503, { error: "not_configured" });
     }
 
@@ -59,19 +89,6 @@ Deno.serve(async (req) => {
       return json(401, { error: "unauthorized" });
     }
 
-    const adminClient = createClient(supabaseUrl, serviceKey);
-    let allowed = false;
-    for (const r of ["admin", "super_admin"]) {
-      const { data, error } = await adminClient.rpc("has_role", { uid: user.id, r });
-      if (!error && data) {
-        allowed = true;
-        break;
-      }
-    }
-    if (!allowed) {
-      return json(403, { error: "forbidden" });
-    }
-
     let q = "";
     try {
       const body = (await req.json()) as { q?: unknown };
@@ -82,6 +99,27 @@ Deno.serve(async (req) => {
     if (!q) return json(400, { error: "invalid_body" });
     if (q.length > SMART_SEARCH_MAX_QUERY_CHARS) {
       return json(400, { error: "query_too_long" });
+    }
+
+    const started = Date.now();
+    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!apiKey) {
+      const logId = await logParse(userClient, q, {}, "fallback", 0, "not_configured");
+      return json(503, { error: "not_configured", logId });
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceKey);
+
+    // Parse attempts are logged as ai or fallback, so the log is the counter.
+    const { count, error: countError } = await adminClient
+      .from("smart_search_log")
+      .select("id", { count: "exact", head: true })
+      .eq("actor_id", user.id)
+      .in("lane", ["ai", "fallback"])
+      .gte("created_at", new Date(Date.now() - 60_000).toISOString());
+    if (countError) console.error("smart-search rate check", countError.message);
+    else if ((count ?? 0) >= PARSES_PER_MINUTE) {
+      return json(429, { error: "rate_limited" });
     }
 
     if (!vocabCache || Date.now() - vocabCache.at > VOCAB_TTL_MS) {
@@ -104,50 +142,31 @@ Deno.serve(async (req) => {
     }
     const vocab = vocabCache.vocab;
 
-    const started = Date.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
-    let responseJson: unknown;
+    const client = new Anthropic({ apiKey, timeout: MODEL_TIMEOUT_MS, maxRetries: 0 });
+    let reply: Anthropic.Message;
     try {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${openAiKey}` },
-        body: JSON.stringify(openAiRequestBody(
-          model,
-          buildSmartSearchMessages(q, jerusalemToday(new Date()), vocab),
-          smartSearchJsonSchema(vocab),
-        )),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        console.error("smart-search openai status", res.status);
-        return json(502, { error: "model_error" });
-      }
-      responseJson = await res.json();
+      reply = await client.messages.create(claudeRequestBody(
+        buildSmartSearchPrompt(q, jerusalemToday(new Date()), vocab),
+        smartSearchJsonSchema(vocab),
+      ));
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        return json(504, { error: "timeout" });
+      const reason: Reason = err instanceof Anthropic.APIConnectionTimeoutError ? "timeout" : "model_error";
+      if (err instanceof Anthropic.APIError) {
+        console.error("smart-search model status", err.status);
+      } else if (reason === "model_error") {
+        console.error("smart-search model call failed");
       }
-      console.error("smart-search openai fetch failed");
-      return json(502, { error: "model_error" });
-    } finally {
-      clearTimeout(timer);
+      const logId = await logParse(userClient, q, {}, "fallback", Date.now() - started, reason);
+      return json(reason === "timeout" ? 504 : 502, { error: reason, logId });
     }
 
-    const filter = parseOpenAiFilter(responseJson, vocab);
-    if (!filter) return json(502, { error: "model_error" });
+    const parsed = parseClaudeFilter(reply, vocab);
+    if ("error" in parsed) {
+      const logId = await logParse(userClient, q, {}, "fallback", Date.now() - started, parsed.error);
+      return json(502, { error: parsed.error, logId });
+    }
 
-    // Logging must not break search.
-    let logId: string | null = null;
-    const { data: logged, error: logError } = await userClient.rpc("log_smart_search", {
-      p_query: q,
-      p_filter: filter,
-      p_lane: "ai",
-      p_latency_ms: Date.now() - started,
-    });
-    if (logError) console.error("smart-search log failed", logError.message);
-    else logId = typeof logged === "string" ? logged : null;
-
-    return json(200, { filter, logId });
+    const logId = await logParse(userClient, q, parsed.filter, "ai", Date.now() - started, null);
+    return json(200, { filter: parsed.filter, logId });
   });
 });

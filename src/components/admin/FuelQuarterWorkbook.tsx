@@ -34,6 +34,7 @@ import { AlertDialog } from '../ui/AlertDialog'
 import { EmptyState } from '../ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
 import { TextField } from '../ui/TextField'
+import { DataTable, type DataTableColumn } from '../ui/DataTable'
 
 const QUARTERS: { id: 1 | 2 | 3 | 4; label: string }[] = [
   { id: 1, label: 'רבעון 1' },
@@ -242,6 +243,98 @@ export function FuelQuarterWorkbook() {
             ? 'שמירה נכשלה'
             : null
 
+  const monthLabels = workbook?.monthLabels ?? ['', '', '']
+  const kmColumn = (
+    id: string,
+    header: string,
+    value: (row: FuelQuarterRow) => number,
+  ): DataTableColumn<FuelQuarterRow> => ({
+    id,
+    header,
+    className: (row) => kmNumClass(value(row)),
+    sortValue: value,
+    cell: (row) => formatNumber(value(row)),
+  })
+  const columns: DataTableColumn<FuelQuarterRow>[] = [
+    {
+      id: 'name',
+      header: 'מתנדב',
+      className: 'table--fuel-quarter__sticky',
+      headerClassName: 'table--fuel-quarter__sticky',
+      sortValue: (row) => row.full_name,
+      cell: (row) => (
+        <>
+          <div className="table--fuel-quarter__name fuel-responder-name">
+            <span>{row.full_name}</span>
+            <FuelFrozenEventsMark count={row.frozen_event_count} />
+          </div>
+          <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>{row.callsign}</div>
+        </>
+      ),
+    },
+    kmColumn('opening', 'יתרה מרבעון קודם', (row) => row.opening_balance_km),
+    kmColumn('month1', monthLabels[0] ?? '', (row) => row.km_month_1),
+    kmColumn('month2', monthLabels[1] ?? '', (row) => row.km_month_2),
+    kmColumn('month3', monthLabels[2] ?? '', (row) => row.km_month_3),
+    kmColumn('quarter', 'סה״כ ק״מ', (row) => row.quarter_km),
+    {
+      id: 'liters',
+      header: 'ליטרים',
+      className: 'num mono',
+      sortValue: (row) => row.liters,
+      cell: (row) => formatNumber(Number(row.liters.toFixed(1))),
+    },
+    kmColumn('remaining', 'יתרה (ק״מ)', (row) => row.remaining_km),
+    {
+      id: 'cards',
+      header: 'כרטיסים',
+      className: 'table-cell--edit',
+      interactive: true,
+      sortValue: (row) => row.cards,
+      cell: (row) =>
+        locked ? (
+          <span className="num mono">{formatNumber(row.cards)}</span>
+        ) : (
+          <div className="table-edit__row">
+            <input
+              className="table-input table-input--cards mono"
+              type="number"
+              min={0}
+              step={1}
+              value={row.cards}
+              aria-label={`כרטיסים ל${row.full_name}`}
+              onChange={(e) => updateRow(row.responder_id, { cards: Number(e.target.value) })}
+            />
+            <button
+              type="button"
+              className="table-edit__suggest"
+              onClick={() => updateRow(row.responder_id, { cards: row.suggested_cards })}
+            >
+              מומלץ <span className="mono">{formatNumber(row.suggested_cards)}</span>
+            </button>
+          </div>
+        ),
+    },
+    {
+      id: 'card_numbers',
+      header: 'מספרי כרטיסים',
+      className: 'table-cell--edit table--fuel-quarter__cards',
+      interactive: true,
+      sortValue: (row) => parseCardNumbers(row.card_numbers).join(' '),
+      cell: (row) =>
+        locked ? (
+          parseCardNumbers(row.card_numbers).join(' · ') || '—'
+        ) : (
+          <CardNumbersField
+            compact
+            cards={row.cards}
+            value={row.card_numbers}
+            onChange={(next) => updateRow(row.responder_id, { card_numbers: next })}
+          />
+        ),
+    },
+  ]
+
   return (
     <div className="fuel-quarter">
       <header className="fuel-quarter__head">
@@ -403,99 +496,19 @@ export function FuelQuarterWorkbook() {
         />
       ) : null}
 
-      {workbook && filteredRows.length > 0 && isDesktop ? (
-        <div className="table-wrap table-wrap--fuel-quarter">
-          <table className="table table--fuel-quarter">
-            <thead>
-              <tr>
-                <th scope="col" className="table--fuel-quarter__sticky">
-                  מתנדב
-                </th>
-                <th scope="col">יתרה מרבעון קודם</th>
-                <th scope="col">{workbook.monthLabels[0]}</th>
-                <th scope="col">{workbook.monthLabels[1]}</th>
-                <th scope="col">{workbook.monthLabels[2]}</th>
-                <th scope="col">סה״כ ק״מ</th>
-                <th scope="col">ליטרים</th>
-                <th scope="col">יתרה (ק״מ)</th>
-                <th scope="col">כרטיסים</th>
-                <th scope="col">מספרי כרטיסים</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row) => (
-                <tr key={row.responder_id}>
-                  <td className="table--fuel-quarter__sticky">
-                    <div className="table--fuel-quarter__name fuel-responder-name">
-                      <span>{row.full_name}</span>
-                      <FuelFrozenEventsMark count={row.frozen_event_count} />
-                    </div>
-                    <div className={`t-caption text-muted ${monoClass(row.callsign)}`}>
-                      {row.callsign}
-                    </div>
-                  </td>
-                  <td className={kmNumClass(row.opening_balance_km)}>
-                    {formatNumber(row.opening_balance_km)}
-                  </td>
-                  <td className={kmNumClass(row.km_month_1)}>{formatNumber(row.km_month_1)}</td>
-                  <td className={kmNumClass(row.km_month_2)}>{formatNumber(row.km_month_2)}</td>
-                  <td className={kmNumClass(row.km_month_3)}>{formatNumber(row.km_month_3)}</td>
-                  <td className={kmNumClass(row.quarter_km)}>{formatNumber(row.quarter_km)}</td>
-                  <td className="num mono">{formatNumber(Number(row.liters.toFixed(1)))}</td>
-                  <td className={kmNumClass(row.remaining_km)}>{formatNumber(row.remaining_km)}</td>
-                  <td className="table-cell--edit">
-                    {locked ? (
-                      <span className="num mono">{formatNumber(row.cards)}</span>
-                    ) : (
-                      <div className="table-edit__row">
-                        <input
-                          className="table-input table-input--cards mono"
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={row.cards}
-                          aria-label={`כרטיסים ל${row.full_name}`}
-                          onChange={(e) =>
-                            updateRow(row.responder_id, { cards: Number(e.target.value) })
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="table-edit__suggest"
-                          onClick={() =>
-                            updateRow(row.responder_id, { cards: row.suggested_cards })
-                          }
-                        >
-                          מומלץ <span className="mono">{formatNumber(row.suggested_cards)}</span>
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                  <td className="table-cell--edit table--fuel-quarter__cards">
-                    {locked ? (
-                      parseCardNumbers(row.card_numbers).join(' · ') || '—'
-                    ) : (
-                      <CardNumbersField
-                        compact
-                        cards={row.cards}
-                        value={row.card_numbers}
-                        onChange={(next) =>
-                          updateRow(row.responder_id, { card_numbers: next })
-                        }
-                      />
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {workbook && filteredRows.length > 0 && !isDesktop ? (
-        <div className="stack-4">
-          {filteredRows.map((row) => (
-            <article key={row.responder_id} className="card stack-3">
+      {workbook && filteredRows.length > 0 ? (
+        <DataTable
+          rows={filteredRows}
+          columns={columns}
+          rowKey={(row) => row.responder_id}
+          asTable={isDesktop}
+          cards={{ as: 'div', className: 'stack-4' }}
+          defaultSort={{ columnId: 'name', direction: 'asc' }}
+          className="table--fuel-quarter"
+          wrapClassName="table-wrap--fuel-quarter"
+          holdOrderOnEdit
+          renderCard={(row) => (
+            <article className="card stack-3">
               <div className="row-between">
                 <div>
                   <div className="t-body fuel-responder-name">
@@ -551,8 +564,8 @@ export function FuelQuarterWorkbook() {
                 </p>
               )}
             </article>
-          ))}
-        </div>
+          )}
+        />
       ) : null}
 
       <AlertDialog

@@ -354,6 +354,7 @@ export function isAllowedAppView(view: AppRouteView, access: AppRouteAccess): bo
     case 'contacts':
     case 'map':
     case 'profile':
+    case 'search':
       return true
     case 'events':
     case 'shifts':
@@ -363,7 +364,6 @@ export function isAllowedAppView(view: AppRouteView, access: AppRouteAccess): bo
     case 'users':
     case 'fuel_quarter':
     case 'lists':
-    case 'search':
       return access.isAdmin
     case 'feedback':
     case 'event_locations':

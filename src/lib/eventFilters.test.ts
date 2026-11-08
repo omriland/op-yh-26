@@ -339,7 +339,7 @@ describe('ruleQueryPlans', () => {
         select: 'id,event_date,created_at',
         filters: [
           { op: 'eq', column: 'shift_lead_id', value: 'lead' },
-          { op: 'eq', column: 'status', value: 'partial' },
+          { op: 'in', column: 'status', value: ['in_progress', 'partial', 'done'] },
           { op: 'neq', column: 'origin', value: 'shift' },
           { op: 'ilike', column: 'police_event_id', value: '%482%' },
           { op: 'gte', column: 'event_date', value: '2026-11-01' },
@@ -660,8 +660,20 @@ describe('the whole view survives a reload', () => {
 
 describe('האירועים שלי: default view reproduces today’s mine list', () => {
   const mineEvents = [
-    event({ id: 'open-today', event_date: TODAY, status: 'in_progress', police_event_id: '48201' }),
-    event({ id: 'open-old', event_date: '2026-08-01', status: 'partial', police_event_id: '48202' }),
+    event({
+      id: 'open-today',
+      event_date: TODAY,
+      status: 'in_progress',
+      police_event_id: '48201',
+      responders: [responder({ status: 'pending' })],
+    }),
+    event({
+      id: 'open-old',
+      event_date: '2026-08-01',
+      status: 'partial',
+      police_event_id: '48202',
+      responders: [responder(), responder({ id: 'r2', responder_id: 'u2', status: 'pending' })],
+    }),
     event({ id: 'logged-recent', event_date: '2026-10-20', status: 'done', police_event_id: '48203' }),
     event({ id: 'logged-old', event_date: '2026-09-01', status: 'done', police_event_id: '48204' }),
     event({ id: 'hidden', event_date: TODAY, status: 'draft', police_event_id: '48205' }),

@@ -7,7 +7,7 @@ type StampChipProps = StampDescriptor & {
   press?: boolean
 }
 
-export function StampChip({ label, tone, header = false, press = false }: StampChipProps) {
+export function StampChip({ label, tone, progress, header = false, press = false }: StampChipProps) {
   return (
     <span
       className={['stamp', `stamp--${tone}`, header ? 'stamp--header' : '', press ? 'stamp--press' : '']
@@ -15,6 +15,14 @@ export function StampChip({ label, tone, header = false, press = false }: StampC
         .join(' ')}
     >
       {label}
+      {progress ? (
+        <>
+          <span className="stamp__progress" dir="ltr" aria-hidden="true">
+            {`${progress.done}/${progress.total}`}
+          </span>
+          <span className="visually-hidden">{`, ${progress.done} מתוך ${progress.total} תיעדו`}</span>
+        </>
+      ) : null}
     </span>
   )
 }

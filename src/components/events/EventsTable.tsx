@@ -1,16 +1,19 @@
-import { Fragment, useRef, type MouseEvent } from 'react'
+import { useMemo, useRef, type MouseEvent } from 'react'
 import { formatDate, monoClass } from '../../lib/format'
 import { doneFraction, type EventListItem, type EventResponderSummary } from '../../lib/events'
 import { mapSecondaryLeadRows } from '../../lib/eventShiftLeads'
 import type { FreezeViewer } from '../../lib/eventFreeze'
 import { HoverTip } from '../ui/HoverTip'
+import { DataTable, type DataTableColumn } from '../ui/DataTable'
+import { isoSortValue, type TableSort } from '../../lib/tableSort'
 import { EventListLeadCaption } from './EventListLeadCaption'
 import { EventTypeLabel } from './EventTypeLabel'
 import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
 import { EventAttachmentMark } from './EventAttachmentMark'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
-import { leadFacingMissingKm, missingFullyLoggedFieldLabels } from '../../lib/eventIncomplete'
+import { gapFieldLabels, missingEventFields } from '../../lib/eventIncomplete'
+import { EVENT_LIFECYCLE_ORDER, eventLifecycle } from '../../lib/eventLifecycle'
 
 type IncompleteNotice = {
   fields: string[]
@@ -22,8 +25,6 @@ type EventsTableProps = {
   onOpen: (eventId: string) => void
   /** Freeze reader. Without it the table shows no freeze marks. */
   viewer?: FreezeViewer | null
-  /** Current user — lead-facing חסר ק״מ only when they lead this event. */
-  viewerId?: string
   onContextDelete?: (event: EventListItem, pointer: { x: number; y: number }) => void
   /** Unit list: missing required fields as a full-width ledger line under the data row. */
   incompleteNoticeFor?: (event: EventListItem) => IncompleteNotice | undefined
@@ -31,6 +32,12 @@ type EventsTableProps = {
   caption?: string
   /** Search results: why each row matched, as a full-width `נמצא לפי` line under the row. */
   foundBy?: (event: EventListItem) => string
+  /** The order `events` arrive in; null when it follows no column (search results). */
+  defaultSort?: TableSort | null
+  /** Shared sort when a page shows two event tables that should order alike. */
+  sort?: TableSort | null
+  onSortChange?: (next: TableSort) => void
+  partialSortNote?: string
 }
 
 const NO_ASSIGNED_RESPONDERS = 'אין מתנדבים משובצים'
@@ -59,163 +66,225 @@ export function AssignedRespondersTip({
   )
 }
 
+const DATE_DESC: TableSort = { columnId: 'date', direction: 'desc' }
+
+function locationLabelOf(event: EventListItem): string {
+  return [event.road?.name, event.location].filter(Boolean).join(' · ') || '—'
+}
+
+function leadSortName(event: EventListItem): string | null {
+  return event.origin === 'shift' ? null : (event.shift_lead?.full_name ?? null)
+}
+
+function eventColumns(viewer: FreezeViewer | null | undefined): DataTableColumn<EventListItem>[] {
+  return [
+    {
+      id: 'date',
+      header: 'תאריך',
+      className: 'num mono',
+      sortValue: (event) => isoSortValue(event.event_date),
+      cell: (event) => formatDate(event.event_date),
+    },
+    {
+      id: 'police',
+      header: 'מספר אירוע',
+      className: (event) => `num ${monoClass(event.police_event_id)}`,
+      sortValue: (event) => event.police_event_id,
+      cell: (event) => event.police_event_id ?? '—',
+    },
+    {
+      id: 'type',
+      header: 'סוג אירוע',
+      sortValue: (event) => event.event_type?.name,
+      cell: (event) => (
+        <span className="event-card__type">
+          <EventFrozenMark event={event} viewer={viewer} />
+          <EventTypeLabel event={event} />
+        </span>
+      ),
+    },
+    {
+      id: 'place',
+      header: 'כביש / מיקום',
+      className: 'table-col--location',
+      headerClassName: 'table-col--location',
+      sortValue: (event) => {
+        const label = locationLabelOf(event)
+        return label === '—' ? null : label
+      },
+      cell: (event) => {
+        const label = locationLabelOf(event)
+        return (
+          <HoverTip text={label === '—' ? '' : label} className="table-col--location__text">
+            {label}
+          </HoverTip>
+        )
+      },
+    },
+    {
+      id: 'lead',
+      header: 'אחמ״ש',
+      sortValue: leadSortName,
+      cell: (event) =>
+        event.origin === 'shift' ? (
+          '—'
+        ) : (
+          <EventListLeadCaption
+            main={event.shift_lead}
+            secondaries={mapSecondaryLeadRows(event.secondary_leads)}
+            showOverflow
+          />
+        ),
+    },
+    {
+      id: 'responders',
+      header: 'מתנדבים',
+      className: 'num mono',
+      // Shown as done/assigned: order by assigned, then by how many are done.
+      sortValue: (event) =>
+        event.responders.length + event.responders.filter((row) => row.status === 'done').length / 1000,
+      cell: (event) => (
+        <HoverTip
+          mode="always"
+          pinOnClick={false}
+          className="events-table__responders"
+          content={<AssignedRespondersTip responders={event.responders} />}
+        >
+          {doneFraction(event)}
+        </HoverTip>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'סטטוס תיעוד',
+      className: 'table-cell--status',
+      sortValue: (event) => EVENT_LIFECYCLE_ORDER.indexOf(eventLifecycle(event).status),
+      cell: (event) => {
+        const lifecycle = eventLifecycle(event)
+        return (
+          <div className="table-cell--status__row">
+            <EventStatusTrail
+              state={lifecycle}
+              missingFields={
+                lifecycle.status === 'missing_details'
+                  ? gapFieldLabels(event, missingEventFields(event))
+                  : []
+              }
+              responders={event.responders.map((row) => ({
+                id: row.id,
+                status: row.status,
+                name: responderDisplayName(row.profile),
+              }))}
+            />
+            {event.has_image ? <EventAttachmentMark /> : null}
+          </div>
+        )
+      },
+    },
+  ]
+}
+
 /** Command desktop only — mobile renders the same data as cards. */
 export function EventsTable({
   events,
   onOpen,
   viewer,
-  viewerId,
   onContextDelete,
   incompleteNoticeFor,
   caption,
   foundBy,
+  defaultSort = DATE_DESC,
+  sort,
+  onSortChange,
+  partialSortNote,
 }: EventsTableProps) {
   const skipOpenUntil = useRef(0)
+  const columns = useMemo(() => eventColumns(viewer), [viewer])
+
+  const openRow = (event: EventListItem) => {
+    if (Date.now() < skipOpenUntil.current) return
+    onOpen(event.id)
+  }
+  const contextMenuFor = (event: EventListItem) =>
+    onContextDelete
+      ? (click: MouseEvent<HTMLTableRowElement>) => {
+          click.preventDefault()
+          click.stopPropagation()
+          skipOpenUntil.current = Date.now() + 400
+          onContextDelete(event, { x: click.clientX, y: click.clientY })
+        }
+      : undefined
+  const isDone = (event: EventListItem) => eventLifecycle(event).status === 'done'
+  const isIncomplete = (event: EventListItem) => {
+    const notice = incompleteNoticeFor?.(event)
+    return Boolean(notice && notice.fields.length > 0)
+  }
 
   return (
-    <div className="table-wrap table-wrap--events">
-      <table className="table table--events">
-        {caption ? <caption className="events-incomplete-heading">{caption}</caption> : null}
-        <thead>
-          <tr>
-            <th scope="col">תאריך</th>
-            <th scope="col">מספר אירוע</th>
-            <th scope="col">סוג אירוע</th>
-            <th scope="col">כביש / מיקום</th>
-            <th scope="col">אחמ״ש</th>
-            <th scope="col">מתנדבים</th>
-            <th scope="col">סטטוס תיעוד</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((event) => {
-            const locationLabel =
-              [event.road?.name, event.location].filter(Boolean).join(' · ') || '—'
-            const notice = incompleteNoticeFor?.(event)
-            const reason = foundBy?.(event)
-            const incomplete = Boolean(notice && notice.fields.length > 0)
-            const rowClass = [
-              event.status === 'done' && !incomplete ? 'table-row--done' : '',
-              incomplete ? 'table-row--needs-completion' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')
-            const openRow = () => {
-              if (Date.now() < skipOpenUntil.current) return
-              onOpen(event.id)
-            }
-            const onContextMenu = onContextDelete
-              ? (click: MouseEvent<HTMLTableRowElement>) => {
-                  click.preventDefault()
-                  click.stopPropagation()
-                  skipOpenUntil.current = Date.now() + 400
-                  onContextDelete(event, { x: click.clientX, y: click.clientY })
-                }
-              : undefined
-            return (
-              <Fragment key={event.id}>
-                <tr
-                  className={rowClass || undefined}
-                  onClick={(click) => {
-                    if (click.button !== 0) return
-                    openRow()
-                  }}
-                  onContextMenu={onContextMenu}
-                >
-                  <td className="num mono">{formatDate(event.event_date)}</td>
-                  <td className={`num ${monoClass(event.police_event_id)}`}>
-                    {event.police_event_id ?? '—'}
-                  </td>
-                  <td>
-                    <span className="event-card__type">
-                      <EventFrozenMark event={event} viewer={viewer} />
-                      <EventTypeLabel event={event} />
-                    </span>
-                  </td>
-                  <td className="table-col--location">
-                    <HoverTip
-                      text={locationLabel === '—' ? '' : locationLabel}
-                      className="table-col--location__text"
-                    >
-                      {locationLabel}
-                    </HoverTip>
-                  </td>
-                  <td>
-                    {event.origin === 'shift' ? (
-                      '—'
-                    ) : (
-                      <EventListLeadCaption
-                        main={event.shift_lead}
-                        secondaries={mapSecondaryLeadRows(event.secondary_leads)}
-                        showOverflow
-                      />
-                    )}
-                  </td>
-                  <td className="num mono">
-                    <HoverTip
-                      mode="always"
-                      pinOnClick={false}
-                      className="events-table__responders"
-                      content={<AssignedRespondersTip responders={event.responders} />}
-                    >
-                      {doneFraction(event)}
-                    </HoverTip>
-                  </td>
-                  <td className="table-cell--status">
-                    <div className="table-cell--status__row">
-                      <EventStatusTrail
-                        status={event.status}
-                        missingKm={leadFacingMissingKm(event, viewerId)}
-                        missingFields={
-                          event.status === 'partial' || event.status === 'in_progress'
-                            ? missingFullyLoggedFieldLabels(event, viewerId)
-                            : []
-                        }
-                        responders={event.responders.map((row) => ({
-                          id: row.id,
-                          status: row.status,
-                          name: responderDisplayName(row.profile),
-                        }))}
-                      />
-                      {event.has_image ? <EventAttachmentMark /> : null}
-                    </div>
-                  </td>
-                </tr>
-                {incomplete && notice ? (
-                  <tr
-                    className="table-row--completion-meta"
-                    onClick={(click) => {
-                      if (click.button !== 0) return
-                      openRow()
-                    }}
-                    onContextMenu={onContextMenu}
-                  >
-                    <td colSpan={7}>
-                      <IncompleteFieldsNotice fields={notice.fields} spoken={notice.spoken} />
-                    </td>
-                  </tr>
-                ) : null}
-                {reason ? (
-                  <tr
-                    className={`table-row--found-by${event.status === 'done' && !incomplete ? ' table-row--done' : ''}`}
-                    onClick={(click) => {
-                      if (click.button !== 0) return
-                      openRow()
-                    }}
-                    onContextMenu={onContextMenu}
-                  >
-                    <td colSpan={7}>
-                      <p className="t-caption events-table__found-by">
-                        <span className="text-secondary">נמצא לפי:</span> {reason}
-                      </p>
-                    </td>
-                  </tr>
-                ) : null}
-              </Fragment>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      rows={events}
+      columns={columns}
+      rowKey={(event) => event.id}
+      defaultSort={defaultSort}
+      sort={sort}
+      onSortChange={onSortChange}
+      partialSortNote={partialSortNote}
+      caption={caption}
+      captionClassName="events-incomplete-heading"
+      className="table--events"
+      wrapClassName="table-wrap--events"
+      onRowClick={openRow}
+      rowLabel={(event) => `פתיחת אירוע ${event.police_event_id ?? formatDate(event.event_date)}`}
+      rowProps={(event) => ({ onContextMenu: contextMenuFor(event) })}
+      rowClassName={(event) => {
+        const incomplete = isIncomplete(event)
+        return (
+          [
+            isDone(event) && !incomplete ? 'table-row--done' : '',
+            incomplete ? 'table-row--needs-completion' : '',
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined
+        )
+      }}
+      renderSubRows={(event, colSpan) => {
+        const notice = incompleteNoticeFor?.(event)
+        const incomplete = Boolean(notice && notice.fields.length > 0)
+        const reason = foundBy?.(event)
+        const onContextMenu = contextMenuFor(event)
+        const openOnClick = (click: MouseEvent<HTMLTableRowElement>) => {
+          if (click.button !== 0) return
+          openRow(event)
+        }
+        return (
+          <>
+            {incomplete && notice ? (
+              <tr
+                className="table-row--completion-meta"
+                onClick={openOnClick}
+                onContextMenu={onContextMenu}
+              >
+                <td colSpan={colSpan}>
+                  <IncompleteFieldsNotice fields={notice.fields} spoken={notice.spoken} />
+                </td>
+              </tr>
+            ) : null}
+            {reason ? (
+              <tr
+                className={`table-row--found-by${isDone(event) && !incomplete ? ' table-row--done' : ''}`}
+                onClick={openOnClick}
+                onContextMenu={onContextMenu}
+              >
+                <td colSpan={colSpan}>
+                  <p className="t-caption events-table__found-by">
+                    <span className="text-secondary">נמצא לפי:</span> {reason}
+                  </p>
+                </td>
+              </tr>
+            ) : null}
+          </>
+        )
+      }}
+    />
   )
 }

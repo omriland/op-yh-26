@@ -45,32 +45,24 @@ describe('isShiftBornEventEmpty', () => {
 })
 
 describe('shiftBornFillStamp', () => {
-  it('marks done events as completed only when פירוט הטיפול is filled', () => {
+  it('reads תועד only when the report is done and פירוט הטיפול is filled', () => {
     expect(
-      shiftBornFillStamp({
-        ...snapshot({ status: 'done', police_event_id: '1', treatment_detail: 'חילוץ' }),
-      }),
-    ).toEqual({
-      label: 'הושלם',
-      tone: 'done',
-    })
+      shiftBornFillStamp(snapshot({ status: 'done', police_event_id: '1', treatment_detail: 'חילוץ' })),
+    ).toEqual({ label: 'תועד', tone: 'done' })
   })
 
-  it('keeps missing פירוט הטיפול as pending — never סיימת לתעד / הושלם', () => {
+  it('keeps missing פירוט הטיפול on ממתין למתנדב even when stored done', () => {
     expect(shiftBornFillStamp(snapshot({ status: 'done', police_event_id: '1' }))).toEqual({
-      label: 'ממתין לתיעוד',
+      label: 'ממתין למתנדב',
       tone: 'pending',
     })
-    expect(shiftBornFillStamp(snapshot())).toEqual({
-      label: 'ממתין לתיעוד',
-      tone: 'pending',
-    })
+    expect(shiftBornFillStamp(snapshot())).toEqual({ label: 'ממתין למתנדב', tone: 'pending' })
   })
 
-  it('marks non-empty open events as draft saved, like a regular event', () => {
+  it('never reads טיוטה: the crew sees a shift-born event from the start', () => {
     expect(shiftBornFillStamp(snapshot({ treatment_detail: 'טיפול' }))).toEqual({
-      label: 'טיוטה נשמרה',
-      tone: 'draft',
+      label: 'ממתין למתנדב',
+      tone: 'pending',
     })
   })
 })

@@ -9,6 +9,8 @@ import {
 import { mapSecondaryLeadRows } from '../../lib/eventShiftLeads'
 import type { LocationPlaceFields } from '../../lib/systemDistricts'
 import { EventListLeadCaption } from './EventListLeadCaption'
+import { DataTable, type DataTableColumn } from '../ui/DataTable'
+import { isoSortValue } from '../../lib/tableSort'
 
 function LocationLeadCaption({
   row,
@@ -33,6 +35,8 @@ type EventLocationsListProps = {
   onDraftChange: (eventId: string, next: LocationPlaceFields) => void
   onPlaceCommit: (row: EventLocationRow, place: LocationPlaceFields) => void
   onOpen: (eventId: string) => void
+  /** Shown after a re-sort while more pages are still on the server. */
+  partialSortNote?: string
 }
 
 export function EventLocationsList({
@@ -42,88 +46,80 @@ export function EventLocationsList({
   onDraftChange,
   onPlaceCommit,
   onOpen,
+  partialSortNote,
 }: EventLocationsListProps) {
-  if (asTable) {
-    return (
-      <EventLocationsTable
-        rows={rows}
-        drafts={drafts}
-        onDraftChange={onDraftChange}
-        onPlaceCommit={onPlaceCommit}
-        onOpen={onOpen}
-      />
-    )
-  }
+  const columns: DataTableColumn<EventLocationRow>[] = [
+    {
+      id: 'police',
+      header: 'מספר אירוע',
+      className: (row) => `num ${monoClass(row.police_event_id)}`,
+      sortValue: (row) => row.police_event_id,
+      cell: (row) => row.police_event_id ?? '—',
+    },
+    {
+      id: 'date',
+      header: 'תאריך',
+      className: 'num mono',
+      sortValue: (row) => isoSortValue(row.event_date),
+      cell: (row) => formatDate(row.event_date),
+    },
+    {
+      id: 'lead',
+      header: 'אחמ״ש',
+      sortValue: (row) => row.shift_lead?.full_name,
+      cell: (row) => <LocationLeadCaption row={row} showOverflow />,
+    },
+    {
+      id: 'place',
+      header: 'כביש ומיקום',
+      className: 'truncate',
+      sortValue: (row) => {
+        const label = roadAndLocation(row)
+        return label === '—' ? null : label
+      },
+      cell: roadAndLocation,
+    },
+    {
+      id: 'maps',
+      header: 'כתובת במפה',
+      className: 'table-cell--maps',
+      interactive: true,
+      // Rows still missing a map pin sort first.
+      sortValue: (row) => (eventLocationIsMissing(row) ? 0 : 1),
+      cell: (row) => (
+        <MapsField
+          row={row}
+          draft={drafts[row.id]}
+          onDraftChange={onDraftChange}
+          onPlaceCommit={onPlaceCommit}
+        />
+      ),
+    },
+  ]
 
   return (
-    <ul className="stack-3">
-      {rows.map((row) => (
+    <DataTable
+      rows={rows}
+      columns={columns}
+      rowKey={(row) => row.id}
+      asTable={asTable}
+      renderCard={(row) => (
         <EventLocationCard
-          key={row.id}
           row={row}
           draft={drafts[row.id]}
           onDraftChange={onDraftChange}
           onPlaceCommit={onPlaceCommit}
           onOpen={onOpen}
         />
-      ))}
-    </ul>
-  )
-}
-
-function EventLocationsTable({
-  rows,
-  drafts,
-  onDraftChange,
-  onPlaceCommit,
-  onOpen,
-}: Omit<EventLocationsListProps, 'asTable'>) {
-  return (
-    <div className="table-wrap table-wrap--event-locations">
-      <table className="table table--event-locations">
-        <thead>
-          <tr>
-            <th scope="col">מספר אירוע</th>
-            <th scope="col">תאריך</th>
-            <th scope="col">אחמ״ש</th>
-            <th scope="col">כביש ומיקום</th>
-            <th scope="col">כתובת במפה</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const missing = eventLocationIsMissing(row)
-            return (
-              <tr
-                key={row.id}
-                className={missing ? 'table-row--missing-map' : undefined}
-                onClick={() => onOpen(row.id)}
-              >
-                <td className={`num ${monoClass(row.police_event_id)}`}>
-                  {row.police_event_id ?? '—'}
-                </td>
-                <td className="num mono">{formatDate(row.event_date)}</td>
-                <td>
-                  <LocationLeadCaption row={row} showOverflow />
-                </td>
-                <td className="truncate">{roadAndLocation(row)}</td>
-                <td
-                  className="table-cell--maps"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <MapsField
-                    row={row}
-                    draft={drafts[row.id]}
-                    onDraftChange={onDraftChange}
-                    onPlaceCommit={onPlaceCommit}
-                  />
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+      )}
+      defaultSort={{ columnId: 'date', direction: 'desc' }}
+      partialSortNote={partialSortNote}
+      className="table--event-locations"
+      wrapClassName="table-wrap--event-locations"
+      onRowClick={(row) => onOpen(row.id)}
+      rowLabel={(row) => `פתיחת אירוע ${row.police_event_id ?? formatDate(row.event_date)}`}
+      rowClassName={(row) => (eventLocationIsMissing(row) ? 'table-row--missing-map' : undefined)}
+    />
   )
 }
 

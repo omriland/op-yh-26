@@ -591,6 +591,15 @@ p.alert--info {
   white-space: nowrap;
 }
 
+/* תועד חלקית 1/2: the count is a numeral, so it takes the numeral face. */
+.stamp__progress {
+  margin-inline-start: 8px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .stamp--done {
   --stamp-ink: var(--status-done);
   --stamp-tint: var(--status-done-tint);
@@ -2517,19 +2526,9 @@ p.alert--info {
   padding-block-end: var(--space-6);
 }
 
-/* Extra end inset only while the משוב control is actually on screen.
-   When the document footer is in the scrollport, that inset would leave an
-   empty band under the footer — the footer itself clears the button instead. */
+/* Extra end inset while the משוב control is on screen, so it never covers the last row. */
 .shell:has(.feedback-fab):not(:has(.event-form__footer)) .shell__main {
   padding-block-end: calc(var(--space-6) + 44px + var(--space-4));
-}
-
-.shell:has(.feedback-fab):has(.app-footer):not(:has(.event-form__footer)) .shell__main {
-  padding-block-end: 0;
-}
-
-.shell:has(.feedback-fab) .app-footer {
-  padding-inline-end: calc(44px + var(--space-4));
 }
 
 .shell__main > * {
@@ -2551,254 +2550,6 @@ p.alert--info {
 
 .shell__main--narrow > * {
   max-width: var(--form-max);
-}
-
-.shell__main > :has(+ .app-footer) {
-  margin-block-end: var(--space-6);
-}
-
-.shell__main > .app-footer,
-.shell__main--narrow > .app-footer,
-.shell__main:has(.event-groups) > .app-footer {
-  max-width: none;
-  padding-block: var(--space-4);
-}
-
-.app-footer {
-  box-sizing: border-box;
-  display: flex;
-  flex: none;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  width: 100%;
-  margin-block-start: auto;
-  padding-block: var(--space-4);
-  border-block-start: 1px solid var(--stroke-hairline);
-  color: var(--text-muted);
-}
-
-.app-footer__line {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  max-width: 100%;
-}
-
-.app-footer__line:first-child {
-  justify-content: flex-start;
-}
-
-.app-footer__line:last-child {
-  justify-content: flex-end;
-}
-
-.app-footer__group {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  min-height: 36px;
-  max-width: 100%;
-}
-
-.app-footer__line > .app-footer__group + .app-footer__group {
-  padding-inline-start: var(--space-4);
-  border-inline-start: 1px solid var(--stroke-hairline);
-}
-
-@media (min-width: 641px) and (max-width: 1280px) {
-  .app-footer {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-  }
-
-  .app-footer__line,
-  .app-footer__line:first-child,
-  .app-footer__line:last-child {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .app-footer__line + .app-footer__line {
-    padding-block-start: var(--space-2);
-    border-block-start: 1px solid var(--stroke-hairline);
-  }
-
-  .app-footer__line > .app-footer__group + .app-footer__group {
-    padding-inline-start: 0;
-    border-inline-start: 0;
-  }
-}
-
-@media (max-width: 640px) {
-  .app-footer {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-  }
-
-  .app-footer__line,
-  .app-footer__line:first-child,
-  .app-footer__line:last-child {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-start;
-    gap: var(--space-1);
-    width: 100%;
-  }
-
-  .app-footer__line + .app-footer__line {
-    padding-block-start: var(--space-2);
-    border-block-start: 1px solid var(--stroke-hairline);
-  }
-
-  .app-footer__group {
-    width: 100%;
-    min-height: 44px;
-    justify-content: space-between;
-  }
-
-  .app-footer__line > .app-footer__group + .app-footer__group {
-    padding-inline-start: 0;
-    border-inline-start: 0;
-  }
-}
-
-.app-footer__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  text-align: start;
-}
-
-button.app-footer__brand {
-  cursor: pointer;
-}
-
-div.app-footer__brand {
-  cursor: default;
-}
-
-.app-footer__favicon {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-sm);
-}
-
-.app-footer__vendors {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.app-footer__vendor-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  min-height: 36px;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-.app-footer__vendor-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.app-footer__vendor-logo {
-  flex: none;
-  width: 16px;
-  height: 16px;
-}
-
-.app-footer__security-label {
-  margin: 0;
-}
-
-.app-footer__legal {
-  margin: 0;
-}
-
-.app-footer__link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  text-decoration: none;
-  text-underline-offset: 0.2em;
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-standard);
-}
-
-@media (max-width: 640px) {
-  .app-footer__brand,
-  .app-footer__link {
-    min-height: 44px;
-  }
-
-  .app-footer__vendors {
-    gap: var(--space-2);
-  }
-
-  .app-footer__vendor-btn {
-    min-width: 44px;
-    min-height: 44px;
-  }
-}
-
-.app-footer__link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-@media (hover: hover) {
-  .app-footer__vendor-btn:hover {
-    color: var(--text-secondary);
-  }
-
-  .app-footer__link:hover {
-    color: var(--text-secondary);
-    text-decoration: underline;
-  }
-
-  .app-footer__link:has(.app-footer__link-label):hover {
-    text-decoration: none;
-  }
-
-  .app-footer__link:hover > .app-footer__link-label {
-    text-decoration: underline;
-  }
-}
-
-.app-footer__link:active {
-  color: var(--text-secondary);
 }
 
 .android-download,
@@ -2894,20 +2645,43 @@ div.app-footer__brand {
   scroll-padding-block: var(--space-6);
 }
 
-html[data-keyboard-open] .login .app-footer {
-  display: none;
-}
-
 .login__stage .field__input {
   scroll-margin-block: var(--space-8);
 }
 
-.login .app-footer {
-  width: 100%;
+/* The one legal link left on the logged-out page (the footer was removed). */
+.login__legal {
   flex: none;
-  margin-block-start: 0;
+  display: flex;
+  justify-content: center;
   padding-block-start: var(--space-4);
-  padding-block-end: 0;
+}
+
+html[data-keyboard-open] .login__legal {
+  display: none;
+}
+
+.login__legal-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 400 13px/18px var(--font-ui);
+  text-underline-offset: 0.2em;
+}
+
+@media (hover: hover) {
+  .login__legal-link:hover {
+    text-decoration: underline;
+  }
+}
+
+.login__legal-link:active {
+  color: var(--text-primary);
 }
 
 /* Password setup is taller than the sign-in card and still has to scroll. */
@@ -3036,28 +2810,6 @@ html[data-keyboard-open] .event-form__footer {
 
   .shell__main {
     padding: var(--space-12) var(--space-8);
-  }
-
-  .shell--cards {
-    background: var(--surface-sunken);
-  }
-
-  .shell--cards .shell__body {
-    padding: var(--space-3);
-    gap: var(--space-3);
-  }
-
-  .shell--cards .sidebar {
-    overflow: visible;
-    border-inline-end: 0;
-    border: 1px solid var(--stroke-hairline);
-    border-radius: var(--radius-lg);
-  }
-
-  .shell--cards .shell__main {
-    background: var(--surface-page);
-    border: 1px solid var(--stroke-hairline);
-    border-radius: var(--radius-lg);
   }
 }
 
@@ -3716,6 +3468,7 @@ html[data-keyboard-open] .event-form__footer {
 
 .events-card__body {
   overflow: hidden;
+  overflow: clip;
   border-end-start-radius: var(--radius-md);
   border-end-end-radius: var(--radius-md);
 }
@@ -3734,7 +3487,8 @@ html[data-keyboard-open] .event-form__footer {
 }
 
 .events-card__body > :not(.stack-4, .empty),
-.events-card__body > .stack-4 > .btn {
+.events-card__body > .stack-4 > .btn,
+.events-card__body .data-table__note {
   margin: var(--space-4) var(--space-5);
 }
 
@@ -4026,11 +3780,37 @@ html[data-keyboard-open] .event-form__footer {
    Table (Command desktop only)
    ============================================================ */
 
+/* clip, not hidden: a hidden box is a scroll container and would stop the sticky header
+   from pinning to the page scroller. */
 .table-wrap {
   border: 1px solid var(--stroke-hairline);
   border-radius: var(--radius-md);
   overflow: hidden;
+  overflow: clip;
   background: var(--surface-raised);
+}
+
+/* Shared DataTable: the header row stays pinned while the rows scroll under it. */
+.data-table thead th {
+  position: sticky;
+  inset-block-start: var(--data-table-sticky-top, 0);
+  z-index: 3;
+  box-shadow: inset 0 -1px 0 var(--stroke-hairline);
+}
+
+/* Wider than its card: scroll inside the card on both axes so the header still pins. */
+.data-table[data-scroll='inner'] {
+  max-height: min(70vh, calc(100vh - 16rem));
+  overflow: auto;
+}
+
+.data-table tbody tr[tabindex='0']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.data-table__note {
+  margin-block-end: var(--space-2);
 }
 
 .table {
@@ -4138,13 +3918,10 @@ html[data-keyboard-open] .event-form__footer {
   white-space: nowrap;
 }
 
-/* Events table: when the content column is narrower than the table (sidebar
-   open, small laptop), scroll sideways instead of clipping the status column.
-   Tooltips portal to <body>, so this does not clip them. */
+/* Events table: sized by its own width for the container query below. If it is still
+   wider than the column, DataTable scrolls it sideways rather than clipping the status. */
 .table-wrap--events {
   container-type: inline-size;
-  overflow-x: auto;
-  overflow-y: hidden;
 }
 
 /* Keep each cell on one line (lead names were breaking word-by-word);
@@ -4159,6 +3936,15 @@ html[data-keyboard-open] .event-form__footer {
   .table--events th,
   .table--events td {
     padding-inline: 6px;
+  }
+
+  /* Sort arrows add width; let the header labels wrap rather than push the status column out. */
+  .table--events thead th {
+    white-space: normal;
+  }
+
+  .table--events .table-sort {
+    text-align: start;
   }
 
   .table--events tbody tr:not(.table-row--completion-meta):not(.table-row--found-by) > td:not(.num, .table-cell--status) {
@@ -6502,6 +6288,10 @@ html[data-keyboard-open] .event-form__footer {
 
 .table--fuel-quarter__cards {
   min-width: 10rem;
+}
+
+.table--fuel-quarter .table-sort {
+  min-height: 36px;
 }
 
 .table--fuel-quarter .table-input {
@@ -9904,4 +9694,434 @@ fieldset.field {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+/* ============================================================
+   Search combobox and panel (top bar on desktop, /search on phones)
+   One field for every role. The panel is a popover on desktop
+   (elevated: it floats over the page card) and inline on phones,
+   where it is the page itself.
+   ============================================================ */
+
+.search-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+/* Takes the top bar slot the old field had. */
+.search-combobox--bar {
+  flex: 0 1 560px;
+  max-width: calc(100% - 240px);
+}
+
+.search-combobox--bar .dbar-search {
+  width: 100%;
+  max-width: none;
+}
+
+.dbar-search__kbd {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--dshell-stroke);
+  border-radius: var(--radius-sm);
+  color: var(--dshell-text-secondary);
+  font: 400 12px/16px var(--font-mono);
+}
+
+.search-combobox__field {
+  width: 100%;
+}
+
+.search-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-overlay);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-popover);
+  color: var(--text-primary);
+}
+
+.search-panel[hidden] {
+  display: none;
+}
+
+.search-combobox--bar .search-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-start: 0;
+  z-index: 60;
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(72vh, 600px);
+  overflow-y: auto;
+  box-shadow: var(--shadow-overlay);
+}
+
+.search-combobox--page .search-panel {
+  margin-block-start: var(--space-2);
+}
+
+.search-panel__list {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--space-1);
+}
+
+.search-panel__group + .search-panel__group {
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.search-panel__group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  color: var(--text-secondary);
+  font: 600 12px/16px var(--font-ui);
+}
+
+.search-panel__group-extra {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.search-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.search-option[aria-selected='true'] {
+  background: var(--accent-subtle);
+}
+
+.search-option:active {
+  background: var(--surface-sunken);
+}
+
+.search-option__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.search-option__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.search-option[aria-selected='true'] .search-option__icon {
+  color: var(--accent);
+}
+
+.search-option__main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.search-option__title,
+.search-option__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-option__title {
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-option__sub {
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.search-option__side {
+  flex: none;
+}
+
+.search-option--results .search-option__title,
+.search-option--parse .search-option__title {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.search-panel__status,
+.search-panel__empty,
+.search-panel__banner {
+  margin: var(--space-3);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-panel__status,
+.search-panel__empty p:last-child {
+  color: var(--text-secondary);
+}
+
+.search-panel__banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.search-panel__banner-title {
+  font-weight: 600;
+}
+
+.search-panel__banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search-panel__btn {
+  min-height: 36px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-panel__btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.search-panel__btn:active {
+  background: var(--accent-subtle);
+}
+
+.search-panel__filters {
+  padding: var(--space-3) var(--space-3) 0;
+}
+
+.search-panel__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.search-panel__skeleton span {
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-panel__skeleton span {
+    animation: none;
+  }
+}
+
+.search-panel__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-block-start: 1px solid var(--stroke-hairline);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.search-panel__foot kbd {
+  font: 600 12px/16px var(--font-mono);
+}
+
+/* Chips: the label opens its editor, ✕ removes it. */
+.search-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.search-chip__edit {
+  align-self: stretch;
+  padding-inline: 0 var(--space-2);
+  border: 0;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.search-chip__edit:hover {
+  color: var(--accent);
+}
+
+.search-chip__edit[aria-expanded='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Several people fit the name: amber until one is picked. */
+.search-chip--ask {
+  border-color: var(--amber-field);
+  background: var(--amber-field-tint);
+  color: var(--amber-field-on-tint);
+}
+
+/* A key this role cannot use: dashed and inert, the reason under the chips. */
+.search-chip--off {
+  border-style: dashed;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.search-chip--add {
+  gap: var(--space-1);
+  border-style: dashed;
+  color: var(--accent);
+}
+
+.search-chip--add:hover {
+  background: var(--accent-subtle);
+}
+
+.search-chip--add[aria-expanded='true'] {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.search-filters__note {
+  margin: 0;
+}
+
+.search-pop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-popover);
+  background: var(--surface-raised);
+}
+
+.search-pop__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.search-pop__title {
+  margin: 0;
+  color: var(--text-secondary);
+  font: 600 12px/16px var(--font-ui);
+}
+
+.search-pop__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.search-pop__close:hover {
+  background: var(--surface-sunken);
+}
+
+.search-pop__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search-pop__option {
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-pop__option:hover {
+  border-color: var(--accent);
+}
+
+.search-pop__option[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.search-pop__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.search-pop__label {
+  color: var(--text-secondary);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-pop__input {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.search-pop__apply {
+  min-height: 44px;
+  padding-inline: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-fill);
+  color: var(--text-on-accent);
+  font: 600 14px/20px var(--font-ui);
+}
+
+.search-pop__apply:hover {
+  background: var(--accent-hover);
+}
+
+.search-pop__apply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.search-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.search-fallback__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search-page__query {
+  overflow-wrap: anywhere;
+}
+
+/* Phones: chips grow to the 44 px tap target. */
+@media (max-width: 1024px) {
+  .search-chip,
+  .search-chip--add {
+    height: 44px;
+  }
 }
