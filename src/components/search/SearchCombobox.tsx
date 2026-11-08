@@ -512,7 +512,7 @@ export function SearchCombobox({
       kind: 'archive',
       title: (
         <>
-          <span className="mono">{row.event_date ? formatDate(row.event_date) : '—'}</span>
+          <span className="mono">{row.event_date ? formatDate(row.event_date) : 'ללא תאריך'}</span>
           {row.event_number ? (
             <>
               {' · דוח '}
@@ -765,7 +765,7 @@ export function SearchCombobox({
                 <X aria-hidden="true" />
               </button>
             ) : (
-              <kbd className="dbar-search__kbd" aria-hidden="true">
+              <kbd className="dbar-search__kbd" dir="ltr" aria-hidden="true">
                 ⌘K
               </kbd>
             )}
@@ -822,16 +822,16 @@ export function SearchCombobox({
         {variant === 'bar' ? (
           <div className="search-panel__foot" aria-hidden="true">
             <span>
-              <kbd>↑↓</kbd> ניווט
+              <kbd dir="ltr">↑↓</kbd> ניווט
             </span>
             <span>
-              <kbd>Enter</kbd> פתיחה
+              <kbd dir="ltr">Enter</kbd> פתיחה
             </span>
             <span>
-              <kbd>⌘Enter</kbd> כל התוצאות
+              <kbd><bdo dir="ltr">⌘ Enter</bdo></kbd> כל התוצאות
             </span>
             <span>
-              <kbd>Esc</kbd> סגירה
+              <kbd dir="ltr">Esc</kbd> סגירה
             </span>
           </div>
         ) : null}
