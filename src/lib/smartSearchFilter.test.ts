@@ -55,14 +55,51 @@ describe('validateSmartSearchFilter', () => {
   })
 })
 
+describe('new keys', () => {
+  it('keeps volunteer_status in its closed list', () => {
+    expect(validateSmartSearchFilter({ volunteer_status: 'phone_training' }, vocab).volunteer_status).toBe('phone_training')
+    expect(validateSmartSearchFilter({ volunteer_status: 'boss' }, vocab).volunteer_status).toBeUndefined()
+  })
+  it('makes one shift-coverage day from a single end and orders a reversed range', () => {
+    expect(validateSmartSearchFilter({ no_shift_from: '2026-11-08' }, vocab)).toMatchObject({
+      no_shift_from: '2026-11-08',
+      no_shift_to: '2026-11-08',
+    })
+    expect(validateSmartSearchFilter({ no_shift_from: '2026-11-14', no_shift_to: '2026-11-08' }, vocab)).toMatchObject({
+      no_shift_from: '2026-11-08',
+      no_shift_to: '2026-11-14',
+    })
+  })
+  it('keeps only uuids in person_ids, without duplicates', () => {
+    const id = '11111111-1111-4111-8111-111111111111'
+    expect(validateSmartSearchFilter({ person_ids: [id, id, 'x', 3, "1' or 1=1"] }, vocab).person_ids).toEqual([id])
+    expect(validateSmartSearchFilter({ person_ids: 'x' }, vocab).person_ids).toBeUndefined()
+  })
+  it('trims call signs and drops empty ones', () => {
+    expect(validateSmartSearchFilter({ person_callsigns: [' 411 ', '', 7] }, vocab).person_callsigns).toEqual(['411'])
+  })
+})
+
 describe('smartSearchJsonSchema', () => {
-  it('builds a strict json schema listing every key and the vocab enums', () => {
+  it('requires every parser key, allows nothing else and lists the vocab', () => {
     const s = smartSearchJsonSchema(vocab) as any
-    expect(s.name).toBe('smart_search_filter')
-    expect(s.strict).toBe(true)
-    expect(s.schema.additionalProperties).toBe(false)
-    expect(Object.keys(s.schema.properties).sort()).toEqual([...SMART_SEARCH_FILTER_KEYS].sort())
-    expect([...s.schema.required].sort()).toEqual([...SMART_SEARCH_FILTER_KEYS].sort())
+    expect(s.type).toBe('object')
+    expect(s.additionalProperties).toBe(false)
+    expect(Object.keys(s.properties).sort()).toEqual([...SMART_SEARCH_FILTER_KEYS].sort())
+    expect([...s.required].sort()).toEqual([...SMART_SEARCH_FILTER_KEYS].sort())
     expect(JSON.stringify(s)).toContain('פגוש קדמי')
+    expect(s.properties).not.toHaveProperty('person_ids')
+  })
+  it('uses anyOf with null for optional keys, not a type array', () => {
+    const s = smartSearchJsonSchema(vocab) as any
+    expect(s.properties.road).toEqual({ anyOf: [{ type: 'string' }, { type: 'null' }] })
+    expect(JSON.stringify(s)).not.toMatch(/"type":\[/)
+  })
+  it('turns an empty closed list into null-only instead of an empty enum', () => {
+    const s = smartSearchJsonSchema({ ...vocab, districts: [] }) as any
+    expect(s.properties.district).toEqual({ type: 'null' })
+  })
+  it('has no numeric or length constraints structured outputs would reject', () => {
+    expect(JSON.stringify(smartSearchJsonSchema(vocab))).not.toMatch(/minLength|maxLength|minimum|maximum|pattern/)
   })
 })

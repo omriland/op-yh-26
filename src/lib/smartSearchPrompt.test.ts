@@ -4,7 +4,7 @@ import { validateSmartSearchFilter } from '../../supabase/functions/_shared/smar
 import type { SmartSearchVocab } from '../../supabase/functions/_shared/smartSearchFilter'
 import {
   SMART_SEARCH_EXAMPLES,
-  buildSmartSearchMessages,
+  buildSmartSearchPrompt,
   jerusalemToday,
 } from '../../supabase/functions/_shared/smartSearchPrompt'
 
@@ -16,20 +16,16 @@ const fullVocab: SmartSearchVocab = {
 const vocab = fullVocab
 
 describe('smart search prompt', () => {
-  it('puts the stable instructions first and the query last, so the prefix caches', () => {
-    const m = buildSmartSearchMessages('אירוע בכביש 531 בשבוע שעבר', '2026-11-01', vocab)
-    expect(m[0].role).toBe('system')
-    expect(m.at(-1)).toEqual({ role: 'user', content: 'אירוע בכביש 531 בשבוע שעבר' })
-    expect(m[0].content).toContain('2026-11-01')
+  it('keeps the date and the query in the user turn, so the system prompt never changes', () => {
+    const p = buildSmartSearchPrompt('אירוע בכביש 531 בשבוע שעבר', '2026-11-08', vocab)
+    expect(p.user).toContain('2026-11-08')
+    expect(p.user).toContain('אירוע בכביש 531 בשבוע שעבר')
+    expect(p.system).not.toContain('2026-11-08')
+    expect(buildSmartSearchPrompt('א', '2026-11-09', vocab).system).toBe(p.system)
   })
-  it('lists the vocab and says Sunday–Saturday weeks, day-first dates, most recent past month', () => {
-    const s = buildSmartSearchMessages('x', '2026-11-01', vocab)[0].content
-    for (const w of ['חילוץ', 'מרכז', 'פגוש קדמי', 'ראשון', 'DD.MM']) expect(s).toContain(w)
-  })
-  it('is identical across calls for the same day and vocab', () => {
-    const a = buildSmartSearchMessages('א', '2026-11-01', vocab)[0].content
-    const b = buildSmartSearchMessages('ב', '2026-11-01', vocab)[0].content
-    expect(a).toBe(b)
+  it('lists the vocab and says Sunday–Saturday weeks, day-first dates and the new people keys', () => {
+    const s = buildSmartSearchPrompt('x', '2026-11-01', vocab).system
+    for (const w of ['חילוץ', 'מרכז', 'פגוש קדמי', 'ראשון', 'DD.MM', 'volunteer_status', 'no_shift_from']) expect(s).toContain(w)
   })
   it('has at least 12 Hebrew examples and at most 3 non-Hebrew ones', () => {
     const he = SMART_SEARCH_EXAMPLES.filter((e) => /[֐-׿]/.test(e.q))
