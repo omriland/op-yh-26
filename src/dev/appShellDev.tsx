@@ -10,6 +10,10 @@ import { ToastProvider } from '../components/ui/Toast'
 import { AppShell, type AppView } from '../components/shell/AppShell'
 import { buildNavEntries } from '../components/shell/navEntries'
 import { useIsDesktop } from '../lib/useMediaQuery'
+import { statusAudienceForRoles } from '../lib/eventLifecycle'
+import { searchRoleFor } from '../lib/search/searchRole'
+import { SearchCombobox } from '../components/search/SearchCombobox'
+import { devSearchApi } from './searchDevApi'
 import '../index.css'
 
 const ROLE_SETS: Record<string, AppRole[]> = {
@@ -51,6 +55,7 @@ function DevApp() {
   const isDesktop = useIsDesktop()
   const [view, setView] = useState<AppView>((params.get('view') as AppView) ?? 'mine')
   const [note, setNote] = useState('')
+  const [barQuery, setBarQuery] = useState('')
   const isAdmin = roles.includes('admin')
   const isSuperAdmin = roles.includes('super_admin')
   const manages = isAdmin || roles.includes('shift_lead') || isSuperAdmin
@@ -80,10 +85,27 @@ function DevApp() {
       onOpenSupport={() => setNote('תמיכה')}
       onOpenPrivacy={() => setNote('מדיניות פרטיות')}
       onOpenAndroid={() => setNote('הורדת אנדרואיד')}
-      onSearch={(q) => {
-        setView('search')
-        setNote(`חיפוש: ${q}`)
-      }}
+      search={
+        <SearchCombobox
+          variant="bar"
+          role={searchRoleFor(roles)}
+          audience={statusAudienceForRoles(roles)}
+          query={barQuery}
+          onQueryChange={setBarQuery}
+          onSubmit={(q) => {
+            setView('search')
+            setNote(`חיפוש: ${q}`)
+          }}
+          onOpenEvent={(id) => setNote(`אירוע ${id}`)}
+          onOpenPerson={(p) => setNote(`אדם: ${p.full_name}`)}
+          onOpenArchive={(fk) => setNote(`דוח ${fk}`)}
+          onNavigate={(v) => setView(v as AppView)}
+          pages={[]}
+          shortcuts={[]}
+          canOpenReports={manages}
+          api={devSearchApi(searchRoleFor(roles))}
+        />
+      }
     >
       <div className="stack-4">
         <h1 className="t-title">{entries.flatMap((e) => [e, ...(e.children ?? [])]).find((e) => e.view === view)?.label ?? view}</h1>

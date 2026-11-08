@@ -3,57 +3,41 @@ import { createPortal } from 'react-dom'
 import { ChevronRight, Printer, Search } from 'lucide-react'
 import type { SmartSearchFilter } from '../../supabase/functions/_shared/smartSearchFilter.ts'
 import { useAuth } from '../lib/auth'
-import type { EventListItem } from '../lib/events'
+import { eventLifecycle, lifecycleStamp, lifecycleStampTip, type StatusAudience } from '../lib/eventLifecycle'
 import { useFreezeViewer } from '../lib/freezeViewer'
 import { downloadCsv } from '../lib/reports/csv'
 import { loadLegacyReport, type LegacyReport } from '../lib/reports/legacyReport'
+import { handOffPrepared, prepareQuery, takePrepared, type PreparedQuery, type SearchApi } from '../lib/search/prepareQuery'
+import type { RulesVocab } from '../lib/search/searchRules'
+import { canUseArchive, filterForRole, type SearchRole } from '../lib/search/searchRole'
 import { searchViewState, type SearchCounts } from '../lib/searchPageState'
-import { isSearchShortcut } from '../lib/searchShortcut'
 import { jerusalemToday } from '../lib/shifts'
-import { chipsForFilter, isBlankQuery, removeChip, sectionOrder, type SearchChip, type SearchSection } from '../lib/smartSearch'
+import { isBlankQuery, sectionOrder, type SearchSection } from '../lib/smartSearch'
 import * as smartSearchApi from '../lib/smartSearchApi'
-import type { Interpretation } from '../lib/smartSearchApi'
+import type { PersonHit, SearchEvent, SearchResults } from '../lib/smartSearchApi'
 import { archiveCsv, eventsCsv, searchCsvFilename } from '../lib/smartSearchCsv'
-import type { StampDescriptor } from '../lib/status'
-import { eventLifecycle, lifecycleStamp, lifecycleStampTip } from '../lib/eventLifecycle'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { EventCard } from '../components/events/EventCard'
 import { EventsTable } from '../components/events/EventsTable'
 import { LegacyEventReport } from '../components/reports/LegacyEventReport'
 import { ArchiveResultsTable } from '../components/search/ArchiveResultsTable'
 import { PeopleResults } from '../components/search/PeopleResults'
-import { SearchChips } from '../components/search/SearchChips'
+import { SearchCombobox, type SearchPageLink } from '../components/search/SearchCombobox'
+import { SearchFilterBar } from '../components/search/SearchFilterBar'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { EventListSkeleton, EventRowsSkeleton, Skeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 
+export type { SearchApi } from '../lib/search/prepareQuery'
+
 const SCREEN_CAP = 200
 const EXPORT_CAP = 5000
 
-const PLACEHOLDERS = [
-  'למשל: אירוע בכביש 531 בשבוע שעבר',
-  'למשל: סוזוקי שנפגעה בינואר',
-  'למשל: 12-345-67',
-]
-
-/** The data boundary of this page. The dev harness passes a stub; the app uses the real module. */
-export type SearchApi = Pick<
-  typeof smartSearchApi,
-  'interpretQuery' | 'runSearch' | 'reportCounts' | 'reportChipRemoved' | 'fetchFirstNewEventDate'
->
-
-type Results = Awaited<ReturnType<SearchApi['runSearch']>>
-type SearchEvent = Results['events'][number]
 type ExportKind = 'events' | 'archive'
 
-function countsOf(found: Results): SearchCounts {
+function countsOf(found: SearchResults): SearchCounts {
   return { events: found.events.length, archive: found.archive.length, people: found.people.length }
-}
-
-/** Same stamp as the unit events list. Search is admin-only, so it reads the אחמ״ש labels. */
-function cardStamp(event: EventListItem): StampDescriptor {
-  return lifecycleStamp(eventLifecycle(event), 'lead')
 }
 
 function SectionHead({ title, action }: { title: string; action?: ReactNode }) {
@@ -68,80 +52,71 @@ function SectionHead({ title, action }: { title: string; action?: ReactNode }) {
   )
 }
 
+export type SearchPageProps = {
+  /** The query in the URL. On desktop the top bar field holds it. */
+  initialQuery: string
+  onQueryChange: (q: string) => void
+  role: SearchRole
+  audience: StatusAudience
+  onOpenEvent: (eventId: string) => void
+  onOpenPerson: (person: PersonHit) => void
+  onNavigate: (view: string) => void
+  pages: SearchPageLink[]
+  shortcuts: SearchPageLink[]
+  canOpenReports: boolean
+  /** An archive report picked in the top bar panel. */
+  initialReportFk?: string | null
+  api?: SearchApi
+}
+
+/**
+ * The results page: what the search understood as editable chips, then every group
+ * with full counts, CSV export and the archive report viewer. Rows come from the
+ * filter run as the signed-in user, never from the model.
+ */
 export function SearchPage({
   initialQuery,
   onQueryChange,
+  role,
+  audience,
   onOpenEvent,
-  onOpenUser,
+  onOpenPerson,
+  onNavigate,
+  pages,
+  shortcuts,
+  canOpenReports,
+  initialReportFk = null,
   api = smartSearchApi,
-}: {
-  initialQuery: string
-  onQueryChange: (q: string) => void
-  onOpenEvent: (eventId: string) => void
-  onOpenUser: (userId: string) => void
-  api?: SearchApi
-}) {
+}: SearchPageProps) {
   const isDesktop = useIsDesktop()
   const { user } = useAuth()
   const freezeViewer = useFreezeViewer()
   const { show } = useToast()
-  const [placeholder] = useState(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)])
-  const inputRef = useRef<HTMLInputElement>(null)
   const runId = useRef(0)
-  const lastRun = useRef<string | null>(null)
-
-  const [query, setQuery] = useState(initialQuery)
-  const [submitted, setSubmitted] = useState('')
+  const [field, setField] = useState(initialQuery)
+  const [vocab, setVocab] = useState<RulesVocab | null>(null)
   const [loading, setLoading] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [interpretation, setInterpretation] = useState<Interpretation | null>(null)
-  const [filter, setFilter] = useState<SmartSearchFilter | null>(null)
-  const [results, setResults] = useState<Results | null>(null)
+  const [prepared, setPrepared] = useState<PreparedQuery | null>(null)
+  const [results, setResults] = useState<SearchResults | null>(null)
   const [firstNewEventDate, setFirstNewEventDate] = useState<string | null>(null)
   const [exporting, setExporting] = useState<ExportKind | null>(null)
   const [report, setReport] = useState<{ fk: string; data: LegacyReport | null } | null>(null)
+  const [addRequest, setAddRequest] = useState(0)
+  const archive = canUseArchive(role)
 
-  async function search(q: string) {
+  async function rerun(next: PreparedQuery, after?: (found: SearchResults) => void) {
     const id = ++runId.current
-    lastRun.current = q
-    setSubmitted(q)
+    setPrepared(next)
     setFailed(false)
-    setInterpretation(null)
-    setFilter(null)
     setResults(null)
-    setReport(null)
-    if (isBlankQuery(q)) {
+    if (next.interpretation.error || next.interpretation.filter.intent === 'unsupported_question') {
       setLoading(false)
       return
     }
     setLoading(true)
     try {
-      const next = await api.interpretQuery(q)
-      if (id !== runId.current) return
-      setInterpretation(next)
-      setFilter(next.filter)
-      if (next.error || next.filter.intent === 'unsupported_question') return
-      const found = await api.runSearch(next.filter, SCREEN_CAP)
-      if (id !== runId.current) return
-      setResults(found)
-      void next.logId.then((logId) => (logId ? api.reportCounts(logId, countsOf(found)) : undefined)).catch(() => {})
-    } catch {
-      if (id === runId.current) setFailed(true)
-    } finally {
-      if (id === runId.current) setLoading(false)
-    }
-  }
-
-  /** Re-runs the database search only. No AI call. */
-  async function rerun(next: SmartSearchFilter, after?: (found: Results) => void) {
-    const id = ++runId.current
-    setFilter(next)
-    setFailed(false)
-    setResults(null)
-    setReport(null)
-    setLoading(true)
-    try {
-      const found = await api.runSearch(next, SCREEN_CAP)
+      const found = await api.runSearch(next.filter, SCREEN_CAP, { role })
       if (id !== runId.current) return
       setResults(found)
       after?.(found)
@@ -152,47 +127,55 @@ export function SearchPage({
     }
   }
 
-  function submit() {
-    const q = query.trim()
-    void search(q)
-    onQueryChange(q)
+  async function search(q: string, forceModel = false) {
+    const id = ++runId.current
+    setFailed(false)
+    setPrepared(null)
+    setResults(null)
+    if (isBlankQuery(q) || !vocab) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const handed = forceModel ? null : takePrepared(q)
+      const next = handed ?? (await prepareQuery(q, { role, vocab, forceModel }, api))
+      if (id !== runId.current) return
+      await rerun(next, (found) => {
+        void next.interpretation.logId
+          .then((logId) => (logId ? api.reportCounts(logId, countsOf(found)) : undefined))
+          .catch(() => {})
+      })
+    } catch {
+      if (id === runId.current) {
+        setFailed(true)
+        setLoading(false)
+      }
+    }
   }
 
-  function clearSearch() {
-    setQuery('')
-    void search('')
-    onQueryChange('')
-    inputRef.current?.focus()
-  }
-
-  function retry() {
-    if (interpretation && filter) void rerun(filter)
-    else void search(submitted)
-  }
-
-  function onRemoveChip(key: SearchChip['key']) {
-    if (!filter) return
-    const logId = interpretation?.logId
-    void rerun(removeChip(filter, key), () => {
-      void logId?.then((id) => (id ? api.reportChipRemoved(id) : undefined)).catch(() => {})
+  function editFilter(next: SmartSearchFilter, removed: boolean) {
+    if (!prepared) return
+    const { filter, dropped } = filterForRole(next, role)
+    const logId = prepared.interpretation.logId
+    void rerun({ ...prepared, filter, dropped }, () => {
+      if (removed) void logId.then((id) => (id ? api.reportChipRemoved(id) : undefined)).catch(() => {})
     })
   }
 
   function showMatchingEvents() {
-    if (!filter) return
-    const logId = interpretation?.logId
-    void rerun({ ...filter, intent: 'find' }, (found) => {
-      void logId?.then((id) => (id ? api.reportCounts(id, countsOf(found)) : undefined)).catch(() => {})
-    })
+    if (!prepared) return
+    const filter = { ...prepared.filter, intent: 'find' as const }
+    void rerun({ ...prepared, filter, interpretation: { ...prepared.interpretation, filter } })
   }
 
   async function exportCsv(kind: ExportKind) {
-    if (!filter) return
+    if (!prepared) return
     setExporting(kind)
     try {
       // Only the side being exported runs, so an events export writes no archive audit row.
-      const scoped: SmartSearchFilter = { ...filter, entity: 'events', source: kind === 'events' ? 'new' : 'archive' }
-      const found = await api.runSearch(scoped, EXPORT_CAP)
+      const scoped: SmartSearchFilter = { ...prepared.filter, entity: 'events', source: kind === 'events' ? 'new' : 'archive' }
+      const found = await api.runSearch(scoped, EXPORT_CAP, { role })
       const csv = kind === 'events' ? eventsCsv(found.events) : archiveCsv(found.archive)
       downloadCsv(searchCsvFilename(kind, jerusalemToday()), csv)
       show('הקובץ יוצא', 'done')
@@ -215,18 +198,11 @@ export function SearchPage({
     }
   }
 
-  // Mount, reload and back/forward: run the query in the URL. A submit sets lastRun
-  // first, so its own URL update does not run the search twice.
   useEffect(() => {
-    if (initialQuery === lastRun.current) return
-    setQuery(initialQuery)
-    void search(initialQuery)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per URL query only
-  }, [initialQuery])
-
-  useEffect(() => {
-    inputRef.current?.focus()
     let active = true
+    void api.fetchSearchVocab().then((v) => {
+      if (active) setVocab(v)
+    })
     api
       .fetchFirstNewEventDate()
       .then((date) => {
@@ -238,35 +214,41 @@ export function SearchPage({
     }
   }, [api])
 
-  // ⌘K / Ctrl+K while already here: focus the field. Capture phase, so App's
-  // bubble-phase shortcut sees defaultPrevented and does not navigate.
+  // The URL query (a submit here, the top bar, reload, back/forward) runs the search.
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (!isSearchShortcut(event)) return
-      event.preventDefault()
-      inputRef.current?.focus()
-      inputRef.current?.select()
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [])
+    setField(initialQuery)
+    if (vocab) void search(initialQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per URL query, once the lists load
+  }, [initialQuery, vocab])
 
-  const viewInterpretation = interpretation && filter ? { ...interpretation, filter } : interpretation
+  useEffect(() => {
+    if (initialReportFk && archive) void openArchiveReport(initialReportFk)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a report picked in the top bar
+  }, [initialReportFk])
+
   const counts = results ? countsOf(results) : null
-  const state = searchViewState({ query: submitted, loading, error: failed, interpretation: viewInterpretation, counts })
-  const lane = interpretation?.lane
-  const chips = filter ? chipsForFilter(filter) : []
+  const state = searchViewState({
+    query: initialQuery,
+    loading: loading || (!vocab && !isBlankQuery(initialQuery)),
+    error: failed,
+    interpretation: prepared ? { ...prepared.interpretation, filter: prepared.filter } : null,
+    counts,
+  })
+  const lane = prepared?.interpretation.lane
   const visible: SearchSection[] =
-    results && filter
-      ? sectionOrder(filter, firstNewEventDate).filter((section) => results[section].length > 0)
+    results && prepared
+      ? sectionOrder(prepared.filter, firstNewEventDate).filter(
+          (section) => results[section].length > 0 && (archive || section !== 'archive'),
+        )
       : []
+  const canExport = (kind: ExportKind) => (kind === 'archive' ? archive : role !== 'responder')
   const primaryExport: ExportKind | null =
-    state === 'results' && filter?.intent === 'export'
-      ? (['events', 'archive'] as const).find((kind) => visible.includes(kind)) ?? null
+    state === 'results' && prepared?.filter.intent === 'export'
+      ? (['events', 'archive'] as const).find((kind) => visible.includes(kind) && canExport(kind)) ?? null
       : null
-  const tooLong = state === 'too_long'
 
   function exportButton(kind: ExportKind) {
+    if (!canExport(kind)) return undefined
     return (
       <Button
         variant={primaryExport === kind ? 'primary' : 'secondary'}
@@ -282,56 +264,63 @@ export function SearchPage({
 
   function capCaption(rows: number) {
     return rows >= SCREEN_CAP ? (
-      <p className="t-caption text-muted">מוצגות 200 התוצאות הראשונות. צמצמו את החיפוש או ייצאו ל־CSV.</p>
+      <p className="t-caption text-muted">מוצגות 200 התוצאות הראשונות. צמצמו את החיפוש{role !== 'responder' ? ' או ייצאו ל־CSV' : ''}.</p>
     ) : null
+  }
+
+  function eventRows(rows: SearchEvent[]) {
+    // A כונן never sees a טיוטה; RLS already holds them back, this keeps it so on screen.
+    const shown = audience === 'responder' ? rows.filter((event) => eventLifecycle(event).status !== 'draft') : rows
+    if (isDesktop && audience === 'lead') {
+      return (
+        <EventsTable
+          events={shown}
+          defaultSort={null}
+          partialSortNote={shown.length >= SCREEN_CAP ? 'המיון כולל רק את 200 התוצאות המוצגות.' : undefined}
+          onOpen={onOpenEvent}
+          viewer={freezeViewer}
+          foundBy={(event) => (event as SearchEvent).found_by}
+        />
+      )
+    }
+    return (
+      <ul className="stack-3">
+        {shown.map((event) => (
+          <EventCard
+            key={event.id}
+            event={event}
+            stamp={lifecycleStamp(eventLifecycle(event), audience)}
+            stampTip={lifecycleStampTip(event, audience, user?.id)}
+            viewer={freezeViewer}
+            onOpen={onOpenEvent}
+            foundBy={event.found_by}
+          />
+        ))}
+      </ul>
+    )
   }
 
   function renderSection(section: SearchSection) {
     if (!results) return null
     if (section === 'events') {
-      const rows = results.events
       return (
         <section key={section} className="search-section" aria-label="אירועים">
-          <SectionHead title={`אירועים · נמצאו ${rows.length}`} action={exportButton('events')} />
-          {capCaption(rows.length)}
-          {isDesktop ? (
-            <EventsTable
-              events={rows}
-              defaultSort={null}
-              partialSortNote={rows.length >= SCREEN_CAP ? 'המיון כולל רק את 200 התוצאות המוצגות.' : undefined}
-              onOpen={onOpenEvent}
-              viewer={freezeViewer}
-              foundBy={(event) => (event as SearchEvent).found_by}
-            />
-          ) : (
-            <ul className="stack-3">
-              {rows.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  stamp={cardStamp(event)}
-                  stampTip={lifecycleStampTip(event, 'lead', user?.id)}
-                  viewer={freezeViewer}
-                  onOpen={onOpenEvent}
-                  foundBy={event.found_by}
-                />
-              ))}
-            </ul>
-          )}
+          <SectionHead title={`אירועים · נמצאו ${results.events.length}`} action={exportButton('events')} />
+          {capCaption(results.events.length)}
+          {eventRows(results.events)}
         </section>
       )
     }
     if (section === 'archive') {
-      const rows = results.archive
       return (
         <section key={section} className="search-section" aria-label="ארכיון האתר הישן">
-          <SectionHead title={`ארכיון האתר הישן · נמצאו ${rows.length}`} action={exportButton('archive')} />
-          {capCaption(rows.length)}
+          <SectionHead title={`ארכיון האתר הישן · נמצאו ${results.archive.length}`} action={exportButton('archive')} />
+          {capCaption(results.archive.length)}
           <ArchiveResultsTable
-            rows={rows}
+            rows={results.archive}
             asTable={isDesktop}
             onOpen={(fk) => void openArchiveReport(fk)}
-            partialSortNote={rows.length >= SCREEN_CAP ? 'המיון כולל רק את 200 התוצאות המוצגות.' : undefined}
+            partialSortNote={results.archive.length >= SCREEN_CAP ? 'המיון כולל רק את 200 התוצאות המוצגות.' : undefined}
           />
         </section>
       )
@@ -339,7 +328,7 @@ export function SearchPage({
     return (
       <section key={section} className="search-section" aria-label="אנשים">
         <SectionHead title={`אנשים · נמצאו ${results.people.length}`} />
-        <PeopleResults people={results.people} asTable={isDesktop} onOpen={onOpenUser} />
+        <PeopleResults people={results.people} asTable={isDesktop} full={role === 'admin'} onOpen={onOpenPerson} />
       </section>
     )
   }
@@ -349,15 +338,19 @@ export function SearchPage({
       return (
         <EmptyState
           icon={<Search size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title="חפשו אירוע או אדם"
-          caption='אפשר לכתוב כמו שמספרים: "רכב סוזוקי שנפגע בינואר", מספר אירוע או לוחית.'
+          title="חפשו אירוע, אדם או עמוד"
+          caption={
+            isDesktop
+              ? 'כתבו בשדה החיפוש למעלה. אפשר לכתוב כמו שמספרים: ״תאונות בכביש 6 בשבוע שעבר״, מספר אירוע או לוחית.'
+              : 'אפשר לכתוב כמו שמספרים: ״תאונות בכביש 6 בשבוע שעבר״, מספר אירוע או לוחית.'
+          }
         />
       )
     }
     if (state === 'loading') {
       return (
-        <div className="stack-4" aria-busy="true">
-          {interpretation ? null : (
+        <div className="stack-4" aria-busy="true" aria-label="מחפשים">
+          {prepared ? null : (
             <div className="search-chips" aria-hidden="true">
               <Skeleton height={36} width="96px" />
               <Skeleton height={36} width="128px" />
@@ -374,21 +367,33 @@ export function SearchPage({
           icon={<Search size={40} strokeWidth={1.75} aria-hidden="true" />}
           title="החיפוש נכשל. בדקו את החיבור ונסו שוב."
           action={
-            <Button variant="secondary" onClick={retry}>
+            <Button variant="secondary" onClick={() => (prepared ? void rerun(prepared) : void search(initialQuery))}>
               רענון
             </Button>
           }
         />
       )
     }
-    if (state === 'too_long') return null
+    if (state === 'too_long') {
+      return (
+        <p className="banner banner--alert t-body" role="alert">
+          החיפוש ארוך מדי. נסו לקצר ל־300 תווים לכל היותר.
+        </p>
+      )
+    }
     if (state === 'unsupported') {
       return (
         <div className="stack-4">
           <p className="banner banner--info t-body" role="status">
-            שאלות כמו &quot;כמה&quot; עדיין לא נתמכות. אפשר לחפש אירועים או אנשים.
+            החיפוש מוצא רשומות ולא מחשב סכומים.
           </p>
-          {chips.length > 0 ? <SearchChips chips={chips} /> : null}
+          {canOpenReports ? (
+            <div>
+              <Button variant="secondary" onClick={() => onNavigate('reports')}>
+                מעבר לדוחות
+              </Button>
+            </div>
+          ) : null}
           <div>
             <Button variant="ghost" onClick={showMatchingEvents}>
               הצגת האירועים המתאימים
@@ -401,28 +406,43 @@ export function SearchPage({
       return (
         <EmptyState
           icon={<Search size={40} strokeWidth={1.75} aria-hidden="true" />}
-          title="לא נמצאו תוצאות"
-          caption="נסו להסיר אחד מהתנאים למעלה."
-          action={
-            <Button variant="ghost" onClick={clearSearch}>
-              ניקוי החיפוש
-            </Button>
-          }
+          title="לא נמצאו תוצאות לכל המסננים יחד"
+          caption="אפשר להסיר מסנן אחד מלמעלה ולנסות שוב, או לבדוק את האיות."
         />
       )
     }
     return <div className="stack-8">{visible.map(renderSection)}</div>
   }
 
-  // What the search understood: chips on the AI lane, a caption on the others.
   const understood =
-    state === 'unsupported' || state === 'too_long' || state === 'error' || !interpretation ? null : lane ===
-      'direct' ? (
-      <p className="t-caption text-muted">חיפוש ישיר לפי מספר</p>
-    ) : lane === 'fallback' ? (
-      <p className="t-caption text-muted">החיפוש החכם אינו זמין כרגע. מוצגות תוצאות חיפוש טקסט.</p>
-    ) : chips.length > 0 ? (
-      <SearchChips chips={chips} onRemove={loading ? undefined : onRemoveChip} />
+    prepared && !prepared.interpretation.error && state !== 'idle' ? (
+      <div className="stack-3">
+        {lane === 'fallback' ? (
+          <div className="banner banner--info search-fallback" role="status">
+            <p className="t-body">לא הצלחנו לפענח את המשפט, חיפשנו לפי המילים.</p>
+            <div className="search-fallback__actions">
+              <Button variant="secondary" onClick={() => void search(initialQuery, true)} disabled={loading}>
+                נסו שוב
+              </Button>
+              <Button variant="ghost" onClick={() => setAddRequest((n) => n + 1)}>
+                הוספת מסנן
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {lane === 'direct' ? <p className="t-caption text-muted">חיפוש ישיר לפי מספר</p> : null}
+        <SearchFilterBar
+          filter={prepared.filter}
+          role={role}
+          audience={audience}
+          vocab={vocab ?? { eventTypes: [], districts: [] }}
+          ambiguity={prepared.ambiguity}
+          dropped={prepared.dropped}
+          disabled={loading}
+          addRequest={addRequest}
+          onChange={(next, change) => editFilter(next, Boolean(change.removed))}
+        />
+      </div>
     ) : null
 
   return (
@@ -430,47 +450,36 @@ export function SearchPage({
       <div className="page-head">
         <div className="page-head__intro">
           <h1 className="t-title">חיפוש</h1>
-          <p className="t-caption text-muted">חיפוש אירועים ואנשים בשפה חופשית, מספר אירוע או לוחית רישוי.</p>
+          {isDesktop && !isBlankQuery(initialQuery) ? (
+            <p className="t-caption text-muted search-page__query">״{initialQuery}״</p>
+          ) : null}
         </div>
       </div>
 
-      <form
-        role="search"
-        className="search-bar"
-        onSubmit={(event) => {
-          event.preventDefault()
-          submit()
-        }}
-      >
-        <div className="field search-bar__field">
-          <label className="field__control">
-            <span className="visually-hidden">חיפוש אירועים ואנשים</span>
-            <input
-              ref={inputRef}
-              className="field__input search-bar__input"
-              type="search"
-              enterKeyHint="search"
-              autoComplete="off"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={placeholder}
-              aria-invalid={tooLong ? true : undefined}
-              aria-describedby={tooLong ? 'search-too-long' : undefined}
-            />
-            <span className="field__affix search-bar__affix" aria-hidden="true">
-              <Search size={20} strokeWidth={1.75} />
-            </span>
-          </label>
-          {tooLong ? (
-            <p id="search-too-long" className="field__hint field__hint--error" role="alert">
-              החיפוש ארוך מדי. נסו לקצר.
-            </p>
-          ) : null}
-        </div>
-        <Button type="submit" variant={primaryExport ? 'secondary' : 'primary'} loading={loading} loadingLabel="מחפש…">
-          חיפוש
-        </Button>
-      </form>
+      {isDesktop ? null : (
+        <SearchCombobox
+          variant="page"
+          role={role}
+          audience={audience}
+          query={field}
+          onQueryChange={setField}
+          onSubmit={(q, ready) => {
+            if (ready) handOffPrepared(ready)
+            if (q === initialQuery) void search(q)
+            else onQueryChange(q)
+          }}
+          onOpenEvent={onOpenEvent}
+          onOpenPerson={onOpenPerson}
+          onOpenArchive={(fk) => void openArchiveReport(fk)}
+          onNavigate={onNavigate}
+          pages={pages}
+          shortcuts={shortcuts}
+          canOpenReports={canOpenReports}
+          api={api}
+          autoFocus={isBlankQuery(initialQuery)}
+          placeholder="אירוע, אדם, לוחית או משפט"
+        />
+      )}
 
       {report ? (
         <div className="stack-4">

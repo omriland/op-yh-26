@@ -103,8 +103,8 @@ type AppShellProps = {
   onOpenAndroid?: () => void
   /** Desktop Help menu: the support page. */
   onOpenSupport?: () => void
-  /** Desktop top bar search (admins): open the search page with this query. */
-  onSearch?: (query: string) => void
+  /** Desktop top bar search field, for every role. */
+  search?: ReactNode
   view: AppView
   onNavigate: (view: AppView) => void
   /** Wordmark → role home (unit events / mine / profile). */
@@ -125,7 +125,7 @@ export function AppShell({
   onOpenPrivacy,
   onOpenAndroid,
   onOpenSupport,
-  onSearch,
+  search,
   view,
   onNavigate,
   onHome,
@@ -155,7 +155,7 @@ export function AppShell({
         entries={entries}
         onCreateEvent={onCreateEvent}
         creatingEvent={creatingEvent}
-        onSearch={onSearch}
+        search={search}
         onOpenSupport={onOpenSupport}
         onOpenPrivacy={onOpenPrivacy}
         onOpenAndroid={onOpenAndroid}

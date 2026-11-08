@@ -16,9 +16,7 @@ import {
   LifeBuoy,
   MessageSquarePlus,
   Plus,
-  Search,
   Settings,
-  X,
 } from 'lucide-react'
 import { ANDROID_FOOTER_LINK, canOfferAndroidDownloadHere } from '../../lib/androidDownload'
 import { appPath } from '../../lib/appRoute'
@@ -31,7 +29,6 @@ import {
 } from '../../lib/desktopNav'
 import { navAttentionAriaSuffix } from '../../lib/navAttention'
 import { PRIVACY_FOOTER_LINK } from '../../lib/privacyPolicy'
-import { useSearchShortcut } from '../../lib/searchShortcut'
 import { sidebarLeadNewEvent } from '../../lib/sidebarCreate'
 import {
   SIDEBAR_WIDTH_DEFAULT,
@@ -56,8 +53,8 @@ type DesktopShellProps = {
   entries: NavEntry[]
   onCreateEvent?: () => void
   creatingEvent: boolean
-  /** Admins: run the search page with this query. */
-  onSearch?: (query: string) => void
+  /** The top bar search field (SearchCombobox), for every role. */
+  search?: ReactNode
   onOpenSupport?: () => void
   onOpenPrivacy?: () => void
   /** Help menu: Android download page (omitted where the app cannot be installed). */
@@ -114,7 +111,7 @@ export function DesktopShell({
   entries,
   onCreateEvent,
   creatingEvent,
-  onSearch,
+  search,
   onOpenSupport,
   onOpenPrivacy,
   onOpenAndroid,
@@ -158,7 +155,7 @@ export function DesktopShell({
           />
           <div className="dshell__column">
             <header className="dbar">
-              {model.hasSearch && onSearch ? <BarSearch onSearch={onSearch} /> : null}
+              {model.hasSearch && search ? search : null}
               <div className="dbar__actions">
                 <HelpMenu
                   onOpenSupport={onOpenSupport}
@@ -504,76 +501,6 @@ function OpenNav({
 }
 
 // ---------- top bar ----------
-
-function BarSearch({ onSearch }: { onSearch: (query: string) => void }) {
-  const [query, setQuery] = useState('')
-  const [focus, setFocus] = useState<'keyboard' | 'pointer' | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const pointerFocus = useRef(false)
-
-  useSearchShortcut(true, () => {
-    pointerFocus.current = false
-    inputRef.current?.focus()
-    inputRef.current?.select()
-  })
-
-  return (
-    <form
-      role="search"
-      className="dbar-search"
-      data-focus={focus ?? undefined}
-      onSubmit={(event) => {
-        event.preventDefault()
-        const trimmed = query.trim()
-        if (!trimmed) return
-        setQuery('')
-        inputRef.current?.blur()
-        onSearch(trimmed)
-      }}
-    >
-      <label className="visually-hidden" htmlFor="dbar-search-input">
-        חיפוש אירועים ואנשים
-      </label>
-      <Search className="dbar-search__icon" aria-hidden="true" />
-      <input
-        ref={inputRef}
-        id="dbar-search-input"
-        className="dbar-search__input"
-        type="search"
-        enterKeyHint="search"
-        autoComplete="off"
-        placeholder="חיפוש…"
-        aria-keyshortcuts="Meta+K Control+K"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onPointerDown={() => {
-          pointerFocus.current = true
-        }}
-        onFocus={() => {
-          setFocus(pointerFocus.current ? 'pointer' : 'keyboard')
-          pointerFocus.current = false
-        }}
-        onBlur={() => setFocus(null)}
-      />
-      {query ? (
-        <button
-          type="button"
-          className="dbar-search__clear"
-          aria-label="ניקוי החיפוש"
-          onPointerDown={() => {
-            pointerFocus.current = true
-          }}
-          onClick={() => {
-            setQuery('')
-            inputRef.current?.focus()
-          }}
-        >
-          <X aria-hidden="true" />
-        </button>
-      ) : null}
-    </form>
-  )
-}
 
 function HelpMenu({
   onOpenSupport,

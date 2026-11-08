@@ -129,13 +129,15 @@ export function buildNavEntries({
     })
   }
 
+  // Every role searches; RLS scopes what each one finds. Desktop moves it to the top bar.
+  list.push({
+    view: 'search',
+    label: 'חיפוש',
+    icon: NAV_ICONS.search,
+    section: isDesktop && isAdmin ? 'ניהול' : undefined,
+  })
+
   if (isAdmin) {
-    list.push({
-      view: 'search',
-      label: 'חיפוש',
-      icon: NAV_ICONS.search,
-      section: isDesktop ? 'ניהול' : undefined,
-    })
     if (isDesktop) {
       for (const segment of ADMIN_SEGMENTS) {
         const settings = segment.id === 'lists'

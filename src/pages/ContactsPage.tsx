@@ -17,11 +17,11 @@ import { HoverTip } from '../components/ui/HoverTip'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { WhatsAppIcon } from '../components/ui/WhatsAppIcon'
 
-export function ContactsPage() {
+export function ContactsPage({ initialQuery }: { initialQuery?: string } = {}) {
   const isDesktop = useIsDesktop()
   const [contacts, setContacts] = useState<UnitContact[] | null>(null)
   const [failed, setFailed] = useState(false)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialQuery ?? '')
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {

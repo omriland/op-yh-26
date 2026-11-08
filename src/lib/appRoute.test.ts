@@ -305,13 +305,13 @@ describe('search route', () => {
   const responder = { manages: false, hasMineList: true, isAdmin: false, isSuperAdmin: false }
   const q = '%D7%9B%D7%91%D7%99%D7%A9'
 
-  it('allows search for admins only', () => {
+  it('allows search for every role (RLS scopes what each finds)', () => {
     expect(isAllowedAppView('search', admin)).toBe(true)
-    expect(isAllowedAppView('search', lead)).toBe(false)
+    expect(isAllowedAppView('search', lead)).toBe(true)
     expect(
       isAllowedAppView('search', { manages: true, hasMineList: true, isAdmin: false, isSuperAdmin: true }),
-    ).toBe(false)
-    expect(isAllowedAppView('search', responder)).toBe(false)
+    ).toBe(true)
+    expect(isAllowedAppView('search', responder)).toBe(true)
   })
 
   it('parses q from the path string or from a separate search string', () => {

@@ -43,6 +43,11 @@ import { ShiftFormPage } from './pages/ShiftFormPage'
 import { ShiftsPage } from './pages/ShiftsPage'
 import { ContactsPage } from './pages/ContactsPage'
 import { SearchPage } from './pages/SearchPage'
+import { SearchCombobox, type SearchPageLink } from './components/search/SearchCombobox'
+import { handOffPrepared, type PreparedQuery } from './lib/search/prepareQuery'
+import { searchRoleFor } from './lib/search/searchRole'
+import { statusAudienceForRoles } from './lib/eventLifecycle'
+import type { PersonHit } from './lib/smartSearchApi'
 import { useSearchShortcut } from './lib/searchShortcut'
 import { FeedbackBoardPage } from './pages/FeedbackBoardPage'
 import { EventLocationsPage } from './pages/EventLocationsPage'
@@ -128,6 +133,12 @@ function Gate() {
   const [searchQuery, setSearchQuery] = useState<string | undefined>(boot.searchQuery)
   // A search result opens this user's edit dialog on משתמשים.
   const [editUserId, setEditUserId] = useState<string | undefined>()
+  // The top bar field keeps its text after Enter, and mirrors the query on /search.
+  const [barQuery, setBarQuery] = useState(boot.searchQuery ?? '')
+  // An archive report picked in the top bar panel opens on /search.
+  const [searchReportFk, setSearchReportFk] = useState<string | null>(null)
+  // A person picked in search, for a role without the users page, opens אנשי קשר on them.
+  const [contactsQuery, setContactsQuery] = useState<string | undefined>()
   const [navAttention, setNavAttention] = useState<NavAttention>({
     mineEvents: false,
     myShifts: false,
@@ -293,8 +304,11 @@ function Gate() {
   const hasMineList = responds || roles.includes('shift_lead')
   const fallbackView: AppView = defaultHomeView({ manages, hasMineList, isAdmin })
 
-  // Desktop: ⌘K focuses the top bar search field instead (DesktopShell).
-  useSearchShortcut(isAdmin && !isDesktop, () => navigate('search'))
+  // Desktop: ⌘K focuses the top bar search field instead (SearchCombobox).
+  useSearchShortcut(!isDesktop, () => navigate('search'))
+  useEffect(() => {
+    if (searchQuery !== undefined) setBarQuery(searchQuery)
+  }, [searchQuery])
   const [missingKmPopup, setMissingKmPopup] = useState<{ count: number } | null>(null)
 
   useEffect(() => {
@@ -902,6 +916,8 @@ function Gate() {
     setShiftSurface(nextState.shiftSurface)
     setCockpitEventId(undefined)
     setSearchQuery(undefined)
+    setSearchReportFk(null)
+    setContactsQuery(undefined)
     setEditUserId(undefined)
     setView(nextState.view)
     setSectionReset(nextState.sectionReset)
@@ -910,6 +926,64 @@ function Gate() {
   function goHome() {
     setLegalPage(null)
     navigate(fallbackView)
+  }
+
+  const searchRole = searchRoleFor(roles)
+  const searchAudience = statusAudienceForRoles(roles)
+  const searchPages: SearchPageLink[] = entries
+    .flatMap((entry) => [entry, ...(entry.children ?? [])])
+    .filter((entry): entry is typeof entry & { view: AppView } => Boolean(entry.view) && entry.view !== 'search')
+    .map((entry) => ({ view: entry.view, label: entry.label }))
+  const searchShortcuts: SearchPageLink[] = (
+    searchRole === 'responder'
+      ? [
+          { view: 'mine', label: 'האירועים שלי' },
+          { view: 'my_shifts', label: 'המשמרות שלי' },
+        ]
+      : [
+          { view: 'events', label: 'אירועי היחידה' },
+          { view: 'shifts', label: 'משמרות' },
+          ...(searchRole === 'admin' ? [{ view: 'users', label: 'משתמשים' }] : []),
+        ]
+  ).filter((link) => isAllowedView(link.view as AppView))
+
+  function runSearchFrom(query: string, prepared?: PreparedQuery) {
+    if (prepared) handOffPrepared(prepared)
+    navigate('search')
+    setSearchQuery(query)
+    setBarQuery(query)
+  }
+
+  function openSearchEvent(eventId: string) {
+    setLegalPage(null)
+    setView(manages ? 'events' : 'mine')
+    setEventSurface({ kind: 'detail', eventId })
+    setShiftSurface({ kind: 'list' })
+  }
+
+  function openSearchPerson(person: PersonHit) {
+    if (isAdmin || roles.includes('super_admin')) {
+      navigate('users')
+      setEditUserId(person.id)
+      return
+    }
+    navigate('contacts')
+    setContactsQuery(person.full_name)
+  }
+
+  function openSearchView(next: string) {
+    if (isAllowedView(next as AppView)) navigate(next as AppView)
+  }
+
+  const searchProps = {
+    role: searchRole,
+    audience: searchAudience,
+    onOpenEvent: openSearchEvent,
+    onOpenPerson: openSearchPerson,
+    onNavigate: openSearchView,
+    pages: searchPages,
+    shortcuts: searchShortcuts,
+    canOpenReports: isAllowedView('reports'),
   }
 
   function openNewEventForm() {
@@ -929,10 +1003,20 @@ function Gate() {
       onOpenPrivacy={() => setLegalPage('privacy')}
       onOpenAndroid={openAndroidDownload}
       onOpenSupport={() => setLegalPage('support')}
-      onSearch={(query) => {
-        navigate('search')
-        setSearchQuery(query)
-      }}
+      search={
+        <SearchCombobox
+          variant="bar"
+          {...searchProps}
+          query={barQuery}
+          onQueryChange={setBarQuery}
+          onSubmit={runSearchFrom}
+          onOpenArchive={(fk, query) => {
+            runSearchFrom(query)
+            setSearchReportFk(fk)
+          }}
+          placeholder="חיפוש אירועים, אנשים ועמודים"
+        />
+      }
       view={activeView}
       onNavigate={navigate}
       onHome={goHome}
@@ -1110,21 +1194,14 @@ function Gate() {
       ) : activeView === 'search' ? (
         <SearchPage
           key={sectionReset}
+          {...searchProps}
           initialQuery={searchQuery ?? ''}
           onQueryChange={(q) => setSearchQuery(q || undefined)}
-          onOpenEvent={(eventId) => {
-            setView('events')
-            setEventSurface({ kind: 'detail', eventId })
-            setShiftSurface({ kind: 'list' })
-          }}
-          onOpenUser={(userId) => {
-            navigate('users')
-            setEditUserId(userId)
-          }}
+          initialReportFk={searchReportFk}
         />
       ) : activeView === 'contacts' ? (
         <div className={isDesktop ? 'page--wide' : undefined}>
-          <ContactsPage key={sectionReset} />
+          <ContactsPage key={`${sectionReset}:${contactsQuery ?? ''}`} initialQuery={contactsQuery} />
         </div>
       ) : onShifts ? (
         <ShiftsPage

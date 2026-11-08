@@ -9695,3 +9695,433 @@ fieldset.field {
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+/* ============================================================
+   Search combobox and panel (top bar on desktop, /search on phones)
+   One field for every role. The panel is a popover on desktop
+   (elevated: it floats over the page card) and inline on phones,
+   where it is the page itself.
+   ============================================================ */
+
+.search-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+/* Takes the top bar slot the old field had. */
+.search-combobox--bar {
+  flex: 0 1 560px;
+  max-width: calc(100% - 240px);
+}
+
+.search-combobox--bar .dbar-search {
+  width: 100%;
+  max-width: none;
+}
+
+.dbar-search__kbd {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--dshell-stroke);
+  border-radius: var(--radius-sm);
+  color: var(--dshell-text-secondary);
+  font: 400 12px/16px var(--font-mono);
+}
+
+.search-combobox__field {
+  width: 100%;
+}
+
+.search-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-overlay);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-popover);
+  color: var(--text-primary);
+}
+
+.search-panel[hidden] {
+  display: none;
+}
+
+.search-combobox--bar .search-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-start: 0;
+  z-index: 60;
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(72vh, 600px);
+  overflow-y: auto;
+  box-shadow: var(--shadow-overlay);
+}
+
+.search-combobox--page .search-panel {
+  margin-block-start: var(--space-2);
+}
+
+.search-panel__list {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--space-1);
+}
+
+.search-panel__group + .search-panel__group {
+  border-block-start: 1px solid var(--stroke-hairline);
+}
+
+.search-panel__group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  color: var(--text-secondary);
+  font: 600 12px/16px var(--font-ui);
+}
+
+.search-panel__group-extra {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.search-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.search-option[aria-selected='true'] {
+  background: var(--accent-subtle);
+}
+
+.search-option:active {
+  background: var(--surface-sunken);
+}
+
+.search-option__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.search-option__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.search-option[aria-selected='true'] .search-option__icon {
+  color: var(--accent);
+}
+
+.search-option__main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.search-option__title,
+.search-option__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-option__title {
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-option__sub {
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.search-option__side {
+  flex: none;
+}
+
+.search-option--results .search-option__title,
+.search-option--parse .search-option__title {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.search-panel__status,
+.search-panel__empty,
+.search-panel__banner {
+  margin: var(--space-3);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-panel__status,
+.search-panel__empty p:last-child {
+  color: var(--text-secondary);
+}
+
+.search-panel__banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.search-panel__banner-title {
+  font-weight: 600;
+}
+
+.search-panel__banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search-panel__btn {
+  min-height: 36px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-panel__btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.search-panel__btn:active {
+  background: var(--accent-subtle);
+}
+
+.search-panel__filters {
+  padding: var(--space-3) var(--space-3) 0;
+}
+
+.search-panel__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.search-panel__skeleton span {
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-panel__skeleton span {
+    animation: none;
+  }
+}
+
+.search-panel__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-block-start: 1px solid var(--stroke-hairline);
+  color: var(--text-muted);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.search-panel__foot kbd {
+  font: 600 12px/16px var(--font-mono);
+}
+
+/* Chips: the label opens its editor, ✕ removes it. */
+.search-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.search-chip__edit {
+  align-self: stretch;
+  padding-inline: 0 var(--space-2);
+  border: 0;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.search-chip__edit:hover {
+  color: var(--accent);
+}
+
+.search-chip__edit[aria-expanded='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Several people fit the name: amber until one is picked. */
+.search-chip--ask {
+  border-color: var(--amber-field);
+  background: var(--amber-field-tint);
+  color: var(--amber-field-on-tint);
+}
+
+/* A key this role cannot use: dashed and inert, the reason under the chips. */
+.search-chip--off {
+  border-style: dashed;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.search-chip--add {
+  gap: var(--space-1);
+  border-style: dashed;
+  color: var(--accent);
+}
+
+.search-chip--add:hover {
+  background: var(--accent-subtle);
+}
+
+.search-chip--add[aria-expanded='true'] {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.search-filters__note {
+  margin: 0;
+}
+
+.search-pop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-popover);
+  background: var(--surface-raised);
+}
+
+.search-pop__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.search-pop__title {
+  margin: 0;
+  color: var(--text-secondary);
+  font: 600 12px/16px var(--font-ui);
+}
+
+.search-pop__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.search-pop__close:hover {
+  background: var(--surface-sunken);
+}
+
+.search-pop__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search-pop__option {
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-pop__option:hover {
+  border-color: var(--accent);
+}
+
+.search-pop__option[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.search-pop__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.search-pop__label {
+  color: var(--text-secondary);
+  font: 400 14px/20px var(--font-ui);
+}
+
+.search-pop__input {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.search-pop__apply {
+  min-height: 44px;
+  padding-inline: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent-fill);
+  color: var(--text-on-accent);
+  font: 600 14px/20px var(--font-ui);
+}
+
+.search-pop__apply:hover {
+  background: var(--accent-hover);
+}
+
+.search-pop__apply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.search-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.search-fallback__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.search-page__query {
+  overflow-wrap: anywhere;
+}
+
+/* Phones: chips grow to the 44 px tap target. */
+@media (max-width: 1024px) {
+  .search-chip,
+  .search-chip--add {
+    height: 44px;
+  }
+}
