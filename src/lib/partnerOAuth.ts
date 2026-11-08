@@ -163,6 +163,7 @@ export function isOpenStandaloneParticipation(row: {
   patrolCallsign?: string | null
   roadId?: string | null
   hasRoad?: boolean
+  hasEventType?: boolean
 }): boolean {
   if (row.origin !== 'manual') return false
   if (row.isCancelled) return false
@@ -175,6 +176,7 @@ export function isOpenStandaloneParticipation(row: {
       patrolCallsign: row.patrolCallsign,
       roadId: row.roadId,
       hasRoad: row.hasRoad,
+      hasEventType: row.hasEventType,
     })
   ) {
     return false

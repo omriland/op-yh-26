@@ -1350,8 +1350,9 @@ export async function cockpitPoliceEventIdCollides(
   return sameDayPoliceEventIdCollides({ ...input, existing })
 }
 
-/** Minimum to create/keep an event: date + event type (+ location for Places).
- *  או״ק, כביש, and מספר אירוע may be empty; the event stays hidden from responders until they are filled. */
+/** Minimum for an explicit save: date + event type (+ location for Places).
+ *  או״ק, כביש, and מספר אירוע may be empty. A responder can be attached before
+ *  סוג אירוע and מספר אירוע; the event stays hidden until those, plus או״ק and כביש, are filled. */
 export function validateEventMinimum(
   draft: EventFormDraft,
   districts: LookupOption[] = [],
@@ -1375,6 +1376,14 @@ export function hasEventMinimum(
   roads: LookupOption[] = [],
 ): boolean {
   return Object.keys(validateEventMinimum(draft, districts, roads)).length === 0
+}
+
+/**
+ * A shift lead may attach a כונן before סוג אירוע and מספר אירוע.
+ * The row still needs a date so the assignment can be saved.
+ */
+export function canAssignResponder(draft: { event_date: string }): boolean {
+  return Boolean(draft.event_date.trim())
 }
 
 export function canPersistEventDraft(

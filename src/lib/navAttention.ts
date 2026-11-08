@@ -18,6 +18,7 @@ type ParticipationRow = {
   patrolCallsignPrefix?: string | null
   patrolCallsign?: string | null
   roadId?: string | null
+  hasEventType?: boolean
   /** Shift date for a shift-born event (else its event date). */
   documentDate?: string | null
 }
@@ -46,6 +47,7 @@ export function hasOpenMineEvents(
         patrolCallsignPrefix: row.patrolCallsignPrefix,
         patrolCallsign: row.patrolCallsign,
         roadId: row.roadId,
+        hasEventType: row.hasEventType,
       }),
   )
 }
@@ -72,7 +74,7 @@ export async function fetchNavAttention(
     supabase
       .from('event_responders')
       .select(
-        'status, event:events!inner(police_event_id, origin, patrol_callsign, patrol_callsign_prefix, patrol_callsign_number, road_id, event_date, shift:shifts!events_shift_id_fkey(shift_date))',
+        'status, event:events!inner(police_event_id, origin, event_type_id, patrol_callsign, patrol_callsign_prefix, patrol_callsign_number, road_id, event_date, shift:shifts!events_shift_id_fkey(shift_date))',
       )
       .eq('responder_id', userId),
     supabase
@@ -90,6 +92,7 @@ export async function fetchNavAttention(
       event?: {
         police_event_id?: string | null
         origin?: string | null
+        event_type_id?: string | null
         patrol_callsign?: string | null
         patrol_callsign_prefix?: string | null
         patrol_callsign_number?: string | null
@@ -99,6 +102,7 @@ export async function fetchNavAttention(
       } | {
         police_event_id?: string | null
         origin?: string | null
+        event_type_id?: string | null
         patrol_callsign?: string | null
         patrol_callsign_prefix?: string | null
         patrol_callsign_number?: string | null
@@ -113,6 +117,7 @@ export async function fetchNavAttention(
       status: (row as ParticipationRow).status,
       origin: event?.origin ?? null,
       policeEventId: event?.police_event_id ?? null,
+      hasEventType: Boolean(event?.event_type_id?.trim()),
       patrolCallsign: event?.patrol_callsign ?? null,
       patrolCallsignPrefix: event?.patrol_callsign_prefix ?? null,
       patrolCallsignNumber: event?.patrol_callsign_number ?? null,

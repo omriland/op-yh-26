@@ -246,6 +246,10 @@ describe('incomplete lead notice when responders are held', () => {
       'כביש',
       'לא נשלח למתנדבים',
     ])
+    expect(incompleteLeadNoticeLabels(event({ event_type: null }), 'lead')).toEqual([
+      'סוג אירוע',
+      'לא נשלח למתנדבים',
+    ])
     expect(
       incompleteLeadNoticeLabels(
         event({ patrol_callsign: null, patrol_callsign_number: null, patrol_callsign_prefix: null }),

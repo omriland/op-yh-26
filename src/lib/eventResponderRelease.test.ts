@@ -6,20 +6,23 @@ const ready = {
   policeEventId: '12345',
   patrolCallsignNumber: '411',
   hasRoad: true,
+  hasEventType: true,
 }
 
 describe('eventReleasedToResponders', () => {
-  it('holds a manual event until או״ק, כביש, and מספר אירוע are all entered', () => {
+  it('holds a manual event until סוג אירוע, או״ק, כביש, and מספר אירוע are all entered', () => {
     expect(eventReleasedToResponders({ ...ready, policeEventId: null })).toBe(false)
     expect(eventReleasedToResponders({ ...ready, policeEventId: '   ' })).toBe(false)
     expect(eventReleasedToResponders({ ...ready, origin: undefined, policeEventId: '' })).toBe(false)
+    expect(eventReleasedToResponders({ ...ready, hasEventType: false })).toBe(false)
+    expect(eventReleasedToResponders({ ...ready, hasEventType: undefined })).toBe(false)
     expect(eventReleasedToResponders({ ...ready, patrolCallsignNumber: '' })).toBe(false)
     expect(eventReleasedToResponders({ ...ready, patrolCallsignNumber: '   ', hasRoad: true })).toBe(false)
     expect(eventReleasedToResponders({ ...ready, hasRoad: false })).toBe(false)
     expect(eventReleasedToResponders({ ...ready, roadId: '   ', hasRoad: undefined })).toBe(false)
   })
 
-  it('releases once או״ק, כביש, and מספר אירוע are present', () => {
+  it('releases once סוג אירוע, או״ק, כביש, and מספר אירוע are present', () => {
     expect(eventReleasedToResponders(ready)).toBe(true)
     expect(
       eventReleasedToResponders({
@@ -27,6 +30,7 @@ describe('eventReleasedToResponders', () => {
         policeEventId: '12345',
         patrolCallsign: 'ניידת 1',
         roadId: 'road-6',
+        hasEventType: true,
       }),
     ).toBe(true)
   })
