@@ -1,3 +1,4 @@
+import { plateDigits } from './format'
 import { isHeicFile } from './heicImage'
 import { supabase } from './supabase'
 
@@ -74,6 +75,8 @@ export type EventMedia = {
   uploaded_by: string
   uploader_name: string | null
   treated_plate_ids: string[]
+  /** The uploader said the photo shows no vehicle. */
+  not_vehicle: boolean
   caption: string | null
   taken_when: EventMediaTakenWhen
   storage_path: string
@@ -108,23 +111,48 @@ export function canAddMoreMedia(savedCount: number, inFlightCount: number): bool
 }
 
 export const EVENT_MEDIA_STEP_TITLE = 'שיוך התמונה'
-export const EVENT_MEDIA_VEHICLE_PROMPT = 'לאיזה רכב לשייך?'
-export const EVENT_MEDIA_NO_VEHICLE = 'אין רכב באירוע. התמונה תישמר בלי שיוך לרכב.'
+export const EVENT_MEDIA_VEHICLE_PROMPT = 'מה רואים בתמונה?'
+export const EVENT_MEDIA_NO_VEHICLE = 'עוד אין רכבים בדיווח. אפשר להוסיף רכב בשדה לוחית הרישוי.'
+export const EVENT_MEDIA_NOT_VEHICLE_LABEL = 'לא רכב'
+export const EVENT_MEDIA_UNASSIGNED_LABEL = 'ללא שיוך'
+export const EVENT_MEDIA_PENDING_VEHICLE =
+  'הרכב עוד לא נשמר. התמונה תשויך אליו כשתשמרו את הדיווח.'
+
+/**
+ * What the person said a photo shows. Vehicles are named by plate digits, not row
+ * ids: a vehicle added to the form has no row yet, and every report save replaces
+ * the plate rows with new ids.
+ */
+export type PhotoSubject =
+  | { kind: 'unassigned' }
+  | { kind: 'not_vehicle' }
+  | { kind: 'vehicles'; digits: string[] }
+
+export const PHOTO_UNASSIGNED: PhotoSubject = { kind: 'unassigned' }
 
 export type PhotoAttachWrite = {
   caption: string | null
-  vehicleIds: string[]
+  subject: PhotoSubject
   /** Empty text never blocks. A caption over 200 characters does. */
   blocked: boolean
 }
 
-/** A vehicle the person already chose, while it is still on the event. Never picks one for them. */
-export function nextPhotoVehicleId(
-  vehicleIds: readonly string[],
-  currentId: string | null,
-): string | null {
-  if (currentId && vehicleIds.includes(currentId)) return currentId
-  return null
+/**
+ * Keeps the person's choice while its vehicle is still in the form. A vehicle
+ * removed from the form falls back to unassigned. Never picks a vehicle for them.
+ */
+export function keepPhotoSubject(
+  subject: PhotoSubject,
+  vehicleDigits: readonly string[],
+): PhotoSubject {
+  if (subject.kind !== 'vehicles') return subject
+  const kept = subject.digits.filter((digits) => vehicleDigits.includes(digits))
+  if (kept.length === subject.digits.length) return subject
+  return kept.length > 0 ? { kind: 'vehicles', digits: kept } : PHOTO_UNASSIGNED
+}
+
+export function photoSubjectDigits(subject: PhotoSubject): string[] {
+  return subject.kind === 'vehicles' ? subject.digits : []
 }
 
 export function photoStepVehicleNote(vehicleCount: number): string | null {
@@ -132,15 +160,15 @@ export function photoStepVehicleNote(vehicleCount: number): string | null {
   return EVENT_MEDIA_NO_VEHICLE
 }
 
-/** Caption is optional. A chosen vehicle id is the one id sent with the photo. */
+/** Caption is optional. The subject is sent as chosen. */
 export function photoAttachWrite(input: {
   caption: string
-  vehicleId: string | null
+  subject: PhotoSubject
 }): PhotoAttachWrite {
   const caption = input.caption.trim()
   return {
     caption: caption.length > 0 ? caption : null,
-    vehicleIds: input.vehicleId ? [input.vehicleId] : [],
+    subject: input.subject,
     blocked: captionError(input.caption) != null,
   }
 }
@@ -149,13 +177,13 @@ export function photoStepCanSave(input: {
   caption: string
   takenWhen: '' | EventMediaTakenWhen
   preparing: boolean
-  platesLoaded: boolean
+  vehiclesReady: boolean
 }): boolean {
-  if (!input.platesLoaded || input.preparing) return false
+  if (!input.vehiclesReady || input.preparing) return false
   if (input.takenWhen !== 'before_treatment' && input.takenWhen !== 'during_after_treatment') {
     return false
   }
-  return !photoAttachWrite({ caption: input.caption, vehicleId: null }).blocked
+  return captionError(input.caption) == null
 }
 
 /** After one photo is stored, the add action stays until the cap. */
@@ -197,6 +225,40 @@ export type EventMediaPlateOption = {
   model: string | null
   color: string | null
   logo_slug: string | null
+  /** Set on a responder's own report plates. */
+  event_responder_id?: string | null
+  /** Set on a shift-born event's shared plates. */
+  event_id?: string | null
+}
+
+/** Whose report a form's vehicles are saved under. */
+export type MediaPlateOwner = { eventResponderId: string } | { eventId: string }
+
+/** A photo's vehicles that had no saved row when it was linked. */
+export type PendingMediaLink = { mediaId: string; digits: string[] }
+
+function ownsPlate(plate: EventMediaPlateOption, owner: MediaPlateOwner | null): boolean {
+  if (!owner) return true
+  if ('eventResponderId' in owner) return plate.event_responder_id === owner.eventResponderId
+  return plate.event_id === owner.eventId
+}
+
+/** Saved plate rows for the digits; digits with no saved row come back as missing. */
+export function resolvePlateDigits(
+  plates: readonly EventMediaPlateOption[],
+  digits: readonly string[],
+  owner: MediaPlateOwner | null,
+): { ids: string[]; missing: string[] } {
+  const ids: string[] = []
+  const missing: string[] = []
+  for (const wanted of new Set(digits)) {
+    const hit = plates.find(
+      (plate) => plateDigits(plate.plate_number) === wanted && ownsPlate(plate, owner),
+    )
+    if (hit) ids.push(hit.id)
+    else missing.push(wanted)
+  }
+  return { ids, missing }
 }
 
 export function mergeMediaPlates(
@@ -240,6 +302,7 @@ type EventMediaRow = {
   event_id: string
   uploaded_by: string
   caption: string | null
+  not_vehicle?: boolean | null
   taken_when: EventMediaTakenWhen
   storage_path: string
   mime_type: string
@@ -252,7 +315,7 @@ type EventMediaRow = {
 }
 
 const EVENT_MEDIA_SELECT =
-  'id, event_id, uploaded_by, caption, taken_when, storage_path, mime_type, byte_size, width, height, created_at, uploader:profiles!event_media_uploaded_by_fkey(full_name), plates:event_media_plates(treated_plate_id)'
+  'id, event_id, uploaded_by, caption, not_vehicle, taken_when, storage_path, mime_type, byte_size, width, height, created_at, uploader:profiles!event_media_uploaded_by_fkey(full_name), plates:event_media_plates(treated_plate_id)'
 
 function plateIdsFromRow(row: EventMediaRow): string[] {
   const plates = row.plates
@@ -278,6 +341,7 @@ async function withSignedUrl(row: EventMediaRow): Promise<EventMedia> {
     uploaded_by: row.uploaded_by,
     uploader_name: uploaderName(row),
     treated_plate_ids: plateIdsFromRow(row),
+    not_vehicle: Boolean(row.not_vehicle),
     caption: row.caption,
     taken_when: row.taken_when,
     storage_path: row.storage_path,
@@ -320,7 +384,7 @@ export async function listEventMedia(eventId: string): Promise<EventMedia[]> {
 }
 
 export async function listEventMediaPlates(eventId: string): Promise<EventMediaPlateOption[]> {
-  const plateSelect = 'id, plate_number, model, color, logo_slug'
+  const plateSelect = 'id, plate_number, model, color, logo_slug, event_responder_id, event_id'
   const [eventKeyed, responderKeyed] = await Promise.all([
     supabase.from('event_treated_plates').select(plateSelect).eq('event_id', eventId),
     supabase
@@ -343,6 +407,8 @@ function mapPlateOptions(
     model?: string | null
     color?: string | null
     logo_slug?: string | null
+    event_responder_id?: string | null
+    event_id?: string | null
   }> | null,
 ): EventMediaPlateOption[] {
   return (rows ?? []).flatMap((row) => {
@@ -354,6 +420,8 @@ function mapPlateOptions(
         model: row.model ?? null,
         color: row.color ?? null,
         logo_slug: row.logo_slug ?? null,
+        event_responder_id: row.event_responder_id ?? null,
+        event_id: row.event_id ?? null,
       },
     ]
   })
@@ -367,9 +435,12 @@ export async function uploadEventMedia(input: {
   width: number | null
   height: number | null
   takenWhen: EventMediaTakenWhen
-  treatedPlateIds: readonly string[]
+  subject: PhotoSubject
+  owner: MediaPlateOwner | null
   caption: string | null
-}): Promise<{ ok: true; media: EventMedia } | { ok: false; error: string }> {
+}): Promise<
+  { ok: true; media: EventMedia; pendingDigits: string[] } | { ok: false; error: string }
+> {
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -400,6 +471,7 @@ export async function uploadEventMedia(input: {
       byte_size: input.blob.size,
       width: input.width,
       height: input.height,
+      not_vehicle: input.subject.kind === 'not_vehicle',
     })
     .select(EVENT_MEDIA_SELECT)
     .single()
@@ -409,36 +481,85 @@ export async function uploadEventMedia(input: {
     return { ok: false, error: mapEventMediaError(error?.message) }
   }
 
-  const plates = await replaceMediaPlates(id, input.treatedPlateIds)
-  if (!plates.ok) {
+  const linked = await linkMediaVehicles(input.eventId, id, input.subject, input.owner)
+  if (!linked.ok) {
     await supabase.from('event_media').delete().eq('id', id)
     await supabase.storage.from('event-media').remove([storage_path])
-    return plates
+    return linked
   }
 
   const media = await withSignedUrl(data as EventMediaRow)
-  return { ok: true, media: { ...media, treated_plate_ids: uniquePlateIds(input.treatedPlateIds) } }
+  return {
+    ok: true,
+    media: { ...media, treated_plate_ids: linked.ids },
+    pendingDigits: linked.pendingDigits,
+  }
 }
 
-export async function updateEventMedia(input: {
-  id: string
-  takenWhen: EventMediaTakenWhen
-  treatedPlateIds: readonly string[]
-  caption: string | null
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const caption = input.caption?.trim() || null
-  if (caption && captionError(caption)) {
-    return { ok: false, error: captionError(caption)! }
+/** Links the photo to the saved rows of its vehicles, read fresh so stale ids never land. */
+async function linkMediaVehicles(
+  eventId: string,
+  mediaId: string,
+  subject: PhotoSubject,
+  owner: MediaPlateOwner | null,
+): Promise<{ ok: true; ids: string[]; pendingDigits: string[] } | { ok: false; error: string }> {
+  const digits = photoSubjectDigits(subject)
+  const { ids, missing } =
+    digits.length > 0
+      ? resolvePlateDigits(await listEventMediaPlates(eventId), digits, owner)
+      : { ids: [], missing: [] }
+  const result = await replaceMediaPlates(mediaId, ids)
+  if (!result.ok) return result
+  return { ok: true, ids, pendingDigits: missing }
+}
+
+/** Sets what a photo shows: its vehicles, "not a vehicle", or nothing. Uploader only, by RLS. */
+export async function setMediaSubject(input: {
+  eventId: string
+  mediaId: string
+  subject: PhotoSubject
+  owner: MediaPlateOwner | null
+  /** Sent together with the subject when the person edited them too. */
+  takenWhen?: EventMediaTakenWhen
+  caption?: string | null
+}): Promise<{ ok: true; ids: string[]; pendingDigits: string[] } | { ok: false; error: string }> {
+  const write: { not_vehicle: boolean; taken_when?: EventMediaTakenWhen; caption?: string | null } =
+    { not_vehicle: input.subject.kind === 'not_vehicle' }
+  if (input.takenWhen) write.taken_when = input.takenWhen
+  if (input.caption !== undefined) {
+    const caption = input.caption?.trim() || null
+    if (caption && captionError(caption)) return { ok: false, error: captionError(caption)! }
+    write.caption = caption
   }
-  const { error } = await supabase
-    .from('event_media')
-    .update({
-      taken_when: input.takenWhen,
-      caption,
-    })
-    .eq('id', input.id)
+  const { error } = await supabase.from('event_media').update(write).eq('id', input.mediaId)
   if (error) return { ok: false, error: mapEventMediaError(error.message) }
-  return replaceMediaPlates(input.id, input.treatedPlateIds)
+  return linkMediaVehicles(input.eventId, input.mediaId, input.subject, input.owner)
+}
+
+/**
+ * After a report save, links photos to vehicles that had no saved row when they
+ * were chosen. Returns the links still waiting (their vehicle was not saved).
+ */
+export async function linkPendingMedia(
+  eventId: string,
+  links: readonly PendingMediaLink[],
+  owner: MediaPlateOwner | null,
+): Promise<PendingMediaLink[]> {
+  if (links.length === 0) return []
+  const plates = await listEventMediaPlates(eventId)
+  const waiting: PendingMediaLink[] = []
+  const rows: { media_id: string; treated_plate_id: string }[] = []
+  for (const link of links) {
+    const { ids, missing } = resolvePlateDigits(plates, link.digits, owner)
+    for (const id of ids) rows.push({ media_id: link.mediaId, treated_plate_id: id })
+    if (missing.length > 0) waiting.push({ mediaId: link.mediaId, digits: missing })
+  }
+  if (rows.length === 0) return waiting
+  const { error } = await supabase
+    .from('event_media_plates')
+    .upsert(rows, { onConflict: 'media_id,treated_plate_id', ignoreDuplicates: true })
+  if (error) return [...links]
+  return waiting
 }
 
 /**

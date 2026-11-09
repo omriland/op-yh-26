@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { jerusalemToday } from '../lib/shifts'
@@ -30,7 +30,11 @@ import {
 } from '../lib/treatedPlates'
 import { TreatedPlatesField } from '../components/events/TreatedPlatesField'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
-import { leftoverEventMediaError } from '../lib/eventMedia'
+import {
+  leftoverEventMediaError,
+  linkPendingMedia,
+  type PendingMediaLink,
+} from '../lib/eventMedia'
 import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { Button } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
@@ -80,6 +84,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [plateError, setPlateError] = useState<string | undefined>()
   const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
   const [dropUnfinishedTick, setDropUnfinishedTick] = useState(0)
+  /** Photos linked to a vehicle the report has not saved yet. */
+  const pendingMediaLinks = useRef<PendingMediaLink[]>([])
+  const [vehiclesSavedTick, setVehiclesSavedTick] = useState(0)
+  const onPendingLinksChange = useCallback((links: PendingMediaLink[]) => {
+    pendingMediaLinks.current = links
+  }, [])
   const [mediaError, setMediaError] = useState<string | undefined>()
   /** Someone else saved this event while it was open here; the local text is kept. */
   const [conflict, setConflict] = useState(false)
@@ -381,6 +391,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     savedDraftRef.current = draft
     setExpectedAt(result.updated_at)
     setConflict(false)
+    // The save replaced the vehicle rows: link waiting photos, then re-read every link.
+    if (pendingMediaLinks.current.length > 0) {
+      await linkPendingMedia(eventId, pendingMediaLinks.current, { eventId })
+    }
+    setVehiclesSavedTick((n) => n + 1)
     return true
   }
 
@@ -578,7 +593,10 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               viewerId={user?.id ?? null}
               error={mediaError}
               dropUnfinishedTick={dropUnfinishedTick}
-              formPlates={draft.treated_plates.map((plate) => plate.plate_number)}
+              formVehicles={draft.treated_plates}
+              plateOwner={{ eventId }}
+              onPendingLinksChange={onPendingLinksChange}
+              vehiclesSavedTick={vehiclesSavedTick}
               onAddScannedPlate={readOnly ? undefined : onAddScannedPlate}
               onUnfinishedChange={(count) => {
                 setUnfinishedMediaDrafts(count)

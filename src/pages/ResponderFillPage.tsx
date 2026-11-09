@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
@@ -44,6 +44,7 @@ import {
   type SaveRuleIssue,
 } from '../lib/eventSaveRules'
 import { fetchEventPhotoCoverage } from '../lib/eventVehiclePhotos'
+import { linkPendingMedia, type PendingMediaLink } from '../lib/eventMedia'
 import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -108,6 +109,9 @@ export function ResponderFillPage({
   const [completing, setCompleting] = useState(false)
   const [unfinishedMediaDrafts, setUnfinishedMediaDrafts] = useState(0)
   const [dropUnfinishedTick, setDropUnfinishedTick] = useState(0)
+  /** Photos linked to a vehicle the report has not saved yet. */
+  const pendingMediaLinks = useRef<PendingMediaLink[]>([])
+  const [vehiclesSavedTick, setVehiclesSavedTick] = useState(0)
   const [localSavedAt, setLocalSavedAt] = useState<number | null>(null)
   const [restoredFromDevice, setRestoredFromDevice] = useState(false)
   /** Bumped on every failed submit so an identical second failure still re-focuses. */
@@ -454,6 +458,21 @@ export function ResponderFillPage({
     return true
   }
 
+  const onPendingLinksChange = useCallback((links: PendingMediaLink[]) => {
+    pendingMediaLinks.current = links
+  }, [])
+
+  /**
+   * A save replaces the report's vehicle rows. Link the photos that were waiting for
+   * a vehicle, then let the gallery re-read every photo's links against the new rows.
+   */
+  async function linkPendingPhotos(eventId: string, assignmentId: string) {
+    if (pendingMediaLinks.current.length > 0) {
+      await linkPendingMedia(eventId, pendingMediaLinks.current, { eventResponderId: assignmentId })
+    }
+    setVehiclesSavedTick((n) => n + 1)
+  }
+
   async function onSaveDraft() {
     if (!ctx || !draft || readOnly) return
     const allowed = await runFillRules(draft, 'draft')
@@ -470,6 +489,7 @@ export function ResponderFillPage({
           totalKm: ctx.totalKm,
           cancelled: ctx.is_cancelled,
         })
+    if (result.ok && !fillToken) await linkPendingPhotos(ctx.eventId, ctx.assignmentId)
     setSavingDraft(false)
     if (!result.ok) {
       if (result.fieldErrors) setErrors(result.fieldErrors)
@@ -528,6 +548,7 @@ export function ResponderFillPage({
           unfinishedMediaDraftCount: unfinishedMediaDrafts,
           cancelled: ctx.is_cancelled,
         })
+    if (result.ok && !fillToken) await linkPendingPhotos(ctx.eventId, ctx.assignmentId)
     setCompleting(false)
     if (!result.ok) {
       if (result.fieldErrors) setErrors(result.fieldErrors)
@@ -720,6 +741,8 @@ export function ResponderFillPage({
                     error={errors.event_media}
                     onUnfinishedChange={setUnfinishedMediaDrafts}
                     dropUnfinishedTick={dropUnfinishedTick}
+                    formVehicles={draft.treated_plates}
+                    plateOwner={{ eventResponderId: ctx.assignmentId }}
                   />
                 )}
               </>
@@ -824,7 +847,10 @@ export function ResponderFillPage({
                     error={errors.event_media}
                     onUnfinishedChange={setUnfinishedMediaDrafts}
                     dropUnfinishedTick={dropUnfinishedTick}
-                    formPlates={draft.treated_plates.map((plate) => plate.plate_number)}
+                    formVehicles={draft.treated_plates}
+                    plateOwner={{ eventResponderId: ctx.assignmentId }}
+                    onPendingLinksChange={onPendingLinksChange}
+                    vehiclesSavedTick={vehiclesSavedTick}
                     onAddScannedPlate={onAddScannedPlate}
                   />
                 )}
