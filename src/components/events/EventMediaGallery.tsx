@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { Check, ImagePlus, Play } from 'lucide-react'
 import { compressEventImage } from '../../lib/compressEventImage'
 import { heicToJpegFile, isHeicFile } from '../../lib/heicImage'
@@ -19,13 +19,19 @@ import {
   EVENT_MEDIA_VIDEO_DELETED,
   EVENT_MEDIA_STEP_TITLE,
   EVENT_MEDIA_VEHICLE_PROMPT,
+  EVENT_MEDIA_NOT_VEHICLE_LABEL,
+  EVENT_MEDIA_UNASSIGNED_LABEL,
+  EVENT_MEDIA_PENDING_VEHICLE,
+  PHOTO_UNASSIGNED,
   canAddMoreMedia,
   canDeleteEventMedia,
   captionError,
-  nextPhotoVehicleId,
+  keepPhotoSubject,
   photoAttachWrite,
   photoStepCanSave,
   photoStepVehicleNote,
+  photoSubjectDigits,
+  resolvePlateDigits,
   deleteEventMedia,
   eventMediaKind,
   isVideoMedia,
@@ -34,16 +40,18 @@ import {
   groupMediaByTakenWhen,
   listEventMedia,
   listEventMediaPlates,
-  replaceMediaPlates,
+  setMediaSubject,
   slotsRemaining,
-  updateEventMedia,
   uploadEventMedia,
   type EventMedia,
   type EventMediaKind,
   type EventMediaPlateOption,
   type EventMediaTakenWhen,
+  type MediaPlateOwner,
+  type PendingMediaLink,
+  type PhotoSubject,
 } from '../../lib/eventMedia'
-import { formatDateTime, formatPlate } from '../../lib/format'
+import { formatDateTime, formatPlate, plateDigits } from '../../lib/format'
 import {
   PLATE_LINK_ACTION,
   PLATE_LINK_HINT,
@@ -79,13 +87,43 @@ export type EventMediaGalleryProps = {
   onUnfinishedChange?: (count: number) => void
   /** Increment to drop the last unfinished, not-yet-uploading photo. */
   dropUnfinishedTick?: number
-  /** Plates in the form being filled (saved or not). Suggestions skip these. */
-  formPlates?: readonly string[]
+  /**
+   * Vehicles in the form being filled, saved or not. When set, photos are linked
+   * to these (and only these). Without a form, the event's saved vehicles are used.
+   */
+  formVehicles?: readonly FormVehicle[]
+  /** Whose report the form's vehicles are saved under. */
+  plateOwner?: MediaPlateOwner
+  /** Photos linked to a form vehicle that has no saved row yet. */
+  onPendingLinksChange?: (links: PendingMediaLink[]) => void
+  /** Increment after the form saved its vehicles, to re-read the photos' links. */
+  vehiclesSavedTick?: number
   /**
    * When set, each uploaded photo is scanned for plates and new ones are offered here.
    * Returns an error message, or null when the plate was added to the form.
    */
   onAddScannedPlate?: (digits: string) => string | null
+}
+
+export type FormVehicle = {
+  plate_number: string
+  model: string | null
+  color: string | null
+  logo_slug: string | null
+}
+
+type VehicleOption = FormVehicle & { digits: string }
+
+function vehicleOptionsFrom(rows: readonly FormVehicle[]): VehicleOption[] {
+  const seen = new Set<string>()
+  const out: VehicleOption[] = []
+  for (const row of rows) {
+    const digits = plateDigits(row.plate_number)
+    if (!digits || seen.has(digits)) continue
+    seen.add(digits)
+    out.push({ ...row, digits })
+  }
+  return out
 }
 
 type MediaDraft = {
@@ -94,7 +132,7 @@ type MediaDraft = {
   file: File
   previewUrl: string
   takenWhen: '' | EventMediaTakenWhen
-  treatedPlateIds: string[]
+  subject: PhotoSubject
   caption: string
   uploading: boolean
   /** HEIC photo still being converted to JPEG; no preview yet. */
@@ -115,13 +153,13 @@ function hasDraggedFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes('Files')
 }
 
-function mediaPlateLabel(plate: EventMediaPlateOption): string {
+function mediaPlateLabel(plate: FormVehicle): string {
   const caption = treatedPlateCaption(plate.model, plate.color)
   const plateLabel = formatPlate(plate.plate_number)
   return caption ? `${plateLabel} ${caption}` : plateLabel
 }
 
-function MediaPlateChoice({ plate }: { plate: EventMediaPlateOption }) {
+function MediaPlateChoice({ plate }: { plate: FormVehicle }) {
   const caption = treatedPlateCaption(plate.model, plate.color)
   return (
     <span className="media-plate-choice">
@@ -134,62 +172,91 @@ function MediaPlateChoice({ plate }: { plate: EventMediaPlateOption }) {
   )
 }
 
-/** One tap links the photo to a treated vehicle already on the event. */
-function MediaPlateChips({
-  plates,
+/**
+ * What the photo shows: one of the form's vehicles, "not a vehicle", or no
+ * assignment. A new photo takes one choice; editing allows several vehicles.
+ */
+function PhotoSubjectChips({
+  vehicles,
   value,
   disabled,
   single = false,
   onChange,
 }: {
-  plates: readonly EventMediaPlateOption[]
-  value: string[]
+  vehicles: readonly VehicleOption[]
+  value: PhotoSubject
   disabled?: boolean
-  /** One vehicle for a new photo. Editing still allows several. */
   single?: boolean
-  onChange: (ids: string[]) => void
+  onChange: (subject: PhotoSubject) => void
 }) {
   const labelId = useId()
-  if (plates.length === 0) return null
+  const chosen = photoSubjectDigits(value)
+
+  function chip(key: string, selected: boolean, label: string, onPick: () => void, body: ReactNode) {
+    return (
+      <button
+        key={key}
+        type="button"
+        className="media-plate-chip"
+        role={single ? 'radio' : undefined}
+        aria-pressed={single ? undefined : selected}
+        aria-checked={single ? selected : undefined}
+        aria-label={label}
+        disabled={disabled}
+        onClick={onPick}
+      >
+        {selected ? (
+          <Check size={16} strokeWidth={2} aria-hidden="true" className="media-plate-chip__check" />
+        ) : null}
+        {body}
+      </button>
+    )
+  }
+
+  function pickVehicle(digits: string) {
+    if (single) {
+      onChange({ kind: 'vehicles', digits: [digits] })
+      return
+    }
+    const next = chosen.includes(digits)
+      ? chosen.filter((row) => row !== digits)
+      : [...chosen, digits]
+    onChange(next.length > 0 ? { kind: 'vehicles', digits: next } : PHOTO_UNASSIGNED)
+  }
+
   return (
     <div className="field">
       <p id={labelId} className="field__label">
-        {single ? EVENT_MEDIA_VEHICLE_PROMPT : 'רכבים בתמונה'}
+        {EVENT_MEDIA_VEHICLE_PROMPT}
       </p>
       <div
         className="media-plate-chips"
         role={single ? 'radiogroup' : 'group'}
         aria-labelledby={labelId}
       >
-        {plates.map((plate) => {
-          const selected = value.includes(plate.id)
-          return (
-            <button
-              key={plate.id}
-              type="button"
-              className="media-plate-chip"
-              role={single ? 'radio' : undefined}
-              aria-pressed={single ? undefined : selected}
-              aria-checked={single ? selected : undefined}
-              aria-label={mediaPlateLabel(plate)}
-              disabled={disabled}
-              onClick={() =>
-                onChange(
-                  single
-                    ? [plate.id]
-                    : selected
-                      ? value.filter((id) => id !== plate.id)
-                      : [...value, plate.id],
-                )
-              }
-            >
-              {selected ? (
-                <Check size={16} strokeWidth={2} aria-hidden="true" className="media-plate-chip__check" />
-              ) : null}
-              <MediaPlateChoice plate={plate} />
-            </button>
-          )
-        })}
+        {vehicles.map((vehicle) =>
+          chip(
+            vehicle.digits,
+            chosen.includes(vehicle.digits),
+            mediaPlateLabel(vehicle),
+            () => pickVehicle(vehicle.digits),
+            <MediaPlateChoice plate={vehicle} />,
+          ),
+        )}
+        {chip(
+          'not_vehicle',
+          value.kind === 'not_vehicle',
+          EVENT_MEDIA_NOT_VEHICLE_LABEL,
+          () => onChange({ kind: 'not_vehicle' }),
+          <span className="t-body">{EVENT_MEDIA_NOT_VEHICLE_LABEL}</span>,
+        )}
+        {chip(
+          'unassigned',
+          value.kind === 'unassigned',
+          EVENT_MEDIA_UNASSIGNED_LABEL,
+          () => onChange(PHOTO_UNASSIGNED),
+          <span className="t-body">{EVENT_MEDIA_UNASSIGNED_LABEL}</span>,
+        )}
       </div>
     </div>
   )
@@ -203,7 +270,10 @@ export function EventMediaGallery({
   error,
   onUnfinishedChange,
   dropUnfinishedTick = 0,
-  formPlates = [],
+  formVehicles,
+  plateOwner,
+  onPendingLinksChange,
+  vehiclesSavedTick = 0,
   onAddScannedPlate,
 }: EventMediaGalleryProps) {
   const [plateSuggestions, setPlateSuggestions] = useState<string[]>([])
@@ -221,7 +291,7 @@ export function EventMediaGallery({
   const [viewer, setViewer] = useState<EventMedia | null>(null)
   const [editing, setEditing] = useState(false)
   const [editTakenWhen, setEditTakenWhen] = useState<EventMediaTakenWhen>('before_treatment')
-  const [editPlateIds, setEditPlateIds] = useState<string[]>([])
+  const [editSubject, setEditSubject] = useState<PhotoSubject>(PHOTO_UNASSIGNED)
   const [editCaption, setEditCaption] = useState('')
   const [editError, setEditError] = useState<string | undefined>()
   const [savingEdit, setSavingEdit] = useState(false)
@@ -236,14 +306,21 @@ export function EventMediaGallery({
   } | null>(null)
   const draftsRef = useRef(drafts)
   draftsRef.current = drafts
-  const platesRef = useRef(plates)
-  platesRef.current = plates
   const [linkTarget, setLinkTarget] = useState<EventMedia | null>(null)
-  const [linkPlateIds, setLinkPlateIds] = useState<string[]>([])
+  const [linkSubject, setLinkSubject] = useState<PhotoSubject>(PHOTO_UNASSIGNED)
   const [linkError, setLinkError] = useState<string | undefined>()
   const [savingLink, setSavingLink] = useState(false)
+  /** Photo id to the form vehicles it waits for (no saved row yet). */
+  const [pending, setPending] = useState<Record<string, string[]>>({})
   const inFlight = drafts.filter((draft) => draft.uploading).length
   const addEnabled = canWrite && canAddMoreMedia(items.length, inFlight)
+
+  // The form's vehicles when there is a form; otherwise the event's saved ones.
+  const vehicleOptions = vehicleOptionsFrom(formVehicles ?? plates)
+  const vehicleDigits = vehicleOptions.map((vehicle) => vehicle.digits)
+  const vehicleDigitsKey = vehicleDigits.join(',')
+  const vehiclesReady = Boolean(formVehicles) || platesLoaded
+  const owner = plateOwner ?? null
 
   useEffect(() => {
     let active = true
@@ -261,23 +338,88 @@ export function EventMediaGallery({
     }
   }, [eventId])
 
+  // The form saved: plate rows were replaced, so re-read them and the photos' links.
   useEffect(() => {
-    if (!platesLoaded) return
-    const ids = plates.map((plate) => plate.id)
+    if (vehiclesSavedTick <= 0) return
+    let active = true
+    void Promise.all([listEventMedia(eventId), listEventMediaPlates(eventId)]).then(
+      ([rows, plateRows]) => {
+        if (!active) return
+        setItems(rows)
+        setPlates(plateRows)
+        setPlatesLoaded(true)
+        const linkedDigits = new Map(
+          rows.map((row) => [
+            row.id,
+            plateRows
+              .filter((plate) => row.treated_plate_ids.includes(plate.id))
+              .map((plate) => plateDigits(plate.plate_number)),
+          ]),
+        )
+        setPending((current) => {
+          const next: Record<string, string[]> = {}
+          for (const [mediaId, digits] of Object.entries(current)) {
+            const linked = linkedDigits.get(mediaId)
+            if (!linked) continue
+            const left = digits.filter((row) => !linked.includes(row))
+            if (left.length > 0) next[mediaId] = left
+          }
+          return next
+        })
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [eventId, vehiclesSavedTick])
+
+  // A vehicle removed from the form takes its choice with it.
+  useEffect(() => {
+    if (!vehiclesReady) return
+    const digits = vehicleDigitsKey ? vehicleDigitsKey.split(',') : []
     setDrafts((current) => {
       let changed = false
       const next = current.map((draft) => {
         if (draft.uploading) return draft
-        const vehicleId = nextPhotoVehicleId(ids, draft.treatedPlateIds[0] ?? null)
-        const same =
-          (draft.treatedPlateIds[0] ?? null) === vehicleId && draft.treatedPlateIds.length <= 1
-        if (same) return draft
+        const subject = keepPhotoSubject(draft.subject, digits)
+        if (subject === draft.subject) return draft
         changed = true
-        return { ...draft, treatedPlateIds: vehicleId ? [vehicleId] : [] }
+        return { ...draft, subject }
       })
       return changed ? next : current
     })
-  }, [plates, platesLoaded])
+  }, [vehicleDigitsKey, vehiclesReady])
+
+  useEffect(() => {
+    if (!onPendingLinksChange) return
+    const digits = vehicleDigitsKey ? vehicleDigitsKey.split(',') : []
+    onPendingLinksChange(
+      Object.entries(pending).flatMap(([mediaId, waiting]) => {
+        const kept = waiting.filter((row) => digits.includes(row))
+        return kept.length > 0 ? [{ mediaId, digits: kept }] : []
+      }),
+    )
+  }, [pending, vehicleDigitsKey, onPendingLinksChange])
+
+  function setPendingFor(mediaId: string, digits: string[]) {
+    setPending((current) => {
+      const next = { ...current }
+      if (digits.length > 0) next[mediaId] = digits
+      else delete next[mediaId]
+      return next
+    })
+  }
+
+  /** The photo's current subject as the person sees it, limited to vehicles still in the form. */
+  function subjectOf(item: EventMedia): PhotoSubject {
+    if (item.not_vehicle) return { kind: 'not_vehicle' }
+    const linked = plates
+      .filter((plate) => item.treated_plate_ids.includes(plate.id))
+      .map((plate) => plateDigits(plate.plate_number))
+    const digits = [...new Set([...linked, ...(pending[item.id] ?? [])])]
+    if (digits.length === 0) return PHOTO_UNASSIGNED
+    return keepPhotoSubject({ kind: 'vehicles', digits }, vehicleDigits)
+  }
 
   useEffect(() => {
     onUnfinishedChange?.(drafts.filter((draft) => !draft.takenWhen).length)
@@ -320,7 +462,7 @@ export function EventMediaGallery({
       uploading: true,
       error: undefined,
       takenWhen,
-      treatedPlateIds: write.vehicleIds,
+      subject: write.subject,
       caption: write.caption ?? '',
     })
     let payload: { blob: Blob; mimeType: string; width: number | null; height: number | null }
@@ -348,7 +490,8 @@ export function EventMediaGallery({
       eventId,
       ...payload,
       takenWhen,
-      treatedPlateIds: write.vehicleIds,
+      subject: write.subject,
+      owner,
       caption: write.caption,
     })
     if (!result.ok) {
@@ -358,6 +501,8 @@ export function EventMediaGallery({
     URL.revokeObjectURL(draft.previewUrl)
     setDrafts((current) => current.filter((row) => row.key !== key))
     setItems((current) => [...current, result.media])
+    setPendingFor(result.media.id, result.pendingDigits)
+    void refreshPlates()
     show(draft.kind === 'video' ? EVENT_MEDIA_VIDEO_ADDED : EVENT_MEDIA_ADDED, 'done')
     // A readable plate can be offered as a new vehicle. It is never linked to this photo.
     if (draft.kind === 'image' && onAddScannedPlate) {
@@ -368,28 +513,55 @@ export function EventMediaGallery({
     }
   }
 
-  function setItemPlates(mediaId: string, plateIds: string[]) {
+  async function refreshPlates() {
+    const rows = await listEventMediaPlates(eventId)
+    setPlates(rows)
+    setPlatesLoaded(true)
+  }
+
+  function applySubject(
+    mediaId: string,
+    subject: PhotoSubject,
+    saved: { ids: string[]; pendingDigits: string[] },
+    patch: Partial<EventMedia> = {},
+  ) {
     setItems((current) =>
-      current.map((row) => (row.id === mediaId ? { ...row, treated_plate_ids: plateIds } : row)),
+      current.map((row) =>
+        row.id === mediaId
+          ? {
+              ...row,
+              ...patch,
+              treated_plate_ids: saved.ids,
+              not_vehicle: subject.kind === 'not_vehicle',
+            }
+          : row,
+      ),
     )
+    setPendingFor(mediaId, saved.pendingDigits)
+    void refreshPlates()
   }
 
   function openLink(item: EventMedia) {
     setLinkTarget(item)
-    setLinkPlateIds(item.treated_plate_ids)
+    setLinkSubject(subjectOf(item))
     setLinkError(undefined)
   }
 
   async function onSaveLink() {
     if (!linkTarget) return
     setSavingLink(true)
-    const result = await replaceMediaPlates(linkTarget.id, linkPlateIds)
+    const result = await setMediaSubject({
+      eventId,
+      mediaId: linkTarget.id,
+      subject: linkSubject,
+      owner,
+    })
     setSavingLink(false)
     if (!result.ok) {
       setLinkError(result.error)
       return
     }
-    setItemPlates(linkTarget.id, linkPlateIds)
+    applySubject(linkTarget.id, linkSubject, result)
     setLinkTarget(null)
     show(PLATE_LINK_SAVED, 'done')
   }
@@ -420,10 +592,6 @@ export function EventMediaGallery({
     if (unsupported > 0) show(EVENT_MEDIA_BAD_TYPE, 'alert')
     else if (overCap > 0) show(EVENT_MEDIA_CAP_ERROR, 'alert')
     if (accepted.length === 0) return
-    const presetVehicleId = nextPhotoVehicleId(
-      platesRef.current.map((plate) => plate.id),
-      null,
-    )
     const next: MediaDraft[] = accepted.map((file) => {
       const heic = isHeicFile(file)
       return {
@@ -432,17 +600,14 @@ export function EventMediaGallery({
         file,
         previewUrl: heic ? '' : URL.createObjectURL(file),
         takenWhen: '',
-        treatedPlateIds: presetVehicleId ? [presetVehicleId] : [],
+        subject: PHOTO_UNASSIGNED,
         caption: '',
         uploading: false,
         preparing: heic,
       }
     })
     setDrafts((current) => [...current, ...next])
-    void listEventMediaPlates(eventId).then((rows) => {
-      setPlates(rows)
-      setPlatesLoaded(true)
-    })
+    void refreshPlates()
     for (const draft of next) {
       if (draft.preparing) void prepareHeicDraft(draft.key, draft.file)
     }
@@ -503,7 +668,7 @@ export function EventMediaGallery({
     setConfirmDelete(false)
     setDeleteFromTile(false)
     setEditTakenWhen(item.taken_when)
-    setEditPlateIds(item.treated_plate_ids)
+    setEditSubject(subjectOf(item))
     setEditCaption(item.caption ?? '')
     setEditError(undefined)
   }
@@ -543,11 +708,14 @@ export function EventMediaGallery({
       return
     }
     setSavingEdit(true)
-    const result = await updateEventMedia({
-      id: viewer.id,
+    const caption = editCaption.trim() || null
+    const result = await setMediaSubject({
+      eventId,
+      mediaId: viewer.id,
+      subject: editSubject,
+      owner,
       takenWhen: editTakenWhen,
-      treatedPlateIds: editPlateIds,
-      caption: editCaption.trim() || null,
+      caption,
     })
     setSavingEdit(false)
     if (!result.ok) {
@@ -555,14 +723,14 @@ export function EventMediaGallery({
       show(result.error, 'alert')
       return
     }
-    const next: EventMedia = {
+    const patch = { taken_when: editTakenWhen, caption }
+    applySubject(viewer.id, editSubject, result, patch)
+    setViewer({
       ...viewer,
-      taken_when: editTakenWhen,
-      treated_plate_ids: editPlateIds,
-      caption: editCaption.trim() || null,
-    }
-    setItems((current) => current.map((row) => (row.id === next.id ? next : row)))
-    setViewer(next)
+      ...patch,
+      treated_plate_ids: result.ids,
+      not_vehicle: editSubject.kind === 'not_vehicle',
+    })
     setEditing(false)
     show(EVENT_MEDIA_UPDATED, 'done')
   }
@@ -588,10 +756,15 @@ export function EventMediaGallery({
         caption: stepDraft.caption,
         takenWhen: stepDraft.takenWhen,
         preparing: Boolean(stepDraft.preparing),
-        platesLoaded,
+        vehiclesReady,
       })
     : false
-  const stepVehicleNote = platesLoaded ? photoStepVehicleNote(plates.length) : null
+  const stepVehicleNote = vehiclesReady ? photoStepVehicleNote(vehicleOptions.length) : null
+  // A form vehicle with no saved row yet: the link is made when the report is saved.
+  const stepPending =
+    stepDraft?.subject.kind === 'vehicles' &&
+    platesLoaded &&
+    resolvePlateDigits(plates, stepDraft.subject.digits, owner).missing.length > 0
 
   function saveStep() {
     const draft = draftsRef.current[0]
@@ -602,7 +775,7 @@ export function EventMediaGallery({
         caption: draft.caption,
         takenWhen: draft.takenWhen,
         preparing: Boolean(draft.preparing),
-        platesLoaded,
+        vehiclesReady,
       })
     ) {
       return
@@ -610,16 +783,16 @@ export function EventMediaGallery({
     void startUpload(
       draft.key,
       draft.takenWhen,
-      photoAttachWrite({
-        caption: draft.caption,
-        vehicleId: draft.treatedPlateIds[0] ?? null,
-      }),
+      photoAttachWrite({ caption: draft.caption, subject: draft.subject }),
     )
   }
 
   const ownViewer = Boolean(viewer && canDeleteEventMedia(viewer, viewerId, canWrite))
   const linkedPlates = viewer
     ? plates.filter((plate) => viewer.treated_plate_ids.includes(plate.id))
+    : []
+  const viewerPending: VehicleOption[] = viewer
+    ? vehicleOptions.filter((vehicle) => (pending[viewer.id] ?? []).includes(vehicle.digits))
     : []
 
   const viewerIsVideo = Boolean(viewer && isVideoMedia(viewer.mime_type))
@@ -628,7 +801,7 @@ export function EventMediaGallery({
     onAddScannedPlate && canWrite
       ? visiblePlateSuggestions(plateSuggestions, {
           eventPlates: plates.map((plate) => plate.plate_number),
-          formPlates,
+          formPlates: (formVehicles ?? []).map((vehicle) => vehicle.plate_number),
           dismissed: dismissedPlates,
         })
       : []
@@ -784,18 +957,23 @@ export function EventMediaGallery({
                 <div className="event-media__draft-thumb event-media__draft-thumb--preparing" />
               )}
               <div className="event-media__draft-fields">
-                {!platesLoaded ? (
+                {!vehiclesReady ? (
                   <p className="t-caption text-muted">טוען רכבים…</p>
-                ) : stepVehicleNote ? (
-                  <p className="t-body text-secondary">{stepVehicleNote}</p>
                 ) : (
-                  <MediaPlateChips
-                    single
-                    plates={plates}
-                    value={stepDraft.treatedPlateIds}
-                    disabled={stepDraft.uploading}
-                    onChange={(ids) => patchDraft(stepDraft.key, { treatedPlateIds: ids })}
-                  />
+                  <>
+                    <PhotoSubjectChips
+                      single
+                      vehicles={vehicleOptions}
+                      value={stepDraft.subject}
+                      disabled={stepDraft.uploading}
+                      onChange={(subject) => patchDraft(stepDraft.key, { subject })}
+                    />
+                    {stepVehicleNote ? (
+                      <p className="field__hint">{stepVehicleNote}</p>
+                    ) : stepPending ? (
+                      <p className="field__hint">{EVENT_MEDIA_PENDING_VEHICLE}</p>
+                    ) : null}
+                  </>
                 )}
                 <TextField
                   label="תיאור"
@@ -845,9 +1023,7 @@ export function EventMediaGallery({
           tileMenu
             ? [
                 { label: 'צפייה', onSelect: () => openViewer(tileMenu.item) },
-                ...(plates.length > 0
-                  ? [{ label: PLATE_LINK_ACTION, onSelect: () => openLink(tileMenu.item) }]
-                  : []),
+                { label: PLATE_LINK_ACTION, onSelect: () => openLink(tileMenu.item) },
                 { label: 'הסרה', danger: true, onSelect: () => removeFromTile(tileMenu.item) },
               ]
             : []
@@ -912,10 +1088,10 @@ export function EventMediaGallery({
                     options={TAKEN_WHEN_OPTIONS}
                     onChange={(event) => setEditTakenWhen(event.target.value as EventMediaTakenWhen)}
                   />
-                  <MediaPlateChips
-                    plates={plates}
-                    value={editPlateIds}
-                    onChange={setEditPlateIds}
+                  <PhotoSubjectChips
+                    vehicles={vehicleOptions}
+                    value={editSubject}
+                    onChange={setEditSubject}
                   />
                   <TextField
                     label="תיאור"
@@ -939,16 +1115,26 @@ export function EventMediaGallery({
                     <div className="event-media__meta-row">
                       <dt className="t-label text-secondary">רכבים בתמונה</dt>
                       <dd>
-                        {linkedPlates.length > 0 ? (
+                        {linkedPlates.length > 0 || viewerPending.length > 0 ? (
                           <ul className="event-media__plate-list">
                             {linkedPlates.map((plate) => (
                               <li key={plate.id}>
                                 <MediaPlateChoice plate={plate} />
                               </li>
                             ))}
+                            {viewerPending.map((vehicle) => (
+                              <li key={vehicle.digits}>
+                                <MediaPlateChoice plate={vehicle} />
+                                <span className="t-caption text-muted">ישויך כשתשמרו את הדיווח</span>
+                              </li>
+                            ))}
                           </ul>
                         ) : (
-                          <span className="t-body">—</span>
+                          <span className="t-body">
+                            {viewer.not_vehicle
+                              ? EVENT_MEDIA_NOT_VEHICLE_LABEL
+                              : EVENT_MEDIA_UNASSIGNED_LABEL}
+                          </span>
                         )}
                       </dd>
                     </div>
@@ -984,12 +1170,12 @@ export function EventMediaGallery({
       >
         <div className="stack-3">
           <p className="t-body text-secondary">{PLATE_LINK_HINT}</p>
-          <MediaPlateChips
-            plates={plates}
-            value={linkPlateIds}
+          <PhotoSubjectChips
+            vehicles={vehicleOptions}
+            value={linkSubject}
             disabled={savingLink}
-            onChange={(ids) => {
-              setLinkPlateIds(ids)
+            onChange={(subject) => {
+              setLinkSubject(subject)
               setLinkError(undefined)
             }}
           />

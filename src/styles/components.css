@@ -8924,7 +8924,8 @@ html[data-keyboard-open] .event-form__footer {
     border-color var(--duration-fast) var(--ease-standard);
 }
 
-.media-plate-chip[aria-pressed='true'] {
+.media-plate-chip[aria-pressed='true'],
+.media-plate-chip[aria-checked='true'] {
   border-color: var(--accent);
   background: var(--accent-subtle);
 }

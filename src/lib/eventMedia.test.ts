@@ -20,7 +20,9 @@ import {
   groupMediaByTakenWhen,
   leftoverEventMediaError,
   mapEventMediaError,
-  nextPhotoVehicleId,
+  keepPhotoSubject,
+  PHOTO_UNASSIGNED,
+  resolvePlateDigits,
   photoAttachWrite,
   photoStepCanSave,
   photoStepVehicleNote,
@@ -29,6 +31,7 @@ import {
   togglePlateId,
   uniquePlateIds,
   type EventMedia,
+  type PhotoSubject,
 } from './eventMedia'
 
 function media(patch: Partial<EventMedia> = {}): EventMedia {
@@ -38,6 +41,7 @@ function media(patch: Partial<EventMedia> = {}): EventMedia {
     uploaded_by: 'u1',
     uploader_name: 'דנה',
     treated_plate_ids: [],
+    not_vehicle: false,
     caption: null,
     taken_when: 'before_treatment',
     storage_path: 'e1/m1.jpg',
@@ -77,31 +81,76 @@ describe('captionError', () => {
 })
 
 describe('photo attach step', () => {
-  it('does not block save on empty text, sends the chosen vehicle, and leaves another add', () => {
-    const write = photoAttachWrite({ caption: '   ', vehicleId: 'veh-1' })
+  it('does not block save on empty text, sends the chosen subject, and leaves another add', () => {
+    const subject: PhotoSubject = { kind: 'vehicles', digits: ['1234567'] }
+    const write = photoAttachWrite({ caption: '   ', subject })
     expect(write.blocked).toBe(false)
     expect(write.caption).toBeNull()
-    expect(write.vehicleIds).toEqual(['veh-1'])
+    expect(write.subject).toEqual(subject)
     expect(
       photoStepCanSave({
         caption: '',
         takenWhen: 'during_after_treatment',
         preparing: false,
-        platesLoaded: true,
+        vehiclesReady: true,
       }),
     ).toBe(true)
     expect(canAddAnotherPhoto(1)).toBe(true)
     expect(canAddAnotherPhoto(20)).toBe(false)
   })
 
-  it('leaves every photo unassigned until the person picks a vehicle', () => {
-    expect(nextPhotoVehicleId(['only'], null)).toBeNull()
-    expect(nextPhotoVehicleId(['a', 'b'], null)).toBeNull()
-    expect(nextPhotoVehicleId(['a', 'b'], 'b')).toBe('b')
-    expect(nextPhotoVehicleId(['only'], 'gone')).toBeNull()
-    expect(nextPhotoVehicleId([], 'a')).toBeNull()
+  it('waits for the vehicle list and blocks a caption over 200 characters', () => {
+    const base = { caption: '', takenWhen: 'before_treatment' as const, preparing: false }
+    expect(photoStepCanSave({ ...base, vehiclesReady: false })).toBe(false)
+    expect(photoStepCanSave({ ...base, vehiclesReady: true, caption: 'א'.repeat(201) })).toBe(false)
+    expect(photoStepCanSave({ ...base, vehiclesReady: true, takenWhen: '' })).toBe(false)
+  })
+
+  it('keeps the choice while its vehicle is in the form and falls back when it is removed', () => {
+    const one: PhotoSubject = { kind: 'vehicles', digits: ['1111111'] }
+    expect(keepPhotoSubject(one, ['1111111', '2222222'])).toBe(one)
+    expect(keepPhotoSubject(one, ['2222222'])).toEqual(PHOTO_UNASSIGNED)
+    expect(
+      keepPhotoSubject({ kind: 'vehicles', digits: ['1111111', '2222222'] }, ['2222222']),
+    ).toEqual({ kind: 'vehicles', digits: ['2222222'] })
+    expect(keepPhotoSubject({ kind: 'not_vehicle' }, [])).toEqual({ kind: 'not_vehicle' })
+    expect(keepPhotoSubject(PHOTO_UNASSIGNED, [])).toEqual(PHOTO_UNASSIGNED)
     expect(photoStepVehicleNote(0)).toBe(EVENT_MEDIA_NO_VEHICLE)
     expect(photoStepVehicleNote(1)).toBeNull()
+  })
+})
+
+describe('resolvePlateDigits', () => {
+  const plate = (
+    id: string,
+    plate_number: string,
+    owner: { event_responder_id?: string; event_id?: string },
+  ) => ({ id, plate_number, model: null, color: null, logo_slug: null, ...owner })
+
+  it('finds the saved row by digits and reports a vehicle not saved yet as missing', () => {
+    const plates = [plate('row-a', '12-345-67', { event_responder_id: 'er1' })]
+    expect(
+      resolvePlateDigits(plates, ['1234567', '7654321'], { eventResponderId: 'er1' }),
+    ).toEqual({ ids: ['row-a'], missing: ['7654321'] })
+  })
+
+  it("never links to another responder's car with the same plate", () => {
+    const plates = [
+      plate('theirs', '12-345-67', { event_responder_id: 'er2' }),
+      plate('mine', '12-345-67', { event_responder_id: 'er1' }),
+    ]
+    expect(resolvePlateDigits(plates, ['1234567'], { eventResponderId: 'er1' }).ids).toEqual([
+      'mine',
+    ])
+    expect(resolvePlateDigits(plates.slice(0, 1), ['1234567'], { eventResponderId: 'er1' })).toEqual(
+      { ids: [], missing: ['1234567'] },
+    )
+  })
+
+  it("uses a shift event's shared rows, and any row when there is no form", () => {
+    const plates = [plate('shared', '123-45-678', { event_id: 'e1' })]
+    expect(resolvePlateDigits(plates, ['12345678'], { eventId: 'e1' }).ids).toEqual(['shared'])
+    expect(resolvePlateDigits(plates, ['12345678'], null).ids).toEqual(['shared'])
   })
 })
 
