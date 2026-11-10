@@ -6,6 +6,7 @@ import {
   incompleteNoticeLabel,
   isEventIncomplete,
   eventHasMissingResponderKm,
+  leadEnteredAwaitingStamp,
   leadFacingMissingKm,
   missingEventFields,
   missingEventFieldsForViewer,
@@ -300,5 +301,70 @@ describe('lead-facing missing KM', () => {
       incomplete: [missingKm],
       rest: [],
     })
+  })
+})
+
+describe('lead-facing הוזן בהצלחה', () => {
+  const complete = (partial: Partial<EventListItem> = {}) =>
+    event({
+      shift_lead_id: 'lead',
+      started_at: '2026-09-04T06:00:00+03:00',
+      ended_at: '2026-09-04T07:00:00+03:00',
+      secondary_leads: [{ user_id: 'sec', locked: false, full_name: 'משני', callsign: 'S1' }],
+      responders: [responder({ status: 'pending' })],
+      ...partial,
+    })
+
+  it('tells the lead their part is saved and one volunteer still owes a fill', () => {
+    expect(leadEnteredAwaitingStamp(complete(), 'lead')).toEqual({
+      label: 'הוזן בהצלחה',
+      tone: 'done',
+      caption: 'ממתין למתנדב',
+    })
+    expect(leadEnteredAwaitingStamp(complete(), 'sec')?.label).toBe('הוזן בהצלחה')
+  })
+
+  it('counts open volunteers, including a saved draft, and skips finished ones', () => {
+    const several = complete({
+      status: 'partial',
+      responders: [
+        responder({ id: 'r1', responder_id: 'u1', status: 'pending' }),
+        responder({ id: 'r2', responder_id: 'u2', status: 'in_progress' }),
+        responder({ id: 'r3', responder_id: 'u3', status: 'done' }),
+      ],
+    })
+    expect(leadEnteredAwaitingStamp(several, 'lead')?.caption).toBe('ממתין ל־2 מתנדבים')
+  })
+
+  it('stays off while the lead still owes a field', () => {
+    expect(leadEnteredAwaitingStamp(complete({ ended_at: null }), 'lead')).toBeNull()
+    expect(leadEnteredAwaitingStamp(complete({ police_event_id: null }), 'lead')).toBeNull()
+    const noKm = complete({ responders: [responder({ status: 'pending', total_km: null })] })
+    expect(leadEnteredAwaitingStamp(noKm, 'lead')).toBeNull()
+  })
+
+  it('is viewer-relative: volunteers and admins who do not lead keep the old stamp', () => {
+    expect(leadEnteredAwaitingStamp(complete(), 'u1')).toBeNull()
+    expect(leadEnteredAwaitingStamp(complete(), 'admin-who-is-not-the-lead')).toBeNull()
+    expect(leadEnteredAwaitingStamp(complete(), null)).toBeNull()
+  })
+
+  it('lets a lead who is also an open volunteer see their own to-do instead', () => {
+    const leadOnCrew = complete({
+      responders: [
+        responder({ id: 'r1', responder_id: 'lead', status: 'pending' }),
+        responder({ id: 'r2', responder_id: 'u2', status: 'pending' }),
+      ],
+    })
+    expect(leadEnteredAwaitingStamp(leadOnCrew, 'lead')).toBeNull()
+  })
+
+  it('does not apply once every volunteer is done, to drafts, cancelled or shift-born events', () => {
+    const allDone = complete({ status: 'partial', responders: [responder({ status: 'done' })] })
+    expect(leadEnteredAwaitingStamp(allDone, 'lead')).toBeNull()
+    expect(leadEnteredAwaitingStamp(complete({ status: 'done' }), 'lead')).toBeNull()
+    expect(leadEnteredAwaitingStamp(complete({ status: 'draft' }), 'lead')).toBeNull()
+    expect(leadEnteredAwaitingStamp(complete({ is_cancelled: true }), 'lead')).toBeNull()
+    expect(leadEnteredAwaitingStamp(complete({ origin: 'shift' }), 'lead')).toBeNull()
   })
 })

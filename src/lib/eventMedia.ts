@@ -113,8 +113,7 @@ export function canAddMoreMedia(savedCount: number, inFlightCount: number): bool
 export const EVENT_MEDIA_STEP_TITLE = 'שיוך התמונה'
 export const EVENT_MEDIA_VEHICLE_PROMPT = 'מה רואים בתמונה?'
 export const EVENT_MEDIA_NO_VEHICLE = 'עוד אין רכבים בדיווח. אפשר להוסיף רכב בשדה לוחית הרישוי.'
-export const EVENT_MEDIA_NOT_VEHICLE_LABEL = 'לא רכב'
-export const EVENT_MEDIA_UNASSIGNED_LABEL = 'ללא שיוך'
+export const EVENT_MEDIA_UNASSIGNED_LABEL = 'ללא שיוך לרכב'
 export const EVENT_MEDIA_PENDING_VEHICLE =
   'הרכב עוד לא נשמר. התמונה תשויך אליו כשתשמרו את הדיווח.'
 

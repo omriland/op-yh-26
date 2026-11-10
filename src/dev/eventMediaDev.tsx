@@ -18,6 +18,10 @@ createRoot(document.getElementById('root')!).render(
           canWrite
           showEmptyCopy
           viewerId={null}
+          formVehicles={[
+            { plate_number: '12-345-67', model: 'ALFA ROMEO 159', color: 'שחור', logo_slug: null },
+            { plate_number: '98-765-43', model: null, color: null, logo_slug: null },
+          ]}
         />
       </main>
     </ToastProvider>

@@ -56,6 +56,9 @@ async function defaultEncode(
   canvas.height = height
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('canvas')
+  // JPEG has no transparency: a see-through PNG or screenshot would turn black without this.
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
   ctx.drawImage(image as CanvasImageSource, 0, 0, width, height)
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob((next) => resolve(next), 'image/jpeg', quality)

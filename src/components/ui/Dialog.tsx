@@ -161,7 +161,14 @@ export function Dialog({
       const lift = sheetAboveKeyboard(window.innerHeight, vv.offsetTop, vv.height)
       root.style.bottom = lift.rootBottom
       sheet.style.maxHeight = lift.sheetMaxHeight
-      if (!lift.rootBottom) return
+      return Boolean(lift.rootBottom)
+    }
+
+    // Reveal only on focus or a viewport resize, never on a viewport scroll:
+    // scrollIntoView pans the visual viewport, which fires another scroll, and
+    // with appViewport's scroll reset that loops and flickers on iOS.
+    const placeAndReveal = () => {
+      if (!place()) return
       const active = document.activeElement
       if (!(active instanceof HTMLElement) || !sheet.contains(active)) return
       if (!shouldScrollFocusedField(active)) return
@@ -169,16 +176,16 @@ export function Dialog({
     }
 
     const onFocusIn = () => {
-      place()
-      requestAnimationFrame(place)
+      placeAndReveal()
+      requestAnimationFrame(placeAndReveal)
     }
 
     place()
-    vv.addEventListener('resize', place)
+    vv.addEventListener('resize', placeAndReveal)
     vv.addEventListener('scroll', place)
     sheet.addEventListener('focusin', onFocusIn)
     return () => {
-      vv.removeEventListener('resize', place)
+      vv.removeEventListener('resize', placeAndReveal)
       vv.removeEventListener('scroll', place)
       sheet.removeEventListener('focusin', onFocusIn)
       root.style.bottom = ''

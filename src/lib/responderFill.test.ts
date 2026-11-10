@@ -410,6 +410,49 @@ describe('validateResponderFillDraft (user-entered odometer end)', () => {
   })
 })
 
+describe('validateResponderFillDraft (responder without a car)', () => {
+  it('completes without a plate or odometer when no car is linked', () => {
+    const errors = validateResponderFillDraft(
+      draft({ route: 'כביש 1', treatment_detail: treatmentOk }),
+      'complete',
+      [],
+      null,
+    )
+    expect(errors).toEqual({})
+  })
+
+  it('still asks for the route and the treatment detail', () => {
+    const errors = validateResponderFillDraft(draft(), 'complete', [], null)
+    expect(errors.vehicle_plate).toBeUndefined()
+    expect(errors.odometer_start).toBeUndefined()
+    expect(errors.odometer_end).toBeUndefined()
+    expect(errors.route).toBe('יש למלא נתיב נסיעה.')
+    expect(errors.treatment_detail).toBeDefined()
+  })
+
+  it('still rejects a reversed odometer pair that was typed anyway', () => {
+    const errors = validateResponderFillDraft(
+      draft({ odometer_start: '120', odometer_end: '100', route: 'כביש 1', treatment_detail: treatmentOk }),
+      'complete',
+      [],
+      null,
+    )
+    expect(errors.odometer_end).toBe(ODOMETER_ORDER_ERROR)
+  })
+
+  it('keeps plate and odometer required for a responder who has a car', () => {
+    const errors = validateResponderFillDraft(
+      draft({ route: 'כביש 1', treatment_detail: treatmentOk }),
+      'complete',
+      ['1234567'],
+      null,
+    )
+    expect(errors.vehicle_plate).toBe('יש לבחור רכב.')
+    expect(errors.odometer_start).toBe('יש למלא מד אוץ התחלה.')
+    expect(errors.odometer_end).toBe('יש למלא מד אוץ סיום.')
+  })
+})
+
 describe('gateResponderFillWrite', () => {
   it('lets a responder draft and complete a cancelled event', () => {
     expect(RESPONDER_FILL_CANCELLED_NOTE).toBe('האירוע בוטל.')

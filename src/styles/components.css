@@ -768,6 +768,12 @@ p.alert--info {
   color: var(--status-alert-on-tint);
 }
 
+.event-status-trail__caption {
+  display: block;
+  color: var(--text-secondary);
+  letter-spacing: normal;
+}
+
 .table tbody td.table-cell--status {
   height: auto;
   min-height: 48px;
@@ -1061,6 +1067,13 @@ p.alert--info {
 .stamp-stack__note {
   max-width: 11rem;
   color: var(--status-alert);
+}
+
+/* Informational, not a warning: who still owes a fill under a green stamp. */
+.stamp-stack__caption {
+  max-width: 11rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .event-card__stamp {
@@ -8777,48 +8790,6 @@ html[data-keyboard-open] .event-form__footer {
 .event-media__draft-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.plate-scan {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--stroke-hairline);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-}
-
-.plate-scan__head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.plate-scan__head h4 {
-  margin: 0;
-}
-
-.plate-scan__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.plate-scan__item {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.plate-scan__actions {
-  display: flex;
   gap: var(--space-2);
 }
 

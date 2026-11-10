@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { ChevronRight, Printer, Search } from 'lucide-react'
 import type { SmartSearchFilter } from '../../supabase/functions/_shared/smartSearchFilter.ts'
 import { useAuth } from '../lib/auth'
-import { leadFacingMissingKm } from '../lib/eventIncomplete'
+import { leadEnteredAwaitingStamp, leadFacingMissingKm } from '../lib/eventIncomplete'
 import { ownParticipation, ownResponderKm, type EventListItem } from '../lib/events'
 import { useFreezeViewer } from '../lib/freezeViewer'
 import { downloadCsv } from '../lib/reports/csv'
@@ -67,6 +67,8 @@ function cardStamp(event: EventListItem, userId?: string): StampDescriptor {
     })
     return overlayMissingKmOnDoneStamp(stamp, missingKm)
   }
+  const leadEntered = leadEnteredAwaitingStamp(event, userId)
+  if (leadEntered) return leadEntered
   return overlayMissingKmOnDoneStamp(
     viewerStamp(event.status, ownParticipation(event, userId), ownResponderKm(event, userId)),
     missingKm,

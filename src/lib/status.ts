@@ -5,7 +5,8 @@ export type ParticipationStatus = 'pending' | 'in_progress' | 'done'
 export type StampTone = 'done' | 'partial' | 'pending' | 'draft' | 'alert'
 export type TrailPhase = 'past' | 'current' | 'future'
 
-export type StampDescriptor = { label: string; tone: StampTone }
+/** `caption`: small secondary line under the chip (StampWithNote, status trail). */
+export type StampDescriptor = { label: string; tone: StampTone; caption?: string }
 
 export type EventStatusTrailStep = StampDescriptor & {
   status: EventStatus
@@ -127,6 +128,22 @@ export function participationStamp(status: ParticipationStatus, isViewer: boolea
     return { label: 'טיוטה נשמרה', tone: 'draft' }
   }
   return { label: isViewer ? 'ממתין לתיעוד' : 'ממתין למתנדב', tone: 'pending' }
+}
+
+export const LEAD_ENTERED_LABEL = 'הוזן בהצלחה'
+export const AWAITING_RESPONDER_CAPTION = 'ממתין למתנדב'
+
+/**
+ * Lead-facing: the אחמ״ש's part is complete and `openResponders` volunteers still owe
+ * their fill. One per-person card always gets the singular caption.
+ */
+export function leadEnteredStamp(openResponders: number): StampDescriptor {
+  return {
+    label: LEAD_ENTERED_LABEL,
+    tone: 'done',
+    caption:
+      openResponders > 1 ? `ממתין ל־${openResponders} מתנדבים` : AWAITING_RESPONDER_CAPTION,
+  }
 }
 
 /** Responder finished fill; lead KM still missing. Replaces הושלם on their own stamp. */

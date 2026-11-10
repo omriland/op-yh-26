@@ -27,6 +27,7 @@ import {
   type EventListItem,
 } from '../lib/events'
 import {
+  LEAD_ENTERED_LABEL,
   leadKmPendingNote,
   mineFillCtaLabel,
   mineInboxIsOpen,
@@ -95,6 +96,7 @@ import {
   incompleteLeadNoticeLabels,
   leadFacingMissingKm,
   partitionIncompleteEventsForViewer,
+  leadEnteredAwaitingStamp,
   partialStampHoverText,
 } from '../lib/eventIncomplete'
 import { eventReleasedFromEvent } from '../lib/eventResponderRelease'
@@ -504,6 +506,8 @@ export function EventsPage({
         })
         return overlayMissingKmOnDoneStamp(stamp, leadFacingMissingKm(event, user?.id))
       }
+      const leadEntered = leadEnteredAwaitingStamp(event, user?.id)
+      if (leadEntered) return leadEntered
       return overlayMissingKmOnDoneStamp(
         viewerStamp(event.status, mine, ownKm),
         leadFacingMissingKm(event, user?.id),
@@ -1404,7 +1408,7 @@ function unitPartialStampTip(
   stamp: StampDescriptor,
   viewerId: string | null | undefined,
 ): string | null {
-  if (stamp.label !== 'תועד חלקית') return null
+  if (stamp.label !== 'תועד חלקית' && stamp.label !== LEAD_ENTERED_LABEL) return null
   return partialStampHoverText(event, viewerId)
 }
 

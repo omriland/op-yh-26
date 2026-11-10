@@ -171,14 +171,19 @@ function validateDraft(
   if (end === "invalid") errors.odometer_end = "מד אוץ סיום חייב להיות מספר.";
 
   if (mode === "complete") {
-    if (!plate) errors.vehicle_plate = "יש לבחור רכב.";
-    else if (allowed.size > 0 && !allowed.has(plate)) {
-      errors.vehicle_plate = "יש לבחור רכב מהרשימה המקושרת למשתמש.";
-    } else if (allowed.size === 0) {
-      errors.vehicle_plate = "לא מקושר רכב למשתמש. פנו למנהל המערכת.";
+    // Only the first responder on an event must own a car; one without a linked
+    // car rode along, so there is no plate or odometer to report.
+    const rodeAlong = allowed.size === 0 && !plate;
+    if (!rodeAlong) {
+      if (!plate) errors.vehicle_plate = "יש לבחור רכב.";
+      else if (allowed.size > 0 && !allowed.has(plate)) {
+        errors.vehicle_plate = "יש לבחור רכב מהרשימה המקושרת למשתמש.";
+      } else if (allowed.size === 0) {
+        errors.vehicle_plate = "לא מקושר רכב למשתמש. פנו למנהל המערכת.";
+      }
+      if (start == null || start === "invalid") errors.odometer_start = "יש למלא מד אוץ התחלה.";
+      if (end == null || end === "invalid") errors.odometer_end = "יש למלא מד אוץ סיום.";
     }
-    if (start == null || start === "invalid") errors.odometer_start = "יש למלא מד אוץ התחלה.";
-    if (end == null || end === "invalid") errors.odometer_end = "יש למלא מד אוץ סיום.";
     if (!draft.route.trim()) errors.route = "יש למלא נתיב נסיעה.";
     // Cancelled events have no פירוט minimum. A live event still needs some text;
     // the 25-character bar is enforced by the logged-in clients, not this API.

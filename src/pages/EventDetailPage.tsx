@@ -27,6 +27,8 @@ import { buildStaticMapUrl, eventMapCoords } from '../lib/staticMaps'
 import {
   cancelledStamp,
   eventStamp,
+  LEAD_ENTERED_LABEL,
+  leadEnteredStamp,
   leadKmPendingNote,
   mineFillCtaLabel,
   mineParticipationStamp,
@@ -36,6 +38,7 @@ import {
 import { eventMissingLeadDoneDetails } from '../lib/eventStatus'
 import {
   eventHasMissingResponderKm,
+  leadEnteredAwaitingStamp,
   missingEventFields,
   partialStampHoverText,
   RESPONDERS_HELD_FOR_POLICE_ID_NOTE,
@@ -288,8 +291,10 @@ export function EventDetailPage({
   const missingLeadDetails =
     event.origin !== 'shift' && eventMissingLeadDoneDetails(event.ended_at)
   const mineLeadKmNote = leadKmPendingNote(mine, mineKm, event.origin, missingLeadDetails)
+  const leadEntered = leadEnteredAwaitingStamp(event, user?.id)
   const headerStamp =
-    event.origin === 'shift'
+    leadEntered ??
+    (event.origin === 'shift'
       ? shiftBornFillStamp({
           status: event.status,
           police_event_id: event.police_event_id,
@@ -303,9 +308,11 @@ export function EventDetailPage({
         : overlayMissingKmOnDoneStamp(
             eventStamp(event.status),
             eventLead && eventHasMissingResponderKm(event),
-          )
+          ))
   const headerStampTip =
-    headerStamp.label === 'תועד חלקית' ? partialStampHoverText(event, user?.id) : null
+    headerStamp.label === 'תועד חלקית' || headerStamp.label === LEAD_ENTERED_LABEL
+      ? partialStampHoverText(event, user?.id)
+      : null
   const assignedEditBlocked = isAssignedVolunteerEventEditBlocked({
     viewerId: user?.id,
     responderIds: event.responders.map((row) => row.responder_id),
@@ -635,6 +642,7 @@ export function EventDetailPage({
                     }
                     showLeadKm={showLeadKm}
                     leadKmMissing={eventLead && responderKmMissing(responder)}
+                    leadEntered={leadEntered != null}
                     showOdometers={responderCardShowsOdometers({
                       isViewer,
                       manages: managesEvent,
@@ -750,6 +758,7 @@ function ResponderCard({
   onEditLeadFields,
   showLeadKm,
   leadKmMissing,
+  leadEntered,
   showOdometers,
   showTreatedPlates,
   origin,
@@ -764,6 +773,8 @@ function ResponderCard({
   onEditLeadFields?: () => void
   showLeadKm: boolean
   leadKmMissing: boolean
+  /** Viewer is the אחמ״ש and their part is complete: open volunteers read הוזן בהצלחה. */
+  leadEntered: boolean
   showOdometers: boolean
   showTreatedPlates: boolean
   origin: 'manual' | 'shift'
@@ -806,7 +817,11 @@ function ResponderCard({
           {/* Shift-born: the header carries the shared report's stamp, nothing per person. */}
           {origin === 'shift' ? null : (
             <StampWithNote
-              {...(isViewer ? viewerStampValue : participationStamp(responder.status, false))}
+              {...(isViewer
+                ? viewerStampValue
+                : leadEntered && responder.status !== 'done'
+                  ? leadEnteredStamp(1)
+                  : participationStamp(responder.status, false))}
               note={
                 isViewer
                   ? leadKmPendingNote(responder.status, responder.total_km, origin, missingLeadDetails)

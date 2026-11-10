@@ -10,7 +10,11 @@ import { EventFrozenMark } from './EventFrozenMark'
 import { EventStatusTrail } from './EventStatusTrail'
 import { EventAttachmentMark } from './EventAttachmentMark'
 import { IncompleteFieldsNotice } from './IncompleteFieldsNotice'
-import { leadFacingMissingKm, missingFullyLoggedFieldLabels } from '../../lib/eventIncomplete'
+import {
+  leadEnteredAwaitingStamp,
+  leadFacingMissingKm,
+  missingFullyLoggedFieldLabels,
+} from '../../lib/eventIncomplete'
 
 type IncompleteNotice = {
   fields: string[]
@@ -166,6 +170,7 @@ export function EventsTable({
                       <EventStatusTrail
                         status={event.status}
                         missingKm={leadFacingMissingKm(event, viewerId)}
+                        stamp={leadEnteredAwaitingStamp(event, viewerId)}
                         missingFields={
                           event.status === 'partial' || event.status === 'in_progress'
                             ? missingFullyLoggedFieldLabels(event, viewerId)

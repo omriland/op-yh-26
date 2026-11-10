@@ -46,6 +46,9 @@ import {
   mergeAssignmentIds,
   NEW_RESPONDER_EMERGENCY_MEANS,
   NO_VEHICLE_KM_PLACEHOLDER,
+  PICKER_NEEDS_VEHICLE_NOTE,
+  pickerCandidates,
+  pickerNeedsVehicleResponder,
   registerAbandonedEmptyEventHandler,
   eventResponderHasFilledFields,
   eventResponderRemoveConfirm,
@@ -521,17 +524,18 @@ export function EventFormPage({
 
   const dirty = draft ? eventDraftBaselineSnapshot(draft) !== baseline : false
 
+  const pickerNeedsVehicle = draft ? pickerNeedsVehicleResponder(draft.responders, roster) : false
+  const pickerPool = useMemo(
+    () => (draft ? pickerCandidates(draft.responders, roster) : []),
+    [draft, roster],
+  )
   const pickerOptions = useMemo(() => {
-    if (!draft) return []
-    const taken = new Set(draft.responders.map((row) => row.responder_id))
     const needle = pickerQuery.trim()
-    const matches = roster.filter((person) => {
-      if (taken.has(person.id)) return false
-      if (!needle) return true
-      return fieldsMatchQuery([person.full_name, person.callsign], needle)
-    })
+    const matches = needle
+      ? pickerPool.filter((person) => fieldsMatchQuery([person.full_name, person.callsign], needle))
+      : pickerPool
     return sortByCallsignForNumericQuery(matches, needle)
-  }, [draft, roster, pickerQuery])
+  }, [pickerPool, pickerQuery])
 
   function markSavedPulse() {
     setSavePulse('saved')
@@ -1976,6 +1980,12 @@ export function EventFormPage({
                   </p>
                 ) : null}
 
+                {pickerOpen && pickerNeedsVehicle ? (
+                  <p className="t-caption text-muted" role="note">
+                    {PICKER_NEEDS_VEHICLE_NOTE}
+                  </p>
+                ) : null}
+
                 {pickerOpen ? (
                   <div className="responder-picker__panel" role="listbox" aria-label="בחירת מתנדבים">
                     <label className="search-field">
@@ -1993,7 +2003,9 @@ export function EventFormPage({
                         <li className="responder-picker__empty t-caption text-muted">
                           {roster.length === 0
                             ? 'אין משתמשים פעילים להקצאה.'
-                            : 'לא נמצאו מתנדבים להקצאה'}
+                            : pickerNeedsVehicle && pickerPool.length === 0
+                              ? 'אין מתנדבים עם רכב זמינים להקצאה.'
+                              : 'לא נמצאו מתנדבים להקצאה'}
                         </li>
                       ) : (
                         pickerOptions.map((person) => {

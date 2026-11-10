@@ -1,6 +1,6 @@
 import { plateDigits } from './format'
 import type { TreatedPlate } from './treatedPlates'
-import { listEventMediaPlates, type EventMediaPlateOption } from './eventMedia'
+import type { EventMediaPlateOption, PendingMediaLink } from './eventMedia'
 import { supabase } from './supabase'
 
 export const VEHICLE_PHOTOS_TITLE = 'לא צורפו תמונות לרכבים הבאים:'
@@ -35,7 +35,7 @@ export function coveredPlateDigits(
  */
 export function vehiclesMissingPhotos(
   myPlates: readonly TreatedPlate[],
-  coveredDigits: Set<string>,
+  coveredDigits: ReadonlySet<string>,
 ): TreatedPlate[] {
   return myPlates.filter((plate) => {
     const digits = plateDigits(plate.plate_number)
@@ -52,7 +52,7 @@ function plateIdsFromMediaRow(
 }
 
 export function coveragePlatesFromOptions(
-  options: readonly EventMediaPlateOption[],
+  options: readonly Pick<EventMediaPlateOption, 'id' | 'plate_number'>[],
 ): PhotoCoveragePlate[] {
   return options.map((plate) => ({
     id: plate.id,
@@ -60,25 +60,54 @@ export function coveragePlatesFromOptions(
   }))
 }
 
-/** Lightweight coverage fetch — no signed image URLs. */
-export async function fetchEventPhotoCoverage(eventId: string): Promise<{
-  coveredDigits: Set<string>
-}> {
-  const [{ data: media }, plates] = await Promise.all([
+/**
+ * Saved coverage plus the photos linked to a vehicle the form has not saved yet.
+ * Without the second part, a photo of a just-added vehicle reads as missing.
+ */
+export function withPendingPhotoLinks(
+  saved: ReadonlySet<string>,
+  pending: readonly PendingMediaLink[],
+): Set<string> {
+  const covered = new Set(saved)
+  for (const link of pending) {
+    for (const digits of link.digits) {
+      const key = plateDigits(digits)
+      if (key) covered.add(key)
+    }
+  }
+  return covered
+}
+
+/**
+ * Plate digits with a saved photo link, or null when the read failed. A failed
+ * read must not be taken as "no photos": the save prompt would then name vehicles
+ * the person did photograph.
+ */
+export async function fetchEventPhotoCoverage(eventId: string): Promise<Set<string> | null> {
+  const plateSelect = 'id, plate_number'
+  const [media, eventKeyed, responderKeyed] = await Promise.all([
     supabase
       .from('event_media')
       .select('id, plates:event_media_plates(treated_plate_id)')
       .eq('event_id', eventId),
-    listEventMediaPlates(eventId),
+    supabase.from('event_treated_plates').select(plateSelect).eq('event_id', eventId),
+    supabase
+      .from('event_treated_plates')
+      .select(
+        `${plateSelect}, event_responders!event_treated_plates_event_responder_id_fkey!inner(event_id)`,
+      )
+      .eq('event_responders.event_id', eventId),
   ])
+  if (media.error || eventKeyed.error || responderKeyed.error) return null
 
-  const mediaRows = (media ?? []).map((row) => ({
+  const plates = [...(eventKeyed.data ?? []), ...(responderKeyed.data ?? [])].flatMap((row) =>
+    row.id && row.plate_number ? [{ id: row.id, plate_number: row.plate_number }] : [],
+  )
+  const mediaRows = (media.data ?? []).map((row) => ({
     treated_plate_ids: plateIdsFromMediaRow(
       row.plates as { treated_plate_id: string } | { treated_plate_id: string }[] | null,
     ),
   }))
 
-  return {
-    coveredDigits: coveredPlateDigits(mediaRows, coveragePlatesFromOptions(plates)),
-  }
+  return coveredPlateDigits(mediaRows, coveragePlatesFromOptions(plates))
 }

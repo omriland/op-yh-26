@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import {
@@ -7,6 +7,7 @@ import {
   fetchResponderVehicleChoices,
   fillHeaderStatus,
   mergeFillVehicleChoices,
+  NO_LINKED_VEHICLE_FILL_HINT,
   RESPONDER_FILL_CANCELLED_NOTE,
   odometerDelta,
   odometerRangeError,
@@ -41,10 +42,12 @@ import { EventSaveRulesDialog } from '../components/events/EventSaveRulesDialog'
 import {
   evaluateResponderFillSaveRules,
   mergeFieldErrors,
+  skippedPhotoDigits,
   type SaveRuleIssue,
 } from '../lib/eventSaveRules'
-import { fetchEventPhotoCoverage } from '../lib/eventVehiclePhotos'
-import { linkPendingMedia, type PendingMediaLink } from '../lib/eventMedia'
+import { withPendingPhotoLinks } from '../lib/eventVehiclePhotos'
+import type { PendingMediaLink } from '../lib/eventMedia'
+import { sessionMediaSource, tokenMediaSource } from '../lib/eventMediaSource'
 import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -99,6 +102,12 @@ export function ResponderFillPage({
   const { user } = useAuth()
   const { show } = useToast()
   const [ctx, setCtx] = useState<ResponderFillContext | null>(null)
+  /** The email link's responder: photos uploaded through the link are theirs. */
+  const [linkResponderId, setLinkResponderId] = useState<string | null>(null)
+  const mediaSource = useMemo(
+    () => (fillToken ? tokenMediaSource(fillToken) : sessionMediaSource),
+    [fillToken],
+  )
   const [draft, setDraft] = useState<ResponderFillDraft | null>(null)
   /** `shift_born`: the crew documents this event once, in the shared report. */
   const [loadState, setLoadState] = useState<
@@ -119,7 +128,8 @@ export function ResponderFillPage({
   /** Holds the screen just long enough to show the stamp land — 07-motion.md. */
   const [justCompleted, setJustCompleted] = useState(false)
   const [notifyPrompt, setNotifyPrompt] = useState<SaveRuleIssue[] | null>(null)
-  const photoNotifyOkRef = useRef(false)
+  /** Vehicles the responder chose to save without a photo; a vehicle added later is still asked about. */
+  const photoSkippedRef = useRef<Set<string>>(new Set())
   const pendingSaveMode = useRef<'draft' | 'complete' | null>(null)
   const plateLookupTail = useRef(Promise.resolve())
   const stashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -165,6 +175,7 @@ export function ResponderFillPage({
             return
           }
           setCtx(result.context)
+          setLinkResponderId(result.context.responderId ?? null)
           setDraft(restoreDraft(result.context.assignmentId, result.context.draft))
           setLoadState('ready')
         })
@@ -397,17 +408,6 @@ export function ResponderFillPage({
     enqueuePlateLookup(result.plate.plate_number)
   }
 
-  /** A plate read off a photo and confirmed by the responder. Leaves the typed field alone. */
-  function onAddScannedPlate(digits: string): string | null {
-    if (!draft || readOnly) return null
-    const result = commitTreatedPlate(digits, draft.treated_plates)
-    if (!result.ok) return result.error
-    patchDraft({ treated_plates: result.plates })
-    setErrors((current) => ({ ...current, treated_plates: undefined }))
-    enqueuePlateLookup(result.plate.plate_number)
-    return null
-  }
-
   function onRemoveTreatedPlate(plateDigitsKey: string) {
     if (!draft || readOnly) return
     patchDraft({
@@ -427,15 +427,17 @@ export function ResponderFillPage({
     mode: 'draft' | 'complete',
   ): Promise<boolean> {
     if (!ctx) return false
-    const coverage = await fetchEventPhotoCoverage(ctx.eventId)
+    // Null when coverage could not be read: then nobody is told a vehicle lacks a photo.
+    const saved = await mediaSource.coverage(ctx.eventId)
+    const coverage = saved ? withPendingPhotoLinks(saved, pendingMediaLinks.current) : null
     const rules = evaluateResponderFillSaveRules({
       draft: nextDraft,
       mode,
       allowedPlates: ctx.vehicles.map((vehicle) => vehicle.plate),
       totalKm: ctx.totalKm,
       unfinishedMediaDraftCount: unfinishedMediaDrafts,
-      coveredPlateDigits: coverage.coveredDigits,
-      photoNotifyOk: photoNotifyOkRef.current,
+      coveredPlateDigits: coverage,
+      photoSkippedDigits: photoSkippedRef.current,
       cancelled: ctx.is_cancelled,
     })
     if (rules.blocks.length > 0) {
@@ -468,7 +470,9 @@ export function ResponderFillPage({
    */
   async function linkPendingPhotos(eventId: string, assignmentId: string) {
     if (pendingMediaLinks.current.length > 0) {
-      await linkPendingMedia(eventId, pendingMediaLinks.current, { eventResponderId: assignmentId })
+      await mediaSource.linkPending(eventId, pendingMediaLinks.current, {
+        eventResponderId: assignmentId,
+      })
     }
     setVehiclesSavedTick((n) => n + 1)
   }
@@ -489,7 +493,7 @@ export function ResponderFillPage({
           totalKm: ctx.totalKm,
           cancelled: ctx.is_cancelled,
         })
-    if (result.ok && !fillToken) await linkPendingPhotos(ctx.eventId, ctx.assignmentId)
+    if (result.ok) await linkPendingPhotos(ctx.eventId, ctx.assignmentId)
     setSavingDraft(false)
     if (!result.ok) {
       if (result.fieldErrors) setErrors(result.fieldErrors)
@@ -548,7 +552,7 @@ export function ResponderFillPage({
           unfinishedMediaDraftCount: unfinishedMediaDrafts,
           cancelled: ctx.is_cancelled,
         })
-    if (result.ok && !fillToken) await linkPendingPhotos(ctx.eventId, ctx.assignmentId)
+    if (result.ok) await linkPendingPhotos(ctx.eventId, ctx.assignmentId)
     setCompleting(false)
     if (!result.ok) {
       if (result.fieldErrors) setErrors(result.fieldErrors)
@@ -620,6 +624,10 @@ export function ResponderFillPage({
   // During the hold the server row is already done, but `ctx` is not refetched.
   // Show the landed state on the stamp only — flipping `ctx` would also flip
   // `readOnly` and swap the whole form to read-only mid-animation.
+  // Through the email link the token is the identity, signed in or not.
+  const mediaViewerId = fillToken ? linkResponderId : (user?.id ?? null)
+  const mediaCanWrite = Boolean(mediaViewerId) && !ctx.is_cancelled
+
   const { stamp, note: kmNote } = fillHeaderStatus({
     participationStatus: justCompleted ? 'done' : ctx.participationStatus,
     totalKm: ctx.totalKm,
@@ -732,33 +740,28 @@ export function ResponderFillPage({
                     value={draft.treatment_notes || undefined}
                   />
                 </Ledger>
-                {fillToken ? null : (
-                  <EventMediaGallery
-                    eventId={ctx.eventId}
-                    canWrite={Boolean(user) && !ctx.is_cancelled}
-                    showEmptyCopy={false}
-                    viewerId={user?.id ?? null}
-                    error={errors.event_media}
-                    onUnfinishedChange={setUnfinishedMediaDrafts}
-                    dropUnfinishedTick={dropUnfinishedTick}
-                    formVehicles={draft.treated_plates}
-                    plateOwner={{ eventResponderId: ctx.assignmentId }}
-                  />
-                )}
+                <EventMediaGallery
+                  eventId={ctx.eventId}
+                  canWrite={mediaCanWrite}
+                  showEmptyCopy={false}
+                  viewerId={mediaViewerId}
+                  error={errors.event_media}
+                  onUnfinishedChange={setUnfinishedMediaDrafts}
+                  dropUnfinishedTick={dropUnfinishedTick}
+                  formVehicles={draft.treated_plates}
+                  plateOwner={{ eventResponderId: ctx.assignmentId }}
+                  source={mediaSource}
+                />
               </>
             ) : (
               <>
                 <SelectField
                   label="לוחית רישוי"
-                  required
+                  required={ctx.vehicles.length > 0}
                   placeholder="בחירת רכב"
                   value={draft.vehicle_plate}
                   disabled={ctx.vehicles.length === 0}
-                  hint={
-                    ctx.vehicles.length === 0
-                      ? 'לא מקושר רכב למשתמש. פנו למנהל המערכת.'
-                      : undefined
-                  }
+                  hint={ctx.vehicles.length === 0 ? NO_LINKED_VEHICLE_FILL_HINT : undefined}
                   error={errors.vehicle_plate}
                   options={ctx.vehicles.map((vehicle) => ({
                     value: vehicle.plate,
@@ -773,7 +776,7 @@ export function ResponderFillPage({
                 />
                 <TextField
                   label='מד אוץ התחלה'
-                  required
+                  required={ctx.vehicles.length > 0}
                   numeric
                   inputMode="numeric"
                   value={draft.odometer_start}
@@ -785,7 +788,7 @@ export function ResponderFillPage({
                 />
                 <TextField
                   label='מד אוץ סיום'
-                  required
+                  required={ctx.vehicles.length > 0}
                   numeric
                   inputMode="numeric"
                   value={draft.odometer_end}
@@ -838,22 +841,20 @@ export function ResponderFillPage({
                   onRemove={onRemoveTreatedPlate}
                   onLeftWhereChange={onLeftWhereChange}
                 />
-                {fillToken ? null : (
-                  <EventMediaGallery
-                    eventId={ctx.eventId}
-                    canWrite={Boolean(user) && !ctx.is_cancelled}
-                    showEmptyCopy={false}
-                    viewerId={user?.id ?? null}
-                    error={errors.event_media}
-                    onUnfinishedChange={setUnfinishedMediaDrafts}
-                    dropUnfinishedTick={dropUnfinishedTick}
-                    formVehicles={draft.treated_plates}
-                    plateOwner={{ eventResponderId: ctx.assignmentId }}
-                    onPendingLinksChange={onPendingLinksChange}
-                    vehiclesSavedTick={vehiclesSavedTick}
-                    onAddScannedPlate={onAddScannedPlate}
-                  />
-                )}
+                <EventMediaGallery
+                  eventId={ctx.eventId}
+                  canWrite={mediaCanWrite}
+                  showEmptyCopy={false}
+                  viewerId={mediaViewerId}
+                  error={errors.event_media}
+                  onUnfinishedChange={setUnfinishedMediaDrafts}
+                  dropUnfinishedTick={dropUnfinishedTick}
+                  formVehicles={draft.treated_plates}
+                  plateOwner={{ eventResponderId: ctx.assignmentId }}
+                  onPendingLinksChange={onPendingLinksChange}
+                  vehiclesSavedTick={vehiclesSavedTick}
+                  source={mediaSource}
+                />
                 <TextAreaField
                   label="הערות לטיפול"
                   value={draft.treatment_notes}
@@ -892,8 +893,10 @@ export function ResponderFillPage({
         }}
         onProceed={() => {
           const mode = pendingSaveMode.current
+          for (const digits of skippedPhotoDigits(notifyPrompt ?? [])) {
+            photoSkippedRef.current.add(digits)
+          }
           setNotifyPrompt(null)
-          photoNotifyOkRef.current = true
           pendingSaveMode.current = null
           if (mode === 'complete') void onComplete()
           else void onSaveDraft()

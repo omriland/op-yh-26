@@ -5,6 +5,7 @@ import {
   eventStamp,
   eventStatusTrailSteps,
   AWAITING_LEAD_DETAILS_NOTE,
+  leadEnteredStamp,
   leadKmPendingNote,
   mineInboxIsOpen,
   mineParticipationStamp,
@@ -208,5 +209,26 @@ describe('mineParticipationStamp', () => {
       label: 'הושלם',
       tone: 'done',
     })
+  })
+})
+
+describe('leadEnteredStamp', () => {
+  it('is a green stamp with the singular caption for one open volunteer', () => {
+    expect(leadEnteredStamp(1)).toEqual({
+      label: 'הוזן בהצלחה',
+      tone: 'done',
+      caption: 'ממתין למתנדב',
+    })
+  })
+
+  it('names the count when several volunteers are still open', () => {
+    expect(leadEnteredStamp(3).caption).toBe('ממתין ל־3 מתנדבים')
+  })
+
+  it('uses no em dash in its copy', () => {
+    for (const count of [1, 2]) {
+      const stamp = leadEnteredStamp(count)
+      expect(`${stamp.label}${stamp.caption}`).not.toContain('\u2014')
+    }
   })
 })

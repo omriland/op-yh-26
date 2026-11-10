@@ -19,7 +19,6 @@ import {
   EVENT_MEDIA_VIDEO_DELETED,
   EVENT_MEDIA_STEP_TITLE,
   EVENT_MEDIA_VEHICLE_PROMPT,
-  EVENT_MEDIA_NOT_VEHICLE_LABEL,
   EVENT_MEDIA_UNASSIGNED_LABEL,
   EVENT_MEDIA_PENDING_VEHICLE,
   PHOTO_UNASSIGNED,
@@ -32,17 +31,12 @@ import {
   photoStepVehicleNote,
   photoSubjectDigits,
   resolvePlateDigits,
-  deleteEventMedia,
   eventMediaKind,
   isVideoMedia,
   pickEventMediaFiles,
   rejectVideoFile,
   groupMediaByTakenWhen,
-  listEventMedia,
-  listEventMediaPlates,
-  setMediaSubject,
   slotsRemaining,
-  uploadEventMedia,
   type EventMedia,
   type EventMediaKind,
   type EventMediaPlateOption,
@@ -51,19 +45,12 @@ import {
   type PendingMediaLink,
   type PhotoSubject,
 } from '../../lib/eventMedia'
+import { sessionMediaSource, type EventMediaSource } from '../../lib/eventMediaSource'
 import { formatDateTime, formatPlate, plateDigits } from '../../lib/format'
 import {
   PLATE_LINK_ACTION,
   PLATE_LINK_HINT,
   PLATE_LINK_SAVED,
-  PLATE_SCAN_ADD,
-  PLATE_SCAN_ADDED,
-  PLATE_SCAN_DISMISS,
-  PLATE_SCAN_HINT,
-  PLATE_SCAN_TITLE,
-  addPlateSuggestions,
-  scanPlatesInMedia,
-  visiblePlateSuggestions,
 } from '../../lib/plateScan'
 import { OVERFLOW_MENU_GAP, OVERFLOW_MENU_MIN_WIDTH } from '../../lib/overflowMenuPlacement'
 import { treatedPlateCaption } from '../../lib/treatedPlates'
@@ -98,11 +85,8 @@ export type EventMediaGalleryProps = {
   onPendingLinksChange?: (links: PendingMediaLink[]) => void
   /** Increment after the form saved its vehicles, to re-read the photos' links. */
   vehiclesSavedTick?: number
-  /**
-   * When set, each uploaded photo is scanned for plates and new ones are offered here.
-   * Returns an error message, or null when the plate was added to the form.
-   */
-  onAddScannedPlate?: (digits: string) => string | null
+  /** Where photos are read and written. Defaults to the signed-in session. */
+  source?: EventMediaSource
 }
 
 export type FormVehicle = {
@@ -243,16 +227,10 @@ function PhotoSubjectChips({
             <MediaPlateChoice plate={vehicle} />,
           ),
         )}
-        {chip(
-          'not_vehicle',
-          value.kind === 'not_vehicle',
-          EVENT_MEDIA_NOT_VEHICLE_LABEL,
-          () => onChange({ kind: 'not_vehicle' }),
-          <span className="t-body">{EVENT_MEDIA_NOT_VEHICLE_LABEL}</span>,
-        )}
+        {/* One "no vehicle" choice. Older photos saved as not_vehicle show here too. */}
         {chip(
           'unassigned',
-          value.kind === 'unassigned',
+          value.kind !== 'vehicles',
           EVENT_MEDIA_UNASSIGNED_LABEL,
           () => onChange(PHOTO_UNASSIGNED),
           <span className="t-body">{EVENT_MEDIA_UNASSIGNED_LABEL}</span>,
@@ -274,10 +252,8 @@ export function EventMediaGallery({
   plateOwner,
   onPendingLinksChange,
   vehiclesSavedTick = 0,
-  onAddScannedPlate,
+  source = sessionMediaSource,
 }: EventMediaGalleryProps) {
-  const [plateSuggestions, setPlateSuggestions] = useState<string[]>([])
-  const [dismissedPlates, setDismissedPlates] = useState<string[]>([])
   const uploadInputId = useId()
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const { show } = useToast()
@@ -325,10 +301,10 @@ export function EventMediaGallery({
   useEffect(() => {
     let active = true
     setPlatesLoaded(false)
-    void listEventMedia(eventId).then((rows) => {
+    void source.listMedia(eventId).then((rows) => {
       if (active) setItems(rows)
     })
-    void listEventMediaPlates(eventId).then((rows) => {
+    void source.listPlates(eventId).then((rows) => {
       if (!active) return
       setPlates(rows)
       setPlatesLoaded(true)
@@ -336,13 +312,13 @@ export function EventMediaGallery({
     return () => {
       active = false
     }
-  }, [eventId])
+  }, [eventId, source])
 
   // The form saved: plate rows were replaced, so re-read them and the photos' links.
   useEffect(() => {
     if (vehiclesSavedTick <= 0) return
     let active = true
-    void Promise.all([listEventMedia(eventId), listEventMediaPlates(eventId)]).then(
+    void Promise.all([source.listMedia(eventId), source.listPlates(eventId)]).then(
       ([rows, plateRows]) => {
         if (!active) return
         setItems(rows)
@@ -371,7 +347,7 @@ export function EventMediaGallery({
     return () => {
       active = false
     }
-  }, [eventId, vehiclesSavedTick])
+  }, [eventId, source, vehiclesSavedTick])
 
   // A vehicle removed from the form takes its choice with it.
   useEffect(() => {
@@ -486,7 +462,7 @@ export function EventMediaGallery({
         height: compressed.height,
       }
     }
-    const result = await uploadEventMedia({
+    const result = await source.upload({
       eventId,
       ...payload,
       takenWhen,
@@ -504,17 +480,10 @@ export function EventMediaGallery({
     setPendingFor(result.media.id, result.pendingDigits)
     void refreshPlates()
     show(draft.kind === 'video' ? EVENT_MEDIA_VIDEO_ADDED : EVENT_MEDIA_ADDED, 'done')
-    // A readable plate can be offered as a new vehicle. It is never linked to this photo.
-    if (draft.kind === 'image' && onAddScannedPlate) {
-      void scanPlatesInMedia(result.media.id).then((found) => {
-        if (found.length === 0) return
-        setPlateSuggestions((current) => addPlateSuggestions(current, found))
-      })
-    }
   }
 
   async function refreshPlates() {
-    const rows = await listEventMediaPlates(eventId)
+    const rows = await source.listPlates(eventId)
     setPlates(rows)
     setPlatesLoaded(true)
   }
@@ -550,7 +519,7 @@ export function EventMediaGallery({
   async function onSaveLink() {
     if (!linkTarget) return
     setSavingLink(true)
-    const result = await setMediaSubject({
+    const result = await source.setSubject({
       eventId,
       mediaId: linkTarget.id,
       subject: linkSubject,
@@ -564,20 +533,6 @@ export function EventMediaGallery({
     applySubject(linkTarget.id, linkSubject, result)
     setLinkTarget(null)
     show(PLATE_LINK_SAVED, 'done')
-  }
-
-  function addScannedPlate(digits: string) {
-    if (!onAddScannedPlate) return
-    const failure = onAddScannedPlate(digits)
-    if (failure) {
-      show(failure, 'alert')
-      return
-    }
-    show(PLATE_SCAN_ADDED, 'done')
-  }
-
-  function dismissScannedPlate(digits: string) {
-    setDismissedPlates((current) => [...current, digits])
   }
 
   function addFiles(files: File[]) {
@@ -709,7 +664,7 @@ export function EventMediaGallery({
     }
     setSavingEdit(true)
     const caption = editCaption.trim() || null
-    const result = await setMediaSubject({
+    const result = await source.setSubject({
       eventId,
       mediaId: viewer.id,
       subject: editSubject,
@@ -738,7 +693,7 @@ export function EventMediaGallery({
   async function onDelete() {
     if (!viewer) return
     setDeleting(true)
-    const result = await deleteEventMedia({ id: viewer.id, storagePath: viewer.storage_path })
+    const result = await source.remove(viewer)
     setDeleting(false)
     if (!result.ok) {
       show(result.error, 'alert')
@@ -797,15 +752,6 @@ export function EventMediaGallery({
 
   const viewerIsVideo = Boolean(viewer && isVideoMedia(viewer.mime_type))
 
-  const shownPlateSuggestions =
-    onAddScannedPlate && canWrite
-      ? visiblePlateSuggestions(plateSuggestions, {
-          eventPlates: plates.map((plate) => plate.plate_number),
-          formPlates: (formVehicles ?? []).map((vehicle) => vehicle.plate_number),
-          dismissed: dismissedPlates,
-        })
-      : []
-
   return (
     <div
       className={dragging ? 'event-media event-media--dragging' : 'event-media'}
@@ -849,34 +795,6 @@ export function EventMediaGallery({
         menuOpenFor={tileMenu?.item.id ?? null}
         onOpen={openTile}
       />
-
-      {shownPlateSuggestions.length > 0 ? (
-        <section className="plate-scan" aria-live="polite">
-          <div className="plate-scan__head">
-            <h4 className="t-label">{PLATE_SCAN_TITLE}</h4>
-            <p className="t-caption text-muted">{PLATE_SCAN_HINT}</p>
-          </div>
-          <ul className="plate-scan__list">
-            {shownPlateSuggestions.map((digits) => (
-              <li key={digits} className="plate-scan__item">
-                <LicensePlate plate={formatPlate(digits)} size="sm" />
-                <div className="plate-scan__actions">
-                  <Button variant="secondary" onClick={() => addScannedPlate(digits)}>
-                    {PLATE_SCAN_ADD}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    aria-label={`${PLATE_SCAN_DISMISS}: ${formatPlate(digits)}`}
-                    onClick={() => dismissScannedPlate(digits)}
-                  >
-                    {PLATE_SCAN_DISMISS}
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
 
       {canWrite ? (
         <div className="event-media__add">
@@ -1130,11 +1048,7 @@ export function EventMediaGallery({
                             ))}
                           </ul>
                         ) : (
-                          <span className="t-body">
-                            {viewer.not_vehicle
-                              ? EVENT_MEDIA_NOT_VEHICLE_LABEL
-                              : EVENT_MEDIA_UNASSIGNED_LABEL}
-                          </span>
+                          <span className="t-body">{EVENT_MEDIA_UNASSIGNED_LABEL}</span>
                         )}
                       </dd>
                     </div>

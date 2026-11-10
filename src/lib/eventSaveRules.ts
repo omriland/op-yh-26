@@ -23,6 +23,7 @@ import {
   vehiclesMissingPhotos,
 } from './eventVehiclePhotos'
 import type { TreatedPlate } from './treatedPlates'
+import { plateDigits } from './format'
 
 export type SaveRuleSeverity = 'block' | 'notify'
 
@@ -160,8 +161,10 @@ export function evaluateResponderFillSaveRules(input: {
   allowedPlates?: string[]
   totalKm?: number | null
   unfinishedMediaDraftCount?: number
-  coveredPlateDigits: Set<string>
-  photoNotifyOk?: boolean
+  /** Null when coverage is unknown (read failed, or no gallery): no photo prompt. */
+  coveredPlateDigits: ReadonlySet<string> | null
+  /** Vehicles the person already chose to save without a photo. */
+  photoSkippedDigits?: ReadonlySet<string>
   cancelled?: boolean
 }): SaveRulesResult {
   const blocks: SaveRuleIssue[] = []
@@ -195,21 +198,45 @@ export function evaluateResponderFillSaveRules(input: {
     })
   }
 
-  if (!input.photoNotifyOk) {
-    const missing = vehiclesMissingPhotos(input.draft.treated_plates, input.coveredPlateDigits)
-    if (missing.length > 0) {
-      notifies.push({
-        id: 'vehicle_photos',
-        severity: 'notify',
-        title: VEHICLE_PHOTOS_TITLE,
-        message: VEHICLE_PHOTOS_TITLE,
-        proceedLabel: VEHICLE_PHOTOS_PROCEED,
-        vehicles: missing,
-      })
-    }
-  }
+  const photos = vehiclePhotosIssue(
+    input.draft.treated_plates,
+    input.coveredPlateDigits,
+    input.photoSkippedDigits,
+  )
+  if (photos) notifies.push(photos)
 
   return { blocks, notifies }
+}
+
+/**
+ * The "no photo for these vehicles" prompt, or null. A vehicle the person already
+ * skipped is not asked about again; one added after that is.
+ */
+export function vehiclePhotosIssue(
+  plates: readonly TreatedPlate[],
+  covered: ReadonlySet<string> | null,
+  skipped: ReadonlySet<string> = new Set(),
+): SaveRuleIssue | null {
+  if (!covered) return null
+  const missing = vehiclesMissingPhotos(plates, covered).filter(
+    (plate) => !skipped.has(plateDigits(plate.plate_number)),
+  )
+  if (missing.length === 0) return null
+  return {
+    id: 'vehicle_photos',
+    severity: 'notify',
+    title: VEHICLE_PHOTOS_TITLE,
+    message: VEHICLE_PHOTOS_TITLE,
+    proceedLabel: VEHICLE_PHOTOS_PROCEED,
+    vehicles: missing,
+  }
+}
+
+/** Plate digits of the vehicles a photo prompt named, to remember once the person skips. */
+export function skippedPhotoDigits(issues: readonly SaveRuleIssue[]): string[] {
+  return issues.flatMap((issue) =>
+    (issue.vehicles ?? []).map((plate) => plateDigits(plate.plate_number)).filter(Boolean),
+  )
 }
 
 export function mergeFieldErrors(issues: SaveRuleIssue[]): EventFormErrors & ResponderFillErrors {

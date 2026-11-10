@@ -18,6 +18,7 @@ import { mapSecondaryLeadRows, viewerIsEventLead } from './eventShiftLeads'
 import { resolvePatrolCallsign } from './patrolCallsign'
 import { eventReleasedFromEvent } from './eventResponderRelease'
 import { responderKmMissing } from './responderVehicle'
+import { leadEnteredStamp, type StampDescriptor } from './status'
 
 export type IncompleteField =
   | 'police_event_id'
@@ -202,6 +203,26 @@ export function leadFacingMissingKm(
   viewerId?: string | null,
 ): boolean {
   return viewerLeadsEvent(event, viewerId) && eventHasMissingResponderKm(event)
+}
+
+/**
+ * Lead-facing הוזן בהצלחה: the viewer leads this manual event, every field the
+ * אחמ״ש owns is filled (no חסרים chip, so it is also released), and at least one
+ * volunteer has not finished. Null when the viewer's own fill is still open, so
+ * their to-do stamp wins. Shift-born reports are shared and have no lead part.
+ */
+export function leadEnteredAwaitingStamp(
+  event: EventListItem,
+  viewerId?: string | null,
+): StampDescriptor | null {
+  if (event.origin === 'shift' || event.is_cancelled) return null
+  if (event.status !== 'in_progress' && event.status !== 'partial') return null
+  if (!viewerLeadsEvent(event, viewerId)) return null
+  const own = event.responders.find((row) => row.responder_id === viewerId)
+  if (own && own.status !== 'done') return null
+  if (missingEventFields(event).size > 0) return null
+  const open = event.responders.filter((row) => row.status !== 'done').length
+  return open > 0 ? leadEnteredStamp(open) : null
 }
 
 /** Incomplete fields the viewer is responsible for. KM is lead-only. */

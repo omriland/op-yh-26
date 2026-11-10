@@ -19,6 +19,19 @@
 @import '@heroui/styles/components/alert-dialog.css' layer(components);
 @import '@heroui/styles/components/close-button.css' layer(components);
 
+/* Done / alert toasts use the platform's own green and red (stamps, chips), not
+   HeroUI's brighter soft-foreground. The toast island is always light, so the
+   field (light) values apply in both themes. */
+.toast-stack .alert--success .alert__indicator,
+.toast-stack .alert--success .alert__title {
+  color: var(--green-field);
+}
+
+.toast-stack .alert--danger .alert__indicator,
+.toast-stack .alert--danger .alert__title {
+  color: var(--red-field);
+}
+
 /* X only — no HeroUI default chip / fill. */
 .toast-stack button.close-button {
   appearance: none;

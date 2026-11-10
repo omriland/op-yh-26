@@ -190,4 +190,46 @@ describe('bindAppViewportHeight', () => {
     vvListeners.get('resize')?.()
     expect(applyKeyboardOpen).toHaveBeenCalledWith(false)
   })
+
+  it('does not re-scroll the field on a viewport scroll while the keyboard is open', () => {
+    // iOS: scrollIntoView pans the visual viewport, the pan fires a scroll event,
+    // resetScroll pans back and fires another. Revealing on every scroll looped
+    // and flickered the new-event KM field.
+    let visualHeight = 700
+    const vvListeners = new Map<string, () => void>()
+    let reveals = 0
+    const scrollFocusedField = () => {
+      reveals += 1
+      if (reveals < 20) vvListeners.get('scroll')?.()
+    }
+
+    bindAppViewportHeight({
+      getVisualHeight: () => visualHeight,
+      getLayoutHeight: () => 700,
+      applyHeight: () => {},
+      resetScroll: () => {},
+      applyKeyboardOpen: () => {},
+      scrollFocusedField,
+      addWindowListener: () => () => {},
+      addVisualViewportListener: (type, listener) => {
+        vvListeners.set(type, listener)
+        return () => vvListeners.delete(type)
+      },
+    })
+    vi.stubGlobal('requestAnimationFrame', (cb: () => void) => cb())
+    try {
+      visualHeight = 420
+      vvListeners.get('resize')?.()
+      expect(reveals).toBe(1)
+
+      vvListeners.get('scroll')?.()
+      expect(reveals).toBe(1)
+
+      visualHeight = 380
+      vvListeners.get('resize')?.()
+      expect(reveals).toBe(2)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })

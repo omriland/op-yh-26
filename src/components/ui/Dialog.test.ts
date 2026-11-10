@@ -16,13 +16,21 @@ describe('Dialog portal', () => {
 describe('Dialog keyboard lift', () => {
   it('listens to the visual viewport and focus so a phone sheet clears the keyboard', () => {
     expect(src).toContain('window.visualViewport')
-    expect(src).toContain("vv.addEventListener('resize', place)")
+    expect(src).toContain("vv.addEventListener('resize', placeAndReveal)")
     expect(src).toContain("vv.addEventListener('scroll', place)")
     expect(src).toContain("sheet.addEventListener('focusin', onFocusIn)")
     expect(src).toContain('sheetAboveKeyboard')
     expect(src).toContain('if (!open || isDesktop) return')
     expect(src).toContain("root.style.bottom = ''")
     expect(src).toContain("sheet.style.maxHeight = ''")
+  })
+
+  it('does not scroll the focused field on a visual viewport scroll', () => {
+    // scrollIntoView pans the viewport, which fires another scroll: a flicker loop on iOS.
+    expect(src).not.toContain("vv.addEventListener('scroll', placeAndReveal)")
+    const start = src.indexOf('const place = () => {')
+    const place = src.slice(start, src.indexOf('\n    }\n', start))
+    expect(place).not.toContain('scrollIntoView')
   })
 })
 

@@ -1,4 +1,5 @@
 import { sortByRoadName } from './roadSort'
+import { parseVolunteerStatus, type VolunteerStatus } from './volunteerStatus'
 import { supabase } from './supabase'
 import type { EventStatus, ParticipationStatus } from './status'
 import { fillReadyNotifyIds } from './fillReadyNotify'
@@ -121,6 +122,8 @@ export type AssignableUser = {
   full_name: string
   callsign: string
   hasVehicle: boolean
+  /** Absent on lists that do not select it (shift leads). */
+  volunteerStatus?: VolunteerStatus
 }
 
 export const NO_VEHICLE_KM_PLACEHOLDER = 'מתנדב ללא רכב'
@@ -141,6 +144,54 @@ export function isSelfAssignDisabledInPicker(
   personId: string,
 ): boolean {
   return Boolean(blockSelfAssign && currentUserId && personId === currentUserId)
+}
+
+export const PICKER_NEEDS_VEHICLE_NOTE =
+  'צריך קודם מתנדב עם רכב, ולכן מוצגים כרגע רק מתנדבים עם רכב. אחריו אפשר לשבץ כל מתנדב.'
+
+const VEHICLE_RESPONDER_STATUSES = new Set<VolunteerStatus>([
+  'active_volunteer',
+  'phone_training',
+  'personal_vehicle_training',
+])
+
+/** Can come out with a car: active vehicle and מתנדב פעיל / חניכה טלפונית / חניכה ברכב פרטי. */
+export function canBeVehicleResponder(person: AssignableUser): boolean {
+  return (
+    person.hasVehicle &&
+    person.volunteerStatus != null &&
+    VEHICLE_RESPONDER_STATUSES.has(person.volunteerStatus)
+  )
+}
+
+/**
+ * The event needs one responder who comes with a car; after that anyone can join.
+ * Assignment order is not stored, so "first" means: no assigned responder can be
+ * that car-holder yet. Removing the car-holder therefore puts the picker back on
+ * car-holders only. A responder missing from the roster (deactivated since) counts
+ * by the vehicle flag frozen on the draft.
+ */
+export function pickerNeedsVehicleResponder(
+  responders: Pick<ResponderDraft, 'responder_id' | 'hasVehicle'>[],
+  roster: AssignableUser[],
+): boolean {
+  const byId = new Map(roster.map((person) => [person.id, person]))
+  return !responders.some((row) => {
+    const person = byId.get(row.responder_id)
+    return person ? canBeVehicleResponder(person) : row.hasVehicle
+  })
+}
+
+/** Roster entries the picker may offer right now, before the search query. */
+export function pickerCandidates(
+  responders: Pick<ResponderDraft, 'responder_id' | 'hasVehicle'>[],
+  roster: AssignableUser[],
+): AssignableUser[] {
+  const taken = new Set(responders.map((row) => row.responder_id))
+  const needsVehicle = pickerNeedsVehicleResponder(responders, roster)
+  return roster.filter(
+    (person) => !taken.has(person.id) && (!needsVehicle || canBeVehicleResponder(person)),
+  )
 }
 
 export function hasActiveVehicle(
@@ -732,7 +783,7 @@ export async function fetchShiftLeadUsers(): Promise<AssignableUser[]> {
 export async function fetchAssignableUsers(): Promise<AssignableUser[]> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, callsign, vehicles(id, archived)')
+    .select('id, full_name, callsign, volunteer_status, vehicles(id, archived)')
     .eq('active', true)
     .order('full_name', { ascending: true })
   if (error) throw new Error(error.message)
@@ -740,12 +791,14 @@ export async function fetchAssignableUsers(): Promise<AssignableUser[]> {
     id: string
     full_name: string
     callsign: string
+    volunteer_status: string | null
     vehicles: { id: string; archived: boolean | null }[] | null
   }[]).map((row) => ({
     id: row.id,
     full_name: row.full_name,
     callsign: row.callsign,
     hasVehicle: hasActiveVehicle(row.vehicles),
+    volunteerStatus: parseVolunteerStatus(row.volunteer_status),
   }))
 }
 

@@ -4,6 +4,7 @@ import {
   reportingDocumentationStamp,
   type EventStatus,
   type ParticipationStatus,
+  type StampDescriptor,
 } from '../../lib/status'
 
 type TrailResponder = {
@@ -18,6 +19,8 @@ type EventStatusTrailProps = {
   responders?: TrailResponder[]
   /** Lead-facing: fields that still keep the event from being fully logged. */
   missingFields?: string[]
+  /** Lead-facing override for the current label (הוזן בהצלחה + caption). */
+  stamp?: StampDescriptor | null
 }
 
 /** Desktop Events table — compact pipeline with current label under the active node. */
@@ -26,9 +29,10 @@ export function EventStatusTrail({
   missingKm = false,
   responders = [],
   missingFields = [],
+  stamp = null,
 }: EventStatusTrailProps) {
   const steps = eventStatusTrailSteps(status, { missingKm })
-  const current = reportingDocumentationStamp(status, missingKm)
+  const current = stamp ?? reportingDocumentationStamp(status, missingKm)
   const done = responders.filter((row) => row.status === 'done')
   const draft = responders.filter((row) => row.status === 'in_progress')
   const pending = responders.filter((row) => row.status === 'pending')
@@ -40,6 +44,9 @@ export function EventStatusTrail({
   const label = (
     <span className={`event-status-trail__label event-status-trail__label--${current.tone}`}>
       {current.label}
+      {current.caption ? (
+        <span className="event-status-trail__caption t-caption">{current.caption}</span>
+      ) : null}
     </span>
   )
 
@@ -89,7 +96,10 @@ export function EventStatusTrail({
   )
 
   return (
-    <div className="event-status-trail" aria-label={current.label}>
+    <div
+      className="event-status-trail"
+      aria-label={current.caption ? `${current.label}, ${current.caption}` : current.label}
+    >
       <ol className="event-status-trail__steps">
         {steps.map((step) => (
           <li
@@ -103,7 +113,7 @@ export function EventStatusTrail({
               className={[
                 'event-status-trail__node',
                 `event-status-trail__node--${step.phase}`,
-                step.phase === 'current' ? `event-status-trail__node--tone-${step.tone}` : '',
+                step.phase === 'current' ? `event-status-trail__node--tone-${current.tone}` : '',
               ]
                 .filter(Boolean)
                 .join(' ')}

@@ -29,11 +29,19 @@ export function StampWithNote({
   ) : (
     chip
   )
-  if (!note) return stamped
+  if (note) {
+    return (
+      <span className="stamp-stack">
+        {stamped}
+        <span className="stamp-stack__note t-caption">{note}</span>
+      </span>
+    )
+  }
+  if (!stamp.caption) return stamped
   return (
     <span className="stamp-stack">
       {stamped}
-      <span className="stamp-stack__note t-caption">{note}</span>
+      <span className="stamp-stack__caption t-caption">{stamp.caption}</span>
     </span>
   )
 }

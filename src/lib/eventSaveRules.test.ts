@@ -7,8 +7,10 @@ import {
   evaluateResponderFillSaveRules,
   mergeFieldErrors,
   OVERNIGHT_END_TITLE,
+  skippedPhotoDigits,
+  vehiclePhotosIssue,
 } from './eventSaveRules'
-import { VEHICLE_PHOTOS_TITLE } from './eventVehiclePhotos'
+import { VEHICLE_PHOTOS_TITLE, withPendingPhotoLinks } from './eventVehiclePhotos'
 import { EVENT_EDIT_LOCKED_TOOLTIP } from './eventEditLock'
 
 const districts = [{ id: 'd1', name: 'צפון' }]
@@ -148,7 +150,7 @@ describe('evaluateResponderFillSaveRules', () => {
     expect(result.notifies[0]?.vehicles).toHaveLength(1)
   })
 
-  it('skips the photo notify after the user proceeds', () => {
+  it('skips a vehicle the user already chose to save without a photo', () => {
     const result = evaluateResponderFillSaveRules({
       draft: {
         ...emptyResponderFillDraft(),
@@ -156,8 +158,67 @@ describe('evaluateResponderFillSaveRules', () => {
       },
       mode: 'draft',
       coveredPlateDigits: new Set(),
-      photoNotifyOk: true,
+      photoSkippedDigits: new Set(['12345']),
     })
     expect(result.notifies).toEqual([])
+  })
+
+  it('still asks about a vehicle added after the user skipped others', () => {
+    const result = evaluateResponderFillSaveRules({
+      draft: {
+        ...emptyResponderFillDraft(),
+        treated_plates: [
+          { plate_number: '12-345', ...emptyTreatedPlateFields() },
+          { plate_number: '678-90-123', ...emptyTreatedPlateFields() },
+        ],
+      },
+      mode: 'draft',
+      coveredPlateDigits: new Set(),
+      photoSkippedDigits: new Set(['12345']),
+    })
+    expect(result.notifies[0]?.vehicles?.map((plate) => plate.plate_number)).toEqual([
+      '678-90-123',
+    ])
+  })
+
+  it('does not prompt when photo coverage is unknown', () => {
+    const result = evaluateResponderFillSaveRules({
+      draft: {
+        ...emptyResponderFillDraft(),
+        treated_plates: [{ plate_number: '12-345', ...emptyTreatedPlateFields() }],
+      },
+      mode: 'draft',
+      coveredPlateDigits: null,
+    })
+    expect(result.notifies).toEqual([])
+  })
+})
+
+describe('vehiclePhotosIssue', () => {
+  const plate = (plate_number: string) => ({ plate_number, ...emptyTreatedPlateFields() })
+
+  it('never names a vehicle whose photo is linked, whatever the plate formatting', () => {
+    expect(vehiclePhotosIssue([plate('12-345-67')], new Set(['1234567']))).toBeNull()
+  })
+
+  it('counts a photo waiting for a vehicle the form has not saved yet', () => {
+    const covered = withPendingPhotoLinks(new Set(), [{ mediaId: 'm1', digits: ['1234567'] }])
+    expect(vehiclePhotosIssue([plate('12-345-67')], covered)).toBeNull()
+  })
+
+  it('names only the vehicles with no photo', () => {
+    const covered = withPendingPhotoLinks(new Set(['1111111']), [
+      { mediaId: 'm1', digits: ['2222222'] },
+    ])
+    const issue = vehiclePhotosIssue(
+      [plate('11-111-11'), plate('22-222-22'), plate('33-333-33')],
+      covered,
+    )
+    expect(issue?.vehicles?.map((row) => row.plate_number)).toEqual(['33-333-33'])
+  })
+
+  it('remembers exactly the vehicles a prompt named', () => {
+    const issue = vehiclePhotosIssue([plate('33-333-33')], new Set())
+    expect(skippedPhotoDigits(issue ? [issue] : [])).toEqual(['3333333'])
   })
 })

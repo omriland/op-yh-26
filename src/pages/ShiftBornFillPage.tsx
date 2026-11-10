@@ -35,6 +35,13 @@ import {
   linkPendingMedia,
   type PendingMediaLink,
 } from '../lib/eventMedia'
+import { EventSaveRulesDialog } from '../components/events/EventSaveRulesDialog'
+import {
+  skippedPhotoDigits,
+  vehiclePhotosIssue,
+  type SaveRuleIssue,
+} from '../lib/eventSaveRules'
+import { fetchEventPhotoCoverage, withPendingPhotoLinks } from '../lib/eventVehiclePhotos'
 import { treatmentDetailCounter } from '../lib/treatmentDetail'
 import { Button } from '../components/ui/Button'
 import { CounterStepper } from '../components/ui/CounterStepper'
@@ -91,6 +98,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     pendingMediaLinks.current = links
   }, [])
   const [mediaError, setMediaError] = useState<string | undefined>()
+  const [photoPrompt, setPhotoPrompt] = useState<{
+    issues: SaveRuleIssue[]
+    complete: boolean
+  } | null>(null)
+  /** Vehicles the user chose to save without a photo; a vehicle added later is still asked about. */
+  const photoSkippedRef = useRef<Set<string>>(new Set())
   /** Someone else saved this event while it was open here; the local text is kept. */
   const [conflict, setConflict] = useState(false)
   const [errors, setErrors] = useState<ShiftBornFillErrors>({})
@@ -338,15 +351,18 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     enqueuePlateLookup(result.plate.plate_number)
   }
 
-  /** A plate read off a photo and confirmed by the user. Leaves the typed field alone. */
-  function onAddScannedPlate(digits: string): string | null {
-    if (!draft || readOnly) return null
-    const result = commitTreatedPlate(digits, draft.treated_plates)
-    if (!result.ok) return result.error
-    patchDraft({ treated_plates: result.plates })
-    setPlateError(undefined)
-    enqueuePlateLookup(result.plate.plate_number)
-    return null
+  /**
+   * Opens the "no photo for these vehicles" prompt when one is due. Counts photos
+   * saved on the event and photos linked to a vehicle this form has not saved yet.
+   */
+  async function photoPromptOpened(complete: boolean): Promise<boolean> {
+    if (!draft) return false
+    const saved = await fetchEventPhotoCoverage(eventId)
+    const covered = saved ? withPendingPhotoLinks(saved, pendingMediaLinks.current) : null
+    const issue = vehiclePhotosIssue(draft.treated_plates, covered, photoSkippedRef.current)
+    if (!issue) return false
+    setPhotoPrompt({ issues: [issue], complete })
+    return true
   }
 
   function onRemoveTreatedPlate(plateDigitsKey: string) {
@@ -401,6 +417,10 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
 
   async function onSave() {
     setSaving(true)
+    if (await photoPromptOpened(false)) {
+      setSaving(false)
+      return
+    }
     const ok = await persist(false)
     setSaving(false)
     if (ok) show('הטיוטה נשמרה', 'done')
@@ -423,6 +443,10 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
       return
     }
     setCompleting(true)
+    if (await photoPromptOpened(true)) {
+      setCompleting(false)
+      return
+    }
     const ok = await persist(true)
     setCompleting(false)
     if (ok) {
@@ -597,7 +621,6 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               plateOwner={{ eventId }}
               onPendingLinksChange={onPendingLinksChange}
               vehiclesSavedTick={vehiclesSavedTick}
-              onAddScannedPlate={readOnly ? undefined : onAddScannedPlate}
               onUnfinishedChange={(count) => {
                 setUnfinishedMediaDrafts(count)
                 if (count === 0) setMediaError(undefined)
@@ -645,6 +668,20 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           </FormStickyFooter>
         )}
       </div>
+      <EventSaveRulesDialog
+        open={Boolean(photoPrompt)}
+        issues={photoPrompt?.issues ?? []}
+        onBack={() => setPhotoPrompt(null)}
+        onProceed={() => {
+          if (!photoPrompt) return
+          for (const digits of skippedPhotoDigits(photoPrompt.issues)) {
+            photoSkippedRef.current.add(digits)
+          }
+          setPhotoPrompt(null)
+          if (photoPrompt.complete) void onComplete()
+          else void onSave()
+        }}
+      />
     </div>
   )
 }

@@ -149,15 +149,21 @@ export function bindAppViewportHeight(options: BindOptions = {}): () => void {
 
   let restingVisualHeight = 0
   let keyboardOpen = false
+  let lastHeight = 0
 
   const sync = () => {
     const height = readAppViewportHeight(getVisualHeight(), getLayoutHeight())
+    const resized = height !== lastHeight
+    lastHeight = height
     applyHeight(height)
     resetScroll()
     keyboardOpen = isVirtualKeyboardOpen(height, restingVisualHeight)
     if (!keyboardOpen) restingVisualHeight = height
     applyKeyboardOpen(keyboardOpen)
-    if (keyboardOpen) {
+    // Reveal the field only when the visible area changed size. Revealing on a
+    // pure visualViewport scroll loops on iOS: scrollIntoView pans the viewport,
+    // resetScroll pans it back, and each pan fires another scroll event.
+    if (keyboardOpen && resized) {
       const raf =
         typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (cb: () => void) => cb()
       raf(() => scrollFocusedField())
@@ -166,6 +172,7 @@ export function bindAppViewportHeight(options: BindOptions = {}): () => void {
 
   const onOrientationChange = () => {
     restingVisualHeight = 0
+    lastHeight = 0
     sync()
   }
 
