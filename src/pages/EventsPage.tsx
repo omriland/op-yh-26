@@ -574,23 +574,29 @@ export function EventsPage({
   }, [events, filter, query, scope, user?.id, searchIds, unitWindow, imageEventIds, showShiftEvents])
 
   const grouped = useMemo(() => groupByDate(visible), [visible])
+  const mineBucket = (event: EventListItem) => {
+    // Not yet the crew's to document: neither pending nor logged.
+    if (!eventReleasedFromEvent(event) || shiftBornBeforeShiftDate(event, jerusalemToday())) {
+      return 'hidden' as const
+    }
+    return mineEventIsOpen(event) ? ('pending' as const) : ('logged' as const)
+  }
   const mineSections = useMemo(() => {
     if (scope !== 'mine' || !events) return null
     return mineFilteredSections(events, {
       status: filter,
       query,
       ruleIds: mineRulesKey && mineRuleIds ? mineRuleIds : null,
-      bucket: (event) => {
-        // Not yet the crew's to document: neither pending nor logged.
-        if (!eventReleasedFromEvent(event) || shiftBornBeforeShiftDate(event, jerusalemToday())) {
-          return 'hidden'
-        }
-        return mineEventIsOpen(event) ? 'pending' : 'logged'
-      },
+      bucket: mineBucket,
       today: jerusalemToday(),
       windowsLoaded: loggedWindows,
     })
   }, [events, filter, loggedWindows, mineRuleIds, mineRulesKey, query, scope, user?.id])
+  // Nothing to document or look back on: filters and tabs would only filter an empty list.
+  const mineHasNoEvents = useMemo(
+    () => scope === 'mine' && !failed && events !== null && events.every((event) => mineBucket(event) === 'hidden'),
+    [events, failed, scope, user?.id],
+  )
   const mineSearchOnly = mineRulesKey === '' && filter === 'all' && query.trim() !== ''
   const mineLeadOptions = useMemo(
     () => (scope === 'mine' && events ? leadOptionsFromEvents(events) : []),
@@ -792,6 +798,13 @@ export function EventsPage({
         </p>
       ) : null}
 
+      {mineHasNoEvents ? (
+        <EmptyState
+          icon={<ClipboardList size={40} strokeWidth={1.75} aria-hidden="true" />}
+          title={MINE_PENDING_EMPTY_TITLE}
+          caption={MINE_PENDING_EMPTY_CAPTION}
+        />
+      ) : (
       <EventFilters
           key={scope}
           scope={scope}
@@ -838,6 +851,7 @@ export function EventsPage({
           ) : null}
           {listBody}
         </EventFilters>
+      )}
 
 
       {canListDelete ? (

@@ -8,6 +8,7 @@ import {
   MessageSquarePlus,
   Mic,
   Paperclip,
+  Pencil,
   Plus,
 } from 'lucide-react'
 import { BoardCardMenu } from '../components/feedback/BoardCardMenu'
@@ -49,12 +50,14 @@ import {
   FEEDBACK_BODY_MAX,
   FEEDBACK_KIND_LABEL,
   FEEDBACK_STATUS_STAMP,
+  FEEDBACK_TASK_TITLE_ERROR,
   FEEDBACK_TASK_TITLE_LEN_ERROR,
   FEEDBACK_TASK_TITLE_MAX,
   feedbackAssigneeOptions,
   feedbackRowsNeedingTranscript,
   feedbackTaskError,
   feedbackTreatedToast,
+  feedbackTitleError,
   isFeedbackTask,
   type FeedbackAssignee,
   type FeedbackStatus,
@@ -72,6 +75,7 @@ export type FeedbackBoardApi = Pick<
   | 'setUserFeedbackAssignee'
   | 'createFeedbackTask'
   | 'updateFeedbackTask'
+  | 'setUserFeedbackTitle'
   | 'saveFeedbackBoardPositions'
   | 'saveFeedbackBoardNote'
 >
@@ -161,6 +165,7 @@ export function FeedbackBoardPage({
   const [confirmDelete, setConfirmDelete] = useState<UserFeedback | null>(null)
   const [transcriptErrors, setTranscriptErrors] = useState<Record<string, string>>({})
   const [draft, setDraft] = useState<TaskDraft | null>(null)
+  const [editingTitle, setEditingTitle] = useState<{ id: string; value: string } | null>(null)
   const [draftError, setDraftError] = useState<string | undefined>()
   const [draftSaveError, setDraftSaveError] = useState<string | undefined>()
   const [savingDraft, setSavingDraft] = useState(false)
@@ -355,6 +360,38 @@ export function FeedbackBoardPage({
     void move(item, status, index, { notifyAuthor: true, focus })
   }
 
+  /** Inline title edit on the card: tasks keep a required title, feedback may clear it. */
+  async function saveCardTitle(item: UserFeedback, raw: string) {
+    setEditingTitle(null)
+    if (busyRef.current.has(item.id)) return
+    const title = raw.trim()
+    if (isFeedbackTask(item)) {
+      if (!title) {
+        show(FEEDBACK_TASK_TITLE_ERROR, 'alert')
+        return
+      }
+    } else {
+      const error = feedbackTitleError(title)
+      if (error) {
+        show(error, 'alert')
+        return
+      }
+    }
+    setBusy(item.id, true)
+    const result = isFeedbackTask(item)
+      ? await api.updateFeedbackTask(item.id, { title, body: item.body ?? '' })
+      : await api.setUserFeedbackTitle(item.id, title || null)
+    setBusy(item.id, false)
+    if (!result.ok) {
+      show(result.error, 'alert')
+      return
+    }
+    patchItems((row) =>
+      row.id === item.id ? { ...row, title: isFeedbackTask(item) ? title : title || null } : row,
+    )
+    show('הכותרת עודכנה.', 'done')
+  }
+
   async function assign(item: UserFeedback, assigneeId: string | null) {
     if (busyRef.current.has(item.id) || assigneeId === item.assignee_id) return
     setBusy(item.id, true)
@@ -522,37 +559,75 @@ export function FeedbackBoardPage({
     const busy = busyIds.has(item.id)
     const owner = assigneeName(item.assignee_id)
     const files = item.attachments.length
+    const editing = editingTitle?.id === item.id
     return (
       <li
         key={item.id}
         data-card-id={item.id}
         className={['board-card', dragId === item.id ? 'is-dragging' : ''].filter(Boolean).join(' ')}
-        draggable={!busy}
+        draggable={!busy && !editing}
         aria-busy={busy}
         onDragStart={(event) => onDragStart(event, item)}
         onDragEnd={onDragEnd}
       >
         {/* Title first in the DOM so Tab reaches it before its own menu; CSS draws the top row above it. */}
-        <button
-          type="button"
-          className="board-card__open"
-          data-card-open={item.id}
-          onClick={() => openDetail(item)}
-        >
-          {cardText(item)}
-        </button>
+        {editing ? (
+          <input
+            className="board-card__title-input"
+            aria-label="עריכת הכותרת"
+            value={editingTitle.value}
+            maxLength={FEEDBACK_TASK_TITLE_MAX}
+            autoFocus
+            onChange={(event) => setEditingTitle({ id: item.id, value: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                void saveCardTitle(item, editingTitle.value)
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                event.stopPropagation()
+                setEditingTitle(null)
+              }
+            }}
+            onBlur={() => void saveCardTitle(item, editingTitle.value)}
+          />
+        ) : (
+          <button
+            type="button"
+            className="board-card__open"
+            data-card-open={item.id}
+            onClick={() => openDetail(item)}
+          >
+            {cardText(item)}
+          </button>
+        )}
         <div className="board-card__top">
           <KindMark item={item} />
-          <BoardCardMenu
-            open={menuFor === item.id}
-            onOpenChange={(open) => setMenuFor(open ? item.id : null)}
-            label={`פעולות לכרטיס: ${cardText(item).slice(0, 40)}`}
-            entries={boardCardMenu(item, column, viewerId, assignees)}
-            assignChoices={boardAssignChoices(item, assignees)}
-            onSelect={(key) => onMenuSelect(item, column, key)}
-            onAssign={(assigneeId) => void assign(item, assigneeId)}
-          />
-        </div>
+          <div className="board-card__actions">
+            {busy ? null : (
+              <IconButton
+                className="board-card__edit"
+                label={`עריכת הכותרת: ${cardText(item).slice(0, 40)}`}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setMenuFor(null)
+                  setEditingTitle({ id: item.id, value: item.title ?? '' })
+                }}
+              >
+                <Pencil size={16} strokeWidth={1.75} aria-hidden="true" />
+              </IconButton>
+            )}
+            <BoardCardMenu
+              open={menuFor === item.id}
+              onOpenChange={(open) => setMenuFor(open ? item.id : null)}
+              label={`פעולות לכרטיס: ${cardText(item).slice(0, 40)}`}
+              entries={boardCardMenu(item, column, viewerId, assignees)}
+              assignChoices={boardAssignChoices(item, assignees)}
+              onSelect={(key) => onMenuSelect(item, column, key)}
+              onAssign={(assigneeId) => void assign(item, assigneeId)}
+            />
+            </div>
+          </div>
         <div className="board-card__meta t-caption">
           <span className="board-card__who">
             {isFeedbackTask(item) ? 'משימה פנימית' : (item.author_name ?? 'משתמש')}

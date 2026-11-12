@@ -4,8 +4,8 @@ import type { EventStatus, ShiftStatus } from './status'
 /**
  * Shift chips follow documentation, not the clock and not a start/close button.
  *
- *   פתוחה  — nothing logged yet
- *   טיוטה  — a responder started the shift or an event, but something is still open
+ *   ממתין לתיעוד  — nothing logged yet
+ *   תועד חלקית    — a responder started the shift or an event, but something is still open
  *   נסגרה  — both odometers are in, and every shift-born event is done
  *
  * Empty event slots the lead created do not count as logging. Stored DB value

@@ -2,6 +2,8 @@ import { buildFeedbackTreatedSms } from "./feedbackTreatedSms.ts";
 
 export type MarkTreatedRow = {
   status: string;
+  /** Null on a task a super admin opened; set on feedback a member sent. */
+  kind: string | null;
   title: string | null;
   body: string | null;
   audio_storage_path: string | null;
@@ -24,7 +26,8 @@ export type SmsClaim = "claimed" | "already_sent" | "error";
 
 /**
  * Sets the row to fixed and texts the submitter at most once, ever. A task
- * (title set) was opened by a super admin, so it never texts anyone.
+ * (kind null) was opened by a super admin, so it never texts anyone — a title
+ * on submitted feedback is only a label and does not change that.
  *
  * The once-only rule is the claim: an atomic write that succeeds for one
  * request only. A failed send releases it so a later טופל can try again; a
@@ -43,7 +46,7 @@ export async function markFeedbackTreated(
   },
 ): Promise<{ ok: true; sms: MarkTreatedSms } | { ok: false }> {
   if (row.status !== "fixed" && !(await deps.setFixed())) return { ok: false };
-  if (row.title !== null) return { ok: true, sms: "skipped" };
+  if (row.kind === null) return { ok: true, sms: "skipped" };
 
   const destination = deps.smsDestination(row.author.phone);
   if (!destination) return { ok: true, sms: "skipped_no_phone" };

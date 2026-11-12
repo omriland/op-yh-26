@@ -17,8 +17,8 @@ import {
 
 describe('shift status vocabulary', () => {
   it('labels logging progress, not a live-shift claim', () => {
-    expect(shiftStamp('in_progress').label).toBe('פתוחה')
-    expect(shiftStamp('draft').label).toBe('טיוטה')
+    expect(shiftStamp('in_progress').label).toBe('ממתין לתיעוד')
+    expect(shiftStamp('draft').label).toBe('תועד חלקית')
     expect(shiftStamp('closed').label).toBe('נסגרה')
   })
 })

@@ -1,6 +1,11 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-11-05 (event delete past a locked secondary lead; photos are not auto-assigned)
+Last updated: 2026-11-09 (feedback card titles editable by super admins; task = kind null)
+
+## Feedback card titles (2026-11-09, branch only — not pushed/deployed)
+
+- Super admins can set/edit/clear `user_feedback.title` on **any** card, including member-submitted feedback, via inline editing on the card itself (pencil IconButton in the card's top row swaps the title for an input; Enter/blur saves, Esc cancels; empty clears it on feedback, tasks keep a required title). Tasks still have the title+body dialog ("עריכת המשימה"). New API `setUserFeedbackTitle`; migration `supabase/migrations/20261109120000_feedback_card_title.sql` relaxes `user_feedback_lock_identity` (title free; body still locked when `kind is not null`).
+- **`kind is null` is now the task/feedback discriminator** (was `title is not null`): `isFeedbackTask`, `boardMoveNeedsSmsConfirm`, edge `markFeedbackTreated` (selects `kind` now), and `delete_user_account` (re-created in the same migration with `kind is not null` deletes). A titled feedback card still shows the reporter and still texts them on first טופל. Migration listed last in Deploy Edge Functions; `scripts/delete-account/test/delete-account.sql` replays it.
 
 ## Event delete vs a locked אחמ״ש משני (2026-11-05)
 

@@ -14,6 +14,8 @@ begin;
 \ir ../../../supabase/migrations/20261103180000_account_deletion.sql
 -- That replay restores the older body; this file puts back "tasks survive".
 \ir ../../../supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql
+-- And this one switches the task/feedback split from title to kind.
+\ir ../../../supabase/migrations/20261109120000_feedback_card_title.sql
 
 create function pg_temp.ok(p_ok boolean, p_label text) returns void language plpgsql as $$
 declare
@@ -263,7 +265,7 @@ select pg_temp.ok((select count(*) from public.oauth_authorization_codes where u
   and (select count(*) from public.oauth_access_tokens where user_id = 'c0000000-0000-4000-8000-000000000001') = 0,
   'R OAuth codes and tokens removed');
 select pg_temp.ok((select count(*) from public.my_active_event_prefs where user_id = 'c0000000-0000-4000-8000-000000000001') = 0, 'R event prefs removed');
-select pg_temp.ok((select count(*) from public.user_feedback where user_id = 'c0000000-0000-4000-8000-000000000001' and title is null) = 0, 'R feedback removed');
+select pg_temp.ok((select count(*) from public.user_feedback where user_id = 'c0000000-0000-4000-8000-000000000001' and kind is not null) = 0, 'R feedback removed');
 select pg_temp.ok((
   select f.title = 'משימה של R' and f.body = 'פירוט' and p.full_name = 'משתמש שנמחק'
   from public.user_feedback f

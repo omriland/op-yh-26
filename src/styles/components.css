@@ -2206,9 +2206,8 @@ p.alert--info {
 .sidebar__brand {
   display: flex;
   flex: none;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-3);
   width: 100%;
   margin: 0 0 var(--space-4);
   padding: var(--space-2) var(--space-3);
@@ -2229,6 +2228,25 @@ p.alert--info {
   .sidebar__brand:hover {
     opacity: 0.9;
   }
+}
+
+.sidebar__brand-logo {
+  flex: none;
+  width: auto;
+  height: 36px;
+}
+
+.sidebar__brand-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Top bar keeps its single-row layout: the wrapper adds no box. */
+.appbar__brand-text {
+  display: contents;
 }
 
 .sidebar__brand-unit {
@@ -2313,6 +2331,11 @@ p.alert--info {
   font: 400 16px/24px var(--font-ui);
   text-align: start;
   transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+/* Matches the new UX nav row (.dnav-item): 32px tall on the same 4px list gap. */
+.sidebar .nav-item {
+  height: 32px;
 }
 
 .nav-item svg {
@@ -4110,6 +4133,16 @@ html[data-keyboard-open] .event-form__footer {
   font: 400 16px/24px var(--font-ui);
 }
 
+/* Day heading inside a table: same voice as .group-head on the card lists. */
+.table tbody tr.table-row--day th {
+  height: 36px;
+  padding-inline: var(--space-4);
+  padding-block-start: var(--space-3);
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  text-align: start;
+}
+
 /* Keep registry mono face; align with header (RTL start = visual right). */
 .table .num {
   text-align: start;
@@ -4559,6 +4592,10 @@ html[data-keyboard-open] .event-form__footer {
 
   .table tbody tr.is-static:hover {
     cursor: default;
+  }
+
+  .table tbody tr.table-row--day:hover {
+    background: transparent;
   }
 }
 
@@ -9664,6 +9701,43 @@ fieldset.field {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--space-4);
+}
+
+.board-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.board-card__edit {
+  opacity: 0;
+}
+
+.board-card:hover .board-card__edit,
+.board-card:focus-within .board-card__edit {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .board-card__edit {
+    opacity: 1;
+  }
+}
+
+.board-card__title-input {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid var(--accent);
+  background: transparent;
+  color: var(--text-primary);
+  font: 400 16px/24px var(--font-ui);
+  text-align: start;
+}
+
+.board-card__title-input:focus {
+  outline: none;
 }
 
 @media (max-width: 640px) {

@@ -33,7 +33,7 @@ describe('deriveShiftLogStatus', () => {
     ).toBe('in_progress')
   })
 
-  it('becomes טיוטה when a responder starts the odometer or an event', () => {
+  it('becomes תועד חלקית when a responder starts the odometer or an event', () => {
     expect(
       deriveShiftLogStatus({
         odometer_start: 100,

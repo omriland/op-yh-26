@@ -22,7 +22,7 @@ export const EVENT_STATUS_ORDER: EventStatus[] = [
 
 const EVENT_STAMPS: Record<EventStatus, StampDescriptor> = {
   draft: { label: 'אירוע בהזנה', tone: 'draft' },
-  in_progress: { label: 'ממתין לתיעוד', tone: 'pending' },
+  in_progress: { label: 'ממתין לתיעוד', tone: 'draft' },
   partial: { label: 'תועד חלקית', tone: 'partial' },
   done: { label: 'הושלם', tone: 'done' },
 }
@@ -225,15 +225,15 @@ export function viewerStamp(
 export type ShiftStatus = 'draft' | 'in_progress' | 'closed'
 
 const SHIFT_STAMPS: Record<ShiftStatus, StampDescriptor> = {
-  in_progress: { label: 'פתוחה', tone: 'pending' },
-  draft: { label: 'טיוטה', tone: 'draft' },
+  in_progress: { label: 'ממתין לתיעוד', tone: 'draft' },
+  draft: { label: 'תועד חלקית', tone: 'pending' },
   closed: { label: 'נסגרה', tone: 'done' },
 }
 
 export const SHIFT_FILTERS: { value: ShiftStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'הכול' },
-  { value: 'in_progress', label: 'פתוחה' },
-  { value: 'draft', label: 'טיוטה' },
+  { value: 'in_progress', label: 'ממתין לתיעוד' },
+  { value: 'draft', label: 'תועד חלקית' },
   { value: 'closed', label: 'נסגרה' },
 ]
 

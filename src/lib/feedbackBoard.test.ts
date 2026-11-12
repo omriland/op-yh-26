@@ -178,7 +178,7 @@ describe('boardDropIndex', () => {
 })
 
 describe('moving to טופל', () => {
-  const feedback = { title: null, status: 'open' as FeedbackStatus, sms_sent_at: null }
+  const feedback = { kind: 'bug' as const, status: 'open' as FeedbackStatus, sms_sent_at: null }
 
   it('offers the SMS on the first טופל of submitted feedback', () => {
     expect(boardMoveNeedsSmsConfirm(feedback, 'fixed')).toBe(true)
@@ -191,7 +191,7 @@ describe('moving to טופל', () => {
   })
 
   it('never asks for a task, a card already טופל, or another column', () => {
-    expect(boardMoveNeedsSmsConfirm({ ...feedback, title: 'משימה' }, 'fixed')).toBe(false)
+    expect(boardMoveNeedsSmsConfirm({ ...feedback, kind: null }, 'fixed')).toBe(false)
     expect(boardMoveNeedsSmsConfirm({ ...feedback, status: 'fixed' }, 'fixed')).toBe(false)
     expect(boardMoveNeedsSmsConfirm(feedback, 'wont_do')).toBe(false)
   })

@@ -247,7 +247,8 @@ function BrandMark({
   onHome: () => void
   layout?: 'bar' | 'sidebar'
 }) {
-  const cockpit = view === 'cockpit'
+  // The sidebar's nav already marks the cockpit as current, so only the top bar names it.
+  const cockpit = view === 'cockpit' && layout === 'bar'
   return (
     <button
       type="button"
@@ -255,15 +256,20 @@ function BrandMark({
       onClick={onHome}
       aria-label="חזרה למסך הראשי"
     >
-      <span className="appbar__system">{cockpit ? 'אבן דרך - הקוקפיט' : 'אבן דרך'}</span>
-      {cockpit ? null : (
-        <>
-          {layout === 'bar' ? <span className="appbar__brand-rule" aria-hidden="true" /> : null}
-          <span className={layout === 'sidebar' ? 'sidebar__brand-unit' : 'appbar__unit'}>
-            היחידה הארצית לפינוי צירים
-          </span>
-        </>
-      )}
+      {layout === 'sidebar' ? (
+        <img className="sidebar__brand-logo" src="/logo-white.svg" width={30} height={32} alt="" />
+      ) : null}
+      <span className={layout === 'sidebar' ? 'sidebar__brand-text' : 'appbar__brand-text'}>
+        <span className="appbar__system">{cockpit ? 'אבן דרך - הקוקפיט' : 'אבן דרך'}</span>
+        {cockpit ? null : (
+          <>
+            {layout === 'bar' ? <span className="appbar__brand-rule" aria-hidden="true" /> : null}
+            <span className={layout === 'sidebar' ? 'sidebar__brand-unit' : 'appbar__unit'}>
+              היחידה הארצית לפינוי צירים
+            </span>
+          </>
+        )}
+      </span>
     </button>
   )
 }

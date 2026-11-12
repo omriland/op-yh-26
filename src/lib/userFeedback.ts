@@ -292,8 +292,29 @@ export function feedbackTaskError(input: { title: string; body: string }): strin
   return feedbackBodyError(input.body.trim())
 }
 
-export function isFeedbackTask(item: Pick<UserFeedback, 'title'>): boolean {
-  return Boolean(item.title)
+/** A task is a card with no kind: opened by a super admin, never member feedback. A title on feedback is only a label. */
+export function isFeedbackTask(item: Pick<UserFeedback, 'kind'>): boolean {
+  return item.kind === null
+}
+
+/** Title-only edit for any card. Empty clears it; feedback keeps its kind and body. */
+export function feedbackTitleError(title: string): string | undefined {
+  return title.trim().length > FEEDBACK_TASK_TITLE_MAX ? FEEDBACK_TASK_TITLE_LEN_ERROR : undefined
+}
+
+export async function setUserFeedbackTitle(
+  id: string,
+  title: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const trimmed = (title ?? '').trim()
+  const error = feedbackTitleError(trimmed)
+  if (error) return { ok: false, error }
+  const { error: updateError } = await supabase
+    .from('user_feedback')
+    .update({ title: trimmed || null })
+    .eq('id', id)
+  if (updateError) return { ok: false, error: FEEDBACK_UPDATE_ERROR }
+  return { ok: true }
 }
 
 export function feedbackHeading(item: Pick<UserFeedback, 'title' | 'kind'>): string {

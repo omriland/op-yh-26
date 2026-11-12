@@ -67,8 +67,8 @@ describe('feedback task heading', () => {
   it('shows the title of a task and the kind of submitted feedback', () => {
     expect(feedbackHeading({ title: 'לתקן את המפה', kind: null })).toBe('לתקן את המפה')
     expect(feedbackHeading({ title: null, kind: 'bug' })).toBe('באג')
-    expect(isFeedbackTask({ title: 'לתקן את המפה' })).toBe(true)
-    expect(isFeedbackTask({ title: null })).toBe(false)
+    expect(isFeedbackTask({ kind: null })).toBe(true)
+    expect(isFeedbackTask({ kind: 'bug' })).toBe(false)
   })
 })
 
@@ -306,6 +306,7 @@ describe('mark_treated', () => {
 
   const feedback: MarkTreatedRow = {
     status: 'open',
+    kind: 'bug',
     title: null,
     body: 'המפה לא נטענת',
     audio_storage_path: null,
@@ -315,7 +316,7 @@ describe('mark_treated', () => {
   it('never texts anyone when a task is marked טופל', async () => {
     for (const status of ['open', 'in_progress', 'wont_do', 'fixed']) {
       const d = deps()
-      const result = await markFeedbackTreated({ ...feedback, status, title: 'לבדוק את המפה' }, d)
+      const result = await markFeedbackTreated({ ...feedback, status, kind: null, title: 'לבדוק את המפה' }, d)
       expect(result).toEqual({ ok: true, sms: 'skipped' })
       expect(d.sendSms).not.toHaveBeenCalled()
       expect(d.claimSms).not.toHaveBeenCalled()
@@ -332,6 +333,13 @@ describe('mark_treated', () => {
     expect(await markFeedbackTreated(feedback, d)).toEqual({ ok: true, sms: 'sent' })
     expect(d.sendSms).toHaveBeenCalledTimes(1)
     expect(d.record.sentAt).not.toBeNull()
+  })
+
+  it('still texts titled feedback: a title is a label, not a task', async () => {
+    const d = deps()
+    const result = await markFeedbackTreated({ ...feedback, title: 'כותרת שהוסיפו' }, d)
+    expect(result).toEqual({ ok: true, sms: 'sent' })
+    expect(d.sendSms).toHaveBeenCalledTimes(1)
   })
 
   it('never texts again after a reopen and a second טופל', async () => {
@@ -409,7 +417,7 @@ describe('user-feedback edge function', () => {
   )
 
   it('loads the title and routes mark_treated through the task-aware helper', () => {
-    expect(edge).toContain('"id, title, body, status, audio_storage_path, author:')
+    expect(edge).toContain('"id, kind, title, body, status, audio_storage_path, author:')
     expect(edge).toContain('await markFeedbackTreated(')
     expect(edge).not.toContain('buildFeedbackTreatedSms')
   })

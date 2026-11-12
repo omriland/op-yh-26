@@ -3,7 +3,7 @@
 // can be exercised without logging in. Served at /events-page-dev.html. Not in the app bundle.
 //
 // ?role=shift_lead (default) · admin · admin_lead · responder / lead_mine (האירועים שלי)
-// ?state=ready (default) · loading · error · rules_error (only the rule query fails, mine)
+// ?state=ready (default) · loading · error · rules_error (only the rule query fails, mine) · empty (mine: no events)
 // ?table=1 forces the desktop table, ?table=0 the cards (default: table at ≥1025 px).
 // Saved views go to this browser's localStorage, as they do before the migration is applied.
 
@@ -247,6 +247,7 @@ const api: EventsPageApi = {
     await wait(250)
     if (state === 'loading') return never()
     if (state === 'error') throw new Error('dev: mine load failed')
+    if (state === 'empty') return []
     return EVENTS.filter((event) => event.responders.some((row) => row.responder_id === userId)).sort(newestFirst)
   },
   async searchUnitEventIds(needle) {

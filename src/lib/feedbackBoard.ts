@@ -110,14 +110,14 @@ export function boardCardExcerpt(item: Pick<UserFeedback, 'body' | 'transcript'>
 
 /**
  * Submitted feedback moved to טופל texts the submitter, so it is confirmed first.
- * Tasks never text, and a submitter is texted at most once: an item already
- * texted moves without the question.
+ * Tasks (no kind) never text — a title on feedback is only a label — and a
+ * submitter is texted at most once: an item already texted moves without the question.
  */
 export function boardMoveNeedsSmsConfirm(
-  item: Pick<UserFeedback, 'title' | 'status' | 'sms_sent_at'>,
+  item: Pick<UserFeedback, 'kind' | 'status' | 'sms_sent_at'>,
   to: FeedbackStatus,
 ): boolean {
-  return to === 'fixed' && item.status !== 'fixed' && !item.title && !item.sms_sent_at
+  return to === 'fixed' && item.status !== 'fixed' && item.kind !== null && !item.sms_sent_at
 }
 
 /** Columns a viewer can fold to a strip: the finished ones, folded unless the viewer opened them. */

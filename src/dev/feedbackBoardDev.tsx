@@ -110,6 +110,7 @@ let rows: UserFeedback[] =
           id: 'f4',
           created_at: ago(2),
           kind: 'suggestion',
+          title: 'סינון לפי שלוחה',
           body: 'להוסיף סינון לפי שלוחה ברשימת האירועים.',
           status: 'in_progress',
           assignee_id: SAAR,
@@ -192,7 +193,7 @@ const api: FeedbackBoardApi = {
     if (saveFails) return fail(FEEDBACK_UPDATE_ERROR)
     const before = rows.find((item) => item.id === id)
     rows = rows.map((item) => (item.id === id ? { ...item, status } : item))
-    if (status !== 'fixed' || options?.notifyAuthor === false || !before || before.title) {
+    if (status !== 'fixed' || options?.notifyAuthor === false || !before || before.kind === null) {
       return { ok: true, sms: 'skipped' }
     }
     if (before.sms_sent_at) {
@@ -222,6 +223,14 @@ const api: FeedbackBoardApi = {
     if (saveFails) return fail(FEEDBACK_TASK_SAVE_ERROR)
     rows = rows.map((item) =>
       item.id === id ? { ...item, title: title.trim(), body: body.trim() || null } : item,
+    )
+    return { ok: true }
+  },
+  async setUserFeedbackTitle(id, title) {
+    await wait()
+    if (saveFails) return fail(FEEDBACK_UPDATE_ERROR)
+    rows = rows.map((item) =>
+      item.id === id ? { ...item, title: (title ?? '').trim() || null } : item,
     )
     return { ok: true }
   },

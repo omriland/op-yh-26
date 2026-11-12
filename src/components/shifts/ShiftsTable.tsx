@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { formatDate, formatPlate, hebrewWeekdayLetter, monoClass } from '../../lib/format'
+import { formatDate, formatDayHeading, formatPlate, hebrewWeekdayLetter, monoClass } from '../../lib/format'
 import {
   lastSavedByLabel,
   policeEventLabel,
@@ -58,7 +58,8 @@ export function ShiftsTable({ shifts, onOpen, viewer }: ShiftsTableProps) {
           </tr>
         </thead>
         <tbody>
-          {shifts.map((shift) => {
+          {shifts.map((shift, index) => {
+            const startsDay = index === 0 || shifts[index - 1].shift_date !== shift.shift_date
             const vehicleLabel = VEHICLE_TYPE_LABELS[shift.vehicle_type]
             const plate =
               shift.vehicle_type === 'personal' && shift.personal_vehicle?.plate_number
@@ -73,6 +74,13 @@ export function ShiftsTable({ shifts, onOpen, viewer }: ShiftsTableProps) {
             }
             return (
               <Fragment key={shift.id}>
+                {startsDay ? (
+                  <tr className="is-static table-row--day">
+                    <th scope="colgroup" colSpan={7}>
+                      {formatDayHeading(shift.shift_date)}
+                    </th>
+                  </tr>
+                ) : null}
                 <tr
                   tabIndex={0}
                   role="button"

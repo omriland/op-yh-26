@@ -69,3 +69,20 @@ describe('ShiftsTable event count', () => {
     expect(html).not.toContain('אירוע אחד')
   })
 })
+
+describe('ShiftsTable day groups', () => {
+  it('heads each day once, above that day’s shifts', () => {
+    const html = renderToStaticMarkup(
+      createElement(ShiftsTable, {
+        shifts: [
+          { ...shiftWith([]), id: 'a', shift_date: '2026-11-04' },
+          { ...shiftWith([]), id: 'b', shift_date: '2026-11-04' },
+          { ...shiftWith([]), id: 'c', shift_date: '2026-11-03' },
+        ],
+        onOpen: () => {},
+      }),
+    )
+    expect(html.match(/table-row--day/g)).toHaveLength(2)
+    expect(html.indexOf('04.11.2026')).toBeLessThan(html.indexOf('03.11.2026'))
+  })
+})

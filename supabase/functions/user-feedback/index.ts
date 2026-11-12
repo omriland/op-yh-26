@@ -24,6 +24,7 @@ type AuthorRow = {
 
 type FeedbackRow = {
   id: string;
+  kind: "bug" | "suggestion" | null;
   title: string | null;
   body: string | null;
   status: "open" | "in_progress" | "fixed" | "wont_do";
@@ -157,7 +158,7 @@ Deno.serve(async (req: Request) => {
     const { data: row, error: loadError } = await adminClient
       .from("user_feedback")
       .select(
-        "id, title, body, status, audio_storage_path, author:profiles!user_feedback_user_id_fkey(full_name, phone)",
+        "id, kind, title, body, status, audio_storage_path, author:profiles!user_feedback_user_id_fkey(full_name, phone)",
       )
       .eq("id", id)
       .maybeSingle();

@@ -41,6 +41,7 @@ on:
       - "supabase/migrations/20261105121000_keep_tasks_on_account_deletion.sql"
       - "supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql"
       - "supabase/migrations/20261106160000_super_admin_reopen_log_and_shift_event_type.sql"
+      - "supabase/migrations/20261109120000_feedback_card_title.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
