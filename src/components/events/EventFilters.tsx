@@ -20,6 +20,7 @@ import {
   Save,
   Search,
   Siren,
+  SlidersHorizontal,
   Trash2,
   UserRound,
   UserRoundCheck,
@@ -65,6 +66,7 @@ import { Dialog } from '../ui/Dialog'
 import { TextField } from '../ui/TextField'
 import { useToast } from '../ui/Toast'
 import { FilterPopover } from './FilterPopover'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 
 export type EventFiltersApi = {
   fetchFilterLookups: () => Promise<FilterLookups>
@@ -168,6 +170,10 @@ export function EventFilters({
 }: EventFiltersProps) {
   const { show } = useToast()
   const [openId, setOpenId] = useState<string | null>(null)
+  // Phones (same 768 px line as the filter sheets): search plus a סינון button; the
+  // view, period, status and rules stay folded away until it is pressed.
+  const isPhone = !useMediaQuery('(min-width: 768px)')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [drafts, setDrafts] = useState<FilterRule[]>(() => view.rules)
   const [presets, setPresets] = useState<EventFilterPreset[]>([])
   const [rawLookups, setLookups] = useState<FilterLookups | null>(null)
@@ -509,8 +515,7 @@ export function EventFilters({
     </div>
   )
 
-  const filterRow = (
-    <div className={asCard ? 'efilters__row events-card__band' : 'efilters__row'}>
+  const searchField = (
       <label className="fsearch">
         <Search size={16} strokeWidth={1.75} aria-hidden="true" />
         <span className="visually-hidden">{scope === 'mine' ? MINE_SEARCH_LABEL : UNIT_SEARCH_LABEL}</span>
@@ -519,7 +524,13 @@ export function EventFilters({
           data-trigger="search"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder={scope === 'mine' ? 'חיפוש: אירוע, כביש או מיקום' : 'חיפוש: אירוע, כביש, מיקום או שם'}
+          placeholder={
+            isPhone
+              ? 'חיפוש אירוע או כביש'
+              : scope === 'mine'
+                ? 'חיפוש: אירוע, כביש או מיקום'
+                : 'חיפוש: אירוע, כביש, מיקום או שם'
+          }
         />
         {query ? (
           <button
@@ -535,7 +546,9 @@ export function EventFilters({
           </button>
         ) : null}
       </label>
+  )
 
+  const pillGroup = (
       <div className="efilters__pills">
         <FilterPopover
           open={openId === 'period'}
@@ -739,23 +752,193 @@ export function EventFilters({
           </button>
         ) : null}
       </div>
+  )
 
-      {rulesError ? (
+  const rulesErrorNote = rulesError ? (
         <p className="efilters__error" role="alert">
           <span>סינון האירועים נכשל. מוצגים האירועים בלי התנאים.</span>
           <button type="button" className="ftext efilters__retry" onClick={rulesError.onRetry}>
             טעינה מחדש
           </button>
         </p>
-      ) : null}
+      ) : null
 
-      {countLabel ? (
+  const countNote = countLabel ? (
         <p className="efilters__count" aria-live="polite">
           {countLabel}
         </p>
-      ) : null}
+      ) : null
+
+  const filterRow = (
+    <div className={asCard ? 'efilters__row events-card__band' : 'efilters__row'}>
+      {searchField}
+      {pillGroup}
+      {rulesErrorNote}
+      {countNote}
     </div>
   )
+
+  // What the סינון badge counts: every filter that narrows the list, not the search.
+  const activeFilterCount =
+    (period.changed ? 1 : 0) +
+    (view.status !== 'all' ? 1 : 0) +
+    activeRules(view.rules).filter((rule) => rule.field !== 'event_date').length +
+    (scope === 'unit' && view.showShiftEvents ? 1 : 0) +
+    (showOthersControl && view.showOthers ? 1 : 0)
+
+  const dialogs = (
+    <>
+        <Dialog
+          open={saveOpen}
+          title="שמירת תצוגה"
+          onClose={() => !saving && setSaveOpen(false)}
+          footer={
+            <>
+              <Button loading={saving} loadingLabel="שומר…" onClick={() => void submitSave()}>
+                שמירת תצוגה
+              </Button>
+              <Button variant="secondary" disabled={saving} onClick={() => setSaveOpen(false)}>
+                ביטול
+              </Button>
+            </>
+          }
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submitSave()
+            }}
+          >
+            <TextField
+              label="שם התצוגה"
+              required
+              inputRef={saveNameRef}
+              maxLength={PRESET_NAME_MAX}
+              placeholder="למשל: משאיות בכביש 6"
+              hint={
+                scope === 'mine'
+                  ? 'נשמרים התקופה, הסטטוס והסינונים. לא נשמר טקסט החיפוש.'
+                  : 'נשמרים התקופה, הסטטוס, הסינונים והבחירות שבשורה. לא נשמר טקסט החיפוש.'
+              }
+              value={saveName}
+              error={saveError ?? undefined}
+              onChange={(event) => {
+                setSaveName(event.target.value)
+                setSaveError(null)
+              }}
+            />
+          </form>
+        </Dialog>
+
+        <AlertDialog
+          open={Boolean(confirmDelete)}
+          status="danger"
+          title={`למחוק את התצוגה ״${confirmDelete?.name ?? ''}״?`}
+          busy={deleting}
+          onClose={() => {
+            if (deleting) return
+            setConfirmDelete(null)
+            focusTrigger('view')
+          }}
+          footer={
+            <>
+              <Button
+                variant="destructive"
+                loading={deleting}
+                loadingLabel="מוחק…"
+                onClick={() => void submitDelete()}
+              >
+                מחיקה
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={deleting}
+                onClick={() => {
+                  setConfirmDelete(null)
+                  focusTrigger('view')
+                }}
+              >
+                ביטול
+              </Button>
+            </>
+          }
+        >
+          <p className="t-body">הסינון שעל המסך יישאר כפי שהוא.</p>
+        </AlertDialog>
+
+        <AlertDialog
+          open={Boolean(confirmSwitch)}
+          status="warning"
+          title="להחליף תצוגה?"
+          onClose={() => {
+            setConfirmSwitch(null)
+            focusTrigger('view')
+          }}
+          footer={
+            <>
+              <Button
+                onClick={() => {
+                  if (confirmSwitch) switchTo(confirmSwitch)
+                  setConfirmSwitch(null)
+                  focusTrigger('view')
+                }}
+              >
+                החלפת תצוגה
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setConfirmSwitch(null)
+                  focusTrigger('view')
+                }}
+              >
+                ביטול
+              </Button>
+            </>
+          }
+        >
+          <p className="t-body">הסינון הנוכחי לא נשמר, והוא יוחלף. כדי לשמור אותו, בחרו ״שמירה כתצוגה חדשה״.</p>
+        </AlertDialog>
+    </>
+  )
+
+  if (isPhone && !asCard) {
+    return (
+      <div ref={rootRef} className="efilters">
+        <div className="efilters__bar">
+          {searchField}
+          <button
+            type="button"
+            className={['ffilter', filtersOpen ? 'is-open' : '', activeFilterCount > 0 ? 'is-active' : '']
+              .filter(Boolean)
+              .join(' ')}
+            aria-expanded={filtersOpen}
+            aria-controls="efilters-panel"
+            onClick={() => setFiltersOpen((value) => !value)}
+          >
+            <SlidersHorizontal size={16} strokeWidth={1.75} aria-hidden="true" />
+            <span>סינון</span>
+            {activeFilterCount > 0 ? (
+              <span className="ffilter__badge">
+                {activeFilterCount}
+                <span className="visually-hidden"> פעילים</span>
+              </span>
+            ) : null}
+          </button>
+        </div>
+        {filtersOpen ? (
+          <div id="efilters-panel" className="efilters__panel">
+            {viewRow}
+            {pillGroup}
+          </div>
+        ) : null}
+        {rulesErrorNote}
+        {countNote}
+        {children}
+        {dialogs}
+      </div>
+    )
+  }
 
   return (
     <div ref={rootRef} className="efilters">
@@ -772,117 +955,7 @@ export function EventFilters({
         </>
       )}
 
-      <Dialog
-        open={saveOpen}
-        title="שמירת תצוגה"
-        onClose={() => !saving && setSaveOpen(false)}
-        footer={
-          <>
-            <Button loading={saving} loadingLabel="שומר…" onClick={() => void submitSave()}>
-              שמירת תצוגה
-            </Button>
-            <Button variant="secondary" disabled={saving} onClick={() => setSaveOpen(false)}>
-              ביטול
-            </Button>
-          </>
-        }
-      >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            void submitSave()
-          }}
-        >
-          <TextField
-            label="שם התצוגה"
-            required
-            inputRef={saveNameRef}
-            maxLength={PRESET_NAME_MAX}
-            placeholder="למשל: משאיות בכביש 6"
-            hint={
-              scope === 'mine'
-                ? 'נשמרים התקופה, הסטטוס והסינונים. לא נשמר טקסט החיפוש.'
-                : 'נשמרים התקופה, הסטטוס, הסינונים והבחירות שבשורה. לא נשמר טקסט החיפוש.'
-            }
-            value={saveName}
-            error={saveError ?? undefined}
-            onChange={(event) => {
-              setSaveName(event.target.value)
-              setSaveError(null)
-            }}
-          />
-        </form>
-      </Dialog>
-
-      <AlertDialog
-        open={Boolean(confirmDelete)}
-        status="danger"
-        title={`למחוק את התצוגה ״${confirmDelete?.name ?? ''}״?`}
-        busy={deleting}
-        onClose={() => {
-          if (deleting) return
-          setConfirmDelete(null)
-          focusTrigger('view')
-        }}
-        footer={
-          <>
-            <Button
-              variant="destructive"
-              loading={deleting}
-              loadingLabel="מוחק…"
-              onClick={() => void submitDelete()}
-            >
-              מחיקה
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={deleting}
-              onClick={() => {
-                setConfirmDelete(null)
-                focusTrigger('view')
-              }}
-            >
-              ביטול
-            </Button>
-          </>
-        }
-      >
-        <p className="t-body">הסינון שעל המסך יישאר כפי שהוא.</p>
-      </AlertDialog>
-
-      <AlertDialog
-        open={Boolean(confirmSwitch)}
-        status="warning"
-        title="להחליף תצוגה?"
-        onClose={() => {
-          setConfirmSwitch(null)
-          focusTrigger('view')
-        }}
-        footer={
-          <>
-            <Button
-              onClick={() => {
-                if (confirmSwitch) switchTo(confirmSwitch)
-                setConfirmSwitch(null)
-                focusTrigger('view')
-              }}
-            >
-              החלפת תצוגה
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setConfirmSwitch(null)
-                focusTrigger('view')
-              }}
-            >
-              ביטול
-            </Button>
-          </>
-        }
-      >
-        <p className="t-body">הסינון הנוכחי לא נשמר, והוא יוחלף. כדי לשמור אותו, בחרו ״שמירה כתצוגה חדשה״.</p>
-      </AlertDialog>
+      {dialogs}
     </div>
   )
 }

@@ -1063,7 +1063,8 @@ function Gate() {
     <AppShell
       withSidebar={shellWithSidebar}
       narrow={shellNarrow}
-      showSecurityBadge={shouldShowSecurityBadge(immersiveSurface) && legalPage === null}
+      // No footer on the phone / tablet shell; only the desktop sidebar layout shows it.
+      showSecurityBadge={isDesktop && shouldShowSecurityBadge(immersiveSurface) && legalPage === null}
       onOpenPrivacy={() => setLegalPage('privacy')}
       onOpenAndroid={openAndroidDownload}
       view={activeView}

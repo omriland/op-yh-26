@@ -764,7 +764,7 @@ export function EventsPage({
         <div className="page-head">
           <div className="page-head__intro">
             <h1 className="t-title">אירועים</h1>
-            <p className="t-caption text-muted">
+            <p className="t-caption text-muted events-page__hint">
               {rulesMode
                 ? rulesCapped
                   ? RULES_CAPPED_HINT
