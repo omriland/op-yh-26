@@ -11,6 +11,8 @@ type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> &
   isolate?: boolean
   affix?: ReactNode
   inputRef?: Ref<HTMLInputElement>
+  /** A small control on the label line, after the label (e.g. a toggle). */
+  labelAccessory?: ReactNode
 }
 
 export function TextField({
@@ -21,6 +23,7 @@ export function TextField({
   isolate = false,
   affix,
   inputRef,
+  labelAccessory,
   id,
   required,
   value,
@@ -35,9 +38,18 @@ export function TextField({
 
   return (
     <div className="field">
-      <FieldLabel htmlFor={fieldId} required={required}>
-        {label}
-      </FieldLabel>
+      {labelAccessory ? (
+        <div className="field__label-row">
+          <FieldLabel htmlFor={fieldId} required={required}>
+            {label}
+          </FieldLabel>
+          {labelAccessory}
+        </div>
+      ) : (
+        <FieldLabel htmlFor={fieldId} required={required}>
+          {label}
+        </FieldLabel>
+      )}
       <div
         className={['field__control', isolate ? 'ltr' : ''].filter(Boolean).join(' ')}
         dir={isolate ? 'ltr' : undefined}

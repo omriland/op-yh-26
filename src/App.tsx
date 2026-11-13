@@ -865,7 +865,6 @@ function Gate() {
         key={`setup-${passwordSetupReason}`}
         forceSetPassword
         onOpenAndroid={openAndroidDownload}
-        onOpenPrivacy={() => setLegalPage('privacy')}
       />
     )
   }
@@ -948,7 +947,6 @@ function Gate() {
           <LoginPage
             key="signin"
             onOpenAndroid={openAndroidDownload}
-            onOpenPrivacy={() => setLegalPage('privacy')}
           />
         )}
       </>

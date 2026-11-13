@@ -242,8 +242,25 @@ export function formatEndTime(
 /** Police event number — digits only, 5 max. */
 export const POLICE_EVENT_ID_MAX_LENGTH = 5
 
+/**
+ * אירוע יחידתי ID: 6 of 0-9/A-Z with at least one letter, so it can never equal
+ * a police number. Issued by the issue_unit_event_id RPC and stored in
+ * police_event_id.
+ */
+export function isUnitEventId(value: string | null | undefined): boolean {
+  const trimmed = value?.trim() ?? ''
+  return /^[0-9A-Z]{6}$/.test(trimmed) && /[A-Z]/.test(trimmed)
+}
+
+/** A unit ID passes through whole; anything else is a police number. */
 export function policeEventIdForInput(raw: string): string {
+  if (isUnitEventId(raw)) return raw.trim()
   return digitsOnly(raw).slice(0, POLICE_EVENT_ID_MAX_LENGTH)
+}
+
+/** Comparison key for same-day duplicate checks. */
+export function policeEventIdKey(raw: string): string {
+  return isUnitEventId(raw) ? raw.trim() : digitsOnly(raw)
 }
 
 /**

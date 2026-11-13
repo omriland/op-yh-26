@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight, Plus, Search, Trash2, UserRound } from 'lucide-react'
+import { ChevronDown, ChevronRight, Info, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { fieldsMatchQuery, sortByCallsignForNumericQuery } from '../lib/searchQuery'
 import {
@@ -9,6 +9,11 @@ import {
   canClearEventCancelled,
   CANCELLED_CLEAR_ADMIN_ONLY,
   POLICE_EVENT_ID_DUPLICATE_ERROR,
+  issueUnitEventId,
+  UNIT_EVENT_BUTTON_LABEL,
+  UNIT_EVENT_ID_LABEL,
+  UNIT_EVENT_ISSUE_ERROR,
+  UNIT_EVENT_TIP,
   policeEventIdSaveAction,
   cockpitIdentityDraftWarning,
   attachEventIdAfterFailedSave,
@@ -74,7 +79,7 @@ import {
   RESPONDERS_HELD_FOR_POLICE_ID_NOTE,
 } from '../lib/eventIncomplete'
 import { viewerStamp } from '../lib/status'
-import { monoClass, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
+import { isUnitEventId, monoClass, policeEventIdForInput, POLICE_EVENT_ID_MAX_LENGTH } from '../lib/format'
 import { Avatar } from '../components/ui/Avatar'
 import { Button, IconButton } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
@@ -83,6 +88,7 @@ import { AlertDialog } from '../components/ui/AlertDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FieldNote } from '../components/ui/FieldNote'
+import { HoverTip } from '../components/ui/HoverTip'
 import { FormStickyFooter } from '../components/ui/FormStickyFooter'
 import { SelectField } from '../components/ui/SelectField'
 import { StampChip } from '../components/ui/StampChip'
@@ -214,6 +220,10 @@ export function EventFormPage({
     isAdmin || roles.includes('shift_lead') || roles.includes('super_admin')
   const canClearCancelled = canClearEventCancelled(roles)
   const [blockSelfAssign] = useState(() => blockSelfAssignProp ?? !eventId)
+  // אירוע יחידתי is offered only on a form a lead opened to create an event.
+  const [openedToCreate] = useState(() => !eventId)
+  const canIssueUnitEventId = openedToCreate && canManage
+  const [issuingUnitId, setIssuingUnitId] = useState(false)
   const phoneLayout = variant !== 'cockpit' && !isDesktop
   const assignSearchRef = useRef<HTMLInputElement>(null)
   const assignSectionRef = useRef<HTMLDivElement>(null)
@@ -983,6 +993,27 @@ export function EventFormPage({
     if (errors.form) setErrors((current) => ({ ...current, form: undefined }))
   }
 
+  // On: issue a fresh unit ID. Off: back to a police number; the unit ID is
+  // retired, so turning it on again issues a new one.
+  async function toggleUnitEvent(on: boolean) {
+    setErrors((current) => ({ ...current, police_event_id: undefined }))
+    if (!on) {
+      updateDraft({ police_event_id: '' })
+      queueMicrotask(() => void persistLatest())
+      return
+    }
+    setIssuingUnitId(true)
+    try {
+      const code = await issueUnitEventId()
+      updateDraft({ police_event_id: code })
+      queueMicrotask(() => void persistLatest())
+    } catch {
+      show(UNIT_EVENT_ISSUE_ERROR, 'alert')
+    } finally {
+      setIssuingUnitId(false)
+    }
+  }
+
   function updateResponder(key: string, patch: Partial<ResponderDraft>) {
     setDraft((current) => {
       if (!current) return current
@@ -1666,25 +1697,68 @@ export function EventFormPage({
 
                       <div className="event-form__f-police">
                         <FieldNote field="police_event_id" />
-                        <TextField
-                          label="מספר אירוע"
-                          type="text"
-                          numeric
-                          isolate
-                          inputMode="numeric"
-                          autoComplete="off"
-                          pattern="[0-9]*"
-                          maxLength={POLICE_EVENT_ID_MAX_LENGTH}
-                          value={draft.police_event_id}
-                          error={errors.police_event_id}
-                          onChange={(event) => {
-                            updateDraft({
-                              police_event_id: policeEventIdForInput(event.target.value),
-                            })
-                            setErrors((current) => ({ ...current, police_event_id: undefined }))
-                          }}
-                          onBlur={() => void persistLatest()}
-                        />
+                        {(() => {
+                          const unitToggle =
+                            canManage &&
+                            (isUnitEventId(draft.police_event_id) ||
+                              (canIssueUnitEventId && !draft.police_event_id.trim())) ? (
+                              <div className="unit-event">
+                                <label className="unit-event__label" htmlFor="unit-event-switch">
+                                  {UNIT_EVENT_BUTTON_LABEL}
+                                </label>
+                                <HoverTip text={UNIT_EVENT_TIP} mode="always" className="unit-event__tip">
+                                  <Info size={14} strokeWidth={1.75} aria-label="מה זה אירוע יחידתי" />
+                                </HoverTip>
+                                <button
+                                  id="unit-event-switch"
+                                  type="button"
+                                  role="switch"
+                                  className="unit-event__switch"
+                                  aria-checked={isUnitEventId(draft.police_event_id)}
+                                  aria-busy={issuingUnitId || undefined}
+                                  disabled={issuingUnitId}
+                                  onClick={() =>
+                                    void toggleUnitEvent(!isUnitEventId(draft.police_event_id))
+                                  }
+                                >
+                                  <span className="unit-event__thumb" />
+                                </button>
+                              </div>
+                            ) : undefined
+                          return isUnitEventId(draft.police_event_id) ? (
+                            <TextField
+                              label={UNIT_EVENT_ID_LABEL}
+                              labelAccessory={unitToggle}
+                              type="text"
+                              isolate
+                              readOnly
+                              numeric
+                              value={draft.police_event_id}
+                              error={errors.police_event_id}
+                            />
+                          ) : (
+                            <TextField
+                              label="מספר אירוע"
+                              labelAccessory={unitToggle}
+                              type="text"
+                              numeric
+                              isolate
+                              inputMode="numeric"
+                              autoComplete="off"
+                              pattern="[0-9]*"
+                              maxLength={POLICE_EVENT_ID_MAX_LENGTH}
+                              value={draft.police_event_id}
+                              error={errors.police_event_id}
+                              onChange={(event) => {
+                                updateDraft({
+                                  police_event_id: policeEventIdForInput(event.target.value),
+                                })
+                                setErrors((current) => ({ ...current, police_event_id: undefined }))
+                              }}
+                              onBlur={() => void persistLatest()}
+                            />
+                          )
+                        })()}
                       </div>
                     </div>
                   </div>

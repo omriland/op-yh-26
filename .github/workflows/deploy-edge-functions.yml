@@ -42,6 +42,7 @@ on:
       - "supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql"
       - "supabase/migrations/20261106160000_super_admin_reopen_log_and_shift_event_type.sql"
       - "supabase/migrations/20261109120000_feedback_card_title.sql"
+      - "supabase/migrations/20261113120000_unit_event_ids.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -195,6 +196,13 @@ jobs:
           # event's type tally. Nothing later replaces these functions.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261106160000_super_admin_reopen_log_and_shift_event_type.sql
+          # Titled feedback cards: kind is the task/feedback discriminator. Re-creates
+          # delete_user_account, so it must run after the account-deletion files above.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261109120000_feedback_card_title.sql
+          # אירוע יחידתי: unit ID ledger, issue RPC and claim trigger on events.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261113120000_unit_event_ids.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

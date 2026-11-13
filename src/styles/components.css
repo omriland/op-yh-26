@@ -4986,14 +4986,6 @@ html[data-keyboard-open] .event-form__footer {
   white-space: nowrap;
 }
 
-/* The closed-system notice sits under the card, so the form leads on a phone. */
-.login__public {
-  margin: 0;
-  max-width: 36em;
-  align-self: center;
-  text-align: center;
-}
-
 .login__card {
   width: 100%;
   padding: var(--space-6);
@@ -7060,6 +7052,118 @@ html[data-keyboard-open] .event-form__footer {
     'timesNote'
     'times'
     'districtPlace';
+}
+
+/* A control on a field's label line. Negative block margins keep 44px tap
+   targets without making the label line taller than its neighbours'. */
+.field__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-block-end: var(--space-1);
+}
+
+.field__label-row > .field__label {
+  margin-block-end: 0;
+  white-space: nowrap;
+}
+
+/* אירוע יחידתי: a compact switch on the מספר אירוע label line, sized to the
+   13px label so it reads as an option on the field, not a second field. Same
+   label-line treatment as .time-field__now: 44px hit areas, no extra height. */
+.unit-event {
+  display: flex;
+  align-items: center;
+  margin-block: calc((18px - 44px) / 2);
+}
+
+.unit-event__label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-inline-start: var(--space-2);
+  color: var(--text-secondary);
+  font: 500 13px/18px var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.unit-event__tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 44px;
+  color: var(--text-muted);
+}
+
+.unit-event__switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* The visible track; the button around it is the 44px target. */
+.unit-event__switch::before {
+  content: '';
+  width: 28px;
+  height: 16px;
+  margin-inline-start: auto;
+  border-radius: var(--radius-full);
+  background: var(--stroke-strong);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.unit-event__thumb {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: 14px;
+  width: 12px;
+  height: 12px;
+  margin-block-start: -6px;
+  border-radius: var(--radius-full);
+  background: var(--paper-0, #fff);
+  transition: inset-inline-end var(--duration-fast) var(--ease-standard);
+}
+
+.unit-event__switch[aria-checked='true']::before {
+  background: var(--accent);
+}
+
+.unit-event__switch[aria-checked='true'] .unit-event__thumb {
+  inset-inline-end: 2px;
+}
+
+.unit-event:has(.unit-event__switch[aria-checked='true']) .unit-event__label {
+  color: var(--accent);
+}
+
+.unit-event__switch:disabled {
+  cursor: progress;
+  opacity: 0.5;
+}
+
+.unit-event__switch:focus-visible {
+  outline: none;
+}
+
+.unit-event__switch:focus-visible::before {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unit-event__switch::before,
+  .unit-event__thumb {
+    transition: none;
+  }
 }
 
 .event-form__f-date,

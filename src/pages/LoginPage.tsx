@@ -17,7 +17,6 @@ import { StampChip } from '../components/ui/StampChip'
 import { PasswordField, TextField } from '../components/ui/TextField'
 import { captureEvent } from '../lib/posthog'
 import { ANDROID_BETA_LABEL, fetchAndroidApkHref, isAndroidMobile } from '../lib/androidDownload'
-import { SnykBadge } from '../components/shell/SnykBadge'
 
 type Mode = 'signin' | 'reset' | 'reset-sent' | 'set-password' | 'password-set'
 
@@ -25,19 +24,15 @@ type LoginPageProps = {
   /** Force set-password UI (invite / recovery redirect). */
   forceSetPassword?: boolean
   onOpenAndroid?: () => void
-  onOpenPrivacy?: () => void
 }
 
 export const PLATFORM_NAME = 'אבן דרך'
 export const UNIT_LINE_1 = 'היחידה הארצית'
 export const UNIT_LINE_2 = 'לפינוי צירים'
-const PUBLIC_DESCRIPTION =
-  'מערכת סגורה לתיעוד פעילות המתנדבים ביחידה הארצית לפינוי צירים. הכניסה מיועדת לאנשי יחידה מורשים בלבד.'
 
 export function LoginPage({
   forceSetPassword = false,
   onOpenAndroid,
-  onOpenPrivacy,
 }: LoginPageProps) {
   const {
     signIn,
@@ -491,11 +486,7 @@ export function LoginPage({
           ) : null}
         </div>
 
-        <p className="login__public t-body text-secondary">{PUBLIC_DESCRIPTION}</p>
       </div>
-      {onOpenPrivacy ? (
-        <SnykBadge onOpenPrivacy={onOpenPrivacy} onOpenAndroid={onOpenAndroid} />
-      ) : null}
       </div>
     </div>
   )

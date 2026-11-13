@@ -234,6 +234,16 @@ describe('incompleteNoticeLabel', () => {
   })
 })
 
+describe('missing volunteer', () => {
+  it('lists מתנדב when nobody is assigned', () => {
+    expect(incompleteLeadNoticeLabels(event({ responders: [] }), 'lead')).toEqual(['מתנדב'])
+  })
+
+  it('leaves a cancelled event with nobody on it alone', () => {
+    expect(missingEventFields(event({ responders: [], is_cancelled: true })).has('responders')).toBe(false)
+  })
+})
+
 describe('incomplete lead notice when responders are held', () => {
   it('adds לא נשלח למתנדבים once a volunteer is assigned before the event is released', () => {
     expect(incompleteLeadNoticeLabels(event({ police_event_id: null }), 'lead')).toEqual([
@@ -241,7 +251,7 @@ describe('incomplete lead notice when responders are held', () => {
       'לא נשלח למתנדבים',
     ])
     expect(incompleteLeadNoticeLabels(event({ police_event_id: null, responders: [] }), 'lead')).toEqual(
-      ['מספר אירוע'],
+      ['מספר אירוע', 'מתנדב'],
     )
     expect(incompleteLeadNoticeLabels(event({ road: null }), 'lead')).toEqual([
       'כביש',

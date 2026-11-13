@@ -12,7 +12,7 @@ import {
   eventNeedsPersistedGeocode,
 } from './eventGeocode'
 import { geocodePlaceQuery } from './googlePlaces'
-import { digitsOnly, isCompleteTimeInput, policeEventIdForInput } from './format'
+import { digitsOnly, isCompleteTimeInput, policeEventIdForInput, policeEventIdKey } from './format'
 import {
   LOCATION_REQUIRED_ERROR,
   districtNeedsStation,
@@ -1272,14 +1272,14 @@ export function sameDayPoliceEventIdCollides(input: {
   currentEventId?: string | null
   existing: SameDayPoliceEventRow[]
 }): boolean {
-  const policeId = digitsOnly(input.policeEventId)
+  const policeId = policeEventIdKey(input.policeEventId)
   const date = input.eventDate.trim()
   if (!policeId || !date) return false
   return input.existing.some((row) => {
     if (row.is_cancelled) return false
     if (input.currentEventId && row.id === input.currentEventId) return false
     if (row.event_date.trim() !== date) return false
-    return digitsOnly(row.police_event_id ?? '') === policeId
+    return policeEventIdKey(row.police_event_id ?? '') === policeId
   })
 }
 
@@ -1288,9 +1288,9 @@ export function policeEventIdForCockpitSave(input: {
   lastSaved: string
   collides: boolean
 }): string {
-  if (!input.collides) return digitsOnly(input.typed)
-  if (digitsOnly(input.lastSaved) === digitsOnly(input.typed)) return ''
-  return digitsOnly(input.lastSaved)
+  if (!input.collides) return policeEventIdKey(input.typed)
+  if (policeEventIdKey(input.lastSaved) === policeEventIdKey(input.typed)) return ''
+  return policeEventIdKey(input.lastSaved)
 }
 
 export type PoliceEventIdSaveAction =
@@ -1348,11 +1348,23 @@ export function policeEventIdSaveAction(input: {
   }
 }
 
+export const UNIT_EVENT_BUTTON_LABEL = 'אירוע יחידתי'
+export const UNIT_EVENT_TIP = 'אירוע פנימי ללא מספר אירוע משטרתי. האירוע יקבל מזהה ייחודי ליחידה'
+export const UNIT_EVENT_ID_LABEL = 'מזהה יחידתי'
+export const UNIT_EVENT_ISSUE_ERROR = 'לא ניתן היה להנפיק מזהה יחידתי. בדקו את החיבור ונסו שוב.'
+
+/** אירוע יחידתי: a fresh unit ID for the caller. The event claims it on its next save. */
+export async function issueUnitEventId(): Promise<string> {
+  const { data, error } = await supabase.rpc('issue_unit_event_id')
+  if (error || typeof data !== 'string') throw new Error(error?.message ?? 'unit_event_id_failed')
+  return data
+}
+
 export async function fetchSameDayPoliceEventIdRows(input: {
   eventDate: string
   policeEventId: string
 }): Promise<SameDayPoliceEventRow[]> {
-  const policeId = digitsOnly(input.policeEventId)
+  const policeId = policeEventIdKey(input.policeEventId)
   const eventDate = input.eventDate.trim()
   if (!policeId || !eventDate) return []
   const { data, error } = await supabase
@@ -1394,7 +1406,7 @@ export async function cockpitPoliceEventIdCollides(
     policeEventId: string
   }) => Promise<SameDayPoliceEventRow[]> = fetchSameDayPoliceEventIdRows,
 ): Promise<boolean> {
-  const policeId = digitsOnly(input.policeEventId)
+  const policeId = policeEventIdKey(input.policeEventId)
   if (!policeId || !input.eventDate.trim()) return false
   const existing = await loadRows({
     eventDate: input.eventDate,

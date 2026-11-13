@@ -8,6 +8,7 @@
  * Fields checked:
  *  - Event-level: police_event_id, patrol_callsign_number (אוק - מס),
  *                 district, event_type, road, location, started_at, ended_at
+ *  - At least one assigned responder (not on cancelled events)
  *  - Per-responder: total_km
  *
  * Shift-born events are exempt (see missingEventFields).
@@ -27,6 +28,7 @@ export type IncompleteField =
   | 'event_type'
   | 'road'
   | 'location'
+  | 'responders'
   | 'responder_km'
   | 'event_times'
 
@@ -37,6 +39,7 @@ export const INCOMPLETE_FIELD_LABELS: Record<IncompleteField, string> = {
   event_type: 'סוג אירוע',
   road: 'כביש',
   location: 'מיקום',
+  responders: 'מתנדב',
   responder_km: 'ק״מ',
   event_times: 'שעות',
 }
@@ -66,6 +69,8 @@ export function missingEventFields(event: EventListItem): Set<IncompleteField> {
   if (!event.event_type) missing.add('event_type')
   if (!event.road) missing.add('road')
   if (isMissing(event.location)) missing.add('location')
+  // A cancelled event may close with nobody on it.
+  if (event.responders.length === 0 && !event.is_cancelled) missing.add('responders')
 
   const eventStart = event.started_at
   const eventEnd = event.ended_at
