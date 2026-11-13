@@ -52,6 +52,7 @@ export function EventSaveRulesDialog({
         {photo?.vehicles && photo.vehicles.length > 0 ? (
           <TreatedPlateStack plates={photo.vehicles} />
         ) : null}
+        {photo?.note ? <p className="t-body">{photo.note}</p> : null}
       </div>
     </AlertDialog>
   )

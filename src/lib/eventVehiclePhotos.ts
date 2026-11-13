@@ -7,6 +7,16 @@ export const VEHICLE_PHOTOS_TITLE = 'לא צורפו תמונות לרכבים �
 export const VEHICLE_PHOTOS_BACK = 'חזרה לעריכה'
 export const VEHICLE_PHOTOS_PROCEED = 'שמירה ללא תמונות נוספות'
 
+/**
+ * Under the vehicle list when the person has photos with no vehicle: the photo
+ * was saved, it just is not linked, which is what the prompt is really about.
+ */
+export function unlinkedPhotosNote(count: number): string | null {
+  if (count <= 0) return null
+  const lead = count === 1 ? 'יש לך תמונה אחת ללא שיוך לרכב.' : `יש לך ${count} תמונות ללא שיוך לרכב.`
+  return `${lead} כדי לשייך: חזרה לעריכה, פתיחת התמונה ובחירת הרכב.`
+}
+
 export type PhotoCoveragePlate = {
   id: string
   plate_digits: string

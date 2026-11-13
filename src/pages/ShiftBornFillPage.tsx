@@ -93,6 +93,10 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   const [dropUnfinishedTick, setDropUnfinishedTick] = useState(0)
   /** Photos linked to a vehicle the report has not saved yet. */
   const pendingMediaLinks = useRef<PendingMediaLink[]>([])
+  const unlinkedOwnPhotos = useRef(0)
+  const onUnlinkedOwnCountChange = useCallback((count: number) => {
+    unlinkedOwnPhotos.current = count
+  }, [])
   const [vehiclesSavedTick, setVehiclesSavedTick] = useState(0)
   const onPendingLinksChange = useCallback((links: PendingMediaLink[]) => {
     pendingMediaLinks.current = links
@@ -359,7 +363,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     if (!draft) return false
     const saved = await fetchEventPhotoCoverage(eventId)
     const covered = saved ? withPendingPhotoLinks(saved, pendingMediaLinks.current) : null
-    const issue = vehiclePhotosIssue(draft.treated_plates, covered, photoSkippedRef.current)
+    const issue = vehiclePhotosIssue(
+      draft.treated_plates,
+      covered,
+      photoSkippedRef.current,
+      unlinkedOwnPhotos.current,
+    )
     if (!issue) return false
     setPhotoPrompt({ issues: [issue], complete })
     return true
@@ -620,6 +629,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               formVehicles={draft.treated_plates}
               plateOwner={{ eventId }}
               onPendingLinksChange={onPendingLinksChange}
+              onUnlinkedOwnCountChange={onUnlinkedOwnCountChange}
               vehiclesSavedTick={vehiclesSavedTick}
               onUnfinishedChange={(count) => {
                 setUnfinishedMediaDrafts(count)

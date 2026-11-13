@@ -120,6 +120,10 @@ export function ResponderFillPage({
   const [dropUnfinishedTick, setDropUnfinishedTick] = useState(0)
   /** Photos linked to a vehicle the report has not saved yet. */
   const pendingMediaLinks = useRef<PendingMediaLink[]>([])
+  const unlinkedOwnPhotos = useRef(0)
+  const onUnlinkedOwnCountChange = useCallback((count: number) => {
+    unlinkedOwnPhotos.current = count
+  }, [])
   const [vehiclesSavedTick, setVehiclesSavedTick] = useState(0)
   const [localSavedAt, setLocalSavedAt] = useState<number | null>(null)
   const [restoredFromDevice, setRestoredFromDevice] = useState(false)
@@ -438,6 +442,7 @@ export function ResponderFillPage({
       unfinishedMediaDraftCount: unfinishedMediaDrafts,
       coveredPlateDigits: coverage,
       photoSkippedDigits: photoSkippedRef.current,
+      unlinkedPhotoCount: unlinkedOwnPhotos.current,
       cancelled: ctx.is_cancelled,
     })
     if (rules.blocks.length > 0) {
@@ -852,6 +857,7 @@ export function ResponderFillPage({
                   formVehicles={draft.treated_plates}
                   plateOwner={{ eventResponderId: ctx.assignmentId }}
                   onPendingLinksChange={onPendingLinksChange}
+                  onUnlinkedOwnCountChange={onUnlinkedOwnCountChange}
                   vehiclesSavedTick={vehiclesSavedTick}
                   source={mediaSource}
                 />

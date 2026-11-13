@@ -83,6 +83,8 @@ export type EventMediaGalleryProps = {
   plateOwner?: MediaPlateOwner
   /** Photos linked to a form vehicle that has no saved row yet. */
   onPendingLinksChange?: (links: PendingMediaLink[]) => void
+  /** How many of the viewer's own saved photos have no vehicle (and are not marked not-a-vehicle). */
+  onUnlinkedOwnCountChange?: (count: number) => void
   /** Increment after the form saved its vehicles, to re-read the photos' links. */
   vehiclesSavedTick?: number
   /** Where photos are read and written. Defaults to the signed-in session. */
@@ -251,6 +253,7 @@ export function EventMediaGallery({
   formVehicles,
   plateOwner,
   onPendingLinksChange,
+  onUnlinkedOwnCountChange,
   vehiclesSavedTick = 0,
   source = sessionMediaSource,
 }: EventMediaGalleryProps) {
@@ -365,6 +368,13 @@ export function EventMediaGallery({
       return changed ? next : current
     })
   }, [vehicleDigitsKey, vehiclesReady])
+
+  const unlinkedOwnCount = items.filter(
+    (item) => item.uploaded_by === viewerId && subjectOf(item).kind === 'unassigned',
+  ).length
+  useEffect(() => {
+    onUnlinkedOwnCountChange?.(unlinkedOwnCount)
+  }, [unlinkedOwnCount, onUnlinkedOwnCountChange])
 
   useEffect(() => {
     if (!onPendingLinksChange) return

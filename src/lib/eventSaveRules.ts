@@ -20,6 +20,7 @@ import {
 import {
   VEHICLE_PHOTOS_PROCEED,
   VEHICLE_PHOTOS_TITLE,
+  unlinkedPhotosNote,
   vehiclesMissingPhotos,
 } from './eventVehiclePhotos'
 import type { TreatedPlate } from './treatedPlates'
@@ -36,6 +37,8 @@ export type SaveRuleIssue = {
   field?: keyof EventFormErrors | keyof ResponderFillErrors
   fieldErrors?: EventFormErrors | ResponderFillErrors
   vehicles?: TreatedPlate[]
+  /** A line under the vehicle list (the photo prompt's unlinked-photos note). */
+  note?: string
 }
 
 export type SaveRulesResult = {
@@ -165,6 +168,8 @@ export function evaluateResponderFillSaveRules(input: {
   coveredPlateDigits: ReadonlySet<string> | null
   /** Vehicles the person already chose to save without a photo. */
   photoSkippedDigits?: ReadonlySet<string>
+  /** The person's own saved photos with no vehicle. */
+  unlinkedPhotoCount?: number
   cancelled?: boolean
 }): SaveRulesResult {
   const blocks: SaveRuleIssue[] = []
@@ -202,6 +207,7 @@ export function evaluateResponderFillSaveRules(input: {
     input.draft.treated_plates,
     input.coveredPlateDigits,
     input.photoSkippedDigits,
+    input.unlinkedPhotoCount ?? 0,
   )
   if (photos) notifies.push(photos)
 
@@ -216,6 +222,7 @@ export function vehiclePhotosIssue(
   plates: readonly TreatedPlate[],
   covered: ReadonlySet<string> | null,
   skipped: ReadonlySet<string> = new Set(),
+  unlinkedPhotoCount = 0,
 ): SaveRuleIssue | null {
   if (!covered) return null
   const missing = vehiclesMissingPhotos(plates, covered).filter(
@@ -229,6 +236,7 @@ export function vehiclePhotosIssue(
     message: VEHICLE_PHOTOS_TITLE,
     proceedLabel: VEHICLE_PHOTOS_PROCEED,
     vehicles: missing,
+    note: unlinkedPhotosNote(unlinkedPhotoCount) ?? undefined,
   }
 }
 
