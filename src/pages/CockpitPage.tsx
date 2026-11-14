@@ -470,7 +470,6 @@ export function CockpitPage({ selectedEventId, onSelectEvent }: CockpitPageProps
               setStageEditing(false)
             }}
             onSaved={() => undefined}
-            onSavedAndCreateNew={() => undefined}
             onPersisted={() => {
               void reloadReel().catch(() => {})
             }}

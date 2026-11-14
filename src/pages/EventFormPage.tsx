@@ -166,8 +166,6 @@ type EventFormPageProps = {
   variant?: 'page' | 'cockpit'
   onCancel: (result?: { discarded?: boolean }) => void
   onSaved: (eventId: string) => void
-  /** After save, stay on a blank create form for the next event. */
-  onSavedAndCreateNew: () => void
   /** Keep parent route in sync after the first autosave creates the row. */
   onEventId?: (eventId: string) => void
   /** Quiet persist — refresh the גלגלת without leaving the form. */
@@ -187,7 +185,6 @@ type SavePulse = 'idle' | 'saving' | 'saved' | 'error'
 
 type PersistOptions = {
   navigate?: boolean
-  createNew?: boolean
   revealErrors?: boolean
   /** Save the assignment even when סוג אירוע is still empty. */
   allowPartial?: boolean
@@ -201,7 +198,6 @@ export function EventFormPage({
   variant = 'page',
   onCancel,
   onSaved,
-  onSavedAndCreateNew,
   onEventId,
   onPersisted,
   locationPinDrop,
@@ -246,7 +242,9 @@ export function EventFormPage({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerQuery, setPickerQuery] = useState('')
   const [leaveConfirm, setLeaveConfirm] = useState(false)
-  const [confirmLockedDelete, setConfirmLockedDelete] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  /** Set once מחיקה is confirmed: no save may write the event again. */
+  const discardedRef = useRef(false)
   const [removeTarget, setRemoveTarget] = useState<ResponderDraft | null>(null)
   const [notifyPrompt, setNotifyPrompt] = useState<{
     issues: SaveRuleIssue[]
@@ -553,41 +551,28 @@ export function EventFormPage({
     savedTimer.current = window.setTimeout(() => setSavePulse('idle'), 1600)
   }
 
-  function resetToCreateForm() {
-    if (!profile) return
-    if (user) clearEventFormStash(user.id, draftRef.current?.id)
-    const fresh = emptyEventDraft({
-      id: user?.id,
-      full_name: profile.full_name,
-      callsign: profile.callsign,
-    })
-    overnightConfirmed.current.clear()
-    skipReloadForId.current = null
-    draftRef.current = fresh
-    initialDateRef.current = fresh.event_date
-    setDraft(fresh)
-    setPreviousIsCancelled(false)
-    setErrors({})
-    const snapshot = eventDraftBaselineSnapshot(fresh)
-    baselineRef.current = snapshot
-    setBaseline(snapshot)
-    setSavePulse('idle')
-  }
-
-  async function confirmAgeLockedDelete() {
-    const eventId = draft?.id
-    if (!eventId || saving) return
+  async function confirmDeleteEvent() {
+    if (saving) return
     setSaving(true)
-    const result = await deleteEvent(eventId)
-    setSaving(false)
-    if (!result.ok) {
-      show(result.error, 'alert')
-      return
+    discardedRef.current = true
+    // A save already running may still be creating the row; let it finish first.
+    await saveChain.current
+    const eventId = draftRef.current?.id
+    if (eventId) {
+      const result = await deleteEvent(eventId)
+      if (!result.ok) {
+        discardedRef.current = false
+        setSaving(false)
+        show(result.error, 'alert')
+        return
+      }
+      rememberDiscardedEventId(eventId)
     }
     if (user) clearEventFormStash(user.id, eventId)
-    show('האירוע נמחק', 'done')
-    setConfirmLockedDelete(false)
-    onCancel()
+    setSaving(false)
+    setConfirmDelete(false)
+    if (eventId) show('האירוע נמחק', 'done')
+    onCancel({ discarded: true })
   }
 
   async function discardIfAbandonedEmpty(): Promise<boolean> {
@@ -612,14 +597,9 @@ export function EventFormPage({
     if (user) clearEventFormStash(user.id, eventIdSaved)
     captureEvent('event_saved', {
       event_id: eventIdSaved,
-      action: options?.createNew ? 'save_and_new' : 'save',
+      action: 'save',
     })
     show('האירוע נשמר', 'done')
-    if (options?.createNew) {
-      resetToCreateForm()
-      onSavedAndCreateNew()
-      return
-    }
     if (options?.navigate) {
       onSaved(eventIdSaved)
     }
@@ -686,6 +666,7 @@ export function EventFormPage({
       const current = draftRef.current
       const currentLookups = lookupsRef.current
       if (!current || !currentLookups) return false
+      if (discardedRef.current) return false
       if (cockpitPreviewingRef.current) return false
       if (assignedVolunteerBlockedRef.current) {
         show(ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, 'alert')
@@ -709,7 +690,6 @@ export function EventFormPage({
       if (
         isAbandonedEmptyEventDraft(current, initialDateRef.current, user.id) &&
         !options?.navigate &&
-        !options?.createNew &&
         !options?.revealErrors
       ) {
         setSavePulse('idle')
@@ -719,7 +699,7 @@ export function EventFormPage({
       // שמירת אירוע must still confirm + leave the form.
       if (snapshot === baselineRef.current && current.id) {
         clearEventFormStash(user.id, current.id)
-        if (options?.navigate || options?.createNew) {
+        if (options?.navigate) {
           markSavedPulse()
           finishAfterSave(current.id, options)
         }
@@ -728,7 +708,6 @@ export function EventFormPage({
 
       const explicitSave = Boolean(
         options?.navigate ||
-          options?.createNew ||
           (options?.revealErrors && !options?.allowPartial),
       )
       // Background saves, and attaching a כונן, persist without סוג אירוע.
@@ -751,13 +730,13 @@ export function EventFormPage({
       if (rules.blocks.length > 0) {
         const persistErrors = mergeFieldErrors(rules.blocks)
         // Don't create a row until a date is set; stay quiet on background autosave.
-        if (!current.id && !options?.navigate && !options?.createNew && !options?.revealErrors) {
+        if (!current.id && !options?.navigate && !options?.revealErrors) {
           setSavePulse('idle')
           return false
         }
         setErrors(persistErrors)
         setSavePulse('error')
-        if (options?.navigate || options?.createNew || options?.revealErrors) {
+        if (options?.navigate || options?.revealErrors) {
           show(rules.blocks[0]?.message ?? eventCreateBlockedMessage(persistErrors), 'alert')
           setSubmitAttempt((n) => n + 1)
         }
@@ -807,7 +786,7 @@ export function EventFormPage({
             ...prev,
             police_event_id: 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.',
           }))
-          if (options?.navigate || options?.createNew || options?.revealErrors) {
+          if (options?.navigate || options?.revealErrors) {
             show('שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.', 'alert')
           }
           return false
@@ -854,7 +833,6 @@ export function EventFormPage({
         setSavePulse('error')
         if (
           options?.navigate ||
-          options?.createNew ||
           options?.revealErrors ||
           options?.overnightOk
         ) {
@@ -907,24 +885,6 @@ export function EventFormPage({
       const savedSnapshot = eventDraftBaselineSnapshot(savedWithIds)
       baselineRef.current = savedSnapshot
       setBaseline(savedSnapshot)
-
-      if (options?.createNew) {
-        const stillDirty = eventDraftBaselineSnapshot(nextDraft) !== savedSnapshot
-        if (stillDirty) {
-          draftRef.current = nextDraft
-          setDraft(nextDraft)
-          if (!current.id) skipReloadForId.current = result.eventId
-          setSavePulse('saving')
-          const followUp = { ...options, overnightOk: true as const }
-          queueMicrotask(() => {
-            void persistLatest(followUp)
-          })
-          return true
-        }
-        markSavedPulse()
-        finishAfterSave(result.eventId, options)
-        return true
-      }
 
       draftRef.current = nextDraft
       setDraft(nextDraft)
@@ -1176,22 +1136,6 @@ export function EventFormPage({
     setSaving(false)
   }
 
-  async function persistDraftStay() {
-    if (!draft || !user || !lookups) return
-    setSaving(true)
-    setErrors({})
-    await persistLatest({ revealErrors: true })
-    setSaving(false)
-  }
-
-  async function persistAndCreateNew() {
-    if (!draft || !user || !lookups) return
-    setSaving(true)
-    setErrors({})
-    await persistLatest({ createNew: true, revealErrors: true })
-    setSaving(false)
-  }
-
   const foreignEditPending =
     !cockpitPreviewing &&
     !assignedVolunteerBlocked &&
@@ -1415,6 +1359,33 @@ export function EventFormPage({
     )
   }
 
+  const deleteDialog = (
+    <AlertDialog
+      open={confirmDelete}
+      status="danger"
+      title={eventDeleteConfirmTitle(draft?.police_event_id)}
+      busy={saving}
+      onClose={() => !saving && setConfirmDelete(false)}
+      footer={
+        <>
+          <Button
+            variant="destructive"
+            loading={saving}
+            loadingLabel="מוחק…"
+            onClick={() => void confirmDeleteEvent()}
+          >
+            מחיקה
+          </Button>
+          <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={saving}>
+            ביטול
+          </Button>
+        </>
+      }
+    >
+      {eventDeleteConfirmBody(draft?.responders.length ?? 0)}
+    </AlertDialog>
+  )
+
   if (loadState === 'age_locked') {
     const stored = draft ? parseStoredDraft(baseline, draft) : null
     const mayDelete = canViewerDeleteEvent({
@@ -1443,7 +1414,7 @@ export function EventFormPage({
             }
           />
           {mayDelete ? (
-            <Button variant="destructive" onClick={() => setConfirmLockedDelete(true)}>
+            <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
               מחיקה
             </Button>
           ) : null}
@@ -1457,30 +1428,7 @@ export function EventFormPage({
             />
           ) : null}
         </div>
-        <AlertDialog
-          open={confirmLockedDelete}
-          status="danger"
-          title={eventDeleteConfirmTitle(draft?.police_event_id)}
-          busy={saving}
-          onClose={() => !saving && setConfirmLockedDelete(false)}
-          footer={
-            <>
-              <Button
-                variant="destructive"
-                loading={saving}
-                loadingLabel="מוחק…"
-                onClick={() => void confirmAgeLockedDelete()}
-              >
-                מחיקה
-              </Button>
-              <Button variant="secondary" onClick={() => setConfirmLockedDelete(false)} disabled={saving}>
-                ביטול
-              </Button>
-            </>
-          }
-        >
-          {eventDeleteConfirmBody(draft?.responders.length ?? 0)}
-        </AlertDialog>
+        {deleteDialog}
       </div>
     )
   }
@@ -1491,6 +1439,8 @@ export function EventFormPage({
 
   const displayStatus = deriveEventStatus(draft)
   const isEdit = Boolean(draft.id)
+  const mayDeleteEvent =
+    !isEdit || canViewerDeleteEvent({ roles, userId: user?.id, shiftLeadId: draft.shift_lead_id })
   const sheetResponder =
     sheetResponderKey == null
       ? null
@@ -2278,22 +2228,23 @@ export function EventFormPage({
               loadingLabel="שומר…"
               onClick={() => void persistExplicit()}
             >
-              {phoneLayout && !isEdit ? 'יצירת אירוע' : 'שמירת אירוע'}
+              שמירה
             </Button>
-            <Button
-              block
-              variant="secondary"
-              loading={saving}
-              loadingLabel="שומר…"
-              onClick={() =>
-                void (phoneLayout && !isEdit ? persistDraftStay() : persistAndCreateNew())
-              }
-            >
-              {phoneLayout && !isEdit ? 'שמירה כטיוטה' : 'שמירת אירוע ויצירת חדש'}
-            </Button>
+            {mayDeleteEvent ? (
+              <Button
+                block
+                variant="secondary"
+                className="event-form__delete"
+                disabled={saving}
+                onClick={() => setConfirmDelete(true)}
+              >
+                מחיקה
+              </Button>
+            ) : null}
           </div>
         </FormStickyFooter>
         )}
+        {deleteDialog}
       </div>
       {cockpitPreviewing ? (
         <button

@@ -7466,6 +7466,12 @@ html[data-keyboard-open] .event-form__footer {
   gap: var(--space-2);
 }
 
+/* Secondary weight: the form's quieter action, still read as destructive. */
+.event-form__footer-actions .event-form__delete {
+  color: var(--status-alert);
+  border-color: var(--status-alert);
+}
+
 .responder-assign {
   display: flex;
   flex-direction: column;

@@ -98,8 +98,9 @@ describe('event form standalone layout', () => {
     expect(eventFormSource).toContain('event-form__f-times-note')
     expect(eventFormSource).toContain('event-form__f-times')
     expect(eventFormSource).toContain('event-form__f-district-place')
-    expect(eventFormSource).toContain('יצירת אירוע')
-    expect(eventFormSource).toContain('שמירה כטיוטה')
+    expect(eventFormSource).toContain('className="event-form__delete"')
+    expect(eventFormSource).not.toContain('שמירה כטיוטה')
+    expect(eventFormSource).not.toContain('ויצירת חדש')
   })
 
   it('orders identity rows: type+id, callsign, date, times, district+road+place', () => {
