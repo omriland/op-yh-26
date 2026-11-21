@@ -20,6 +20,7 @@ import {
   groupMediaByTakenWhen,
   leftoverEventMediaError,
   mapEventMediaError,
+  defaultPhotoSubject,
   keepPhotoSubject,
   PHOTO_UNASSIGNED,
   resolvePlateDigits,
@@ -115,8 +116,15 @@ describe('photo attach step', () => {
     ).toEqual({ kind: 'vehicles', digits: ['2222222'] })
     expect(keepPhotoSubject({ kind: 'not_vehicle' }, [])).toEqual({ kind: 'not_vehicle' })
     expect(keepPhotoSubject(PHOTO_UNASSIGNED, [])).toEqual(PHOTO_UNASSIGNED)
+    expect(keepPhotoSubject(PHOTO_UNASSIGNED, ['1111111'])).toEqual(PHOTO_UNASSIGNED)
     expect(photoStepVehicleNote(0)).toBe(EVENT_MEDIA_NO_VEHICLE)
     expect(photoStepVehicleNote(1)).toBeNull()
+  })
+
+  it('defaults a new photo to the only treated vehicle and leaves zero or several unassigned', () => {
+    expect(defaultPhotoSubject(['1234567'])).toEqual({ kind: 'vehicles', digits: ['1234567'] })
+    expect(defaultPhotoSubject([])).toEqual(PHOTO_UNASSIGNED)
+    expect(defaultPhotoSubject(['1111111', '2222222'])).toEqual(PHOTO_UNASSIGNED)
   })
 })
 

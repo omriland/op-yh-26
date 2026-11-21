@@ -1,6 +1,6 @@
 # Yahpaz (יחפ״צ) — Project Memory
 
-Last updated: 2026-11-09 (feedback card titles editable by super admins; task = kind null)
+Last updated: 2026-11-21 (event-fill photo default subject; treatment-detail hint)
 
 ## Feedback card titles (2026-11-09, branch only — not pushed/deployed)
 
@@ -11,9 +11,10 @@ Last updated: 2026-11-09 (feedback card titles editable by super admins; task = 
 
 - Deleting an event cascades to `event_secondary_leads`. `enforce_event_secondary_lead_row` raised `לא ניתן להסיר אחמ״ש משני שננעל בעריכה.` on a locked row, and the client showed the generic delete failure. Confirmed in prod logs 2026-11-05 20:46 Israel: Omri, `delete_event` on `aaf96cb6-b466-4fe5-b351-f746ee2f9b48` returned 400 with that exception. הילה פנלון was locked as secondary when the event page autosaved a geocode pin (`location_lat` / `location_lng` / `location_pin_source`) at 2026-11-02 20:37 Israel. A real pin edit still locks. The event-delete trigger already sets `yahpaz.deleting_event_id`; the secondary-lead trigger now skips the raise when that stamp matches the row. Migration `supabase/migrations/20261105210000_delete_event_with_locked_secondary.sql`, listed last in Deploy Edge Functions. **Live on prod** (applied 2026-11-05 via SQL on `rtvizpsfvtjowbimugns`; `pg_get_functiondef` contains `yahpaz.deleting_event_id`). A rolled-back probe deleted the locked row on `aaf96cb6-b466-4fe5-b351-f746ee2f9b48` and the row is still there (`locked = true`, הילה). The event itself was not deleted. Direct delete of a locked secondary, while the event stays, is unchanged.
 
-## Photos are not auto-assigned to a vehicle (2026-11-05)
+## Event-fill photo assignment (2026-11-21)
 
-- Omri, 2026-11-05: stop auto-detecting a plate and attaching the photo, and let any photo be attached to any vehicle on the event. `nextPhotoVehicleId` no longer preselects the only vehicle (web `src/lib/eventMedia.ts`, Android `domain/.../EventMedia.kt`). Upload no longer calls `autoLinkPlateIds` (web `EventMediaGallery.tsx`, Android `FillMediaTab.kt`). The person picks a chip; saving with none is allowed. The web banner that offers to add a newly read plate, after a tap, is unchanged and does not attach the photo. Android no longer calls `plate-scan` on upload. No Android APK in this change.
+- Web only: a newly attached photo (and video, same attach step) on the event fill form starts assigned to the only treated vehicle via `defaultPhotoSubject` in `src/lib/eventMedia.ts`. Zero or two-plus treated vehicles stay unassigned. Existing photos are not rewritten when the vehicle list changes. ללא שיוך לרכב still clears the assignment. Android does not preselect. Plate auto-detect stays off.
+- Omri, 2026-11-05: stop auto-detecting a plate and attaching the photo, and let any photo be attached to any vehicle on the event. Upload no longer calls `autoLinkPlateIds` (web `EventMediaGallery.tsx`, Android `FillMediaTab.kt`). The person picks a chip; saving with none is allowed. The web banner that offers to add a newly read plate, after a tap, is unchanged and does not attach the photo. Android no longer calls `plate-scan` on upload. No Android APK in that change.
 
 ## Events advanced filters + saved views (2026-11-05, branch only)
 
@@ -179,6 +180,7 @@ Visual source of truth: **`design-system-design-instructions/`** ("רשומה").
 - **Default vehicle (2026-09-01):** `vehicles.is_default` (רכב ראשי). Profile star when 2+ active cars; `set_default_vehicle` RPC; new `event_responders` insert copies that plate; fill + personal-shift preselect it. Spec: `2026-09-01-yahpaz-default-vehicle-design.md`. **Not yet applied on prod** — UI fallback retries without `is_default` so the vehicle list still loads.
 - **24-hour time (2026-09-03):** Event time inputs are digit-masked `HH:mm` (not native `type="time"`, which followed device 12/24). Display formatters use `hour12: false` + `hourCycle: 'h23'`. Same pattern as Android `TimeField`.
 - **Form field limits (2026-09-05):** Event `מספר אירוע` max 7 digits (`maxLength` + `policeEventIdForInput`). Lead `קילומטרים` max 3 digits. Create-event `או״ק ניידת` max 16 characters. Treated plates accept **5–8** digits (was 7–8); format 5=`XX-XXX`, 6=`XXX-XXX`. Error copy: `יש להזין 5 עד 8 ספרות.`
+- **Treatment-detail hint (2026-11-21):** The hint is the static string `מינימום 25 תווים` (no counter, no max length). Minimum of 25 trimmed characters is unchanged.
 - **Latest `infra/bootstrap` tip (2026-09-10):** `d1a33a0` Record prod deploy; prior `4ebf78f` useRef build fix; `76b3440` vehicles admin-only / KM alerts / shift-born UX.
 
 ## Email (Resend)

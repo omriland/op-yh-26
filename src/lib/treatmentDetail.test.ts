@@ -7,15 +7,13 @@ import {
 } from './treatmentDetail'
 
 describe('treatmentDetailCounter', () => {
-  it('shows the trimmed count against 25 and marks 25 or more as met', () => {
-    expect(treatmentDetailCounter('')).toEqual({ text: '0 מתוך 25', met: false })
-    expect(treatmentDetailCounter('  אא  ')).toEqual({ text: '2 מתוך 25', met: false })
-    expect(treatmentDetailCounter('א'.repeat(24))).toEqual({ text: '24 מתוך 25', met: false })
-    expect(treatmentDetailCounter(` ${'א'.repeat(25)} `)).toEqual({
-      text: '25 מתוך 25',
-      met: true,
-    })
-    expect(treatmentDetailCounter('א'.repeat(80))).toEqual({ text: '80 מתוך 25', met: true })
+  it('shows a static minimum hint and marks 25 or more as met', () => {
+    const hint = 'מינימום 25 תווים'
+    expect(treatmentDetailCounter('')).toEqual({ text: hint, met: false })
+    expect(treatmentDetailCounter('  אא  ')).toEqual({ text: hint, met: false })
+    expect(treatmentDetailCounter('א'.repeat(24))).toEqual({ text: hint, met: false })
+    expect(treatmentDetailCounter(` ${'א'.repeat(25)} `)).toEqual({ text: hint, met: true })
+    expect(treatmentDetailCounter('א'.repeat(80))).toEqual({ text: hint, met: true })
   })
 
   it('uses the same 25-character bar as the complete-mode error', () => {
