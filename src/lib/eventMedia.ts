@@ -137,6 +137,15 @@ export type PhotoAttachWrite = {
 }
 
 /**
+ * A new photo starts on the only treated vehicle. Zero or several stay unassigned.
+ * Existing photos are not passed through this.
+ */
+export function defaultPhotoSubject(vehicleDigits: readonly string[]): PhotoSubject {
+  if (vehicleDigits.length !== 1) return PHOTO_UNASSIGNED
+  return { kind: 'vehicles', digits: [vehicleDigits[0]] }
+}
+
+/**
  * Keeps the person's choice while its vehicle is still in the form. A vehicle
  * removed from the form falls back to unassigned. Never picks a vehicle for them.
  */

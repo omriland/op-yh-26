@@ -25,11 +25,11 @@ export function treatmentDetailCompleteError(
   return treatmentDetailMeetsMinimum(value) ? undefined : TREATMENT_DETAIL_MIN_ERROR
 }
 
-/** Compact Hebrew counter: current trimmed length against the minimum. */
+/** Static minimum hint. The live count is not shown. `met` still tracks the 25-character bar. */
 export function treatmentDetailCounter(value: string): { text: string; met: boolean } {
   const count = treatmentDetailCharCount(value)
   return {
-    text: `${count} מתוך ${TREATMENT_DETAIL_MIN_CHARS}`,
+    text: `מינימום ${TREATMENT_DETAIL_MIN_CHARS} תווים`,
     met: count >= TREATMENT_DETAIL_MIN_CHARS,
   }
 }
