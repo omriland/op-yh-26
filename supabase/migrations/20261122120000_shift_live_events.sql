@@ -30,6 +30,11 @@ begin
     return new;
   end if;
 
+  if old.starts_at is not null
+     and (new.starts_at is null or new.ends_at is null) then
+    raise exception 'לא ניתן להסיר את שעות המשמרת.';
+  end if;
+
   if public.has_role(auth.uid(), 'admin')
      or public.has_role(auth.uid(), 'shift_lead') then
     return new;
@@ -70,6 +75,25 @@ as $$
     );
 $$;
 
+-- 2b. The message a crew member gets when the window is not open.
+create or replace function public.raise_crew_window_closed(p_shift_id uuid)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if exists (
+    select 1 from public.shifts s
+    where s.id = p_shift_id and now() < s.starts_at
+  ) then
+    raise exception 'המשמרת עוד לא התחילה.';
+  end if;
+  raise exception 'חלון התיעוד של המשמרת נסגר.';
+end;
+$$;
+
 -- 3. A responder may not be on two overlapping live shifts. Touching edges are fine.
 create or replace function public.find_overlapping_live_shift(
   p_shift_id uuid,
@@ -106,6 +130,7 @@ declare
   v_other_shift_id uuid;
 begin
   if tg_table_name = 'shift_responders' then
+    perform 1 from public.shifts where id = new.shift_id for update;
     perform pg_advisory_xact_lock(hashtextextended(new.responder_id::text, 0));
     v_other_shift_id := public.find_overlapping_live_shift(new.shift_id, new.responder_id);
     if v_other_shift_id is not null then
@@ -116,6 +141,7 @@ begin
 
   for v_responder_id in
     select sr.responder_id from public.shift_responders sr where sr.shift_id = new.id
+    order by sr.responder_id
   loop
     perform pg_advisory_xact_lock(hashtextextended(v_responder_id::text, 0));
     v_other_shift_id := public.find_overlapping_live_shift(new.id, v_responder_id);
@@ -171,7 +197,7 @@ begin
       raise exception 'אין הרשאה';
     end if;
     if v_shift.starts_at is not null and not public.shift_open_for_crew(p_shift_id) then
-      raise exception 'חלון התיעוד של המשמרת נסגר.';
+      perform public.raise_crew_window_closed(p_shift_id);
     end if;
   end if;
 
@@ -254,7 +280,7 @@ begin
       raise exception 'אין הרשאה';
     end if;
     if not public.shift_open_for_crew(v_shift.id) then
-      raise exception 'חלון התיעוד של המשמרת נסגר.';
+      perform public.raise_crew_window_closed(v_shift.id);
     end if;
   end if;
 
@@ -300,6 +326,12 @@ end;
 $$;
 
 -- 7. save_shift_born_event_fill: the crew gate follows the window on live shifts.
+--    A done event is reopened only when p_reopen is true. The parameter list changes,
+--    so the old signature is dropped first.
+drop function if exists public.save_shift_born_event_fill(
+  uuid, timestamp with time zone, text, text, boolean, text, jsonb, boolean, uuid, text, jsonb
+);
+
 create or replace function public.save_shift_born_event_fill(
   p_event_id uuid,
   p_expected_updated_at timestamp with time zone,
@@ -311,7 +343,8 @@ create or replace function public.save_shift_born_event_fill(
   p_complete boolean,
   p_road_id uuid default null::uuid,
   p_location text default null::text,
-  p_plates jsonb default '[]'::jsonb
+  p_plates jsonb default '[]'::jsonb,
+  p_reopen boolean default false
 )
 returns timestamp with time zone
 language plpgsql
@@ -327,7 +360,7 @@ declare
   v_place_kept boolean;
   v_sort int := 0;
   v_shift_is_live boolean;
-  v_reopen boolean := false;
+  v_reopen boolean;
 begin
   select * into v_event from public.events where id = p_event_id;
   if not found or v_event.origin is distinct from 'shift' then
@@ -343,9 +376,10 @@ begin
   where s.id = v_event.shift_id;
   v_shift_is_live := coalesce(v_shift_is_live, false);
 
-  if v_shift_is_live then
-    v_reopen := v_event.status = 'done' and not p_complete;
-  end if;
+  v_reopen := v_shift_is_live
+    and p_reopen
+    and not p_complete
+    and v_event.status = 'done';
 
   if not v_is_lead then
     if not exists (
@@ -358,7 +392,7 @@ begin
 
     if v_shift_is_live then
       if not public.shift_open_for_crew(v_event.shift_id) then
-        raise exception 'חלון התיעוד של המשמרת נסגר.';
+        perform public.raise_crew_window_closed(v_event.shift_id);
       end if;
     else
       if exists (
@@ -497,9 +531,6 @@ begin
        and v_shift.shift_date > (timezone('Asia/Jerusalem', now()))::date then
       raise exception 'ניתן לעדכן את המשמרת החל מתאריך המשמרת.';
     end if;
-    if v_shift.starts_at is not null and not public.shift_open_for_crew(p_shift_id) then
-      raise exception 'חלון התיעוד של המשמרת נסגר.';
-    end if;
   end if;
 
   for v_type in
@@ -608,3 +639,10 @@ grant execute on function public.shift_open_for_crew(uuid) to authenticated;
 grant execute on function public.create_shift_event(uuid, uuid) to authenticated;
 grant execute on function public.delete_empty_shift_event(uuid) to authenticated;
 grant execute on function public.my_current_shift() to authenticated;
+revoke all on function public.raise_crew_window_closed(uuid) from public, anon, authenticated;
+revoke all on function public.save_shift_born_event_fill(
+  uuid, timestamp with time zone, text, text, boolean, text, jsonb, boolean, uuid, text, jsonb, boolean
+) from public, anon;
+grant execute on function public.save_shift_born_event_fill(
+  uuid, timestamp with time zone, text, text, boolean, text, jsonb, boolean, uuid, text, jsonb, boolean
+) to authenticated;
