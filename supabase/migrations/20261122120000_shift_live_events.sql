@@ -14,7 +14,16 @@ alter table public.shifts
     check ((starts_at is null) = (ends_at is null)),
   drop constraint if exists shifts_live_hours_in_order,
   add constraint shifts_live_hours_in_order
-    check (ends_at is null or ends_at > starts_at);
+    check (ends_at is null or ends_at > starts_at),
+  drop constraint if exists shifts_live_hours_max_length,
+  add constraint shifts_live_hours_max_length
+    check (ends_at is null or ends_at - starts_at <= interval '24 hours'),
+  drop constraint if exists shifts_live_hours_start_on_shift_date,
+  add constraint shifts_live_hours_start_on_shift_date
+    check (
+      starts_at is null
+      or (timezone('Asia/Jerusalem', starts_at))::date = shift_date
+    );
 
 -- 1a. Admins, super admins and any shift lead are not limited by the crew window,
 --     the same as today's fill rule (any lead may edit any shift).
@@ -151,7 +160,8 @@ begin
     perform pg_advisory_xact_lock(hashtextextended(new.responder_id::text, 0));
     v_other_shift_id := public.find_overlapping_live_shift(new.shift_id, new.responder_id);
     if v_other_shift_id is not null then
-      raise exception 'המשמרת חופפת למשמרת אחרת של אחד מאנשי הצוות.';
+      raise exception 'המשמרת חופפת למשמרת אחרת של אחד מאנשי הצוות.'
+        using detail = v_other_shift_id::text;
     end if;
     return new;
   end if;
@@ -163,7 +173,8 @@ begin
     perform pg_advisory_xact_lock(hashtextextended(v_responder_id::text, 0));
     v_other_shift_id := public.find_overlapping_live_shift(new.id, v_responder_id);
     if v_other_shift_id is not null then
-      raise exception 'המשמרת חופפת למשמרת אחרת של אחד מאנשי הצוות.';
+      raise exception 'המשמרת חופפת למשמרת אחרת של אחד מאנשי הצוות.'
+        using detail = v_other_shift_id::text;
     end if;
   end loop;
   return new;
@@ -203,7 +214,7 @@ begin
     raise exception 'אין הרשאה';
   end if;
 
-  select * into v_shift from public.shifts where id = p_shift_id;
+  select * into v_shift from public.shifts where id = p_shift_id for update;
   if not found then
     raise exception 'אין הרשאה';
   end if;
@@ -224,6 +235,11 @@ begin
   if p_event_type_id is null
      or not exists (select 1 from public.event_types et where et.id = p_event_type_id) then
     raise exception 'סוג האירוע אינו קיים.';
+  end if;
+
+  if (select count(*) from public.events e where e.shift_id = p_shift_id)
+     >= 100 then
+    raise exception 'למשמרת אחת ניתן ליצור עד 100 אירועים.';
   end if;
 
   insert into public.events (
@@ -289,6 +305,13 @@ begin
     if not public.shift_open_for_crew(v_shift.id) then
       perform public.raise_crew_window_closed(v_shift.id);
     end if;
+  end if;
+
+  if public.has_role(auth.uid(), 'shift_lead')
+     and not public.has_role(auth.uid(), 'admin')
+     and not public.has_role(auth.uid(), 'super_admin')
+     and v_shift.shift_lead_id is distinct from auth.uid() then
+    raise exception 'אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.';
   end if;
 
   if v_event.status = 'done' and not public.is_shift_unrestricted_user() then
@@ -751,4 +774,63 @@ using (
   uploaded_by = auth.uid()
   and public.is_assigned_to_event(event_id)
   and public.crew_may_write_event(event_id)
+);
+
+-- 11b. The shift row and its count tables follow the window too. A shift without
+--      hours keeps the old rule (from shift_date on). A shift with hours is open to
+--      its crew only inside the window. Same body as 20260810160000 otherwise.
+create or replace function public.can_edit_shift_as_assigned(p_shift_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.shifts s
+    where s.id = p_shift_id
+      and public.is_assigned_to_shift(p_shift_id)
+      and (
+        (s.starts_at is null
+          and s.shift_date <= (timezone('Asia/Jerusalem', now()))::date)
+        or (s.starts_at is not null and public.shift_open_for_crew(s.id))
+      )
+  );
+$$;
+
+-- 11c. The event-media bucket follows the window, so no file is uploaded or removed
+--      outside it. Same conditions as 20260819120000 and 20261102121000 plus the window.
+drop policy if exists event_media_storage_insert on storage.objects;
+create policy event_media_storage_insert
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'event-media'
+  and name ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|mp4|mov|webm)$'
+  and public.is_assigned_to_event(public.event_media_path_event_id(name))
+  and public.crew_may_write_event(public.event_media_path_event_id(name))
+  and exists (
+    select 1 from public.events e
+    where e.id = public.event_media_path_event_id(name)
+      and e.is_cancelled is false
+  )
+);
+
+drop policy if exists event_media_storage_delete on storage.objects;
+create policy event_media_storage_delete
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'event-media'
+  and public.is_assigned_to_event(public.event_media_path_event_id(name))
+  and public.crew_may_write_event(public.event_media_path_event_id(name))
+  and (
+    not exists (
+      select 1 from public.event_media m where m.storage_path = name
+    )
+    or exists (
+      select 1 from public.event_media m
+      where m.storage_path = name
+        and m.uploaded_by = auth.uid()
+    )
+  )
 );
