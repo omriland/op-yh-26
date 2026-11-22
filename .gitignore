@@ -31,3 +31,6 @@ supabase/.temp/
 
 # Subagent-driven-development worktrees
 .worktrees/
+
+# Python caches from the .claude/hooks scripts
+__pycache__/
