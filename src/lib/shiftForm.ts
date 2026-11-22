@@ -4,12 +4,16 @@ import { supabase } from './supabase'
 import type { ShiftBornEventFillRow, ShiftBornFillDraft } from './shiftBornFill'
 import { deriveShiftLogStatus, eventToLogSnapshot } from './shiftLogStatus'
 import type { EventStatus, ShiftStatus } from './status'
+import { addCalendarDays } from './mineListSections'
 import {
+  defaultShiftHours,
   isShiftFuture,
+  SHIFT_KIND_LABELS,
   SHIFT_TOO_EARLY_MESSAGE,
   type ShiftKind,
   type ShiftVehicleType,
 } from './shifts'
+import { rangesOverlap } from './shiftWindow'
 
 export type ShiftFormDraft = {
   id?: string
@@ -27,7 +31,174 @@ export type ShiftFormDraft = {
   event_type_counts: { event_type_id: string; count: number }[]
   treated_vehicle_counts: { vehicle_kind_id: string; count: number }[]
   cancelled_count: number
+  /** HH:MM Asia/Jerusalem; empty on a legacy shift. */
+  start_time: string
+  end_time: string
+  /** Opened with no hours: keeps working without them. */
+  is_legacy?: boolean
   expected_updated_at?: string | null
+}
+
+export const SHIFT_HOURS_REQUIRED_ERROR = 'יש למלא שעת התחלה ושעת סיום'
+export const SHIFT_OVERLAP_GENERAL_MESSAGE = 'המשמרת חופפת למשמרת אחרת של אחד מאנשי הצוות.'
+const SHIFT_OVERLAP_DB_MESSAGE = SHIFT_OVERLAP_GENERAL_MESSAGE
+
+const JERUSALEM_TIME_ZONE = 'Asia/Jerusalem'
+const MINUTE_MS = 60 * 1000
+
+function jerusalemOffsetMinutes(utcMs: number): number {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: JERUSALEM_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(utcMs))
+  const part = (type: string) => Number(parts.find((row) => row.type === type)?.value)
+  const wallAsUtc = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour'),
+    part('minute'),
+    part('second'),
+  )
+  return (wallAsUtc - Math.floor(utcMs / 1000) * 1000) / MINUTE_MS
+}
+
+function jerusalemWallTimeToIso(date: string, time: string): string {
+  const [year, month, day] = date.split('-').map(Number)
+  const [hour, minute] = time.split(':').map(Number)
+  const wallAsUtc = Date.UTC(year, month - 1, day, hour, minute)
+  const firstGuess = wallAsUtc - jerusalemOffsetMinutes(wallAsUtc) * MINUTE_MS
+  const utcMs = wallAsUtc - jerusalemOffsetMinutes(firstGuess) * MINUTE_MS
+  return new Date(utcMs).toISOString()
+}
+
+/** The end lands on the next calendar day when it is earlier than the start. */
+export function buildShiftWindowTimestamps(
+  shiftDate: string,
+  startTime: string,
+  endTime: string,
+): { starts_at: string; ends_at: string } {
+  const endDate = endTime < startTime ? addCalendarDays(shiftDate, 1) : shiftDate
+  return {
+    starts_at: jerusalemWallTimeToIso(shiftDate, startTime),
+    ends_at: jerusalemWallTimeToIso(endDate, endTime),
+  }
+}
+
+/** HH:MM on the Asia/Jerusalem wall clock; empty when there is no timestamp. */
+export function formatJerusalemTimeOfDay(iso: string | null): string {
+  if (!iso) return ''
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: JERUSALEM_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(iso))
+}
+
+/** Fills only the empty fields; a time the lead typed is never replaced. */
+export function fillDefaultShiftHours(
+  hours: { start_time: string; end_time: string },
+  kind: ShiftKind,
+): { start_time: string; end_time: string } {
+  const defaults = defaultShiftHours(kind)
+  if (!defaults) return hours
+  return {
+    start_time: hours.start_time || defaults.start,
+    end_time: hours.end_time || defaults.end,
+  }
+}
+
+export function shiftHasHours(draft: Pick<ShiftFormDraft, 'start_time' | 'end_time'>): boolean {
+  return Boolean(draft.start_time && draft.end_time)
+}
+
+export type CrewLiveShift = {
+  id: string
+  shift_kind: ShiftKind
+  starts_at: string
+  ends_at: string
+  responder_ids: string[]
+}
+
+type OverlapKnownShift = Pick<CrewLiveShift, 'id' | 'shift_kind' | 'starts_at' | 'ends_at'>
+
+function overlapShiftLabel(shift: OverlapKnownShift): string {
+  const hours = `${formatJerusalemTimeOfDay(shift.starts_at)}–${formatJerusalemTimeOfDay(shift.ends_at)}`
+  return `${SHIFT_KIND_LABELS[shift.shift_kind]} באותן שעות (${hours})`
+}
+
+/** Turns the database overlap refusal into a sentence; its DETAIL is the other shift's id. */
+export function mapShiftOverlapError(
+  error: { message?: string; details?: string | null },
+  knownShifts: OverlapKnownShift[],
+): string {
+  const other = knownShifts.find((shift) => shift.id === error.details)
+  if (!other) return SHIFT_OVERLAP_GENERAL_MESSAGE
+  return `המשמרת חופפת למשמרת ${overlapShiftLabel(other)} של אחד מאנשי הצוות.`
+}
+
+export function findCrewOverlapMessage(input: {
+  window: { starts_at: string; ends_at: string }
+  crew: { id: string; name: string }[]
+  others: CrewLiveShift[]
+  ignoreShiftId?: string
+}): string | null {
+  const ownRange = { start: new Date(input.window.starts_at), end: new Date(input.window.ends_at) }
+  for (const member of input.crew) {
+    const clash = input.others.find(
+      (other) =>
+        other.id !== input.ignoreShiftId &&
+        other.responder_ids.includes(member.id) &&
+        rangesOverlap(ownRange, { start: new Date(other.starts_at), end: new Date(other.ends_at) }),
+    )
+    if (clash) return `לא ניתן לשבץ את ${member.name}: כבר משובץ במשמרת ${overlapShiftLabel(clash)}.`
+  }
+  return null
+}
+
+type CrewShiftRow = {
+  responder_id: string
+  shift: { id: string; shift_kind: ShiftKind; starts_at: string | null; ends_at: string | null }
+}
+
+/** Live shifts of these people around the date; the overlap check runs on them. */
+export async function loadCrewLiveShifts(
+  responderIds: string[],
+  shiftDate: string,
+): Promise<CrewLiveShift[]> {
+  const { data, error } = await supabase
+    .from('shift_responders')
+    .select('responder_id, shift:shifts!inner(id, shift_kind, starts_at, ends_at)')
+    .in('responder_id', responderIds)
+    .gte('shift.shift_date', addCalendarDays(shiftDate, -1))
+    .lte('shift.shift_date', addCalendarDays(shiftDate, 1))
+  if (error) throw new Error(error.message)
+
+  const byShift = new Map<string, CrewLiveShift>()
+  for (const row of (data ?? []) as unknown as CrewShiftRow[]) {
+    const { shift } = row
+    if (!shift.starts_at || !shift.ends_at) continue
+    const known = byShift.get(shift.id)
+    if (known) {
+      known.responder_ids.push(row.responder_id)
+    } else {
+      byShift.set(shift.id, {
+        id: shift.id,
+        shift_kind: shift.shift_kind,
+        starts_at: shift.starts_at,
+        ends_at: shift.ends_at,
+        responder_ids: [row.responder_id],
+      })
+    }
+  }
+  return [...byShift.values()]
 }
 
 export function computeTotalKm(
@@ -129,6 +300,7 @@ export function resolveShiftFormStash(
     ...stashedDraft,
     id: server.draft.id,
     status: server.draft.status,
+    is_legacy: server.draft.is_legacy,
     expected_updated_at: server.draft.expected_updated_at,
   }
   let bornMovedOn = false
@@ -175,6 +347,9 @@ export function summarizeShiftSaveErrors(fieldErrors: ShiftSaveError[]): string 
   if (fieldErrors.some((row) => row.field === 'responder_ids')) {
     return SHIFT_CREW_ERROR
   }
+  if (fieldErrors.every((row) => row.field === 'start_time' || row.field === 'end_time')) {
+    return SHIFT_HOURS_REQUIRED_ERROR
+  }
   return 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.'
 }
 
@@ -186,7 +361,17 @@ export type ShiftSaveError = {
     | 'personal_vehicle_id'
     | 'responder_ids'
     | 'odometer_end'
+    | 'start_time'
+    | 'end_time'
   message: string
+}
+
+function validateShiftHours(draft: ShiftFormDraft): ShiftSaveError[] {
+  if (draft.is_legacy) return []
+  const errors: ShiftSaveError[] = []
+  if (!draft.start_time) errors.push({ field: 'start_time', message: SHIFT_HOURS_REQUIRED_ERROR })
+  if (!draft.end_time) errors.push({ field: 'end_time', message: SHIFT_HOURS_REQUIRED_ERROR })
+  return errors
 }
 
 /** Minimal save gate: date + shift kind + vehicle (plate when private). */
@@ -214,6 +399,7 @@ export function validateShiftSave(draft: ShiftFormDraft): ShiftSaveError[] {
   ) {
     errors.push({ field: 'odometer_end', message: SHIFT_ODOMETER_ORDER_ERROR })
   }
+  errors.push(...validateShiftHours(draft))
   return errors
 }
 
@@ -256,6 +442,7 @@ async function verifyPersonalVehicle(draft: ShiftFormDraft): Promise<string | nu
 async function syncShiftResponders(
   shiftId: string,
   responderIds: string[],
+  knownShifts: CrewLiveShift[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: existing, error: existingError } = await supabase
     .from('shift_responders')
@@ -298,7 +485,7 @@ async function syncShiftResponders(
       })),
     )
     if (error) {
-      return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
+      return { ok: false, error: mapShiftUpdateError(error, knownShifts) }
     }
   }
 
@@ -378,6 +565,8 @@ export type ShiftUpdatePayload = {
   odometer_end: number | null
   total_km: number | null
   notes: string | null
+  starts_at?: string
+  ends_at?: string
   last_saved_by?: string
   updated_at: string
 }
@@ -397,8 +586,13 @@ export function buildShiftUpdatePayload(
 
   if (!options.canEditIdentity) return body
 
+  const window = shiftHasHours(draft)
+    ? buildShiftWindowTimestamps(draft.shift_date, draft.start_time, draft.end_time)
+    : {}
+
   return {
     ...body,
+    ...window,
     shift_date: draft.shift_date,
     shift_kind: draft.shift_kind,
     vehicle_type: draft.vehicle_type,
@@ -407,7 +601,13 @@ export function buildShiftUpdatePayload(
   }
 }
 
-function mapShiftUpdateError(error: { message?: string }): string {
+function mapShiftUpdateError(
+  error: { message?: string; details?: string | null },
+  knownShifts: CrewLiveShift[],
+): string {
+  if (error.message?.includes(SHIFT_OVERLAP_DB_MESSAGE)) {
+    return mapShiftOverlapError(error, knownShifts)
+  }
   if (error.message?.includes(SHIFT_IDENTITY_FORBIDDEN)) {
     return SHIFT_IDENTITY_FORBIDDEN
   }
@@ -464,12 +664,40 @@ export async function refreshShiftLogStatus(
   return status
 }
 
+/**
+ * A lead saving hours or crew of a live shift: the crew's other live shifts, and a
+ * refusal sentence when one of them already holds the same hours.
+ */
+async function loadCrewShiftsToCheck(
+  draft: ShiftFormDraft,
+  canEditIdentity: boolean,
+  responderNames: Record<string, string> = {},
+): Promise<{ ok: true; others: CrewLiveShift[] } | { ok: false; error: string }> {
+  if (!canEditIdentity || !shiftHasHours(draft)) return { ok: true, others: [] }
+
+  let others: CrewLiveShift[]
+  try {
+    others = await loadCrewLiveShifts(draft.responder_ids, draft.shift_date)
+  } catch {
+    return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
+  }
+  const message = findCrewOverlapMessage({
+    window: buildShiftWindowTimestamps(draft.shift_date, draft.start_time, draft.end_time),
+    crew: draft.responder_ids.map((id) => ({ id, name: responderNames[id] ?? 'המתנדב' })),
+    others,
+    ignoreShiftId: draft.id,
+  })
+  return message ? { ok: false, error: message } : { ok: true, others }
+}
+
 export async function saveShiftForm(
   draft: ShiftFormDraft,
   shiftLeadId: string,
   options?: {
     syncResponders?: boolean
     canEditIdentity?: boolean
+    /** Names for the overlap sentence, by responder id. */
+    responderNames?: Record<string, string>
   },
 ): Promise<
   | { ok: true; shiftId: string; status: ShiftStatus }
@@ -517,6 +745,9 @@ export async function saveShiftForm(
     }
   }
 
+  const crewShifts = await loadCrewShiftsToCheck(draft, canEditIdentity, options?.responderNames)
+  if (!crewShifts.ok) return { ok: false, error: crewShifts.error }
+
   let shiftId = draft.id
   let written: { shiftId: string; updated_at: string }
   const syncResponders = options?.syncResponders ?? true
@@ -532,7 +763,7 @@ export async function saveShiftForm(
     }
     const { data, error } = await query.select('id, updated_at').maybeSingle()
     if (error) {
-      return { ok: false, error: mapShiftUpdateError(error) }
+      return { ok: false, error: mapShiftUpdateError(error, crewShifts.others) }
     }
     if (!data) {
       if (!canEditIdentity) {
@@ -560,7 +791,10 @@ export async function saveShiftForm(
       .select('id, updated_at')
       .single()
 
-    if (error || !data) {
+    if (error) {
+      return { ok: false, error: mapShiftUpdateError(error, crewShifts.others) }
+    }
+    if (!data) {
       return { ok: false, error: 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.' }
     }
     shiftId = data.id as string
@@ -568,7 +802,7 @@ export async function saveShiftForm(
   }
 
   if (syncResponders) {
-    const respondersSync = await syncShiftResponders(shiftId, draft.responder_ids)
+    const respondersSync = await syncShiftResponders(shiftId, draft.responder_ids, crewShifts.others)
     if (!respondersSync.ok) return { ...respondersSync, saved: written }
   }
 
@@ -579,7 +813,7 @@ export async function saveShiftForm(
     p_shift_id: shiftId,
   })
   if (syncError) {
-    return { ok: false, error: mapShiftUpdateError(syncError), saved: written }
+    return { ok: false, error: mapShiftUpdateError(syncError, crewShifts.others), saved: written }
   }
 
   const status = (await refreshShiftLogStatus(shiftId)) ?? 'in_progress'

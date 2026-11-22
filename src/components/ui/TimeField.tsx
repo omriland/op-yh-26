@@ -13,6 +13,8 @@ type TimeFieldProps = {
   onBlur?: () => void
   inputRef?: RefObject<HTMLInputElement | null>
   required?: boolean
+  disabled?: boolean
+  error?: string
   /** Fired once the 4th digit lands — used to hop to the next time field. */
   onComplete?: () => void
 }
@@ -42,6 +44,8 @@ export function TimeField({
   onBlur,
   inputRef,
   required,
+  disabled,
+  error,
   onComplete,
 }: TimeFieldProps) {
   const fieldId = useId()
@@ -57,19 +61,21 @@ export function TimeField({
         <FieldLabel htmlFor={fieldId} required={required}>
           {label}
         </FieldLabel>
-        <button
-          type="button"
-          className="time-field__now"
-          tabIndex={-1}
-          onClick={() => {
-            const now = nowTimeJerusalem()
-            latestValue.current = now
-            onChange(now)
-            onBlur?.()
-          }}
-        >
-          עכשיו
-        </button>
+        {disabled ? null : (
+          <button
+            type="button"
+            className="time-field__now"
+            tabIndex={-1}
+            onClick={() => {
+              const now = nowTimeJerusalem()
+              latestValue.current = now
+              onChange(now)
+              onBlur?.()
+            }}
+          >
+            עכשיו
+          </button>
+        )}
       </div>
       <div className="field__control">
         <input
@@ -82,6 +88,8 @@ export function TimeField({
           className="field__input field__input--numeric ltr"
           dir="ltr"
           required={required}
+          disabled={disabled}
+          aria-invalid={error ? true : undefined}
           aria-label={`${label} (24 שעות)`}
           value={value}
           onChange={(event) => {
@@ -97,6 +105,11 @@ export function TimeField({
           }}
         />
       </div>
+      {error ? (
+        <p className="field__hint field__hint--error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   )
 }

@@ -21,6 +21,16 @@ describe('shift status vocabulary', () => {
     expect(shiftStamp('draft').label).toBe('תועד חלקית')
     expect(shiftStamp('closed').label).toBe('נסגרה')
   })
+
+  it('shows a live shift that has not started as מתוכננת in draft ink', () => {
+    expect(shiftStamp('in_progress', 'planned')).toEqual({ label: 'מתוכננת', tone: 'draft' })
+  })
+
+  it('keeps today stamps for legacy and already running shifts', () => {
+    expect(shiftStamp('in_progress', 'legacy')).toEqual(shiftStamp('in_progress'))
+    expect(shiftStamp('in_progress', 'active').label).toBe('ממתין לתיעוד')
+    expect(shiftStamp('closed', 'closed').label).toBe('נסגרה')
+  })
 })
 
 describe('event status vocabulary', () => {

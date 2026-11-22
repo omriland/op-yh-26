@@ -7,6 +7,12 @@ import {
   computeTotalKm,
   shiftEventAlreadyLinkedMessage,
   validateShiftSave,
+  SHIFT_HOURS_REQUIRED_ERROR,
+  SHIFT_OVERLAP_GENERAL_MESSAGE,
+  buildShiftWindowTimestamps,
+  fillDefaultShiftHours,
+  mapShiftOverlapError,
+  findCrewOverlapMessage,
   resolveShiftFormStash,
   shiftFormStashFrom,
   type ShiftFormDraft,
@@ -29,6 +35,9 @@ const baseDraft: ShiftFormDraft = {
   event_type_counts: [],
   treated_vehicle_counts: [],
   cancelled_count: 0,
+  start_time: '07:00',
+  end_time: '15:00',
+  is_legacy: false,
 }
 
 describe('shiftEventAlreadyLinkedMessage', () => {
@@ -195,6 +204,12 @@ describe('summarizeShiftSaveErrors', () => {
       'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.',
     )
   })
+
+  it('names the hours when they are the only thing missing', () => {
+    const errors = validateShiftSave(draft({ start_time: '', end_time: '' }))
+    expect(errors.map((row) => row.field).sort()).toEqual(['end_time', 'start_time'])
+    expect(summarizeShiftSaveErrors(errors)).toBe(SHIFT_HOURS_REQUIRED_ERROR)
+  })
 })
 
 
@@ -257,5 +272,196 @@ describe('shift form device stash', () => {
     const result = resolveShiftFormStash(loaded, shiftFormStashFrom(server, [typed, gone]))
     expect(result.serverMovedOn).toBe(true)
     expect(result.bornRows.map((row) => row.id)).toEqual(['ev-1'])
+  })
+})
+
+describe('shift hours validation', () => {
+  const newShift: ShiftFormDraft = {
+    ...baseDraft,
+    id: undefined,
+    responder_ids: ['a'],
+    start_time: '',
+    end_time: '',
+  }
+
+  it('refuses a new shift without start or end time, in Hebrew', () => {
+    const errors = validateShiftSave(newShift)
+    expect(errors.find((row) => row.field === 'start_time')?.message).toBe(
+      SHIFT_HOURS_REQUIRED_ERROR,
+    )
+    expect(errors.find((row) => row.field === 'end_time')?.message).toBe(
+      SHIFT_HOURS_REQUIRED_ERROR,
+    )
+    expect(SHIFT_HOURS_REQUIRED_ERROR).toMatch(/[א-ת]/)
+  })
+
+  it('refuses a new shift that has only one of the two times', () => {
+    const onlyStart = validateShiftSave({ ...newShift, start_time: '07:00' })
+    expect(onlyStart.some((row) => row.field === 'end_time')).toBe(true)
+    expect(onlyStart.some((row) => row.field === 'start_time')).toBe(false)
+  })
+
+  it('accepts a new shift with both times', () => {
+    const errors = validateShiftSave({ ...newShift, start_time: '07:00', end_time: '15:00' })
+    expect(errors.some((row) => row.field === 'start_time' || row.field === 'end_time')).toBe(
+      false,
+    )
+  })
+
+  it('refuses an existing shift that is not legacy and has no hours', () => {
+    const existing: ShiftFormDraft = { ...newShift, id: 's1', is_legacy: false }
+    const errors = validateShiftSave(existing)
+    expect(errors.find((row) => row.field === 'start_time')?.message).toBe(
+      SHIFT_HOURS_REQUIRED_ERROR,
+    )
+    expect(errors.find((row) => row.field === 'end_time')?.message).toBe(
+      SHIFT_HOURS_REQUIRED_ERROR,
+    )
+    const { is_legacy: _omitted, ...withoutLegacyFlag } = existing
+    expect(
+      validateShiftSave(withoutLegacyFlag).some((row) => row.field === 'start_time'),
+    ).toBe(true)
+  })
+
+  it('still saves a legacy shift that has no hours', () => {
+    const legacy: ShiftFormDraft = { ...newShift, id: 's1', is_legacy: true }
+    expect(validateShiftSave(legacy)).toEqual([])
+  })
+})
+
+describe('buildShiftWindowTimestamps', () => {
+  it('builds Asia/Jerusalem summer time (UTC+3) on the shift date', () => {
+    expect(buildShiftWindowTimestamps('2026-08-11', '07:00', '15:00')).toEqual({
+      starts_at: '2026-08-11T04:00:00.000Z',
+      ends_at: '2026-08-11T12:00:00.000Z',
+    })
+  })
+
+  it('builds Asia/Jerusalem winter time (UTC+2)', () => {
+    expect(buildShiftWindowTimestamps('2026-12-01', '07:00', '15:00')).toEqual({
+      starts_at: '2026-12-01T05:00:00.000Z',
+      ends_at: '2026-12-01T13:00:00.000Z',
+    })
+  })
+
+  it('ends the next day when the end time is earlier than the start time', () => {
+    expect(buildShiftWindowTimestamps('2026-08-11', '23:00', '07:00')).toEqual({
+      starts_at: '2026-08-11T20:00:00.000Z',
+      ends_at: '2026-08-12T04:00:00.000Z',
+    })
+  })
+
+  it('rolls the next day over a month end', () => {
+    expect(buildShiftWindowTimestamps('2026-08-31', '22:00', '06:00').ends_at).toBe(
+      '2026-09-01T03:00:00.000Z',
+    )
+  })
+})
+
+describe('fillDefaultShiftHours', () => {
+  it('fills empty fields from the kind defaults', () => {
+    expect(fillDefaultShiftHours({ start_time: '', end_time: '' }, 'morning')).toEqual({
+      start_time: '07:00',
+      end_time: '15:00',
+    })
+    expect(fillDefaultShiftHours({ start_time: '', end_time: '' }, 'midday')).toEqual({
+      start_time: '15:00',
+      end_time: '23:00',
+    })
+  })
+
+  it('never overwrites a time the lead already typed', () => {
+    expect(fillDefaultShiftHours({ start_time: '08:30', end_time: '' }, 'morning')).toEqual({
+      start_time: '08:30',
+      end_time: '15:00',
+    })
+    expect(fillDefaultShiftHours({ start_time: '08:30', end_time: '16:45' }, 'midday')).toEqual({
+      start_time: '08:30',
+      end_time: '16:45',
+    })
+  })
+
+  it('leaves the fields empty for a kind without default hours', () => {
+    expect(fillDefaultShiftHours({ start_time: '', end_time: '' }, 'escort')).toEqual({
+      start_time: '',
+      end_time: '',
+    })
+  })
+})
+
+describe('mapShiftOverlapError', () => {
+  const dbMessage = 'המשמרת חופפת למשמרת אחרת של אחד מאנשי הצוות.'
+  const other = {
+    id: 'other-1',
+    shift_kind: 'midday' as const,
+    starts_at: '2026-08-11T12:00:00.000Z',
+    ends_at: '2026-08-11T20:00:00.000Z',
+  }
+
+  it('names the other shift type and hours when the form knows that shift', () => {
+    const text = mapShiftOverlapError({ message: dbMessage, details: 'other-1' }, [other])
+    expect(text).toContain('צהריים')
+    expect(text).toContain('15:00–23:00')
+  })
+
+  it('falls back to the general sentence when the other shift is unknown', () => {
+    expect(mapShiftOverlapError({ message: dbMessage, details: 'unknown' }, [other])).toBe(
+      SHIFT_OVERLAP_GENERAL_MESSAGE,
+    )
+    expect(mapShiftOverlapError({ message: dbMessage }, [])).toBe(SHIFT_OVERLAP_GENERAL_MESSAGE)
+  })
+
+  it('does not leak raw database text', () => {
+    const text = mapShiftOverlapError({ message: dbMessage, details: 'other-1' }, [other])
+    expect(text).not.toContain('other-1')
+    expect(text).not.toContain(dbMessage)
+    expect(SHIFT_OVERLAP_GENERAL_MESSAGE).toMatch(/[א-ת]/)
+  })
+})
+
+describe('findCrewOverlapMessage', () => {
+  const crew = [
+    { id: 'r1', name: 'דנה' },
+    { id: 'r2', name: 'יוסי' },
+  ]
+  const window = { starts_at: '2026-08-11T04:00:00.000Z', ends_at: '2026-08-11T12:00:00.000Z' }
+  const clashing = {
+    id: 'o1',
+    shift_kind: 'reinforcement' as const,
+    starts_at: '2026-08-11T10:00:00.000Z',
+    ends_at: '2026-08-11T14:00:00.000Z',
+    responder_ids: ['r2'],
+  }
+
+  it('names the responder, the clashing shift type and its hours', () => {
+    expect(findCrewOverlapMessage({ window, crew, others: [clashing] })).toBe(
+      'לא ניתן לשבץ את יוסי: כבר משובץ במשמרת תגבור באותן שעות (13:00–17:00).',
+    )
+  })
+
+  it('allows shifts that only touch at the edge', () => {
+    const touching = { ...clashing, starts_at: window.ends_at, ends_at: '2026-08-11T20:00:00.000Z' }
+    expect(findCrewOverlapMessage({ window, crew, others: [touching] })).toBeNull()
+  })
+
+  it('ignores overlapping shifts of people who are not on this crew', () => {
+    expect(
+      findCrewOverlapMessage({ window, crew, others: [{ ...clashing, responder_ids: ['x'] }] }),
+    ).toBeNull()
+  })
+
+  it('ignores the shift being edited but still reports a different clashing shift', () => {
+    expect(
+      findCrewOverlapMessage({ window, crew, others: [clashing], ignoreShiftId: 'o1' }),
+    ).toBeNull()
+    const otherClash = { ...clashing, id: 'o2' }
+    expect(
+      findCrewOverlapMessage({
+        window,
+        crew,
+        others: [clashing, otherClash],
+        ignoreShiftId: 'o1',
+      }),
+    ).toBe('לא ניתן לשבץ את יוסי: כבר משובץ במשמרת תגבור באותן שעות (13:00–17:00).')
   })
 })

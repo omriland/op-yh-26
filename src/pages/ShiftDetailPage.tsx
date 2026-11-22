@@ -25,6 +25,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
+import { shiftWindowPhase } from '../lib/shiftWindow'
 import { shiftStamp } from '../lib/status'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
 import { useFreezeViewer } from '../lib/freezeViewer'
@@ -199,7 +200,7 @@ export function ShiftDetailPage({
           </p>
         </div>
         {/* The one rotated stamp in the system belongs on a record's own header. */}
-        <StampChip {...shiftStamp(shiftRecordLogStatus(shift))} header />
+        <StampChip {...shiftStamp(shiftRecordLogStatus(shift), shiftWindowPhase(shift, new Date()))} header />
       </div>
 
       {canEdit || isAdmin ? (

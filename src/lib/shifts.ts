@@ -89,6 +89,8 @@ export type ShiftListItem = {
   status: ShiftStatus
   odometer_start: number | null
   odometer_end: number | null
+  starts_at: string | null
+  ends_at: string | null
   personal_vehicle: { plate_number: string } | null
   shift_lead: { full_name: string; callsign: string } | null
   responders: ShiftResponderSummary[]
@@ -100,6 +102,8 @@ export type ShiftListItem = {
 export const SHIFT_LIST_SELECT = `
   id,
   shift_date,
+  starts_at,
+  ends_at,
   shift_kind,
   vehicle_type,
   status,
@@ -336,6 +340,8 @@ export type ShiftDetail = Omit<ShiftListItem, 'responders' | 'linked_events'> & 
 const SHIFT_DETAIL_SELECT = `
   id,
   shift_date,
+  starts_at,
+  ends_at,
   shift_kind,
   vehicle_type,
   status,

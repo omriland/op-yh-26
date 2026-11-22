@@ -13,6 +13,8 @@ function shiftWith(born: ShiftListItem['born_events']): ShiftListItem {
     status: 'closed',
     odometer_start: 1,
     odometer_end: 2,
+    starts_at: null,
+    ends_at: null,
     personal_vehicle: null,
     shift_lead: { full_name: 'אהרון בן ססי', callsign: '1' },
     responders: [

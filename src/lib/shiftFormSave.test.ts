@@ -80,6 +80,9 @@ const draft: ShiftFormDraft = {
   event_type_counts: [],
   treated_vehicle_counts: [],
   cancelled_count: 0,
+  start_time: '',
+  end_time: '',
+  is_legacy: true,
   expected_updated_at: 't1',
 }
 
