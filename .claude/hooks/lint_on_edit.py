@@ -8,8 +8,8 @@ node_modules, else from the main checkout of the same repo (oxlint needs no conf
 Files outside op-yh-26 folders are left alone.
 Exit 2 with the remaining problems on stderr, which Claude Code shows to the agent.
 TS, TSX, JS and MJS: oxlint --fix; like `npm run lint`, only errors stop the agent (oxlint
-exits 0 on warnings, and the project carries old ones). The harness's own Python: ruff check --fix and ruff format
-(ruff from .venv, PATH, or `uvx ruff`).
+exits 0 on warnings, and the project carries old ones). The harness's own Python, under
+.claude/hooks only: ruff check --fix and ruff format (ruff from .venv, PATH, or `uvx ruff`).
 A missing tool, a slow tool, odd input or any surprise: exit 0, so an edit is never held up.
 Limits: it only sees edits made with the edit tools, not files changed by shell commands.
 Errors that need the whole project (tsc) are not covered: run `npm run build` before shipping.
@@ -106,6 +106,8 @@ def steps(full, root):
     """Return the commands for this file, or a string naming the tool that is missing."""
     ext = os.path.splitext(full)[1].lower()
     if ext in PYTHON:
+        if not _repo.is_inside(full, os.path.join(root, ".claude", "hooks")):
+            return []  # only the harness's own Python follows ruff.toml
         tool = ruff(root)
         if not tool:
             return "ruff not found"

@@ -19,9 +19,11 @@ happening: "I am saving the work and opening a pull request."
    the two lines are equal, this is the main folder: stop and say the work must be in its
    task folder (run `yahpaz-task`).
 1. Run `python3 .claude/hooks/plan_gate.py status --session <id>`. Its `verdict` must be
-   `approved`, `small`, `declined` or `session-asked`. If it is `planning`, the plan still
-   waits for the person's yes. If it is `not-asked`, the task needs the plan question first.
-   In both cases stop and say so.
+   `approved`, `small`, `declined` or `session-asked`. A `not-asked` verdict whose `last`
+   holds this task's `small` or `approved` record also counts (the task was marked done
+   before shipping). If it is `planning`, the plan still waits for the person's yes. If it is
+   `not-asked` with no such `last`, the task needs the plan question first. In both cases
+   stop and say so.
 2. Run `npm test`, `npm run lint` and `npm run build` in the task folder (and `npm run
    contrast` when colours or screens changed). If any fails, stop. Explain in plain words
    what failed and what you will do.

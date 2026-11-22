@@ -44,7 +44,8 @@ If unsure, it is big. **Small** means a typo, wording, a colour, or a bug with o
   `python3 .claude/hooks/plan_gate.py small "<reason>" --session <id>` yourself and do the work.
 - **Task finished** (built and checked, shipped or not): run
   `python3 .claude/hooks/plan_gate.py done --session <id>`, so the next task is judged on
-  its own.
+  its own. A small task does not count as the plan question: after `done`, a later edit
+  needs its own small reason or the question.
 - `<id>` is the session id from the start context.
 - **Task folder.** Once the task is clear (after the working-mode question), run the
   `yahpaz-task` skill: one task folder and branch per task, none for a session of questions

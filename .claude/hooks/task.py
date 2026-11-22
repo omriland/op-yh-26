@@ -19,6 +19,8 @@ task's port; everything else does.
 """
 
 import argparse
+import contextlib
+import fcntl
 import json
 import os
 import re
@@ -30,6 +32,7 @@ import sys
 import _repo
 
 TASKS_FILE = os.path.join(_repo.STATE_HOME, "tasks.json")
+LOCK_FILE = TASKS_FILE + ".lock"
 LOG_DIR = os.path.join(_repo.STATE_HOME, "tasks")
 PORTS = range(5191, 5200)
 SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -50,6 +53,30 @@ def read_tasks():
     except (OSError, ValueError):
         return {}
     return tasks if isinstance(tasks, dict) else {}
+
+
+@contextlib.contextmanager
+def tasks_locked():
+    """Hold the task list for one read-change-write, so parallel sessions do not overwrite
+    each other's changes."""
+    os.makedirs(_repo.STATE_HOME, exist_ok=True)
+    with open(LOCK_FILE, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def update_task(slug, task):
+    """Save one task (or remove it, with task None) without touching the others."""
+    with tasks_locked():
+        tasks = read_tasks()
+        if task is None:
+            tasks.pop(slug, None)
+        else:
+            tasks[slug] = task
+        write_tasks(tasks)
 
 
 def write_tasks(tasks):
@@ -74,8 +101,16 @@ def task_folder_for(main, slug):
 
 
 def port_is_free(port):
-    with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as probe:
-        return probe.connect_ex(("::1", port)) != 0
+    """True when nothing listens on the port, on IPv4 or IPv6 localhost."""
+    for family, host in ((socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")):
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as probe:
+                probe.settimeout(1)
+                if probe.connect_ex((host, port)) == 0:
+                    return False
+        except OSError:
+            continue  # this address family is not available here
+    return True
 
 
 def free_port(tasks):
@@ -172,19 +207,25 @@ def new_task(args):
         return fail("the name is lower case words joined by dashes, for example event-filters")
     if not BRANCH.match(args.branch):
         return fail("the branch is <feat|fix|chore|docs>/<slug>, for example feat/event-filters")
-    tasks = read_tasks()
-    if args.slug in tasks and os.path.isdir(tasks[args.slug]["folder"]):
-        task = tasks[args.slug]
-        print(f"reused {task['folder']} on {task['branch']}, {link_of(task)}")
-        return 0
-    port = free_port(tasks)
-    if port is None:
-        return fail("all nine task ports are taken: destroy a finished task first")
     folder = task_folder_for(main, args.slug)
-    if os.path.exists(folder):
-        return fail(f"{folder} already exists but is not a known task: check it first")
+    with tasks_locked():
+        tasks = read_tasks()
+        if args.slug in tasks and os.path.isdir(tasks[args.slug]["folder"]):
+            task = tasks[args.slug]
+            print(f"reused {task['folder']} on {task['branch']}, {link_of(task)}")
+            return 0
+        port = free_port(tasks)
+        if port is None:
+            return fail("all nine task ports are taken: destroy a finished task first")
+        if os.path.exists(folder):
+            return fail(f"{folder} already exists but is not a known task: check it first")
+        # Reserve the port now: npm ci below takes minutes, and other sessions may run meanwhile.
+        task = {"folder": folder, "branch": args.branch, "port": port, "pid": None}
+        tasks[args.slug] = task
+        write_tasks(tasks)
     problem = make_worktree(main, folder, args.branch, args.base)
     if problem:
+        update_task(args.slug, None)
         return fail(f"could not make the task folder: {problem}")
     copy_env_files(main, folder)
     code, output = run(
@@ -192,10 +233,8 @@ def new_task(args):
     )
     if code != 0:
         return fail("npm ci failed in the task folder:\n" + output[-2000:])
-    task = {"folder": folder, "branch": args.branch, "port": port, "pid": None}
     start_server(args.slug, task)
-    tasks[args.slug] = task
-    write_tasks(tasks)
+    update_task(args.slug, task)
     print(f"made {folder} on {args.branch}, {link_of(task)}")
     return 0
 
@@ -220,7 +259,7 @@ def known_task(slug):
 
 
 def start_task(args):
-    tasks, task = known_task(args.slug)
+    _tasks, task = known_task(args.slug)
     if task is None:
         return fail(f"no task named {args.slug}")
     if server_running(task):
@@ -229,17 +268,17 @@ def start_task(args):
     if not port_is_free(task["port"]):
         return fail(f"port {task['port']} is used by another program")
     start_server(args.slug, task)
-    write_tasks(tasks)
+    update_task(args.slug, task)
     print(f"started, {link_of(task)}")
     return 0
 
 
 def stop_task(args):
-    tasks, task = known_task(args.slug)
+    _tasks, task = known_task(args.slug)
     if task is None:
         return fail(f"no task named {args.slug}")
     stop_server(task)
-    write_tasks(tasks)
+    update_task(args.slug, task)
     print("stopped")
     return 0
 
@@ -249,17 +288,34 @@ def pr_state(folder, branch):
     return output.strip() if code == 0 else "NONE"
 
 
-def destroy_refusal(task):
+def unpushed_commits(main, branch):
+    """Return how many commits of the branch are not on GitHub, or None when unreadable.
+    Compared with origin/<branch>, else with the production branch."""
+    if _repo.git_output(main, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}") is None:
+        return 0  # the branch is gone already
+    run(["git", "fetch", "origin"], main)
+    remote = f"origin/{branch}"
+    if _repo.git_output(main, "rev-parse", "--verify", "--quiet", remote) is None:
+        remote = f"origin/{_repo.MAIN_BRANCH}"
+    count = _repo.git_output(main, "rev-list", "--count", f"{remote}..{branch}")
+    return int(count) if count and count.isdigit() else None
+
+
+def destroy_refusal(main, task):
     """Return why the task must not be removed without --force, or None."""
     folder = task["folder"]
-    if not os.path.isdir(folder):
-        return None
-    code, dirty = run(["git", "status", "--porcelain"], folder)
-    if code != 0:
-        return "could not read the task folder's git state"
-    if dirty.strip():
-        return "the task folder has uncommitted changes"
-    state = pr_state(folder, task["branch"])
+    if os.path.isdir(folder):
+        code, dirty = run(["git", "status", "--porcelain"], folder)
+        if code != 0:
+            return "could not read the task folder's git state"
+        if dirty.strip():
+            return "the task folder has uncommitted changes"
+    unpushed = unpushed_commits(main, task["branch"])
+    if unpushed is None:
+        return "could not tell whether the branch has commits that are not on GitHub"
+    if unpushed > 0:
+        return f"the branch has {unpushed} commit(s) that are not on GitHub"
+    state = pr_state(main, task["branch"])
     if state != "MERGED":
         return f"the branch's pull request is not merged (state: {state})"
     return None
@@ -269,12 +325,12 @@ def destroy_task(args):
     main = main_folder()
     if main is None:
         return fail("run this inside op-yh-26 or one of its task folders")
-    tasks, task = known_task(args.slug)
+    _tasks, task = known_task(args.slug)
     if task is None:
         return fail(f"no task named {args.slug}")
     if os.path.realpath(os.getcwd()).startswith(os.path.realpath(task["folder"])):
         return fail("run destroy from another folder than the task folder itself")
-    refusal = None if args.force else destroy_refusal(task)
+    refusal = None if args.force else destroy_refusal(main, task)
     if refusal:
         return fail(refusal + "; stopped (ask the person before using --force)")
     stop_server(task)
@@ -284,8 +340,7 @@ def destroy_task(args):
         if code != 0:
             return fail("could not remove the task folder: " + output.strip())
     run(["git", "branch", "-D", task["branch"]], main)
-    del tasks[args.slug]
-    write_tasks(tasks)
+    update_task(args.slug, None)
     print(f"removed {args.slug}")
     return 0
 

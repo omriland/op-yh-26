@@ -186,9 +186,16 @@ def pr_folder(pr_command):
     name = repo_name_of(repo_flag) if repo_flag else os.path.basename(main_folder)
     head = flag_value(pr_command.words or [], HEAD_FLAGS)
     if head is None:
-        return top if name == os.path.basename(main_folder) else None
+        same_repo = name == os.path.basename(main_folder) or _repo.is_yahpaz_repo(top)
+        return top if same_repo else None
     other_main = os.path.join(os.path.dirname(main_folder), name)
     return worktree_with_branch(other_main, head.split(":")[-1])
+
+
+def names_another_repo(pr_command):
+    """True when -R or GH_REPO names a repo that is not op-yh-26."""
+    repo_flag = flag_value(pr_command.words or [], REPO_FLAGS) or pr_command.env_repo
+    return bool(repo_flag) and repo_name_of(repo_flag) not in _repo.REPO_NAMES
 
 
 def recorded_sha(folder):
@@ -211,6 +218,8 @@ def hook():
         return 0  # not something this gate understands: let it through
     if not found:
         return 0
+    if names_another_repo(found):
+        return 0  # a pull request for another repo: not this gate's pull request
     folder = pr_folder(found)
     if folder is None:
         print(NO_FOLDER, file=sys.stderr)

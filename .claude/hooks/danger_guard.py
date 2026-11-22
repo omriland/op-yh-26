@@ -57,7 +57,13 @@ WRAPPERS = {
     "exec": ("-a",),
     "nice": ("-n",),
     "npx": ("-p", "--package"),
+    "bunx": (),
+    "doas": ("-u", "-C"),
+    "timeout": ("-s", "--signal", "-k", "--kill-after"),
 }
+WRAPPERS_WITH_POSITIONAL = ("timeout",)  # `timeout 60 cmd`: the duration comes before the command
+PACKAGE_RUNNERS = ("npm", "pnpm", "yarn", "bun")
+RUNNER_SUBCOMMANDS = ("exec", "x", "dlx")
 ASSIGNMENT = re.compile(r"^[A-Za-z_]\w*=")
 # Words that start a command inside if/while/for blocks and groups.
 SHELL_KEYWORDS = ("if", "then", "else", "elif", "do", "while", "until", "!", "{")
@@ -126,6 +132,11 @@ UNKNOWN_BRANCH_BLOCK = (
 )
 
 
+def inside_quotes(text):
+    """True when text leaves a quote open (an odd number of " or ')."""
+    return text.count('"') % 2 == 1 or text.count("'") % 2 == 1
+
+
 def without_heredoc_bodies(command):
     """Drop the lines of heredoc bodies: they are text, not commands."""
     kept, end_word = [], None
@@ -136,7 +147,7 @@ def without_heredoc_bodies(command):
             continue
         kept.append(line)
         start = HEREDOC_START.search(line)
-        if start:
+        if start and not inside_quotes(line[: start.start()]):
             end_word = start.group(2)
     return "\n".join(kept)
 
@@ -189,6 +200,10 @@ def strip_prefix(words):
                 words = words[2:] if flag in takes_value else words[1:]
                 if flag == "--":
                     break
+            if name in WRAPPERS_WITH_POSITIONAL:
+                words = words[1:]
+        elif name in PACKAGE_RUNNERS and len(words) > 1 and words[1] in RUNNER_SUBCOMMANDS:
+            words = [word for word in words[2:] if word != "--"]
         else:
             break
     return words
@@ -365,6 +380,7 @@ def check_push(args, folder):
     if "--all" in flags or "--mirror" in flags:
         return BLOCK, "pushing to infra/bootstrap is not allowed"
     targets = [r.split(":")[-1].replace("refs/heads/", "") for r in refs] or ["HEAD"]
+    targets = ["HEAD" if target in ("@", "") else target for target in targets]
     if "HEAD" in targets:
         branch = None if folder is None else _repo.git_output(folder, "branch", "--show-current")
         if branch is None:
@@ -538,17 +554,20 @@ def check_task_script(words):
 
 def check_supabase(words):
     """Block a database reset; ask before anything that changes production directly."""
+    # Flags may take values (`--workdir .`), so look for the sub-command pair anywhere.
     plain = [word for word in words[1:] if not word.startswith("-")]
-    if plain[:2] == ["db", "reset"]:
+    pairs = list(zip(plain, plain[1:], strict=False))
+    if ("db", "reset") in pairs:
         return BLOCK, "supabase db reset deletes the database"
     goes_live = (
-        ["db", "push"],
-        ["functions", "deploy"],
-        ["migration", "repair"],
-        ["secrets", "set"],
+        ("db", "push"),
+        ("functions", "deploy"),
+        ("migration", "repair"),
+        ("migration", "up"),
+        ("secrets", "set"),
     )
     for pair in goes_live:
-        if plain[:2] == pair:
+        if pair in pairs:
             return ASK, GOES_LIVE_ASK.format(what="supabase " + " ".join(pair))
     return None
 
