@@ -11,6 +11,7 @@ import {
 } from '../lib/eventForm'
 import {
   computeTotalKm,
+  replaceUntouchedShiftHours,
   fillDefaultShiftHours,
   formatJerusalemTimeOfDay,
   resolveShiftFormStash,
@@ -198,6 +199,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const canEditResponders = canManageLead
 
   const dirtyRef = useRef(false)
+  const hoursTypedRef = useRef(false)
   useEffect(() => {
     draftRef.current = draft
   }, [draft])
@@ -299,10 +301,12 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
             expected_updated_at: existing.updated_at,
           }
           draftRef.current = nextDraft
+          hoursTypedRef.current = true
           setLastSavedName(existing.last_saved?.full_name ?? null)
           savedVehicleId.current = existing.personal_vehicle_id
         } else {
           draftRef.current = emptyDraft()
+          hoursTypedRef.current = false
           setAssignedProfiles(new Map())
           setLastSavedName(null)
           savedVehicleId.current = null
@@ -411,6 +415,17 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const computedKm = draft
     ? computeTotalKm(draft.odometer_start, draft.odometer_end)
     : null
+
+  function typeHour(patch: Partial<Pick<ShiftFormDraft, 'start_time' | 'end_time'>>) {
+    hoursTypedRef.current = true
+    updateDraft(patch)
+  }
+
+  function hoursForNewKind(kind: ShiftKind) {
+    const typedHours = draftRef.current ?? draft
+    if (hoursTypedRef.current && typedHours) return fillDefaultShiftHours(typedHours, kind)
+    return replaceUntouchedShiftHours(kind)
+  }
 
   function updateDraft(patch: Partial<ShiftFormDraft>) {
     setDraft((current) => {
@@ -751,7 +766,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                     const shift_kind = event.target.value as ShiftKind
                     updateDraft({
                       shift_kind,
-                      ...(draft.is_legacy ? {} : fillDefaultShiftHours(draft, shift_kind)),
+                      ...(draft.is_legacy ? {} : hoursForNewKind(shift_kind)),
                     })
                     setErrors((current) => ({ ...current, shift_kind: undefined }))
                   }}
@@ -765,7 +780,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                       disabled={!canManageLead}
                       value={draft.start_time}
                       error={errors.start_time}
-                      onChange={(start_time) => updateDraft({ start_time })}
+                      onChange={(start_time) => typeHour({ start_time })}
                     />
                     <TimeField
                       label="שעת סיום"
@@ -773,7 +788,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                       disabled={!canManageLead}
                       value={draft.end_time}
                       error={errors.end_time}
-                      onChange={(end_time) => updateDraft({ end_time })}
+                      onChange={(end_time) => typeHour({ end_time })}
                     />
                   </>
                 )}

@@ -40,6 +40,9 @@ export type ShiftFormDraft = {
 }
 
 export const SHIFT_HOURS_REQUIRED_ERROR = 'יש למלא שעת התחלה ושעת סיום'
+export const SHIFT_HOURS_EQUAL_ERROR = 'שעת הסיום חייבת להיות שונה משעת ההתחלה'
+const SHIFT_HOURS_AND_FIELDS_ERROR =
+  'יש למלא תאריך, שם משמרת, סוג רכב ושעות לפני השמירה.'
 export const SHIFT_OVERLAP_GENERAL_MESSAGE = 'המשמרת חופפת למשמרת אחרת של אחד מאנשי הצוות.'
 const SHIFT_OVERLAP_DB_MESSAGE = SHIFT_OVERLAP_GENERAL_MESSAGE
 
@@ -113,6 +116,13 @@ export function fillDefaultShiftHours(
     start_time: hours.start_time || defaults.start,
     end_time: hours.end_time || defaults.end,
   }
+}
+
+/** Swaps hours the lead never typed for the new kind's defaults, or empties them. */
+export function replaceUntouchedShiftHours(
+  kind: ShiftKind,
+): { start_time: string; end_time: string } {
+  return fillDefaultShiftHours({ start_time: '', end_time: '' }, kind)
 }
 
 export function shiftHasHours(draft: Pick<ShiftFormDraft, 'start_time' | 'end_time'>): boolean {
@@ -347,10 +357,18 @@ export function summarizeShiftSaveErrors(fieldErrors: ShiftSaveError[]): string 
   if (fieldErrors.some((row) => row.field === 'responder_ids')) {
     return SHIFT_CREW_ERROR
   }
-  if (fieldErrors.every((row) => row.field === 'start_time' || row.field === 'end_time')) {
-    return SHIFT_HOURS_REQUIRED_ERROR
+  const hoursFields = fieldErrors.filter(isHoursError)
+  if (hoursFields.length === fieldErrors.length) {
+    return hoursFields.some((row) => row.message === SHIFT_HOURS_EQUAL_ERROR)
+      ? SHIFT_HOURS_EQUAL_ERROR
+      : SHIFT_HOURS_REQUIRED_ERROR
   }
+  if (hoursFields.length > 0) return SHIFT_HOURS_AND_FIELDS_ERROR
   return 'יש למלא תאריך, שם משמרת וסוג רכב לפני השמירה.'
+}
+
+function isHoursError(row: ShiftSaveError): boolean {
+  return row.field === 'start_time' || row.field === 'end_time'
 }
 
 export type ShiftSaveError = {
@@ -371,6 +389,9 @@ function validateShiftHours(draft: ShiftFormDraft): ShiftSaveError[] {
   const errors: ShiftSaveError[] = []
   if (!draft.start_time) errors.push({ field: 'start_time', message: SHIFT_HOURS_REQUIRED_ERROR })
   if (!draft.end_time) errors.push({ field: 'end_time', message: SHIFT_HOURS_REQUIRED_ERROR })
+  if (draft.start_time && draft.start_time === draft.end_time) {
+    errors.push({ field: 'end_time', message: SHIFT_HOURS_EQUAL_ERROR })
+  }
   return errors
 }
 
@@ -555,6 +576,9 @@ async function syncEventTypeCounts(
 const SHIFT_IDENTITY_FORBIDDEN = 'אין הרשאה לשנות פרטי משמרת'
 /** sync_shift_born_events: a lead lowering a count on another lead's shift. */
 const SHIFT_BORN_DELETE_FORBIDDEN = 'אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.'
+/** raise_crew_window_closed: a crew save before the shift starts or after its grace period. */
+const SHIFT_NOT_STARTED = 'המשמרת עוד לא התחילה.'
+const SHIFT_WINDOW_CLOSED = 'חלון התיעוד של המשמרת נסגר.'
 
 export type ShiftUpdatePayload = {
   shift_date?: string
@@ -619,6 +643,12 @@ function mapShiftUpdateError(
   }
   if (error.message?.includes(SHIFT_BORN_DELETE_FORBIDDEN)) {
     return SHIFT_BORN_DELETE_FORBIDDEN
+  }
+  if (error.message?.includes(SHIFT_NOT_STARTED)) {
+    return SHIFT_NOT_STARTED
+  }
+  if (error.message?.includes(SHIFT_WINDOW_CLOSED)) {
+    return SHIFT_WINDOW_CLOSED
   }
   return 'שמירת המשמרת נכשלה. בדקו את החיבור ונסו שוב.'
 }
