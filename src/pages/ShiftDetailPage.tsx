@@ -54,6 +54,7 @@ function bornSnapshot(event: ShiftBornEventSummary) {
     treatment_notes: event.treatment_notes,
     road_id: event.road_id,
     location: event.location,
+    emergency_means: event.emergency_means,
     treated_count: event.treated?.length ?? 0,
   }
 }
@@ -143,13 +144,15 @@ function LiveShiftScreen({
           <ul className="stack-3">
             {newestFirst.map((event) => {
               const snapshot = bornSnapshot(event)
-              const openedBy = event.last_saved?.full_name
-              const mayDelete = canDeleteShiftEvent({
-                canManage,
-                phase,
-                empty: isShiftBornEventEmpty(snapshot),
-                done: event.status === 'done',
-              })
+              const isEmpty = isShiftBornEventEmpty(snapshot)
+              const mayDelete =
+                isEmpty &&
+                canDeleteShiftEvent({
+                  canManage,
+                  phase,
+                  empty: isEmpty,
+                  done: event.status === 'done',
+                })
               return (
                 <li key={event.id}>
                   <button
@@ -170,7 +173,6 @@ function LiveShiftScreen({
                       {policeEventLabel(event.police_event_id)}
                       {event.location ? ` · ${event.location}` : ''}
                       {event.created_at ? ` · נפתח ב-${israelTime(event.created_at)}` : ''}
-                      {openedBy ? ` · ${openedBy}` : ''}
                     </span>
                   </button>
                   {mayDelete ? (
@@ -276,7 +278,8 @@ export function ShiftDetailPage({
     )
   }
 
-  if (state === 'loading' || !shift) {
+  const showingAnotherShift = shift !== null && shift.id !== shiftId
+  if (!shift || showingAnotherShift) {
     return (
       <div>
         {backButton}
@@ -317,7 +320,7 @@ export function ShiftDetailPage({
   const savedLabel = lastSavedByLabel(shift.last_saved?.full_name)
 
   const phase = shiftWindowPhase(shift, new Date())
-  const isLive = phase !== 'legacy'
+  const isLive = crewCanEdit(phase)
   const canCreateEvent = canManage || isAdmin || (viewerAssigned && crewCanEdit(phase))
 
   async function confirmDeleteShiftEvent() {

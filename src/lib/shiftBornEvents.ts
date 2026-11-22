@@ -24,6 +24,7 @@ export type ShiftBornEventSnapshot = {
   treatment_notes: string | null
   road_id?: string | null
   location?: string | null
+  emergency_means?: boolean
   treated_count: number
 }
 
@@ -38,6 +39,7 @@ export function isShiftBornEventEmpty(event: ShiftBornEventSnapshot): boolean {
     blank(event.treatment_notes) &&
     blank(event.road_id) &&
     blank(event.location) &&
+    !event.emergency_means &&
     event.treated_count <= 0
   )
 }
@@ -109,7 +111,7 @@ export function shiftBornFillAccess(input: {
   return { readOnly: false, note: null }
 }
 
-/** The 'פתיחה מחדש' action: a done event, for a lead or admin, or crew inside the window. */
+/** The 'פתיחה מחדש' action: a done event on a shift with hours, for a lead or admin, or crew inside the window. */
 export function canReopenShiftBornEvent(input: {
   canManage: boolean
   onCrew: boolean
@@ -117,6 +119,7 @@ export function canReopenShiftBornEvent(input: {
   done: boolean
 }): boolean {
   if (!input.done) return false
+  if (input.phase === 'legacy') return false
   if (input.canManage) return true
   return input.onCrew && crewCanEdit(input.phase)
 }

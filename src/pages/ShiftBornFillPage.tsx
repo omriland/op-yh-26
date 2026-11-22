@@ -459,7 +459,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     setSaving(true)
     const ok = await persist(false, true)
     setSaving(false)
-    if (ok) show('הדיווח נפתח מחדש', 'done')
+    if (!ok) return
+    setCtx((current) =>
+      current ? { ...current, event: { ...current.event, status: 'in_progress' } } : current,
+    )
+    show('הדיווח נפתח מחדש', 'done')
   }
 
   async function onComplete() {

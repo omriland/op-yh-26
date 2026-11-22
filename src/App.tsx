@@ -101,7 +101,7 @@ import {
 import { isOAuthAuthorizePath, parseOAuthAuthorizeRequest } from './lib/partnerOAuth'
 import { OAuthAuthorizePage } from './pages/OAuthAuthorizePage'
 import { OnShiftBar } from './components/shifts/OnShiftBar'
-import { shouldOpenShiftScreen, showBar, useCurrentShift } from './lib/currentShift'
+import { shouldOpenShiftScreen, showBar, useCurrentShift, useMinuteClock } from './lib/currentShift'
 import { shiftWindowPhase } from './lib/shiftWindow'
 
 function readWindowBoot() {
@@ -609,9 +609,11 @@ function Gate() {
 
   usePresenceHeartbeat(Boolean(session && !passwordSetupReason && loginOtp.state === 'ok'))
   const signedIn = Boolean(session && !passwordSetupReason && loginOtp.state === 'ok')
-  const { shift: currentShift, reload: reloadCurrentShift } = useCurrentShift()
+  const currentShift = useCurrentShift(signedIn)
+  const clockNow = useMinuteClock()
   const shiftScreenOpenedRef = useRef(false)
-  const currentShiftPhase = currentShift ? shiftWindowPhase(currentShift, new Date()) : 'legacy'
+  const bootedOnRoute = useRef(boot.view !== null).current
+  const currentShiftPhase = currentShift ? shiftWindowPhase(currentShift, clockNow) : 'legacy'
 
   function openCurrentShiftScreen() {
     if (!currentShift) return
@@ -622,14 +624,15 @@ function Gate() {
   }
 
   useEffect(() => {
-    if (signedIn) reloadCurrentShift()
-  }, [signedIn, reloadCurrentShift])
+    if (!signedIn) shiftScreenOpenedRef.current = false
+  }, [signedIn])
 
   useEffect(() => {
     if (!signedIn || !currentShift) return
     const alreadyOpened = shiftScreenOpenedRef.current
     if (!shouldOpenShiftScreen({ phase: currentShiftPhase, alreadyOpened })) return
     shiftScreenOpenedRef.current = true
+    if (bootedOnRoute) return
     openCurrentShiftScreen()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedIn, currentShift, currentShiftPhase])
@@ -1115,7 +1118,7 @@ function Gate() {
           <OnShiftBar
             shift={currentShift}
             phase={currentShiftPhase}
-            now={new Date()}
+            now={clockNow}
             onOpenShift={openCurrentShiftScreen}
           />
         ) : null

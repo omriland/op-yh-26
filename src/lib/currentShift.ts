@@ -14,7 +14,8 @@ export type CurrentShift = {
 
 export const NEW_EVENT_PRIMARY_TYPES = ['תאונה', 'תקוע', 'נטוש', 'הפוך'] as const
 
-const HOUR_MS = 60 * 60 * 1000
+const MINUTE_MS = 60 * 1000
+const HOUR_MS = 60 * MINUTE_MS
 
 const END_TIME_FORMAT = new Intl.DateTimeFormat('he-IL', {
   timeZone: 'Asia/Jerusalem',
@@ -84,8 +85,11 @@ async function fetchCurrentShift(): Promise<CurrentShift | null> {
   return rows[0] ?? null
 }
 
-/** Loads the caller's live shift once, then again each time the window regains focus. */
-export function useCurrentShift(): { shift: CurrentShift | null; reload: () => void } {
+/**
+ * Loads the signed-in caller's live shift, then again each time the window regains
+ * focus. Signing out clears it, so the next account never sees this one's shift.
+ */
+export function useCurrentShift(signedIn: boolean): CurrentShift | null {
   const [shift, setShift] = useState<CurrentShift | null>(null)
 
   const reload = useCallback(() => {
@@ -97,10 +101,26 @@ export function useCurrentShift(): { shift: CurrentShift | null; reload: () => v
   }, [])
 
   useEffect(() => {
+    if (!signedIn) {
+      setShift(null)
+      return
+    }
     reload()
     window.addEventListener('focus', reload)
     return () => window.removeEventListener('focus', reload)
-  }, [reload])
+  }, [signedIn, reload])
 
-  return { shift, reload }
+  return shift
+}
+
+/** The current time, refreshed every minute so the bar and its phase stay true. */
+export function useMinuteClock(): Date {
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), MINUTE_MS)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  return now
 }
