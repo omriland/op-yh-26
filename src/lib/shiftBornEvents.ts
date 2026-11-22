@@ -88,8 +88,9 @@ export function shiftBornBeforeShiftDate(
 /**
  * Who gets the shared report as an editor. Mirrors save_shift_born_event_fill for
  * shifts without hours only: a lead or admin always, a crew member from the shift
- * date until the report is complete. Shifts with hours follow shiftWindowPhase
- * instead, where crew may also edit and reopen a done event until the window closes.
+ * date until the report is complete. On a shift with hours the server follows the
+ * crew window instead (crew may also reopen a done event, but not before starts_at);
+ * this function does not apply that window yet.
  */
 export function shiftBornFillAccess(input: {
   canManage: boolean
