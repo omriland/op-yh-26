@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronRight, FileWarning } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { jerusalemToday } from '../lib/shifts'
+import { shiftWindowPhase, type ShiftPhase } from '../lib/shiftWindow'
 import {
   fetchShiftBornFillContext,
   resolveShiftBornStash,
@@ -16,6 +17,7 @@ import {
 import {
   lastSavedByLabel,
   SHIFT_BORN_CHIP,
+  canReopenShiftBornEvent,
   shiftBornBeforeShiftDate,
   shiftBornFillAccess,
 } from '../lib/shiftBornEvents'
@@ -66,6 +68,15 @@ import {
 import { shouldKeepLiveFormBoot } from '../lib/formDraftSurvival'
 
 const SHIFT_BORN_STASH_SCOPE = 'shiftBorn'
+
+function eventShiftPhase(
+  shift: { starts_at?: string | null; ends_at?: string | null } | null,
+): ShiftPhase {
+  return shiftWindowPhase(
+    { starts_at: shift?.starts_at ?? null, ends_at: shift?.ends_at ?? null },
+    new Date(),
+  )
+}
 const SHIFT_BORN_STASH_DEBOUNCE_MS = 600
 
 type ShiftBornFillPageProps = {
@@ -167,6 +178,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           onCrew: Boolean(user && next.event.responders.some((row) => row.responder_id === user.id)),
           beforeShiftDate: shiftBornBeforeShiftDate(next.event, jerusalemToday()),
           done: next.event.status === 'done',
+          phase: eventShiftPhase(next.event.shift),
         }).readOnly
         const resolved = resolveShiftBornStash(next, nextReadOnly ? null : (stashed?.draft ?? null))
         setDraft(resolved.draft)
@@ -198,6 +210,13 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     canManage,
     onCrew: assigned,
     beforeShiftDate,
+    done: ctx?.event.status === 'done',
+    phase: ctx ? eventShiftPhase(ctx.event.shift) : undefined,
+  })
+  const canReopen = Boolean(ctx) && canReopenShiftBornEvent({
+    canManage,
+    onCrew: assigned,
+    phase: ctx ? eventShiftPhase(ctx.event.shift) : 'legacy',
     done: ctx?.event.status === 'done',
   })
   const canWriteMedia = assigned && !ctx?.event.is_cancelled && !beforeShiftDate
@@ -388,13 +407,14 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     })
   }
 
-  async function persist(complete: boolean) {
+  async function persist(complete: boolean, reopen = false) {
     if (!draft || !expectedAt) return
     const result = await saveShiftBornEventFill({
       eventId,
       expectedUpdatedAt: expectedAt,
       draft,
       complete,
+      reopen,
     })
     if (!result.ok) {
       show(result.error, 'alert')
@@ -433,6 +453,13 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     const ok = await persist(false)
     setSaving(false)
     if (ok) show('הטיוטה נשמרה', 'done')
+  }
+
+  async function onReopen() {
+    setSaving(true)
+    const ok = await persist(false, true)
+    setSaving(false)
+    if (ok) show('הדיווח נפתח מחדש', 'done')
   }
 
   async function onComplete() {
@@ -674,6 +701,17 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
               >
                 שמירת טיוטה
               </Button>
+              {canReopen ? (
+                <Button
+                  variant="secondary"
+                  loading={saving}
+                  loadingLabel="שומר…"
+                  disabled={completing}
+                  onClick={() => void onReopen()}
+                >
+                  פתיחה מחדש
+                </Button>
+              ) : null}
             </div>
           </FormStickyFooter>
         )}

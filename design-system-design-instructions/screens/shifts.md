@@ -33,3 +33,11 @@ The shift log. One odometer pair per shift; the events born from it (`origin = '
 ## States
 
 - Load failure: `טעינת המשמרת נכשלה. בדקו את החיבור ונסו שוב.` (form and shift detail). Permission empty states are only for real permission answers.
+
+## Live shift screen, new-event sheet and on-shift bar
+
+- A shift with hours is a live shift. Its screen lists the shift events and offers `אירוע חדש`. Crew edit events while the shift window is open and for 48 hours after it ends; after that only the shift lead and admins edit. Reopening a done event is offered to crew only inside the window.
+- `אירוע חדש` opens a sheet titled `איזה אירוע?` with four large tiles in this order: `תאונה` · `תקוע` · `נטוש` · `הפוך`. Under `סוגים נוספים` the other types follow in the lookup order. The caption `לחיצה פותחת את האירוע ואת הדיווח. פתחת אירוע בטעות? ניתן למחוק אותו כל עוד לא הוזנו בו נתונים` is always shown. Picking a type creates the event and opens its report. A failure shows its message in the sheet.
+- Crew may delete a shift event only while the window is open, the event is empty and not done. The shift lead and admins may always delete.
+- The on-shift bar sits under the app bar on every page, in the Field theme, with a `למשמרת` button. While the shift runs it reads `במשמרת <שם משמרת> עכשיו · עד HH:MM`. After the end it reads `המשמרת הסתיימה, אפשר להשלים תיעוד · עוד N שעות`, N rounded up. Times are mono. The bar is hidden on that shift's own screen, before the shift starts, once it closes, and on legacy shifts.
+- The first load of the session opens the shift screen on its own only while the shift is running, never in the finishing period, never on later navigation, never for legacy shifts.

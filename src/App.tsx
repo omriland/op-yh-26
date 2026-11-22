@@ -100,6 +100,9 @@ import {
 } from './lib/appRoute'
 import { isOAuthAuthorizePath, parseOAuthAuthorizeRequest } from './lib/partnerOAuth'
 import { OAuthAuthorizePage } from './pages/OAuthAuthorizePage'
+import { OnShiftBar } from './components/shifts/OnShiftBar'
+import { shouldOpenShiftScreen, showBar, useCurrentShift } from './lib/currentShift'
+import { shiftWindowPhase } from './lib/shiftWindow'
 
 function readWindowBoot() {
   if (typeof window === 'undefined') {
@@ -605,6 +608,32 @@ function Gate() {
   }, [session, passwordSetupReason, user?.id, profile?.otp_login_enabled])
 
   usePresenceHeartbeat(Boolean(session && !passwordSetupReason && loginOtp.state === 'ok'))
+  const signedIn = Boolean(session && !passwordSetupReason && loginOtp.state === 'ok')
+  const { shift: currentShift, reload: reloadCurrentShift } = useCurrentShift()
+  const shiftScreenOpenedRef = useRef(false)
+  const currentShiftPhase = currentShift ? shiftWindowPhase(currentShift, new Date()) : 'legacy'
+
+  function openCurrentShiftScreen() {
+    if (!currentShift) return
+    setLegalPage(null)
+    setEventSurface({ kind: 'list' })
+    setShiftSurface({ kind: 'detail', shiftId: currentShift.id })
+    setView(manages ? 'shifts' : 'my_shifts')
+  }
+
+  useEffect(() => {
+    if (signedIn) reloadCurrentShift()
+  }, [signedIn, reloadCurrentShift])
+
+  useEffect(() => {
+    if (!signedIn || !currentShift) return
+    const alreadyOpened = shiftScreenOpenedRef.current
+    if (!shouldOpenShiftScreen({ phase: currentShiftPhase, alreadyOpened })) return
+    shiftScreenOpenedRef.current = true
+    openCurrentShiftScreen()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signedIn, currentShift, currentShiftPhase])
+
   const prelaunch = usePrelaunchGate(
     session && !passwordSetupReason ? (user?.id ?? null) : null,
     roles,
@@ -1074,6 +1103,23 @@ function Gate() {
       onCreateEvent={manages ? openNewEventForm : undefined}
       creatingEvent={isSidebarCreateEventCurrent(eventSurface)}
       feedbackPagePath={analyticsPath}
+      topNotice={
+        currentShift &&
+        showBar({
+          phase: currentShiftPhase,
+          onShiftScreenOfThisShift:
+            onShifts &&
+            shiftSurface.kind === 'detail' &&
+            shiftSurface.shiftId === currentShift.id,
+        }) ? (
+          <OnShiftBar
+            shift={currentShift}
+            phase={currentShiftPhase}
+            now={new Date()}
+            onOpenShift={openCurrentShiftScreen}
+          />
+        ) : null
+      }
     >
       {legalPage === 'privacy' ? (
         <PrivacyPolicyPage onBack={closeLegalPage} />

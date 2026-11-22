@@ -51,6 +51,7 @@ export type ShiftBornEventSummary = {
   id: string
   event_type_id?: string | null
   event_date: string
+  created_at?: string
   police_event_id: string | null
   status: EventStatus
   treatment_detail: string | null
@@ -358,6 +359,7 @@ const SHIFT_DETAIL_SELECT = `
     id,
     event_type_id,
     event_date,
+    created_at,
     police_event_id,
     status,
     treatment_detail,

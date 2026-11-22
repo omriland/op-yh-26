@@ -132,6 +132,8 @@ type AppShellProps = {
   creatingEvent?: boolean
   /** Current virtual path, attached to submitted feedback. */
   feedbackPagePath?: string | null
+  /** Notice shown under the app bar on every page, such as the on-shift bar. */
+  topNotice?: ReactNode
   children: ReactNode
 }
 
@@ -148,6 +150,7 @@ export function AppShell({
   onCreateEvent,
   creatingEvent = false,
   feedbackPagePath = null,
+  topNotice = null,
   children,
 }: AppShellProps) {
   const isDesktop = useIsDesktop()
@@ -165,6 +168,7 @@ export function AppShell({
       )}
       <ImpersonationBar onRestored={onHome} />
       <RolePreviewBar onRestored={onHome} />
+      {topNotice}
       <CobrowseSupport />
       <UpdateAvailableNotice />
       <div className="shell__body">
