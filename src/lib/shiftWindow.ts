@@ -20,6 +20,11 @@ export function shiftWindowPhase(
   return 'closed'
 }
 
+/**
+ * Whether the crew window of a shift with hours is open. 'legacy' shifts have no
+ * window and keep the old date rules, so they answer false here and must not be
+ * made read-only because of it.
+ */
 export function crewCanEdit(phase: ShiftPhase): boolean {
   return phase === 'active' || phase === 'finishing'
 }

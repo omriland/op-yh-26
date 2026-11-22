@@ -16,6 +16,40 @@ alter table public.shifts
   add constraint shifts_live_hours_in_order
     check (ends_at is null or ends_at > starts_at);
 
+-- 1b. Only leads and admins may move a shift's hours. Crew can update their shift row,
+--     so without this they could stretch or remove their own window. Body otherwise
+--     identical to 20261103180000_account_deletion.sql.
+create or replace function public.enforce_shift_identity_edit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if current_setting('yahpaz.deleting_account', true) = '1' then
+    return new;
+  end if;
+
+  if public.has_role(auth.uid(), 'admin')
+     or public.has_role(auth.uid(), 'shift_lead') then
+    return new;
+  end if;
+
+  if new.shift_date is distinct from old.shift_date
+     or new.shift_kind is distinct from old.shift_kind
+     or new.vehicle_type is distinct from old.vehicle_type
+     or new.personal_vehicle_id is distinct from old.personal_vehicle_id
+     or new.starts_at is distinct from old.starts_at
+     or new.ends_at is distinct from old.ends_at then
+    raise exception 'אין הרשאה לשנות פרטי משמרת';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.enforce_shift_identity_edit() from public;
+
 -- 2. The crew window.
 create or replace function public.shift_open_for_crew(p_shift_id uuid)
 returns boolean
@@ -72,6 +106,7 @@ declare
   v_other_shift_id uuid;
 begin
   if tg_table_name = 'shift_responders' then
+    perform pg_advisory_xact_lock(hashtextextended(new.responder_id::text, 0));
     v_other_shift_id := public.find_overlapping_live_shift(new.shift_id, new.responder_id);
     if v_other_shift_id is not null then
       raise exception 'SHIFT_OVERLAP:%', v_other_shift_id;
@@ -82,6 +117,7 @@ begin
   for v_responder_id in
     select sr.responder_id from public.shift_responders sr where sr.shift_id = new.id
   loop
+    perform pg_advisory_xact_lock(hashtextextended(v_responder_id::text, 0));
     v_other_shift_id := public.find_overlapping_live_shift(new.id, v_responder_id);
     if v_other_shift_id is not null then
       raise exception 'SHIFT_OVERLAP:%', v_other_shift_id;
@@ -127,7 +163,8 @@ begin
   end if;
 
   if not (
-    public.has_role(auth.uid(), 'admin')
+    public.has_role(auth.uid(), 'super_admin')
+    or public.has_role(auth.uid(), 'admin')
     or public.has_role(auth.uid(), 'shift_lead')
   ) then
     if not public.is_assigned_to_shift(p_shift_id) then
@@ -142,6 +179,11 @@ begin
     raise exception 'המשמרת אינה משמרת חיה.';
   end if;
 
+  if p_event_type_id is null
+     or not exists (select 1 from public.event_types et where et.id = p_event_type_id) then
+    raise exception 'סוג האירוע אינו קיים.';
+  end if;
+
   insert into public.events (
     shift_lead_id,
     event_date,
@@ -154,7 +196,7 @@ begin
   )
   values (
     v_shift.shift_lead_id,
-    (timezone('Asia/Jerusalem', now()))::date,
+    v_shift.shift_date,
     p_event_type_id,
     'in_progress',
     'shift',
@@ -189,7 +231,7 @@ begin
     raise exception 'אין הרשאה';
   end if;
 
-  select * into v_event from public.events where id = p_event_id;
+  select * into v_event from public.events where id = p_event_id for update;
   if not found then
     raise exception 'האירוע אינו קיים.';
   end if;
@@ -214,9 +256,10 @@ begin
     if not public.shift_open_for_crew(v_shift.id) then
       raise exception 'חלון התיעוד של המשמרת נסגר.';
     end if;
-    if not public.shift_born_event_is_empty(p_event_id) then
-      raise exception 'ניתן למחוק רק אירוע שעדיין לא הוזנו בו נתונים.';
-    end if;
+  end if;
+
+  if not public.shift_born_event_is_empty(p_event_id) then
+    raise exception 'ניתן למחוק רק אירוע שעדיין לא הוזנו בו נתונים.';
   end if;
 
   delete from public.events where id = p_event_id;
@@ -251,7 +294,7 @@ begin
     and s.starts_at is not null
     and now() >= s.starts_at
     and now() < s.ends_at + interval '48 hours'
-  order by s.starts_at
+  order by (now() >= s.ends_at), s.starts_at desc
   limit 1;
 end;
 $$;
@@ -295,6 +338,15 @@ begin
     public.has_role(auth.uid(), 'admin')
     or public.has_role(auth.uid(), 'shift_lead');
 
+  select s.starts_at is not null into v_shift_is_live
+  from public.shifts s
+  where s.id = v_event.shift_id;
+  v_shift_is_live := coalesce(v_shift_is_live, false);
+
+  if v_shift_is_live then
+    v_reopen := v_event.status = 'done' and not p_complete;
+  end if;
+
   if not v_is_lead then
     if not exists (
       select 1
@@ -303,15 +355,11 @@ begin
     ) then
       raise exception 'אין הרשאה';
     end if;
-    select s.starts_at is not null into v_shift_is_live
-    from public.shifts s
-    where s.id = v_event.shift_id;
 
-    if coalesce(v_shift_is_live, false) then
+    if v_shift_is_live then
       if not public.shift_open_for_crew(v_event.shift_id) then
         raise exception 'חלון התיעוד של המשמרת נסגר.';
       end if;
-      v_reopen := v_event.status = 'done' and not p_complete;
     else
       if exists (
         select 1
@@ -411,9 +459,8 @@ begin
 end;
 $$;
 
--- 5. Crew sync: someone added after an event is done joins it as done (the shared
-
--- 8. sync_shift_born_events: a live shift has no counts to follow.
+-- 8. sync_shift_born_events: on a live shift it only syncs the crew onto the events.
+--    Events there are created by create_shift_event, so counts are not followed.
 create or replace function public.sync_shift_born_events(p_shift_id uuid)
 returns void
 language plpgsql
@@ -449,6 +496,9 @@ begin
     if v_shift.starts_at is null
        and v_shift.shift_date > (timezone('Asia/Jerusalem', now()))::date then
       raise exception 'ניתן לעדכן את המשמרת החל מתאריך המשמרת.';
+    end if;
+    if v_shift.starts_at is not null and not public.shift_open_for_crew(p_shift_id) then
+      raise exception 'חלון התיעוד של המשמרת נסגר.';
     end if;
   end if;
 
@@ -543,20 +593,18 @@ begin
 end;
 $$;
 
--- 6. Deleting a shift-born event lowers its type count, so the next shift save
-
 -- 9. refresh_shift_log_status needs no change: a live shift that has not started and
 --    has nothing logged already resolves to 'in_progress'. The web derives "planned"
 --    from the hours; no enum value is added.
 
--- 10. Grants.
-revoke all on function public.shift_open_for_crew(uuid) from public;
-revoke all on function public.find_overlapping_live_shift(uuid, uuid) from public;
-revoke all on function public.create_shift_event(uuid, uuid) from public;
-revoke all on function public.delete_empty_shift_event(uuid) from public;
-revoke all on function public.my_current_shift() from public;
+-- 10. Grants. New public functions are executable by anon through default ACLs, so
+--     anon is revoked explicitly. find_overlapping_live_shift is for the trigger only.
+revoke all on function public.shift_open_for_crew(uuid) from public, anon;
+revoke all on function public.find_overlapping_live_shift(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.create_shift_event(uuid, uuid) from public, anon;
+revoke all on function public.delete_empty_shift_event(uuid) from public, anon;
+revoke all on function public.my_current_shift() from public, anon;
 grant execute on function public.shift_open_for_crew(uuid) to authenticated;
-grant execute on function public.find_overlapping_live_shift(uuid, uuid) to authenticated;
 grant execute on function public.create_shift_event(uuid, uuid) to authenticated;
 grant execute on function public.delete_empty_shift_event(uuid) to authenticated;
 grant execute on function public.my_current_shift() to authenticated;
