@@ -285,7 +285,10 @@ async function syncShiftResponders(
   const existingResponderIds = new Set(
     (existing ?? []).map((row) => row.responder_id as string),
   )
-  const toAdd = responderIds.filter((responderId) => !existingResponderIds.has(responderId))
+  // Sorted so the database locks responders in the same order on every insert.
+  const toAdd = responderIds
+    .filter((responderId) => !existingResponderIds.has(responderId))
+    .sort()
 
   if (toAdd.length > 0) {
     const { error } = await supabase.from('shift_responders').insert(

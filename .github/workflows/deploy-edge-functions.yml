@@ -43,6 +43,7 @@ on:
       - "supabase/migrations/20261106160000_super_admin_reopen_log_and_shift_event_type.sql"
       - "supabase/migrations/20261109120000_feedback_card_title.sql"
       - "supabase/migrations/20261113120000_unit_event_ids.sql"
+      - "supabase/migrations/20261122120000_shift_live_events.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -203,6 +204,12 @@ jobs:
           # אירוע יחידתי: unit ID ledger, issue RPC and claim trigger on events.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261113120000_unit_event_ids.sql
+          # Live shifts. Must stay after the shift-born hardening and account-deletion
+          # replays above: it re-creates enforce_shift_identity_edit,
+          # sync_shift_born_events and save_shift_born_event_fill (dropping the
+          # old 11-argument overload). Replaying those files later would undo it.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261122120000_shift_live_events.sql
       - name: Deploy functions
         if: steps.creds.outputs.present == 'true'
         env:

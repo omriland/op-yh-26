@@ -91,6 +91,7 @@ the scripts).
 | delete_event | Lead/admin/super admin only; a responder always gets an error |
 | revoke_user_sessions | Refuses any signed-in caller (service only) |
 | clear_must_change_password, report_android_session, touch_last_active, set_default_vehicle | Caller's own row (vehicle: own or admin) |
+| create_shift_event, delete_empty_shift_event, my_current_shift, shift_open_for_crew | Need the caller's own assignment (or lead/admin of the shift); anon revoked. A demo caller can only reach demo shifts through the link guard |
 | apply_event_status_from_participations, save_shift_born_event_fill, sync_shift_born_events, can_edit_shift_as_assigned, is_assigned_to_event, is_assigned_to_shift | Need the caller's own assignment; the link guard keeps demo assignments on demo rows |
 | derived_event_status, event_missing_lead_km, shift_born_event_is_empty, has_role, profile_is_active, super_admin_row_locked, is_event_edit_unlocked, is_event_id_edit_unlocked, is_event_responder_edit_unlocked, refresh_shift_log_status | Take an id, return a boolean or status (or recompute a shift's own status). No row data, and the demo account cannot read any real UUID |
 | ios_budget_used, apply_due_availability | Aggregate count / housekeeping, no personal data |

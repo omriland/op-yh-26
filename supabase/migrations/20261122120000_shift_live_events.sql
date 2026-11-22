@@ -16,9 +16,27 @@ alter table public.shifts
   add constraint shifts_live_hours_in_order
     check (ends_at is null or ends_at > starts_at);
 
+-- 1a. Admins, super admins and any shift lead are not limited by the crew window,
+--     the same as today's fill rule (any lead may edit any shift).
+create or replace function public.is_shift_unrestricted_user()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.has_role(auth.uid(), 'admin')
+    or public.has_role(auth.uid(), 'super_admin')
+    or public.has_role(auth.uid(), 'shift_lead');
+$$;
+
 -- 1b. Only leads and admins may move a shift's hours. Crew can update their shift row,
 --     so without this they could stretch or remove their own window. Body otherwise
 --     identical to 20261103180000_account_deletion.sql.
+--     Hours cannot be removed by anyone once set. With no signed-in user they can only
+--     be changed inside the account-deletion bypass above the checks. A shift that was
+--     converted to a live shift by mistake therefore needs a deliberate fix: a
+--     migration or a manual statement that sets the yahpaz.deleting_account bypass.
 create or replace function public.enforce_shift_identity_edit()
 returns trigger
 language plpgsql
@@ -35,8 +53,7 @@ begin
     raise exception 'לא ניתן להסיר את שעות המשמרת.';
   end if;
 
-  if public.has_role(auth.uid(), 'admin')
-     or public.has_role(auth.uid(), 'shift_lead') then
+  if public.is_shift_unrestricted_user() then
     return new;
   end if;
 
@@ -165,21 +182,8 @@ after update of starts_at, ends_at on public.shifts
 for each row
 execute function public.guard_shift_crew_overlap();
 
--- 3b. Who may manage a live shift's events outside the crew window: admins, and the
---     shift lead of that shift. The same rule gates create and delete.
-create or replace function public.is_live_shift_event_manager(p_shift_lead_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select public.has_role(auth.uid(), 'admin')
-    or (
-      public.has_role(auth.uid(), 'shift_lead')
-      and p_shift_lead_id = auth.uid()
-    );
-$$;
+-- 3b. The first version of the unrestricted check took the shift lead id. It is gone.
+drop function if exists public.is_live_shift_event_manager(uuid);
 
 -- 4. Create an event on a live shift.
 create or replace function public.create_shift_event(
@@ -204,7 +208,7 @@ begin
     raise exception 'אין הרשאה';
   end if;
 
-  if not public.is_live_shift_event_manager(v_shift.shift_lead_id) then
+  if not public.is_shift_unrestricted_user() then
     if not public.is_assigned_to_shift(p_shift_id) then
       raise exception 'אין הרשאה';
     end if;
@@ -278,13 +282,17 @@ begin
     raise exception 'המשמרת אינה משמרת חיה.';
   end if;
 
-  if not public.is_live_shift_event_manager(v_shift.shift_lead_id) then
+  if not public.is_shift_unrestricted_user() then
     if not public.is_assigned_to_shift(v_shift.id) then
       raise exception 'אין הרשאה';
     end if;
     if not public.shift_open_for_crew(v_shift.id) then
       perform public.raise_crew_window_closed(v_shift.id);
     end if;
+  end if;
+
+  if v_event.status = 'done' and not public.is_shift_unrestricted_user() then
+    raise exception 'לא ניתן למחוק אירוע שהושלם.';
   end if;
 
   if not public.shift_born_event_is_empty(p_event_id) then
@@ -365,14 +373,16 @@ declare
   v_shift_is_live boolean;
   v_reopen boolean;
 begin
+  if auth.uid() is null then
+    raise exception 'אין הרשאה';
+  end if;
+
   select * into v_event from public.events where id = p_event_id;
   if not found or v_event.origin is distinct from 'shift' then
     raise exception 'אין הרשאה';
   end if;
 
-  v_is_lead :=
-    public.has_role(auth.uid(), 'admin')
-    or public.has_role(auth.uid(), 'shift_lead');
+  v_is_lead := public.is_shift_unrestricted_user();
 
   select s.starts_at is not null into v_shift_is_live
   from public.shifts s
@@ -383,10 +393,6 @@ begin
     and p_reopen
     and not p_complete
     and v_event.status = 'done';
-
-  if p_reopen and not v_reopen then
-    raise exception 'לא ניתן לפתוח מחדש את האירוע.';
-  end if;
 
   if not v_is_lead then
     if not exists (
@@ -414,6 +420,10 @@ begin
         raise exception 'התיעוד כבר הושלם. רק אחמ״ש יכול לערוך.';
       end if;
     end if;
+  end if;
+
+  if p_reopen and not v_reopen then
+    raise exception 'לא ניתן לפתוח מחדש את האירוע.';
   end if;
 
   v_place_kept :=
@@ -526,9 +536,7 @@ begin
     raise exception 'אין הרשאה';
   end if;
 
-  v_is_lead :=
-    public.has_role(auth.uid(), 'admin')
-    or public.has_role(auth.uid(), 'shift_lead');
+  v_is_lead := public.is_shift_unrestricted_user();
 
   if not v_is_lead then
     if not public.is_assigned_to_shift(p_shift_id) then
@@ -593,6 +601,7 @@ begin
 
         if public.has_role(auth.uid(), 'shift_lead')
            and not public.has_role(auth.uid(), 'admin')
+           and not public.has_role(auth.uid(), 'super_admin')
            and v_shift.shift_lead_id is distinct from auth.uid() then
           raise exception 'אין הרשאה למחוק אירוע שנוצר על ידי אחמ״ש אחר.';
         end if;
@@ -639,7 +648,7 @@ $$;
 -- 10. Grants. New public functions are executable by anon through default ACLs, so
 --     anon is revoked explicitly. find_overlapping_live_shift is for the trigger only.
 revoke all on function public.shift_open_for_crew(uuid) from public, anon;
-revoke all on function public.is_live_shift_event_manager(uuid) from public, anon, authenticated;
+revoke all on function public.is_shift_unrestricted_user() from public, anon, authenticated;
 revoke all on function public.find_overlapping_live_shift(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.create_shift_event(uuid, uuid) from public, anon;
 revoke all on function public.delete_empty_shift_event(uuid) from public, anon;
@@ -655,3 +664,91 @@ revoke all on function public.save_shift_born_event_fill(
 grant execute on function public.save_shift_born_event_fill(
   uuid, timestamp with time zone, text, text, boolean, text, jsonb, boolean, uuid, text, jsonb, boolean
 ) to authenticated;
+
+-- 11. Direct writes follow the window too. For an event on a live shift, a non-lead
+--     crew member may write only while the window is open. Legacy shifts, events
+--     without a shift, leads and admins are unchanged. Everything else in each
+--     policy is identical to the definitions in 20260818110000 and 20260819120000.
+create or replace function public.crew_may_write_event(p_event_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select public.is_shift_unrestricted_user()
+    or not exists (
+      select 1
+      from public.events e
+      join public.shifts s on s.id = e.shift_id
+      where e.id = p_event_id and s.starts_at is not null
+    )
+    or exists (
+      select 1
+      from public.events e
+      where e.id = p_event_id and public.shift_open_for_crew(e.shift_id)
+    );
+$$;
+
+revoke all on function public.crew_may_write_event(uuid) from public, anon;
+grant execute on function public.crew_may_write_event(uuid) to authenticated;
+
+drop policy if exists treated_plates_event_write on public.event_treated_plates;
+create policy treated_plates_event_write on public.event_treated_plates
+for all to authenticated
+using (
+  event_id is not null
+  and exists (
+    select 1
+    from public.events e
+    where e.id = event_treated_plates.event_id
+      and e.origin = 'shift'
+      and e.status is distinct from 'done'
+      and public.is_assigned_to_event(e.id)
+      and public.crew_may_write_event(e.id)
+  )
+)
+with check (
+  event_id is not null
+  and exists (
+    select 1
+    from public.events e
+    where e.id = event_treated_plates.event_id
+      and e.origin = 'shift'
+      and e.status is distinct from 'done'
+      and public.is_assigned_to_event(e.id)
+      and public.crew_may_write_event(e.id)
+  )
+);
+
+drop policy if exists event_media_insert on public.event_media;
+create policy event_media_insert on public.event_media
+for insert to authenticated
+with check (
+  uploaded_by = auth.uid()
+  and public.is_assigned_to_event(event_id)
+  and public.crew_may_write_event(event_id)
+);
+
+drop policy if exists event_media_update on public.event_media;
+create policy event_media_update on public.event_media
+for update to authenticated
+using (
+  uploaded_by = auth.uid()
+  and public.is_assigned_to_event(event_id)
+  and public.crew_may_write_event(event_id)
+)
+with check (
+  uploaded_by = auth.uid()
+  and public.is_assigned_to_event(event_id)
+  and public.crew_may_write_event(event_id)
+);
+
+drop policy if exists event_media_delete on public.event_media;
+create policy event_media_delete on public.event_media
+for delete to authenticated
+using (
+  uploaded_by = auth.uid()
+  and public.is_assigned_to_event(event_id)
+  and public.crew_may_write_event(event_id)
+);
