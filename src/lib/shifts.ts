@@ -31,6 +31,12 @@ export const SHIFT_KIND_OPTIONS: { value: ShiftKind; label: string }[] = [
   { value: 'other', label: SHIFT_KIND_LABELS.other },
 ]
 
+export function defaultShiftHours(kind: ShiftKind): { start: string; end: string } | null {
+  if (kind === 'morning') return { start: '07:00', end: '15:00' }
+  if (kind === 'midday') return { start: '15:00', end: '23:00' }
+  return null
+}
+
 export type ShiftResponderSummary = {
   id: string
   responder_id: string
