@@ -3,6 +3,8 @@ import { supabase } from './supabase'
 export type EventsByResponderSource = {
   responder_id: string
   total_km: number | null
+  frozen_over_60km?: boolean
+  frozen_suspicious_duplicate?: boolean
   profile: { full_name: string; callsign: string } | null
 }
 
@@ -86,7 +88,7 @@ export function buildEventsByResponderRows(
   return rows
 }
 
-const EVENTS_BY_RESPONDER_SELECT = `
+export const EVENT_FIELDS_SELECT = `
   id,
   event_date,
   is_cancelled,
@@ -97,12 +99,20 @@ const EVENTS_BY_RESPONDER_SELECT = `
   event_type:event_types(name),
   district:districts(name),
   road:roads(name),
-  shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign),
-  responders:event_responders(
-    responder_id,
-    total_km,
-    profile:profiles(full_name, callsign)
-  )
+  shift_lead:profiles!events_shift_lead_id_fkey(full_name, callsign)
+`
+
+export const RESPONDER_FIELDS_SELECT = `
+  responder_id,
+  total_km,
+  frozen_over_60km,
+  frozen_suspicious_duplicate,
+  profile:profiles(full_name, callsign)
+`
+
+const EVENTS_BY_RESPONDER_SELECT = `
+  ${EVENT_FIELDS_SELECT},
+  responders:event_responders(${RESPONDER_FIELDS_SELECT})
 `
 
 export async function loadEventsByResponderReport(

@@ -43,7 +43,7 @@ begin
       group by er.responder_id
     ),
     shift_part as (
-      select sr.responder_id, count(distinct s.id) as shifts
+      select sr.responder_id, count(distinct s.id) as shifts, max(s.shift_date) as last_date
       from public.shifts s
       join public.shift_responders sr on sr.shift_id = s.id
       where s.shift_date between p_from and p_to
@@ -55,7 +55,7 @@ begin
       coalesce(ep.events, 0),
       coalesce(sp.shifts, 0),
       coalesce(ep.km, 0),
-      ep.last_date
+      greatest(ep.last_date, sp.last_date)
     from event_part ep
     full join shift_part sp on sp.responder_id = ep.responder_id
     join public.profiles p on p.id = coalesce(ep.responder_id, sp.responder_id);
@@ -70,6 +70,8 @@ begin
         where not er.frozen_over_60km and not er.frozen_suspicious_duplicate
       ), 0) as km
     from public.event_responders er
+    join public.events ev on ev.id = er.event_id
+    where ev.event_date between p_from and p_to
     group by er.event_id
   )
   select

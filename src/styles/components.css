@@ -10129,3 +10129,13 @@ fieldset.field {
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+.report-sort-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}

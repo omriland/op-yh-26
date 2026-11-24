@@ -290,6 +290,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
             inputMode="numeric"
             numeric
             min={1}
+            max={365}
             value={daysText}
             error={daysError}
             onChange={(event) => setDaysText(event.target.value)}
@@ -765,7 +766,7 @@ function SortHeaderButton({
     <button
       type="button"
       onClick={() => onSort(column.id)}
-      style={{ all: 'unset', cursor: 'pointer', whiteSpace: 'nowrap' }}
+      className="report-sort-button"
     >
       {column.header}
       {mark}

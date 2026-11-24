@@ -20,7 +20,6 @@ import {
 import {
   DEFAULT_INACTIVE_DAYS,
   NEVER_SIGNED_IN_LABEL,
-  isInactiveForDays,
   isValidInactiveDays,
   lastSeenLabel,
   loadInactiveMembers,
@@ -28,7 +27,6 @@ import {
 import {
   DEFAULT_SUMMARY_GROUP,
   SUMMARY_GROUP_OPTIONS,
-  eventsOfGroup,
   loadActivitySummary,
   sortSummaryTableRows,
   summaryColumns,
@@ -36,6 +34,7 @@ import {
   summaryRowsToTable,
   summaryTotalsFromTable,
 } from './summaryReport'
+import { loadSummaryDetailRows } from './summaryDetail'
 import type { ReportKind, ReportTableRow } from './types'
 
 function person(name: string | null | undefined, callsign: string | null | undefined): string {
@@ -376,8 +375,8 @@ const activitySummary: ReportKind = {
     detailColumns: eventsByResponder.columns,
     async loadDetail(row, group, range) {
       if (!row.summaryRow) return []
-      const events = await loadEventsByResponderReport(range.from, range.to)
-      return eventsOfGroup(events, group, row.summaryRow).map(eventsByResponderTableRow)
+      const events = await loadSummaryDetailRows(range, group, row.summaryRow)
+      return events.map(eventsByResponderTableRow)
     },
   },
   async load(inputs) {
@@ -414,10 +413,7 @@ const inactiveMembers: ReportKind = {
     const days = inputs.days ?? DEFAULT_INACTIVE_DAYS
     if (!isValidInactiveDays(days)) return []
     const members = await loadInactiveMembers(days)
-    const now = new Date()
-    return members
-      .filter((member) => isInactiveForDays(member, days, now))
-      .map((member): ReportTableRow => {
+    return members.map((member): ReportTableRow => {
         const name = person(member.full_name, member.callsign)
         return {
           id: member.user_id,

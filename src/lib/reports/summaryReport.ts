@@ -1,6 +1,5 @@
 import { formatDate, formatNumber } from '../format'
 import { supabase } from '../supabase'
-import type { EventsByResponderRow } from '../eventsByResponderReport'
 import { toCsv } from './csv'
 import type { ReportColumn, ReportTableRow } from './types'
 
@@ -9,7 +8,7 @@ export type SummarySortKey = 'label' | 'events' | 'shifts' | 'km' | 'last_activi
 export type SortDirection = 'asc' | 'desc'
 
 export type SummaryRpcRow = {
-  group_id: string
+  group_id: string | null
   group_label: string
   event_count: number
   shift_count: number
@@ -21,6 +20,7 @@ export type SummaryTotals = { events: number; shifts: number; km: number }
 
 export const DEFAULT_SUMMARY_GROUP: SummaryGroup = 'responder'
 export const SUMMARY_TOTALS_LABEL = 'סה״כ'
+const UNGROUPED_ROW_ID = 'ungrouped'
 
 export const SUMMARY_GROUP_OPTIONS: { value: SummaryGroup; label: string }[] = [
   { value: 'responder', label: 'מתנדב' },
@@ -61,9 +61,13 @@ function summaryValues(row: SummaryRpcRow, group: SummaryGroup): string[] {
   ]
 }
 
+function summaryRowId(row: SummaryRpcRow): string {
+  return row.group_id ?? UNGROUPED_ROW_ID
+}
+
 export function summaryRowsToTable(rows: SummaryRpcRow[], group: SummaryGroup): ReportTableRow[] {
   return rows.map((row) => ({
-    id: row.group_id,
+    id: summaryRowId(row),
     values: summaryValues(row, group),
     searchText: row.group_label,
     summaryRow: row,
@@ -129,40 +133,6 @@ export async function loadActivitySummary(
   return (data ?? []) as SummaryRpcRow[]
 }
 
-function leadLabels(event: EventsByResponderRow): string[] {
-  const name = event.shift_lead_name ?? ''
-  const callsign = event.shift_lead_callsign ?? ''
-  return [name, [callsign, name].filter(Boolean).join(' · ')]
-}
-
-/** Whether an event line belongs to the group a summary row stands for. */
-function eventBelongsToGroup(
-  event: EventsByResponderRow,
-  group: SummaryGroup,
-  summary: SummaryRpcRow,
-): boolean {
-  if (group === 'responder') return event.responder_id === summary.group_id
-  if (group === 'road') return (event.road_name ?? '') === summary.group_label
-  if (group === 'district') return (event.district_name ?? '') === summary.group_label
-  if (group === 'event_type') return (event.event_type_name ?? '') === summary.group_label
-  return leadLabels(event).includes(summary.group_label)
-}
-
-export function eventsOfGroup(
-  events: EventsByResponderRow[],
-  group: SummaryGroup,
-  summary: SummaryRpcRow,
-): EventsByResponderRow[] {
-  const inGroup = events.filter((event) => eventBelongsToGroup(event, group, summary))
-  if (group === 'responder') return inGroup
-  const seen = new Set<string>()
-  return inGroup.filter((event) => {
-    if (seen.has(event.event_id)) return false
-    seen.add(event.event_id)
-    return true
-  })
-}
-
 function summaryRowsOf(rows: ReportTableRow[]): SummaryRpcRow[] {
   return rows.flatMap((row) => (row.summaryRow ? [row.summaryRow] : []))
 }
@@ -175,7 +145,7 @@ export function sortSummaryTableRows(
   const sorted = sortSummaryRows(summaryRowsOf(rows), columnId as SummarySortKey, direction)
   const byId = new Map(rows.map((row) => [row.id, row]))
   return sorted.flatMap((summary) => {
-    const row = byId.get(summary.group_id)
+    const row = byId.get(summaryRowId(summary))
     return row ? [row] : []
   })
 }
