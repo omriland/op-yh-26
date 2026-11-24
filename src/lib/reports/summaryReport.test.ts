@@ -43,25 +43,36 @@ describe('summaryColumns', () => {
     }
   })
 
-  it('always has label, events, km and last activity', () => {
-    expect(summaryColumns('road').map((column) => column.id)).toEqual([
-      'label',
-      'events',
-      'km',
-      'last_activity',
-    ])
+  it('shows km only for volunteers and event types', () => {
+    expect(summaryColumns('road').map((column) => column.id)).toEqual(['label', 'events', 'last_activity'])
+    expect(summaryColumns('district').map((column) => column.id)).not.toContain('km')
+    expect(summaryColumns('shift_lead').map((column) => column.id)).not.toContain('km')
+    expect(summaryColumns('responder').map((column) => column.id)).toContain('km')
+    expect(summaryColumns('event_type').map((column) => column.id)).toContain('km')
+  })
+
+  it('adds a monthly average for shift leads only when the range is longer than two months', () => {
+    const threeMonths = { from: '2026-08-01', to: '2026-10-31' }
+    const twoMonths = { from: '2026-09-01', to: '2026-10-31' }
+    const ids = (group: Parameters<typeof summaryColumns>[0], range: { from: string; to: string }) =>
+      summaryColumns(group, range).map((column) => column.id)
+    expect(ids('shift_lead', threeMonths)).toEqual(['label', 'events', 'monthly_average', 'last_activity'])
+    expect(ids('shift_lead', twoMonths)).not.toContain('monthly_average')
+    expect(ids('responder', threeMonths)).not.toContain('monthly_average')
   })
 })
 
 describe('summaryRowsToTable', () => {
-  it('maps a road row to label, count, km and date', () => {
+  it('maps a road row to label, count and date, without km', () => {
     const [row] = summaryRowsToTable([road1], 'road')
     expect(row.id).toBe('r1')
-    expect(row.values).toHaveLength(4)
-    expect(row.values[0]).toBe('כביש 1')
-    expect(row.values[1]).toBe('9')
-    expect(row.values[2]).toBe('120.5')
-    expect(row.values[3]).toBe('02.11.2026')
+    expect(row.values).toEqual(['כביש 1', '9', '02.11.2026'])
+  })
+
+  it('divides a shift lead\'s events by the months in the range', () => {
+    const lead = { ...road1, event_count: 30 }
+    const [row] = summaryRowsToTable([lead], 'shift_lead', { from: '2026-08-01', to: '2026-10-31' })
+    expect(row.values[2]).toBe('10')
   })
 
   it.each([
@@ -78,7 +89,9 @@ describe('summaryRowsToTable', () => {
     const expectedValues =
       group === 'responder'
         ? ['כביש 1', '9', '4', '120.5', '02.11.2026']
-        : ['כביש 1', '9', '120.5', '02.11.2026']
+        : group === 'event_type'
+          ? ['כביש 1', '9', '120.5', '02.11.2026']
+          : ['כביש 1', '9', '02.11.2026']
     expect(row.values).toEqual(expectedValues)
     expect(row.values).toHaveLength(columns.length)
   })
@@ -146,10 +159,10 @@ describe('summaryCsv', () => {
     const csv = summaryCsv('road', [road1, road2])
     const lines = csv.split('\r\n')
     expect(lines).toHaveLength(4)
-    expect(lines[0]).toBe('כביש,אירועים,ק״מ,פעילות אחרונה')
+    expect(lines[0]).toBe('כביש,אירועים,פעילות אחרונה')
     expect(lines.filter((line) => line.startsWith('סה״כ'))).toHaveLength(1)
     expect(lines[3].startsWith('סה״כ')).toBe(true)
-    expect(lines[3]).toBe('סה״כ,19,128.5,')
+    expect(lines[3]).toBe('סה״כ,19,')
   })
 
   it('puts the shift sum in the totals line for volunteers', () => {
@@ -166,6 +179,6 @@ describe('summaryCsv', () => {
     const volunteer = summaryCsv('responder', [{ ...road1, shift_count: 2 }])
     const road = summaryCsv('road', [road1])
     expect(volunteer.split('\r\n')[0].split(',')).toHaveLength(5)
-    expect(road.split('\r\n')[0].split(',')).toHaveLength(4)
+    expect(road.split('\r\n')[0].split(',')).toHaveLength(3)
   })
 })

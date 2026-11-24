@@ -67,7 +67,8 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
   const daysValid = !kind.daysInput || (daysText.trim() !== '' && kind.daysInput.isValid(days))
   const daysError = daysValid ? undefined : kind.daysInput?.errorText
   const inputsValid = rangeValid && daysValid
-  const columns = kind.grouping ? kind.grouping.columnsFor(group) : kind.columns
+  const summaryRange = { from: rangeFrom, to: rangeTo }
+  const columns = kind.grouping ? kind.grouping.columnsFor(group, summaryRange) : kind.columns
   const shownKind = useMemo(() => ({ ...kind, columns }), [kind, columns])
 
   useEffect(() => {
@@ -105,7 +106,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
     [kind.grouping, filtered, sort],
   )
   const sections = useMemo(() => groupRows(sorted), [sorted])
-  const totalsValues = kind.grouping && filtered.length > 0 ? kind.grouping.totalsValues(filtered, group) : null
+  const totalsValues = kind.grouping && filtered.length > 0 ? kind.grouping.totalsValues(filtered, group, summaryRange) : null
 
   async function confirmReplace() {
     if (!kind.action || !pendingRow) return
@@ -140,7 +141,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
   function exportCsv() {
     if (filtered.length === 0) return
     if (kind.grouping) {
-      downloadCsv(kind.csvFilename, kind.grouping.toCsv(sorted, group))
+      downloadCsv(kind.csvFilename, kind.grouping.toCsv(sorted, group, summaryRange))
       return
     }
     downloadCsv(
@@ -205,7 +206,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
 
       {kind.hasPeriodPicker ? (
         <>
-          <div className="report-filters">
+          <div className={kind.grouping ? 'report-filters report-filters--with-group' : 'report-filters'}>
             <PeriodPicker value={period} onChange={setPeriod} />
             <label className="search-field">
               <Search size={20} strokeWidth={1.75} aria-hidden="true" />
@@ -217,6 +218,14 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
                 placeholder={kind.searchPlaceholder ?? 'חיפוש בדוח'}
               />
             </label>
+            {kind.grouping ? (
+              <SelectField
+                label="קיבוץ לפי"
+                options={kind.grouping.options}
+                value={group}
+                onChange={(event) => changeGroup(event.target.value)}
+              />
+            ) : null}
           </div>
           {rangeError ? <p className="t-caption text-danger">{rangeError}</p> : null}
         </>
@@ -262,14 +271,16 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
         </>
       )}
 
-      {kind.grouping ? (
+      {kind.grouping && (!kind.hasPeriodPicker || !asTable) ? (
         <div className="report-filters">
-          <SelectField
-            label="קיבוץ לפי"
-            options={kind.grouping.options}
-            value={group}
-            onChange={(event) => changeGroup(event.target.value)}
-          />
+          {kind.hasPeriodPicker ? null : (
+            <SelectField
+              label="קיבוץ לפי"
+              options={kind.grouping.options}
+              value={group}
+              onChange={(event) => changeGroup(event.target.value)}
+            />
+          )}
           {asTable ? null : (
             <SelectField
               label="מיון"
@@ -777,15 +788,14 @@ function SortHeaderButton({
 function ReportTotals({ columns, values }: { columns: ReportColumn[]; values: string[] }) {
   return (
     <div className="card" role="group" aria-label="סיכום כולל">
-      <p className="t-caption">
-        {columns.map((column, index) => {
-          const value = values[index]
+      <p className="t-caption report-totals">
+        <strong>{values[0]}:</strong>{' '}
+        {columns.slice(1).map((column, index) => {
+          const value = values[index + 1]
           if (!value) return null
-          return index === 0 ? (
-            <strong key={column.id}>{value} </strong>
-          ) : (
-            <span key={column.id}>
-              {column.header} <span className="mono">{value}</span>{' '}
+          return (
+            <span key={column.id} className="report-totals__item">
+              <bdi className="mono">{value}</bdi> {column.header}
             </span>
           )
         })}
