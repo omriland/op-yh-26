@@ -1,4 +1,5 @@
 import type { EventFreezeFlags } from '../eventFreeze'
+import type { SortDirection, SummaryGroup, SummaryRpcRow } from './summaryReport'
 
 export type ReportAudience = 'admin' | 'admin_and_shift_lead'
 
@@ -11,6 +12,8 @@ export type ReportInputs = {
   from?: string
   to?: string
   viewer?: ReportViewer
+  group?: SummaryGroup
+  days?: number
 }
 
 export type ReportColumn = {
@@ -30,6 +33,7 @@ export type ReportTableRow = {
   groupLabel?: string
   searchText?: string
   freeze?: EventFreezeFlags
+  summaryRow?: SummaryRpcRow
 }
 
 export type ReportRowAction = {
@@ -54,6 +58,28 @@ export type ReportRowCommand = {
   apply: (row: ReportTableRow) => Promise<void>
 }
 
+export type ReportDateRange = { from: string; to: string }
+
+/** A report whose rows are groups the viewer picks, with totals, sorting and a per-group event list. */
+export type ReportGrouping = {
+  options: { value: SummaryGroup; label: string }[]
+  defaultValue: SummaryGroup
+  columnsFor: (group: SummaryGroup) => ReportColumn[]
+  sortRows: (rows: ReportTableRow[], columnId: string, direction: SortDirection) => ReportTableRow[]
+  totalsValues: (rows: ReportTableRow[], group: SummaryGroup) => string[]
+  toCsv: (rows: ReportTableRow[], group: SummaryGroup) => string
+  detailColumns: ReportColumn[]
+  loadDetail: (row: ReportTableRow, group: SummaryGroup, range: ReportDateRange) => Promise<ReportTableRow[]>
+}
+
+/** A report with a whole-number "days" input on screen. */
+export type ReportDaysInput = {
+  label: string
+  defaultValue: number
+  isValid: (days: number) => boolean
+  errorText: string
+}
+
 export type ReportKind = {
   id: string
   title: string
@@ -64,6 +90,8 @@ export type ReportKind = {
   searchPlaceholder?: string
   csvFilename: string
   columns: ReportColumn[]
+  grouping?: ReportGrouping
+  daysInput?: ReportDaysInput
   action?: ReportRowAction
   commands?: ReportRowCommand[]
   load: (inputs: ReportInputs) => Promise<ReportTableRow[]>

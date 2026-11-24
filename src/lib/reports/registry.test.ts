@@ -10,6 +10,8 @@ describe('REPORT_KINDS', () => {
       ['km_discrepancy', 'admin'],
       ['km_exceptions', 'admin_and_shift_lead'],
       ['duplicate_events', 'admin_and_shift_lead'],
+      ['activity_summary', 'admin_and_shift_lead'],
+      ['inactive_members', 'admin_and_shift_lead'],
     ])
   })
 
@@ -20,12 +22,16 @@ describe('REPORT_KINDS', () => {
       'km_discrepancy',
       'km_exceptions',
       'duplicate_events',
+      'activity_summary',
+      'inactive_members',
     ])
     expect(visibleReportKinds(REPORT_KINDS, ['shift_lead']).map((kind) => kind.id)).toEqual([
       'open_documentation',
       'events_by_responder',
       'km_exceptions',
       'duplicate_events',
+      'activity_summary',
+      'inactive_members',
     ])
     expect(visibleReportKinds(REPORT_KINDS, ['responder'])).toEqual([])
   })
