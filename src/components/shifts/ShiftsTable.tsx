@@ -15,6 +15,7 @@ import {
 import { IconButton } from '../ui/Button'
 import { shiftRecordLogStatus } from '../../lib/shiftLogStatus'
 import { listShiftEvents, shiftEventCountLabel, shiftListDestination } from '../../lib/shiftListEvents'
+import { shiftWindowPhase } from '../../lib/shiftWindow'
 import { shiftStamp } from '../../lib/status'
 import { StampChip } from '../ui/StampChip'
 import { EventFrozenMark } from '../events/EventFrozenMark'
@@ -135,7 +136,7 @@ export function ShiftsTable({ shifts, onOpen, viewer }: ShiftsTableProps) {
                     {born.length}
                   </td>
                   <td>
-                    <StampChip {...shiftStamp(shiftRecordLogStatus(shift))} />
+                    <StampChip {...shiftStamp(shiftRecordLogStatus(shift), shiftWindowPhase(shift, new Date()))} />
                   </td>
                 </tr>
                 {expanded ? (

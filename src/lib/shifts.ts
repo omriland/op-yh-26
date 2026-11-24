@@ -31,6 +31,12 @@ export const SHIFT_KIND_OPTIONS: { value: ShiftKind; label: string }[] = [
   { value: 'other', label: SHIFT_KIND_LABELS.other },
 ]
 
+export function defaultShiftHours(kind: ShiftKind): { start: string; end: string } | null {
+  if (kind === 'morning') return { start: '07:00', end: '15:00' }
+  if (kind === 'midday') return { start: '15:00', end: '23:00' }
+  return null
+}
+
 export type ShiftResponderSummary = {
   id: string
   responder_id: string
@@ -45,6 +51,7 @@ export type ShiftBornEventSummary = {
   id: string
   event_type_id?: string | null
   event_date: string
+  created_at?: string
   police_event_id: string | null
   status: EventStatus
   treatment_detail: string | null
@@ -83,6 +90,8 @@ export type ShiftListItem = {
   status: ShiftStatus
   odometer_start: number | null
   odometer_end: number | null
+  starts_at: string | null
+  ends_at: string | null
   personal_vehicle: { plate_number: string } | null
   shift_lead: { full_name: string; callsign: string } | null
   responders: ShiftResponderSummary[]
@@ -94,6 +103,8 @@ export type ShiftListItem = {
 export const SHIFT_LIST_SELECT = `
   id,
   shift_date,
+  starts_at,
+  ends_at,
   shift_kind,
   vehicle_type,
   status,
@@ -330,6 +341,8 @@ export type ShiftDetail = Omit<ShiftListItem, 'responders' | 'linked_events'> & 
 const SHIFT_DETAIL_SELECT = `
   id,
   shift_date,
+  starts_at,
+  ends_at,
   shift_kind,
   vehicle_type,
   status,
@@ -346,6 +359,7 @@ const SHIFT_DETAIL_SELECT = `
     id,
     event_type_id,
     event_date,
+    created_at,
     police_event_id,
     status,
     treatment_detail,

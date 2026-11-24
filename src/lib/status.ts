@@ -1,5 +1,7 @@
 /** Canonical status vocabulary — 05-rtl-language.md. Do not rephrase these labels. */
 
+import type { ShiftPhase } from './shiftWindow'
+
 export type EventStatus = 'draft' | 'in_progress' | 'partial' | 'done'
 export type ParticipationStatus = 'pending' | 'in_progress' | 'done'
 export type StampTone = 'done' | 'partial' | 'pending' | 'draft' | 'alert'
@@ -237,6 +239,10 @@ export const SHIFT_FILTERS: { value: ShiftStatus | 'all'; label: string }[] = [
   { value: 'closed', label: 'נסגרה' },
 ]
 
-export function shiftStamp(status: ShiftStatus): StampDescriptor {
+const PLANNED_SHIFT_STAMP: StampDescriptor = { label: 'מתוכננת', tone: 'draft' }
+
+/** A live shift that has not started yet reads מתוכננת; every other phase keeps the logging stamp. */
+export function shiftStamp(status: ShiftStatus, phase?: ShiftPhase): StampDescriptor {
+  if (phase === 'planned') return PLANNED_SHIFT_STAMP
   return SHIFT_STAMPS[status]
 }

@@ -20,6 +20,8 @@ function row(partial: Partial<ShiftListItem> & Pick<ShiftListItem, 'id'>): Shift
     status: 'draft',
     odometer_start: null,
     odometer_end: null,
+    starts_at: null,
+    ends_at: null,
     personal_vehicle: null,
     shift_lead: null,
     responders: [],

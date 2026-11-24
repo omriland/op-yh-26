@@ -16,6 +16,7 @@ import {
 } from '../../lib/shifts'
 import { shiftRecordLogStatus } from '../../lib/shiftLogStatus'
 import { listShiftEvents, shiftEventCountLabel, shiftListDestination } from '../../lib/shiftListEvents'
+import { shiftWindowPhase } from '../../lib/shiftWindow'
 import { shiftStamp } from '../../lib/status'
 import { StampChip } from '../ui/StampChip'
 import { EventFrozenMark } from '../events/EventFrozenMark'
@@ -67,7 +68,7 @@ export function ShiftCard({
       : null
   const saved = lastSavedByLabel(shift.last_saved?.full_name)
   const pending = isShiftPendingLog(shift)
-  const stamp = shiftStamp(shiftRecordLogStatus(shift))
+  const stamp = shiftStamp(shiftRecordLogStatus(shift), shiftWindowPhase(shift, new Date()))
 
   return (
     <li className={['card', 'stack-3', open ? 'assignment-card--open' : ''].join(' ')}>

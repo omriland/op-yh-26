@@ -5,6 +5,7 @@ import { listShiftEvents } from '../lib/shiftListEvents'
 import {
   lastSavedByLabel,
   policeEventLabel,
+  SHIFT_BORN_TYPE_MARK,
   shiftBornFillStamp,
 } from '../lib/shiftBornEvents'
 import {
@@ -25,6 +26,11 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
+import { crewCanEdit, shiftWindowPhase, type ShiftPhase } from '../lib/shiftWindow'
+import { canDeleteShiftEvent } from '../lib/currentShift'
+import { isShiftBornEventEmpty } from '../lib/shiftBornEvents'
+import { supabase } from '../lib/supabase'
+import { NewShiftEventSheet } from '../components/shifts/NewShiftEventSheet'
 import { shiftStamp } from '../lib/status'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
 import { useFreezeViewer } from '../lib/freezeViewer'
@@ -48,8 +54,155 @@ function bornSnapshot(event: ShiftBornEventSummary) {
     treatment_notes: event.treatment_notes,
     road_id: event.road_id,
     location: event.location,
+    emergency_means: event.emergency_means,
     treated_count: event.treated?.length ?? 0,
   }
+}
+
+const ISRAEL_TIME_FORMAT = new Intl.DateTimeFormat('he-IL', {
+  timeZone: 'Asia/Jerusalem',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+function israelTime(iso: string): string {
+  return ISRAEL_TIME_FORMAT.format(new Date(iso))
+}
+
+function timeLeftLabel(endsAt: string, now: Date): string {
+  const minutes = Math.max(0, Math.round((new Date(endsAt).getTime() - now.getTime()) / 60000))
+  const hours = Math.floor(minutes / 60)
+  return `נותרו ${hours}:${String(minutes % 60).padStart(2, '0')} שעות`
+}
+
+function liveStamp(shift: ShiftDetail, phase: ShiftPhase) {
+  if (phase === 'active') return { label: 'במשמרת', tone: 'pending' as const }
+  return shiftStamp(shiftRecordLogStatus(shift), phase)
+}
+
+type LiveShiftScreenProps = {
+  shift: ShiftDetail
+  phase: ShiftPhase
+  bornEvents: ShiftBornEventSummary[]
+  canManage: boolean
+  canCreateEvent: boolean
+  freezeViewer: ReturnType<typeof useFreezeViewer>
+  onNewEvent: () => void
+  onOpenEvent?: (eventId: string) => void
+  onAskDelete: (eventId: string) => void
+}
+
+function LiveShiftScreen({
+  shift,
+  phase,
+  bornEvents,
+  canManage,
+  canCreateEvent,
+  freezeViewer,
+  onNewEvent,
+  onOpenEvent,
+  onAskDelete,
+}: LiveShiftScreenProps) {
+  const now = new Date()
+  const kindLabel = SHIFT_KIND_LABELS[shift.shift_kind]
+  const hours = `${israelTime(shift.starts_at!)}–${israelTime(shift.ends_at!)}`
+  const newestFirst = [...bornEvents].sort((a, b) =>
+    (b.created_at ?? '').localeCompare(a.created_at ?? ''),
+  )
+
+  return (
+    <div className="stack-4">
+      <div className="detail__title-row">
+        <div>
+          <h1 className="t-title">{kindLabel}</h1>
+          <p className="t-caption text-muted">
+            <span className="mono">{formatDate(shift.shift_date)}</span>
+            {' · '}
+            <span className="mono">{hours}</span>
+            {' · '}
+            {VEHICLE_TYPE_LABELS[shift.vehicle_type]}
+          </p>
+          {phase === 'active' && shift.ends_at ? (
+            <p className="t-caption text-muted">{timeLeftLabel(shift.ends_at, now)}</p>
+          ) : null}
+        </div>
+        <StampChip {...liveStamp(shift, phase)} header />
+      </div>
+
+      {canCreateEvent ? (
+        <Button block onClick={onNewEvent}>
+          אירוע חדש
+        </Button>
+      ) : null}
+
+      <div className="card stack-3">
+        <h2 className="t-section">אירועי המשמרת ({newestFirst.length})</h2>
+        {newestFirst.length === 0 ? (
+          <p className="t-body text-secondary">עוד לא נפתחו אירועים במשמרת.</p>
+        ) : (
+          <ul className="stack-3">
+            {newestFirst.map((event) => {
+              const snapshot = bornSnapshot(event)
+              const isEmpty = isShiftBornEventEmpty(snapshot)
+              const mayDelete =
+                isEmpty &&
+                canDeleteShiftEvent({
+                  canManage,
+                  phase,
+                  empty: isEmpty,
+                  done: event.status === 'done',
+                })
+              return (
+                <li key={event.id}>
+                  <button
+                    type="button"
+                    className="event-card"
+                    onClick={() => onOpenEvent?.(event.id)}
+                  >
+                    <span className="event-card__top">
+                      <span className="event-card__type">
+                        <EventFrozenMark event={event} viewer={freezeViewer} />
+                        <span className="t-body-strong">
+                          {event.event_type?.name ?? 'אירוע'} {SHIFT_BORN_TYPE_MARK}
+                        </span>
+                      </span>
+                      <StampChip {...shiftBornFillStamp(snapshot)} />
+                    </span>
+                    <span className="t-caption text-muted">
+                      {policeEventLabel(event.police_event_id)}
+                      {event.location ? ` · ${event.location}` : ''}
+                      {event.created_at ? ` · נפתח ב-${israelTime(event.created_at)}` : ''}
+                    </span>
+                  </button>
+                  {mayDelete ? (
+                    <Button variant="ghost" onClick={() => onAskDelete(event.id)}>
+                      מחיקה
+                    </Button>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="card stack-3">
+        <h2 className="t-section">מתנדבים ({shift.responders.length})</h2>
+        <ul className="stack-3">
+          {shift.responders.map((responder) => {
+            const name = responder.profile?.full_name ?? 'מתנדב'
+            return (
+              <li key={responder.id} className="responder-card__head">
+                <Avatar name={name} size="sm" />
+                <span className="t-body-strong">{name}</span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </div>
+  )
 }
 
 export function ShiftDetailPage({
@@ -68,6 +221,10 @@ export function ShiftDetailPage({
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [reloadCount, setReloadCount] = useState(0)
+  const [newEventOpen, setNewEventOpen] = useState(false)
+  const [eventToDelete, setEventToDelete] = useState<string | null>(null)
+  const [eventDeleteError, setEventDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -90,7 +247,7 @@ export function ShiftDetailPage({
     return () => {
       active = false
     }
-  }, [shiftId])
+  }, [shiftId, reloadCount])
 
   const backButton = (
     <div className="detail__back">
@@ -121,7 +278,8 @@ export function ShiftDetailPage({
     )
   }
 
-  if (state === 'loading' || !shift) {
+  const showingAnotherShift = shift !== null && shift.id !== shiftId
+  if (!shift || showingAnotherShift) {
     return (
       <div>
         {backButton}
@@ -161,6 +319,24 @@ export function ShiftDetailPage({
   const bornEvents = listShiftEvents(shift.born_events)
   const savedLabel = lastSavedByLabel(shift.last_saved?.full_name)
 
+  const phase = shiftWindowPhase(shift, new Date())
+  const isLive = crewCanEdit(phase)
+  const canCreateEvent = canManage || isAdmin || (viewerAssigned && crewCanEdit(phase))
+
+  async function confirmDeleteShiftEvent() {
+    if (!eventToDelete) return
+    setDeleting(true)
+    setEventDeleteError(null)
+    const { error } = await supabase.rpc('delete_empty_shift_event', { p_event_id: eventToDelete })
+    setDeleting(false)
+    if (error) {
+      setEventDeleteError(error.message)
+      return
+    }
+    setEventToDelete(null)
+    setReloadCount((count) => count + 1)
+  }
+
   async function confirmDeleteShift() {
     setDeleting(true)
     const result = await deleteShift(shiftId)
@@ -172,6 +348,66 @@ export function ShiftDetailPage({
     setConfirmDelete(false)
     show('המשמרת נמחקה', 'done')
     onDeleted()
+  }
+
+  if (isLive) {
+    return (
+      <div>
+        {backButton}
+        <LiveShiftScreen
+          shift={shift}
+          phase={phase}
+          bornEvents={bornEvents}
+          canManage={canManage || isAdmin}
+          canCreateEvent={canCreateEvent}
+          freezeViewer={freezeViewer}
+          onNewEvent={() => setNewEventOpen(true)}
+          onOpenEvent={onOpenEvent}
+          onAskDelete={(eventId) => {
+            setEventDeleteError(null)
+            setEventToDelete(eventId)
+          }}
+        />
+        <NewShiftEventSheet
+          open={newEventOpen}
+          shiftId={shiftId}
+          onClose={() => setNewEventOpen(false)}
+          onCreated={(eventId) => {
+            setNewEventOpen(false)
+            onOpenEvent?.(eventId)
+          }}
+        />
+        <AlertDialog
+          open={eventToDelete !== null}
+          status="danger"
+          title="למחוק את האירוע?"
+          busy={deleting}
+          onClose={() => !deleting && setEventToDelete(null)}
+          footer={
+            <>
+              <Button
+                variant="destructive"
+                loading={deleting}
+                loadingLabel="מוחק…"
+                onClick={() => void confirmDeleteShiftEvent()}
+              >
+                מחיקה
+              </Button>
+              <Button variant="secondary" disabled={deleting} onClick={() => setEventToDelete(null)}>
+                ביטול
+              </Button>
+            </>
+          }
+        >
+          <p className="t-body">האירוע עוד ריק, ולכן אפשר למחוק אותו.</p>
+          {eventDeleteError ? (
+            <p className="t-body" role="alert">
+              {eventDeleteError}
+            </p>
+          ) : null}
+        </AlertDialog>
+      </div>
+    )
   }
 
   return (
@@ -199,7 +435,7 @@ export function ShiftDetailPage({
           </p>
         </div>
         {/* The one rotated stamp in the system belongs on a record's own header. */}
-        <StampChip {...shiftStamp(shiftRecordLogStatus(shift))} header />
+        <StampChip {...shiftStamp(shiftRecordLogStatus(shift), shiftWindowPhase(shift, new Date()))} header />
       </div>
 
       {canEdit || isAdmin ? (

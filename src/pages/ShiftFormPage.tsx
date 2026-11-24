@@ -11,6 +11,9 @@ import {
 } from '../lib/eventForm'
 import {
   computeTotalKm,
+  replaceUntouchedShiftHours,
+  fillDefaultShiftHours,
+  formatJerusalemTimeOfDay,
   resolveShiftFormStash,
   saveShiftForm,
   SHIFT_CREW_ERROR,
@@ -59,6 +62,7 @@ import { shouldKeepLiveFormBoot } from '../lib/formDraftSurvival'
 import { SelectField } from '../components/ui/SelectField'
 import { TextAreaField } from '../components/ui/TextAreaField'
 import { DateField } from '../components/ui/DateField'
+import { TimeField } from '../components/ui/TimeField'
 import { TextField } from '../components/ui/TextField'
 import { EventListSkeleton } from '../components/ui/Skeleton'
 import { StampChip } from '../components/ui/StampChip'
@@ -109,6 +113,8 @@ function emptyDraft(): ShiftFormDraft {
     event_type_counts: [],
     treated_vehicle_counts: [],
     cancelled_count: 0,
+    ...fillDefaultShiftHours({ start_time: '', end_time: '' }, 'morning'),
+    is_legacy: false,
   }
 }
 
@@ -193,6 +199,7 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const canEditResponders = canManageLead
 
   const dirtyRef = useRef(false)
+  const hoursTypedRef = useRef(false)
   useEffect(() => {
     draftRef.current = draft
   }, [draft])
@@ -288,13 +295,18 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
             })),
             treated_vehicle_counts: [],
             cancelled_count: 0,
+            start_time: formatJerusalemTimeOfDay(existing.starts_at),
+            end_time: formatJerusalemTimeOfDay(existing.ends_at),
+            is_legacy: !existing.starts_at,
             expected_updated_at: existing.updated_at,
           }
           draftRef.current = nextDraft
+          hoursTypedRef.current = true
           setLastSavedName(existing.last_saved?.full_name ?? null)
           savedVehicleId.current = existing.personal_vehicle_id
         } else {
           draftRef.current = emptyDraft()
+          hoursTypedRef.current = false
           setAssignedProfiles(new Map())
           setLastSavedName(null)
           savedVehicleId.current = null
@@ -403,6 +415,17 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
   const computedKm = draft
     ? computeTotalKm(draft.odometer_start, draft.odometer_end)
     : null
+
+  function typeHour(patch: Partial<Pick<ShiftFormDraft, 'start_time' | 'end_time'>>) {
+    hoursTypedRef.current = true
+    updateDraft(patch)
+  }
+
+  function hoursForNewKind(kind: ShiftKind) {
+    const typedHours = draftRef.current ?? draft
+    if (hoursTypedRef.current && typedHours) return fillDefaultShiftHours(typedHours, kind)
+    return replaceUntouchedShiftHours(kind)
+  }
 
   function updateDraft(patch: Partial<ShiftFormDraft>) {
     setDraft((current) => {
@@ -589,6 +612,9 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
     const result = await saveShiftForm(current, user.id, {
       syncResponders: canManageLead,
       canEditIdentity: canManageLead,
+      responderNames: Object.fromEntries(
+        assignedPeople.map((person) => [person.id, person.full_name]),
+      ),
     })
     setSaving(false)
     if (!result.ok) {
@@ -737,10 +763,35 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
                   error={errors.shift_kind}
                   options={SHIFT_KIND_OPTIONS}
                   onChange={(event) => {
-                    updateDraft({ shift_kind: event.target.value as ShiftKind })
+                    const shift_kind = event.target.value as ShiftKind
+                    updateDraft({
+                      shift_kind,
+                      ...(draft.is_legacy ? {} : hoursForNewKind(shift_kind)),
+                    })
                     setErrors((current) => ({ ...current, shift_kind: undefined }))
                   }}
                 />
+
+                {draft.is_legacy ? null : (
+                  <>
+                    <TimeField
+                      label="שעת התחלה"
+                      required
+                      disabled={!canManageLead}
+                      value={draft.start_time}
+                      error={errors.start_time}
+                      onChange={(start_time) => typeHour({ start_time })}
+                    />
+                    <TimeField
+                      label="שעת סיום"
+                      required
+                      disabled={!canManageLead}
+                      value={draft.end_time}
+                      error={errors.end_time}
+                      onChange={(end_time) => typeHour({ end_time })}
+                    />
+                  </>
+                )}
 
                 <SelectField
                   label="סוג רכב"
@@ -913,84 +964,86 @@ export function ShiftFormPage({ shiftId, onBack, onSaved }: ShiftFormPageProps) 
             </div>
           </section>
 
-          <section className="form-section">
-            <h2 className="form-section__heading">
-              <span className="form-section__counter">חלק ג׳</span>
-              <span>סיכום אירועים</span>
-            </h2>
-            <div className="form-section__fields stack-4">
-              <div className="assignment-card__treated">
-                <p className="t-label text-secondary">מספר אירועים לפי סוג</p>
-                <div className="assignment-card__steppers">
-                  {eventTypes.map((type) => (
-                    <CounterStepper
-                      key={type.id}
-                      label={type.name}
-                      value={typeCountValue(type.id)}
-                      onDelta={(delta) => bumpTypeCount(type.id, delta)}
-                    />
-                  ))}
+          {draft.is_legacy ? (
+            <section className="form-section">
+              <h2 className="form-section__heading">
+                <span className="form-section__counter">חלק ג׳</span>
+                <span>סיכום אירועים</span>
+              </h2>
+              <div className="form-section__fields stack-4">
+                <div className="assignment-card__treated">
+                  <p className="t-label text-secondary">מספר אירועים לפי סוג</p>
+                  <div className="assignment-card__steppers">
+                    {eventTypes.map((type) => (
+                      <CounterStepper
+                        key={type.id}
+                        label={type.name}
+                        value={typeCountValue(type.id)}
+                        onDelta={(delta) => bumpTypeCount(type.id, delta)}
+                      />
+                    ))}
+                  </div>
+                  {eventTypes.length === 0 ? (
+                    <p className="t-caption text-muted">אין סוגי אירוע ברשימה הסגורה.</p>
+                  ) : null}
                 </div>
-                {eventTypes.length === 0 ? (
-                  <p className="t-caption text-muted">אין סוגי אירוע ברשימה הסגורה.</p>
-                ) : null}
+                {bornRows.length === 0 ? (
+                  <p className="t-caption text-muted">
+                    שמרו את מספר האירועים לפי סוג כדי ליצור אירועים למילוי מספר, מיקום ופרטי טיפול.
+                  </p>
+                ) : (
+                  <div className="stack-4">
+                    <p className="t-label text-secondary">מספר אירוע, מיקום ופרטי טיפול</p>
+                    {bornRows.map((row) => (
+                      <div key={row.id} className="stack-3">
+                        <TextField
+                          label={`מספר אירוע · ${row.typeName}`}
+                          numeric
+                          isolate
+                          inputMode="numeric"
+                          autoComplete="off"
+                          pattern="[0-9]*"
+                          maxLength={POLICE_EVENT_ID_MAX_LENGTH}
+                          value={row.draft.police_event_id}
+                          onChange={(event) =>
+                            patchBornDraft(row.id, {
+                              police_event_id: policeEventIdForInput(event.target.value),
+                            })
+                          }
+                        />
+                        <SelectField
+                          label={`כביש · ${row.typeName}`}
+                          searchable
+                          searchPlaceholder="חיפוש כביש"
+                          value={row.draft.road_id}
+                          options={roads.map((road) => ({ value: road.id, label: road.name }))}
+                          onChange={(event) =>
+                            patchBornDraft(row.id, { road_id: event.target.value })
+                          }
+                        />
+                        <TextField
+                          label={`מיקום · ${row.typeName}`}
+                          placeholder="למשל: מחלף שורק, לכיוון צפון"
+                          value={row.draft.location}
+                          onChange={(event) =>
+                            patchBornDraft(row.id, { location: event.target.value })
+                          }
+                        />
+                        <TextAreaField
+                          label={`פירוט הטיפול · ${row.typeName}`}
+                          counter={treatmentDetailCounter(row.draft.treatment_detail)}
+                          value={row.draft.treatment_detail}
+                          onChange={(event) =>
+                            patchBornDraft(row.id, { treatment_detail: event.target.value })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {bornRows.length === 0 ? (
-                <p className="t-caption text-muted">
-                  שמרו את מספר האירועים לפי סוג כדי ליצור אירועים למילוי מספר, מיקום ופרטי טיפול.
-                </p>
-              ) : (
-                <div className="stack-4">
-                  <p className="t-label text-secondary">מספר אירוע, מיקום ופרטי טיפול</p>
-                  {bornRows.map((row) => (
-                    <div key={row.id} className="stack-3">
-                      <TextField
-                        label={`מספר אירוע · ${row.typeName}`}
-                        numeric
-                        isolate
-                        inputMode="numeric"
-                        autoComplete="off"
-                        pattern="[0-9]*"
-                        maxLength={POLICE_EVENT_ID_MAX_LENGTH}
-                        value={row.draft.police_event_id}
-                        onChange={(event) =>
-                          patchBornDraft(row.id, {
-                            police_event_id: policeEventIdForInput(event.target.value),
-                          })
-                        }
-                      />
-                      <SelectField
-                        label={`כביש · ${row.typeName}`}
-                        searchable
-                        searchPlaceholder="חיפוש כביש"
-                        value={row.draft.road_id}
-                        options={roads.map((road) => ({ value: road.id, label: road.name }))}
-                        onChange={(event) =>
-                          patchBornDraft(row.id, { road_id: event.target.value })
-                        }
-                      />
-                      <TextField
-                        label={`מיקום · ${row.typeName}`}
-                        placeholder="למשל: מחלף שורק, לכיוון צפון"
-                        value={row.draft.location}
-                        onChange={(event) =>
-                          patchBornDraft(row.id, { location: event.target.value })
-                        }
-                      />
-                      <TextAreaField
-                        label={`פירוט הטיפול · ${row.typeName}`}
-                        counter={treatmentDetailCounter(row.draft.treatment_detail)}
-                        value={row.draft.treatment_detail}
-                        onChange={(event) =>
-                          patchBornDraft(row.id, { treatment_detail: event.target.value })
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+            </section>
+          ) : null}
 
           <section className="form-section">
             <h2 className="form-section__heading">

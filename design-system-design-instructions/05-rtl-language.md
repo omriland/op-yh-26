@@ -71,3 +71,4 @@ The register is **official but human**: the tone of a professional duty log, not
 | My participation (own draft saved) | `in_progress` | `טיוטה נשמרה` |
 | Participation (viewing another's open row) | `pending`/`in_progress` | `ממתין לכונן` |
 | Participation | `done` | `הושלם` |
+| Shift (live, not started yet) | planned phase | `מתוכננת` |

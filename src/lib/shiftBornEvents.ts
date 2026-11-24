@@ -1,3 +1,4 @@
+import { crewCanEdit, type ShiftPhase } from './shiftWindow'
 import type { EventStatus, StampDescriptor } from './status'
 
 export const STALE_SAVE_MESSAGE = 'מישהו שמר לפניך — רעננו'
@@ -23,6 +24,7 @@ export type ShiftBornEventSnapshot = {
   treatment_notes: string | null
   road_id?: string | null
   location?: string | null
+  emergency_means?: boolean
   treated_count: number
 }
 
@@ -37,6 +39,7 @@ export function isShiftBornEventEmpty(event: ShiftBornEventSnapshot): boolean {
     blank(event.treatment_notes) &&
     blank(event.road_id) &&
     blank(event.location) &&
+    !event.emergency_means &&
     event.treated_count <= 0
   )
 }
@@ -86,20 +89,39 @@ export function shiftBornBeforeShiftDate(
 }
 
 /**
- * Who gets the shared report as an editor. Mirrors save_shift_born_event_fill, so
- * nobody types into a form the server will refuse: a lead or admin always, a crew
- * member from the shift date until the report is complete.
+ * Who gets the shared report as an editor. A lead or admin always. On a shift with
+ * hours, crew edit (a done event too) while the crew window is open and see it
+ * read-only before and after. On a shift without hours (phase omitted or 'legacy')
+ * crew edit from the shift date until the report is complete.
  */
 export function shiftBornFillAccess(input: {
   canManage: boolean
   onCrew: boolean
   beforeShiftDate: boolean
   done: boolean
+  phase?: ShiftPhase
 }): { readOnly: boolean; note: string | null } {
   if (input.canManage) return { readOnly: false, note: null }
-  if (!input.onCrew || input.done) return { readOnly: true, note: null }
+  if (!input.onCrew) return { readOnly: true, note: null }
+  if (input.phase && input.phase !== 'legacy') {
+    return { readOnly: !crewCanEdit(input.phase), note: null }
+  }
+  if (input.done) return { readOnly: true, note: null }
   if (input.beforeShiftDate) return { readOnly: true, note: SHIFT_BORN_TOO_EARLY }
   return { readOnly: false, note: null }
+}
+
+/** The 'פתיחה מחדש' action: a done event on a shift with hours, for a lead or admin, or crew inside the window. */
+export function canReopenShiftBornEvent(input: {
+  canManage: boolean
+  onCrew: boolean
+  phase: ShiftPhase
+  done: boolean
+}): boolean {
+  if (!input.done) return false
+  if (input.phase === 'legacy') return false
+  if (input.canManage) return true
+  return input.onCrew && crewCanEdit(input.phase)
 }
 
 export function lastSavedByLabel(name: string | null | undefined): string | null {

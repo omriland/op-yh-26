@@ -4,6 +4,7 @@ import {
   SHIFT_BORN_DONE_LOCKED,
   SHIFT_BORN_TOO_EARLY,
   SHIFT_BORN_TYPE_MARK,
+  canReopenShiftBornEvent,
   STALE_SAVE_MESSAGE,
   eventLeadDisplayName,
   eventTypeName,
@@ -196,5 +197,68 @@ describe('save RPC messages', () => {
   it('keeps the server copy for the date and completed-report refusals', () => {
     expect(SHIFT_BORN_TOO_EARLY).toBe('ניתן לתעד החל מתאריך המשמרת.')
     expect(SHIFT_BORN_DONE_LOCKED).toBe('התיעוד כבר הושלם. רק אחמ״ש יכול לערוך.')
+  })
+})
+
+describe('shiftBornFillAccess on a shift with hours', () => {
+  const base = { canManage: false, onCrew: true, beforeShiftDate: false, done: false }
+
+  it('lets crew edit while the window is open, including a done event', () => {
+    for (const phase of ['active', 'finishing'] as const) {
+      expect(shiftBornFillAccess({ ...base, phase }).readOnly).toBe(false)
+      expect(shiftBornFillAccess({ ...base, phase, done: true }).readOnly).toBe(false)
+    }
+  })
+
+  it('shows crew the report read-only after the 48 hours', () => {
+    expect(shiftBornFillAccess({ ...base, phase: 'closed' }).readOnly).toBe(true)
+  })
+
+  it('shows crew the report read-only before the shift starts', () => {
+    expect(shiftBornFillAccess({ ...base, phase: 'planned' }).readOnly).toBe(true)
+  })
+
+  it('keeps someone off the crew read-only while the window is open', () => {
+    expect(shiftBornFillAccess({ ...base, onCrew: false, phase: 'active' }).readOnly).toBe(true)
+    expect(shiftBornFillAccess({ ...base, onCrew: false, phase: 'finishing' }).readOnly).toBe(true)
+  })
+
+  it('keeps editing open for leads and admins after the window', () => {
+    expect(shiftBornFillAccess({ ...base, canManage: true, phase: 'closed', done: true }).readOnly).toBe(false)
+  })
+
+  it('keeps the old rules for a shift without hours', () => {
+    expect(shiftBornFillAccess({ ...base, phase: 'legacy', done: true }).readOnly).toBe(true)
+    expect(shiftBornFillAccess({ ...base, phase: 'legacy' }).readOnly).toBe(false)
+  })
+})
+
+describe('canReopenShiftBornEvent', () => {
+  const doneCrew = { canManage: false, onCrew: true, phase: 'active', done: true } as const
+
+  it('offers reopen to crew on a done event inside the window', () => {
+    expect(canReopenShiftBornEvent(doneCrew)).toBe(true)
+    expect(canReopenShiftBornEvent({ ...doneCrew, phase: 'finishing' })).toBe(true)
+  })
+
+  it('does not offer reopen to crew after the window', () => {
+    expect(canReopenShiftBornEvent({ ...doneCrew, phase: 'closed' })).toBe(false)
+  })
+
+  it('does not offer reopen to crew before the shift starts or on a shift without hours', () => {
+    expect(canReopenShiftBornEvent({ ...doneCrew, phase: 'planned' })).toBe(false)
+    expect(canReopenShiftBornEvent({ ...doneCrew, phase: 'legacy' })).toBe(false)
+  })
+
+  it('does not offer reopen on an event that is not done', () => {
+    expect(canReopenShiftBornEvent({ ...doneCrew, done: false })).toBe(false)
+  })
+
+  it('does not offer reopen to someone outside the crew', () => {
+    expect(canReopenShiftBornEvent({ ...doneCrew, onCrew: false })).toBe(false)
+  })
+
+  it('always offers reopen to leads and admins on a done event', () => {
+    expect(canReopenShiftBornEvent({ ...doneCrew, canManage: true, phase: 'closed' })).toBe(true)
   })
 })

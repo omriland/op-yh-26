@@ -222,6 +222,7 @@ export async function saveShiftBornEventFill(input: {
   expectedUpdatedAt: string
   draft: ShiftBornFillDraft
   complete: boolean
+  reopen?: boolean
 }): Promise<{ ok: true; updated_at: string } | { ok: false; error: string }> {
   const { data, error } = await supabase.rpc('save_shift_born_event_fill', {
     p_event_id: input.eventId,
@@ -235,6 +236,7 @@ export async function saveShiftBornEventFill(input: {
     p_treated: input.draft.treated,
     p_complete: input.complete,
     p_plates: input.draft.treated_plates,
+    ...(input.reopen ? { p_reopen: true } : {}),
   })
 
   if (error) {

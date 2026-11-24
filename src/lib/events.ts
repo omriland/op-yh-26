@@ -65,6 +65,8 @@ export type EventListItem = {
   shift: {
     shift_date: string
     shift_kind: ShiftKind
+    starts_at?: string | null
+    ends_at?: string | null
     vehicle_type: ShiftVehicleType
     personal_vehicle: { plate_number: string } | null
   } | null
@@ -104,6 +106,8 @@ export const EVENT_LIST_SELECT = `
   shift:shifts!events_shift_id_fkey(
     shift_date,
     shift_kind,
+    starts_at,
+    ends_at,
     vehicle_type,
     personal_vehicle:vehicles!shifts_personal_vehicle_id_fkey(plate_number)
   ),
