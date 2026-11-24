@@ -384,7 +384,7 @@ const activitySummary: ReportKind = {
     if (!range) return []
     const group = inputs.group ?? DEFAULT_SUMMARY_GROUP
     const rows = await loadActivitySummary(range.from, range.to, group)
-    return summaryRowsToTable(rows, group)
+    return summaryRowsToTable(rows, group, range)
   },
 }
 

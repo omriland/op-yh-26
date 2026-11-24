@@ -64,10 +64,10 @@ export type ReportDateRange = { from: string; to: string }
 export type ReportGrouping = {
   options: { value: SummaryGroup; label: string }[]
   defaultValue: SummaryGroup
-  columnsFor: (group: SummaryGroup) => ReportColumn[]
+  columnsFor: (group: SummaryGroup, range?: ReportDateRange) => ReportColumn[]
   sortRows: (rows: ReportTableRow[], columnId: string, direction: SortDirection) => ReportTableRow[]
-  totalsValues: (rows: ReportTableRow[], group: SummaryGroup) => string[]
-  toCsv: (rows: ReportTableRow[], group: SummaryGroup) => string
+  totalsValues: (rows: ReportTableRow[], group: SummaryGroup, range?: ReportDateRange) => string[]
+  toCsv: (rows: ReportTableRow[], group: SummaryGroup, range?: ReportDateRange) => string
   detailColumns: ReportColumn[]
   loadDetail: (row: ReportTableRow, group: SummaryGroup, range: ReportDateRange) => Promise<ReportTableRow[]>
 }
