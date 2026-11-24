@@ -1306,7 +1306,7 @@ export type PoliceEventIdSaveAction =
   /** A manual and a shift event would share the number: ask before saving. */
   | { kind: 'confirm_joint' }
 
-function withOrigin(row: SameDayPoliceEventRow): JointEventRow {
+export function toJointEventRow(row: SameDayPoliceEventRow): JointEventRow {
   return {
     id: row.id,
     event_date: row.event_date,
@@ -1337,7 +1337,7 @@ export function policeEventIdSaveAction(input: {
 }): PoliceEventIdSaveAction {
   if (!input.policeEventId.trim()) return { kind: 'proceed' }
   const origin = input.origin ?? 'manual'
-  const rows = input.existing.map(withOrigin)
+  const rows = input.existing.map(toJointEventRow)
 
   if (input.variant === 'cockpit') {
     const ownId = ownResumableEventId({
@@ -1381,6 +1381,7 @@ export async function issueUnitEventId(): Promise<string> {
   return data
 }
 
+/** Same-day rows with this number from every origin, read past RLS by a definer RPC. */
 export async function fetchSameDayPoliceEventIdRows(input: {
   eventDate: string
   policeEventId: string
@@ -1388,16 +1389,15 @@ export async function fetchSameDayPoliceEventIdRows(input: {
   const policeId = policeEventIdKey(input.policeEventId)
   const eventDate = input.eventDate.trim()
   if (!policeId || !eventDate) return []
-  const { data, error } = await supabase
-    .from('events')
-    .select('id, event_date, police_event_id, is_cancelled, shift_lead_id, origin')
-    .eq('event_date', eventDate)
-    .eq('police_event_id', policeId)
-    .eq('is_cancelled', false)
+  const { data, error } = await supabase.rpc('same_day_police_event_rows', {
+    p_event_date: eventDate,
+    p_police_event_id: policeId,
+  })
   if (error) throw new Error(error.message)
   return (data ?? []) as SameDayPoliceEventRow[]
 }
 
+/** Own resumable row among regular events only: saveEventForm never writes a shift event. */
 async function lookupOwnResumableEventId(input: {
   eventDate: string
   policeEventId: string
@@ -1409,7 +1409,7 @@ async function lookupOwnResumableEventId(input: {
     return ownResumableEventId({
       currentEventId: input.currentEventId,
       viewerLeadId: input.viewerLeadId,
-      existing,
+      existing: existing.filter((row) => row.origin === 'manual'),
     })
   } catch {
     return null

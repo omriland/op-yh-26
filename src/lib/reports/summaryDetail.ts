@@ -99,6 +99,22 @@ async function loadResponderEvents(
   return responderEventRows((data ?? []) as unknown as ParticipationWithEvent[], range)
 }
 
+/** The ids of events the summary does not count: the shift half of a joint pair. */
+async function fetchUncountedEventIds(range: ReportDateRange): Promise<Set<string>> {
+  const { data, error } = await supabase.rpc('event_counting_keys', {
+    p_from: range.from,
+    p_to: range.to,
+  })
+  if (error) throw new Error(error.message)
+  const keys = (data ?? []) as Array<{ event_id: string; is_counted: boolean }>
+  return new Set(keys.filter((key) => !key.is_counted).map((key) => key.event_id))
+}
+
+/** Drops the events the summary left out of its count, so the list matches the row. */
+export function keepCountedEvents<T extends { id: string }>(events: T[], uncountedIds: Set<string>): T[] {
+  return events.filter((event) => !uncountedIds.has(event.id))
+}
+
 async function loadEventsOfGroup(
   range: ReportDateRange,
   group: EventGroup,
@@ -113,7 +129,9 @@ async function loadEventsOfGroup(
     .order('event_date', { ascending: false })
   const { data, error } = await (groupId === null ? query.is(column, null) : query.eq(column, groupId))
   if (error) throw new Error(error.message)
-  return ((data ?? []) as unknown as EventsByResponderEventSource[]).map(wholeEventRow)
+  const events = (data ?? []) as unknown as EventsByResponderEventSource[]
+  const uncountedIds = await fetchUncountedEventIds(range)
+  return keepCountedEvents(events, uncountedIds).map(wholeEventRow)
 }
 
 /** The events one summary row counted, fetched by the row's own group id. */

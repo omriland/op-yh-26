@@ -145,6 +145,7 @@ import {
   isAssignedVolunteerEventEditBlocked,
 } from '../lib/assignedVolunteerEventEdit'
 import { AssignedVolunteerEditBlockedDialog } from '../components/events/AssignedVolunteerEditBlockedDialog'
+import { jointConfirmKey, jointEventNumber } from '../lib/jointEvents'
 import { JointEventConfirmDialog } from '../components/events/JointEventConfirmDialog'
 import { EventSaveRulesDialog } from '../components/events/EventSaveRulesDialog'
 import {
@@ -703,7 +704,11 @@ export function EventFormPage({
       }
       // Autosave often already flushed (e.g. after הקצאת מתנדב). Explicit
       // שמירת אירוע must still confirm + leave the form.
-      if (snapshot === baselineRef.current && current.id) {
+      // A number held back by the joint confirm is in the snapshot but not saved.
+      const numberHeldBack =
+        jointEventNumber(current.police_event_id) !==
+        jointEventNumber(lastPersistedPoliceIdRef.current)
+      if (snapshot === baselineRef.current && current.id && !numberHeldBack) {
         clearEventFormStash(user.id, current.id)
         if (options?.navigate) {
           markSavedPulse()
@@ -778,10 +783,15 @@ export function EventFormPage({
             policeIdBlocked = true
             draftToSave = { ...current, police_event_id: action.policeEventId }
           } else if (action.kind === 'confirm_joint') {
-            if (jointConfirmedKey.current !== jointKey(current)) {
-              setJointPrompt({ options })
-              setSavePulse('idle')
-              return false
+            if (jointConfirmedKey.current !== jointConfirmKey(current.event_date, current.police_event_id)) {
+              if (explicitSave) {
+                setJointPrompt({ options })
+                setSavePulse('idle')
+                return false
+              }
+              // Background saves never ask: keep saving everything else and
+              // hold the number until an explicit save confirms it.
+              draftToSave = { ...current, police_event_id: lastPersistedPoliceIdRef.current }
             }
           } else if (action.kind === 'block') {
             // The full form has an explicit save, so stop and let the lead fix
@@ -946,17 +956,13 @@ export function EventFormPage({
     }
   }
 
-  function jointKey(draft: EventFormDraft): string {
-    return `${draft.event_date}|${draft.police_event_id.trim()}`
-  }
-
   function proceedJointSave() {
     const current = draftRef.current
     if (!current || !jointPrompt) return
-    jointConfirmedKey.current = jointKey(current)
+    jointConfirmedKey.current = jointConfirmKey(current.event_date, current.police_event_id)
     const options = jointPrompt.options
     setJointPrompt(null)
-    void persistLatest({ ...options, revealErrors: true })
+    void persistLatest(options)
   }
 
   function revertNotifyPrompt() {

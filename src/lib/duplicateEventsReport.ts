@@ -1,3 +1,4 @@
+import { jointEventNumber } from './jointEvents'
 import { supabase } from './supabase'
 
 export const DUPLICATE_TIME_WINDOW_MINUTES = 30
@@ -56,8 +57,8 @@ function normalizeLocation(location: string | null): string | null {
 /** A shift event and a regular event with one number and date are one joint event. */
 function isJointPair(a: DuplicateParticipationSource, b: DuplicateParticipationSource): boolean {
   if ((a.origin ?? 'manual') === (b.origin ?? 'manual')) return false
-  const numberA = (a.police_event_id ?? '').trim()
-  return numberA !== '' && numberA === (b.police_event_id ?? '').trim()
+  const numberA = jointEventNumber(a.police_event_id)
+  return numberA !== '' && numberA === jointEventNumber(b.police_event_id)
 }
 
 function pairMatches(a: DuplicateParticipationSource, b: DuplicateParticipationSource): boolean {

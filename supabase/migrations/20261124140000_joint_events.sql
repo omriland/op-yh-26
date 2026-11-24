@@ -2,7 +2,8 @@
 -- non-cancelled manual event AND at most one non-cancelled shift event. Two
 -- manual or two shift events with the same number and date stay rejected.
 -- A joint pair keeps both records; nothing is copied or deleted.
--- Replayed on every edge-function deploy, after 20260929082322 and 20261124120000.
+-- Replayed on every edge-function deploy: in one transaction with each file that
+-- restores an older trigger or freeze body, and once more after 20261124120000.
 
 -- Same body as the demo-aware version from 20261029120000, comparing by origin.
 create or replace function public.events_reject_same_day_police_event_id()
@@ -56,7 +57,48 @@ begin
 end;
 $$;
 
--- The other event of a joint pair: same date, same number, other origin.
+-- Same-day events sharing a number, from any origin. The forms need this to
+-- decide between free, joint confirm and duplicate; a crew member cannot read
+-- other people's events through RLS, so this runs as definer and returns only
+-- the columns the decision needs.
+create or replace function public.same_day_police_event_rows(
+  p_event_date date,
+  p_police_event_id text
+)
+returns table (
+  id uuid,
+  event_date date,
+  police_event_id text,
+  is_cancelled boolean,
+  shift_lead_id uuid,
+  origin public.event_origin
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not_authenticated' using errcode = '42501';
+  end if;
+
+  return query
+  select e.id, e.event_date, e.police_event_id, e.is_cancelled, e.shift_lead_id, e.origin
+  from public.events e
+  where e.event_date = p_event_date
+    and btrim(e.police_event_id) = btrim(p_police_event_id)
+    and e.is_cancelled = false
+    and e.is_demo = public.is_app_review_demo_caller();
+end;
+$$;
+
+revoke all on function public.same_day_police_event_rows(date, text) from public;
+revoke all on function public.same_day_police_event_rows(date, text) from anon;
+grant execute on function public.same_day_police_event_rows(date, text) to authenticated;
+
+-- The other event of a joint pair: same date, same number, other origin, at the
+-- same position in id order within its origin (the pairing event_counting_keys uses).
 create or replace function public.joint_event_partner(p_event_id uuid)
 returns table (partner_id uuid, partner_origin public.event_origin, partner_shift_id uuid)
 language sql
@@ -64,31 +106,46 @@ stable
 security invoker
 set search_path = public
 as $$
-  select p.id, p.origin, p.shift_id
-  from public.events e
-  join public.events p
-    on p.id <> e.id
-   and p.is_cancelled = false
-   and p.is_demo = e.is_demo
-   and p.origin <> e.origin
-   and p.event_date = e.event_date
-   and btrim(p.police_event_id) = btrim(e.police_event_id)
-  where e.id = p_event_id
-    and e.is_cancelled = false
-    and nullif(btrim(coalesce(e.police_event_id, '')), '') is not null
-  order by p.created_at
-  limit 1;
+  with this_event as (
+    select e.id, e.is_demo, e.event_date, btrim(e.police_event_id) as police_id
+    from public.events e
+    where e.id = p_event_id
+      and e.is_cancelled = false
+      and nullif(btrim(coalesce(e.police_event_id, '')), '') is not null
+  ),
+  same_number as (
+    select
+      e.id,
+      e.origin,
+      e.shift_id,
+      row_number() over (partition by e.origin order by e.id) as position_in_origin
+    from public.events e
+    join this_event t
+      on t.is_demo = e.is_demo
+     and t.event_date = e.event_date
+     and t.police_id = btrim(e.police_event_id)
+    where e.is_cancelled = false
+  )
+  select partner.id, partner.origin, partner.shift_id
+  from same_number own
+  join same_number partner
+    on partner.origin <> own.origin
+   and partner.position_in_origin = own.position_in_origin
+  where own.id = p_event_id;
 $$;
 
 revoke all on function public.joint_event_partner(uuid) from public;
 revoke all on function public.joint_event_partner(uuid) from anon;
 grant execute on function public.joint_event_partner(uuid) to authenticated;
 
--- One counting key per event. A manual and a shift event that share a number
--- and date (the first of each, in id order) get the same key and count once.
--- Every other event, including legacy same-origin duplicates, keeps its own id.
-create or replace function public.event_counting_keys(p_from date, p_to date)
-returns table (event_id uuid, event_key text)
+-- One row per event with its counting key. A manual and a shift event that
+-- share a number and date (the nth of each, in id order) get the same key; the
+-- manual half is the one that counts (is_counted), so a pair adds one event to
+-- exactly one group even when the halves differ in road, type or lead. Every
+-- other event, including legacy same-origin duplicates, keeps its own id and counts.
+drop function if exists public.event_counting_keys(date, date);
+create function public.event_counting_keys(p_from date, p_to date)
+returns table (event_id uuid, event_key text, is_counted boolean)
 language sql
 stable
 security invoker
@@ -111,31 +168,21 @@ as $$
       and nullif(btrim(coalesce(e.police_event_id, '')), '') is not null
   ),
   joint as (
-    select m.id as event_id, md5(m.event_date::text || '|' || m.police_id || '|' || m.is_demo::text) as joint_key
-    from numbered m
-    where m.origin = 'manual'
-      and exists (
-        select 1 from numbered s
-        where s.origin = 'shift'
-          and s.is_demo = m.is_demo
-          and s.event_date = m.event_date
-          and s.police_id = m.police_id
-          and s.position_in_origin = m.position_in_origin
-      )
-    union all
-    select s.id, md5(s.event_date::text || '|' || s.police_id || '|' || s.is_demo::text)
-    from numbered s
-    where s.origin = 'shift'
-      and exists (
-        select 1 from numbered m
-        where m.origin = 'manual'
-          and m.is_demo = s.is_demo
-          and m.event_date = s.event_date
-          and m.police_id = s.police_id
-          and m.position_in_origin = s.position_in_origin
-      )
+    select
+      n.id as event_id,
+      md5(n.event_date::text || '|' || n.police_id || '|' || n.is_demo::text || '|' || n.position_in_origin::text) as joint_key,
+      n.origin = 'manual' as is_counted
+    from numbered n
+    where exists (
+      select 1 from numbered other
+      where other.origin <> n.origin
+        and other.is_demo = n.is_demo
+        and other.event_date = n.event_date
+        and other.police_id = n.police_id
+        and other.position_in_origin = n.position_in_origin
+    )
   )
-  select e.id, coalesce(j.joint_key, e.id::text)
+  select e.id, coalesce(j.joint_key, e.id::text), coalesce(j.is_counted, true)
   from public.events e
   left join joint j on j.event_id = e.id
   where e.event_date between p_from and p_to;
@@ -144,6 +191,104 @@ $$;
 revoke all on function public.event_counting_keys(date, date) from public;
 revoke all on function public.event_counting_keys(date, date) from anon;
 grant execute on function public.event_counting_keys(date, date) to authenticated;
+
+-- Joint pairs must not be frozen as suspected duplicates: same date and place
+-- within 30 minutes is exactly what a pair looks like. Same body as
+-- 20260910140000 plus the exemption.
+create or replace function public.refresh_event_freeze(p_event_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_event_id is null then
+    return;
+  end if;
+  if current_setting('yahpaz.deleting_event_id', true) is not distinct from p_event_id::text then
+    return;
+  end if;
+  if not exists (select 1 from public.events where id = p_event_id) then
+    return;
+  end if;
+
+  perform set_config('yahpaz.refreshing_event_freeze', '1', true);
+
+  with wanted as (
+    select
+      er.id,
+      (
+        er.total_km is not null
+        and er.total_km >= 80
+        and not (er.responder_id = any (e.approved_over_60km_responder_ids))
+      ) as over_km,
+      (
+        not e.approved_suspicious_duplicate
+        and er.started_at is not null
+        and nullif(btrim(coalesce(e.location, '')), '') is not null
+        and exists (
+          select 1
+          from public.event_responders other
+          join public.events other_event on other_event.id = other.event_id
+          where other.responder_id = er.responder_id
+            and other.event_id <> er.event_id
+            and other_event.event_date = e.event_date
+            and btrim(coalesce(other_event.location, '')) = btrim(e.location)
+            and other.started_at is not null
+            and abs(extract(epoch from (er.started_at - other.started_at))) <= 1800
+            -- A joint pair is one real event recorded twice, not a duplicate.
+            and not (
+              other_event.origin <> e.origin
+              and other_event.is_demo = e.is_demo
+              and other_event.is_cancelled = false
+              and nullif(btrim(coalesce(e.police_event_id, '')), '') is not null
+              and btrim(coalesce(other_event.police_event_id, '')) = btrim(e.police_event_id)
+            )
+        )
+      ) as duplicate
+    from public.event_responders er
+    join public.events e on e.id = er.event_id
+    where er.event_id = p_event_id
+  )
+  update public.event_responders er
+  set
+    frozen_over_60km = wanted.over_km,
+    frozen_suspicious_duplicate = wanted.duplicate
+  from wanted
+  where wanted.id = er.id
+    -- Only real transitions: refresh fans out across a responder's whole day,
+    -- and a no-op write would still fire the audit trigger.
+    and (
+      er.frozen_over_60km is distinct from wanted.over_km
+      or er.frozen_suspicious_duplicate is distinct from wanted.duplicate
+    );
+
+  update public.events e
+  set
+    frozen_over_60km = agg.over_km,
+    frozen_suspicious_duplicate = agg.duplicate
+  from (
+    select
+      exists (
+        select 1
+        from public.event_responders er
+        where er.event_id = p_event_id
+          and er.frozen_over_60km
+      ) as over_km,
+      exists (
+        select 1
+        from public.event_responders er
+        where er.event_id = p_event_id
+          and er.frozen_suspicious_duplicate
+      ) as duplicate
+  ) agg
+  where e.id = p_event_id
+    and (
+      e.frozen_over_60km is distinct from agg.over_km
+      or e.frozen_suspicious_duplicate is distinct from agg.duplicate
+    );
+end;
+$$;
 
 -- Event counts treat a joint pair as one event; km still sums per responder.
 create or replace function public.report_activity_summary(
@@ -233,7 +378,7 @@ begin
       end,
       ''
     ) as group_label,
-    count(distinct ek2.event_key) as event_count,
+    count(*) filter (where ek2.is_counted) as event_count,
     0::bigint as shift_count,
     coalesce(sum(ek.km), 0) as km_total,
     max(e.event_date) as last_activity

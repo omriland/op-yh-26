@@ -1,3 +1,4 @@
+import { isUnitEventId, policeEventIdKey } from './format'
 import { supabase } from './supabase'
 
 export const JOINT_EVENT_CONFIRM_TITLE =
@@ -7,6 +8,7 @@ export const JOINT_EVENT_CONFIRM_HINT =
 export const JOINT_EVENT_CONFIRM_PROCEED = 'המשך'
 export const JOINT_EVENT_CONFIRM_CANCEL = 'ביטול'
 export const JOINT_EVENT_LINE_LABEL = 'אירוע משותף עם'
+export const JOINT_LOOKUP_FAILED_ERROR = 'שמירת האירוע נכשלה. בדקו את החיבור ונסו שוב.'
 
 export type JointEventOrigin = 'manual' | 'shift'
 
@@ -26,14 +28,20 @@ export type JointEventPartner = {
 
 export type JointSaveDecision = 'free' | 'confirm' | 'blocked'
 
-function trimmedNumber(policeEventId: string | null | undefined): string {
-  return (policeEventId ?? '').trim()
+/** The number as the database compares it: digits only, or a whole unit ID. */
+export function jointEventNumber(policeEventId: string | null | undefined): string {
+  return policeEventIdKey(policeEventId ?? '')
+}
+
+/** What the person already confirmed: one date and one number. */
+export function jointConfirmKey(eventDate: string, policeEventId: string): string {
+  return `${eventDate.trim()}|${jointEventNumber(policeEventId)}`
 }
 
 function sharesNumberAndDate(row: JointEventRow, eventDate: string, number: string): boolean {
   if (row.is_cancelled) return false
   if (row.event_date.trim() !== eventDate.trim()) return false
-  return trimmedNumber(row.police_event_id) === number
+  return jointEventNumber(row.police_event_id) === number
 }
 
 /** Whether saving this event is free, needs the joint confirm, or is a plain duplicate. */
@@ -44,21 +52,26 @@ export function jointSaveDecision(input: {
   currentEventId?: string | null
   existing: JointEventRow[]
 }): JointSaveDecision {
-  const number = trimmedNumber(input.policeEventId)
+  const number = jointEventNumber(input.policeEventId)
   if (!number) return 'free'
 
   const sharing = input.existing.filter((row) => sharesNumberAndDate(row, input.eventDate, number))
   if (input.currentEventId && sharing.some((row) => row.id === input.currentEventId)) return 'free'
 
   if (sharing.some((row) => row.origin === input.origin)) return 'blocked'
+  // A unit ID belongs to one event only, so it can never be joint.
+  if (isUnitEventId(number) && sharing.length > 0) return 'blocked'
   return sharing.length > 0 ? 'confirm' : 'free'
 }
 
-export function jointPartnerHref(partner: JointEventPartner): string {
+/** Managers browse /events and /shifts; volunteers only reach their own lists. */
+export function jointPartnerHref(partner: JointEventPartner, viewerManages = true): string {
+  const eventsRoot = viewerManages ? 'events' : 'mine'
+  const shiftsRoot = viewerManages ? 'shifts' : 'my-shifts'
   if (partner.origin === 'shift' && partner.shift_id) {
-    return `/shifts/${partner.shift_id}/event/${partner.id}`
+    return `/${shiftsRoot}/${partner.shift_id}/event/${partner.id}`
   }
-  return `/events/${partner.id}`
+  return `/${eventsRoot}/${partner.id}`
 }
 
 /** Event count where a manual and a shift event sharing number and date are one event. */
@@ -68,7 +81,7 @@ export function countEventsWithJointPairsOnce(events: JointEventRow[]): number {
   const shiftKeys = new Map<string, number>()
 
   for (const row of active) {
-    const number = trimmedNumber(row.police_event_id)
+    const number = jointEventNumber(row.police_event_id)
     if (!number) continue
     const bucket = row.origin === 'shift' ? shiftKeys : manualKeys
     const key = `${row.event_date}|${number}`
@@ -94,22 +107,4 @@ export async function fetchJointPartner(eventId: string): Promise<JointEventPart
   const row = ((data ?? []) as PartnerRpcRow[])[0]
   if (!row) return null
   return { id: row.partner_id, origin: row.partner_origin, shift_id: row.partner_shift_id }
-}
-
-/** Same-day rows that share a number, from any origin, for the joint decision. */
-export async function fetchJointCandidateRows(input: {
-  eventDate: string
-  policeEventId: string
-}): Promise<JointEventRow[]> {
-  const number = trimmedNumber(input.policeEventId)
-  const eventDate = input.eventDate.trim()
-  if (!number || !eventDate) return []
-  const { data, error } = await supabase
-    .from('events')
-    .select('id, event_date, police_event_id, origin, is_cancelled')
-    .eq('event_date', eventDate)
-    .eq('police_event_id', number)
-    .eq('is_cancelled', false)
-  if (error) throw new Error(error.message)
-  return (data ?? []) as JointEventRow[]
 }

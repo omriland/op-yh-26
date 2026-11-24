@@ -516,7 +516,7 @@ export function EventDetailPage({
               numeric
               missing={missingLeadFields.has('police_event_id')}
             />
-            <JointEventLedgerRow eventId={event.id} />
+            <JointEventLedgerRow eventId={event.id} policeEventId={event.police_event_id} />
             <LedgerRow
               label="שלוחה"
               value={event.district?.name}

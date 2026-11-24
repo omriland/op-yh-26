@@ -39,7 +39,8 @@ import {
 } from '../lib/eventMedia'
 import { JointEventConfirmDialog } from '../components/events/JointEventConfirmDialog'
 import { JointEventLedgerRow } from '../components/events/JointEventLedgerRow'
-import { fetchJointCandidateRows, jointSaveDecision } from '../lib/jointEvents'
+import { fetchSameDayPoliceEventIdRows, toJointEventRow } from '../lib/eventForm'
+import { JOINT_LOOKUP_FAILED_ERROR, jointConfirmKey, jointSaveDecision } from '../lib/jointEvents'
 import { EventSaveRulesDialog } from '../components/events/EventSaveRulesDialog'
 import {
   skippedPhotoDigits,
@@ -419,13 +420,14 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     return complete ? 'complete' : 'save'
   }
 
-  /** Opens the joint-event confirm when this save would pair the report with a regular event. */
-  async function jointConfirmOpened(action: 'save' | 'complete' | 'reopen'): Promise<boolean> {
+  /** True when the save must wait: the joint confirm opened, or the lookup failed. */
+  async function jointCheckStopsSave(action: 'save' | 'complete' | 'reopen'): Promise<boolean> {
     if (!draft || !ctx || !draft.police_event_id.trim()) return false
-    const key = `${ctx.event.event_date}|${draft.police_event_id.trim()}`
-    if (jointConfirmedKey.current === key) return false
+    if (jointConfirmedKey.current === jointConfirmKey(ctx.event.event_date, draft.police_event_id)) {
+      return false
+    }
     try {
-      const existing = await fetchJointCandidateRows({
+      const existing = await fetchSameDayPoliceEventIdRows({
         eventDate: ctx.event.event_date,
         policeEventId: draft.police_event_id,
       })
@@ -434,11 +436,12 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
         policeEventId: draft.police_event_id,
         origin: 'shift',
         currentEventId: eventId,
-        existing,
+        existing: existing.map(toJointEventRow),
       })
       if (decision !== 'confirm') return false
     } catch {
-      return false
+      show(JOINT_LOOKUP_FAILED_ERROR, 'alert')
+      return true
     }
     setJointPrompt(action)
     return true
@@ -446,7 +449,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
 
   function proceedJointSave() {
     if (!draft || !ctx || !jointPrompt) return
-    jointConfirmedKey.current = `${ctx.event.event_date}|${draft.police_event_id.trim()}`
+    jointConfirmedKey.current = jointConfirmKey(ctx.event.event_date, draft.police_event_id)
     const action = jointPrompt
     setJointPrompt(null)
     if (action === 'complete') void onComplete()
@@ -456,7 +459,7 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
 
   async function persist(complete: boolean, reopen = false) {
     if (!draft || !expectedAt) return
-    if (await jointConfirmOpened(persistAction(complete, reopen))) return false
+    if (await jointCheckStopsSave(persistAction(complete, reopen))) return false
     const result = await saveShiftBornEventFill({
       eventId,
       expectedUpdatedAt: expectedAt,
@@ -612,7 +615,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
         <section className="card responder-fill__context stack-4">
           <Ledger>
             <LedgerRow label="תאריך" value={formatDate(ctx.event.event_date)} numeric />
-            <JointEventLedgerRow eventId={eventId} />
+            <JointEventLedgerRow
+              eventId={eventId}
+              policeEventId={draft?.police_event_id}
+              refreshKey={expectedAt}
+            />
             {isSuperAdmin ? null : (
               <LedgerRow label="סוג אירוע" value={ctx.event.event_type?.name ?? undefined} />
             )}
