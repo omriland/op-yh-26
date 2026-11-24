@@ -149,10 +149,28 @@ jobs:
           # contacts now include the caller and members with a pending invite.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261102120000_contacts_include_self_and_pending.sql
+          # Three replayed files re-create functions and policies that the live-shift
+          # migration owns (save_shift_born_event_fill, sync_shift_born_events,
+          # enforce_shift_identity_edit, the event-media storage policies). Run on
+          # their own, they leave production on the old versions until the end of
+          # this step: on 2026-11-24 that put two save_shift_born_event_fill
+          # versions side by side and event saves failed during the deploy. So each
+          # runs in one transaction together with the live-shift file.
+          replay_with_live_shifts() {
+            combined="$RUNNER_TEMP/$(basename "$1" .sql)_with_live_shifts.sql"
+            {
+              echo 'begin;'
+              cat "$1"
+              echo
+              cat supabase/migrations/20261122120000_shift_live_events.sql
+              echo
+              echo 'commit;'
+            } > "$combined"
+            supabase db query --linked --project-ref rtvizpsfvtjowbimugns -f "$combined"
+          }
           # Event media accepts short videos (MP4 / MOV / WebM up to 25 MB).
           # Must land before the frontend offers video uploads.
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20261102121000_event_media_short_videos.sql
+          replay_with_live_shifts supabase/migrations/20261102121000_event_media_short_videos.sql
           # Keep these three LAST. The replays above restore older bodies of
           # guard_event_done_requirements, derived_event_status,
           # event_missing_lead_km, count_events_missing_lead_km,
@@ -162,8 +180,7 @@ jobs:
           # shift-born exemptions, the map's vehicle rule and the email-link
           # status recompute. Without them every edge-function push silently
           # undid those fixes (it did on 2026-11-03).
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20261103100000_shift_born_events_hardening.sql
+          replay_with_live_shifts supabase/migrations/20261103100000_shift_born_events_hardening.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261103101000_map_pins_require_vehicle.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
@@ -171,8 +188,7 @@ jobs:
           # Self-service account deletion (App Store 5.1.1(v)). Independent of the
           # replays above; must land before delete-account and admin-users, which
           # call delete_user_account and write impersonation_audit.session_id.
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20261103180000_account_deletion.sql
+          replay_with_live_shifts supabase/migrations/20261103180000_account_deletion.sql
           # משוב voice transcripts. Additive columns; safe to re-apply.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261104170000_user_feedback_transcript.sql
@@ -205,11 +221,11 @@ jobs:
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261113120000_unit_event_ids.sql
       - name: Reapply live shifts migration
-        # Runs even when a migration above failed. The replays above restore the
-        # older bodies of enforce_shift_identity_edit, sync_shift_born_events and
-        # save_shift_born_event_fill; this file puts back the live-shift versions
-        # (and drops the old 11-argument overload). It must stay after every
-        # replay of 20261103100000 and 20261103180000.
+        # Safety net: runs even when a migration above failed, so production
+        # always ends on the live-shift versions (the three replays that touch
+        # them already run together with this file in one transaction). It must
+        # stay after every replay of 20261102121000, 20261103100000 and
+        # 20261103180000.
         if: ${{ !cancelled() && steps.creds.outputs.present == 'true' }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
