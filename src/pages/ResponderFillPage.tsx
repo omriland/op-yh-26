@@ -26,7 +26,7 @@ import {
   formatPlate,
   plateDigits,
 } from '../lib/format'
-import { formatOdometerEndReading } from '../lib/odometer'
+import { odometerEndValue } from '../components/events/OdometerEndValue'
 import { lookupPlate } from '../lib/plateLookup'
 import {
   applyTreatedPlateLookup,
@@ -730,12 +730,10 @@ export function ResponderFillPage({
                   />
                   <LedgerRow
                     label='מד אוץ סיום'
-                    value={formatOdometerEndReading(
+                    value={odometerEndValue(
                       odometerReading(draft.odometer_start),
                       odometerReading(draft.odometer_end),
                     )}
-                    numeric
-                    isolate
                   />
                   <LedgerRow label="נתיב נסיעה" value={draft.route || undefined} />
                   <LedgerRow
