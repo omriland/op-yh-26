@@ -3,15 +3,18 @@ import { formatNumber } from './format'
 import { formatOdometerEndReading } from './odometer'
 
 describe('formatOdometerEndReading', () => {
-  it('puts the responder trip in brackets next to the end reading', () => {
+  it('puts the responder trip next to the end reading as X ק״מ סה״כ', () => {
     expect(formatOdometerEndReading(55859, 55983)).toBe(
-      `${formatNumber(55983)} (${formatNumber(124)})`,
+      `${formatNumber(55983)} ${formatNumber(124)} ק״מ סה״כ`,
+    )
+    expect(formatOdometerEndReading(54368, 54374)).toBe(
+      `${formatNumber(54374)} ${formatNumber(6)} ק״מ סה״כ`,
     )
   })
 
   it('shows 0 when the vehicle did not move', () => {
-    expect(formatOdometerEndReading(100, 100)).toBe(`${formatNumber(100)} (${formatNumber(0)})`)
-    expect(formatOdometerEndReading(0, 0)).toBe(`${formatNumber(0)} (${formatNumber(0)})`)
+    expect(formatOdometerEndReading(100, 100)).toBe(`${formatNumber(100)} ${formatNumber(0)} ק״מ סה״כ`)
+    expect(formatOdometerEndReading(0, 0)).toBe(`${formatNumber(0)} ${formatNumber(0)} ק״מ סה״כ`)
   })
 
   it('shows the end figure alone when the start is missing', () => {

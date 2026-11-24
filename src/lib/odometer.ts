@@ -10,7 +10,7 @@ import { formatNumber } from './format'
 export const ODOMETER_ORDER_ERROR = 'מד אוץ סיום אינו יכול להיות קטן ממד אוץ התחלה'
 
 /**
- * End reading with the trip the responder logged, in brackets.
+ * End reading, then the trip the responder logged as `6 ק״מ סה״כ`.
  *
  * The number is end − start from the two readings they filled in. It is never
  * the אחמ״ש kilometer (`total_km`), which stays a separate field and stays
@@ -21,8 +21,20 @@ export function formatOdometerEndReading(
   start: number | null | undefined,
   end: number | null | undefined,
 ): string | undefined {
+  const parts = odometerEndReading(start, end)
+  if (!parts) return undefined
+  if (parts.trip == null) return parts.end
+  return `${parts.end} ${parts.trip} ק״מ סה״כ`
+}
+
+export function odometerEndReading(
+  start: number | null | undefined,
+  end: number | null | undefined,
+): { end: string; trip: string | null } | undefined {
   if (end == null || !Number.isFinite(end)) return undefined
   const endText = formatNumber(end)
-  if (start == null || !Number.isFinite(start) || end < start) return endText
-  return `${endText} (${formatNumber(end - start)})`
+  if (start == null || !Number.isFinite(start) || end < start) {
+    return { end: endText, trip: null }
+  }
+  return { end: endText, trip: formatNumber(end - start) }
 }

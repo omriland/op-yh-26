@@ -75,7 +75,7 @@ describe('responderCardShowsLeadKm', () => {
     expect(source).toContain("label='מד אוץ התחלה'")
     expect(source).toContain("label='מד אוץ סיום'")
     expect(source).toContain(
-      'formatOdometerEndReading(responder.odometer_start, responder.odometer_end)',
+      'odometerEndValue(responder.odometer_start, responder.odometer_end)',
     )
   })
 })
