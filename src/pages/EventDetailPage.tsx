@@ -55,6 +55,7 @@ import {
   formatTime,
   monoClass,
 } from '../lib/format'
+import { formatOdometerEndReading } from '../lib/odometer'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { mergeTreatedPlates } from '../lib/treatedPlates'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
@@ -887,8 +888,9 @@ function ResponderCard({
                 />
                 <LedgerRow
                   label='מד אוץ סיום'
-                  value={responder.odometer_end != null ? formatNumber(responder.odometer_end) : undefined}
+                  value={formatOdometerEndReading(responder.odometer_start, responder.odometer_end)}
                   numeric
+                  isolate
                 />
               </>
             ) : null}
