@@ -26,6 +26,7 @@ import {
   formatPlate,
   plateDigits,
 } from '../lib/format'
+import { formatOdometerEndReading } from '../lib/odometer'
 import { lookupPlate } from '../lib/plateLookup'
 import {
   applyTreatedPlateLookup,
@@ -79,10 +80,15 @@ const STAMP_PRESS_HOLD_MS = 700
 
 /** A typed 0 is a reading, not an empty field. */
 function odometerLedgerValue(raw: string): string | undefined {
+  const value = odometerReading(raw)
+  return value == null ? undefined : formatNumber(value)
+}
+
+function odometerReading(raw: string): number | null {
   const trimmed = raw.trim()
-  if (!trimmed) return undefined
+  if (!trimmed) return null
   const value = Number(trimmed)
-  return Number.isFinite(value) ? formatNumber(value) : undefined
+  return Number.isFinite(value) ? value : null
 }
 
 type ResponderFillPageProps = {
@@ -724,8 +730,12 @@ export function ResponderFillPage({
                   />
                   <LedgerRow
                     label='מד אוץ סיום'
-                    value={odometerLedgerValue(draft.odometer_end)}
+                    value={formatOdometerEndReading(
+                      odometerReading(draft.odometer_start),
+                      odometerReading(draft.odometer_end),
+                    )}
                     numeric
+                    isolate
                   />
                   <LedgerRow label="נתיב נסיעה" value={draft.route || undefined} />
                   <LedgerRow
