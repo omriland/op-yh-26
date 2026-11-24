@@ -76,10 +76,10 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          # Three replayed files put back the pre-joint-events trigger body and
-          # freeze rule, which reject a confirmed joint pair. Each runs in one
-          # transaction together with the joint-events file, so production never
-          # sits on the old rule between statements.
+          # Replayed files that put back the pre-joint-events trigger body (which
+          # rejects a confirmed joint pair) or the old report_activity_summary
+          # (which counts a pair twice) each run in one transaction together with
+          # the joint-events file, so production never sits on the old version.
           replay_with_joint_events() {
             combined="$RUNNER_TEMP/$(basename "$1" .sql)_with_joint_events.sql"
             {
@@ -96,7 +96,8 @@ jobs:
             -f supabase/migrations/20260905120000_partner_webhook_events.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260908040000_partner_webhook_cron_auth.sql
-          replay_with_joint_events supabase/migrations/20260910140000_responder_level_event_freeze.sql
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20260910140000_responder_level_event_freeze.sql
           # Must land before the frontend: the client now derives הושלם for a
           # ללא-רכב volunteer, which the old guard rejects.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
@@ -235,14 +236,9 @@ jobs:
           # אירוע יחידתי: unit ID ledger, issue RPC and claim trigger on events.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261113120000_unit_event_ids.sql
-          # Summary report and inactive volunteers RPCs. Idempotent; the front end
-          # shows its load-failed state for both reports until these exist.
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20261124120000_summary_reports.sql
-          # Joint events: final run, after 20261124120000 (report_activity_summary).
-          # Earlier replays of the trigger and freeze files already ran it in one transaction.
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20261124140000_joint_events.sql
+          # Summary report and inactive volunteers RPCs, with the joint-events
+          # counting applied in the same transaction.
+          replay_with_joint_events supabase/migrations/20261124120000_summary_reports.sql
       - name: Reapply live shifts migration
         # Safety net: runs even when a migration above failed, so production
         # always ends on the live-shift versions (the three replays that touch

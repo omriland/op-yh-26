@@ -101,13 +101,14 @@ async function loadResponderEvents(
 
 /** The ids of events the summary does not count: the shift half of a joint pair. */
 async function fetchUncountedEventIds(range: ReportDateRange): Promise<Set<string>> {
-  const { data, error } = await supabase.rpc('event_counting_keys', {
-    p_from: range.from,
-    p_to: range.to,
-  })
+  // Filtered on the server: the function returns a row per event, and a long range
+  // would pass the API's row cap.
+  const { data, error } = await supabase
+    .rpc('event_counting_keys', { p_from: range.from, p_to: range.to })
+    .eq('is_counted', false)
   if (error) throw new Error(error.message)
-  const keys = (data ?? []) as Array<{ event_id: string; is_counted: boolean }>
-  return new Set(keys.filter((key) => !key.is_counted).map((key) => key.event_id))
+  const keys = (data ?? []) as Array<{ event_id: string }>
+  return new Set(keys.map((key) => key.event_id))
 }
 
 /** Drops the events the summary left out of its count, so the list matches the row. */
