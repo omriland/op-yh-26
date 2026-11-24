@@ -37,6 +37,7 @@ import {
 } from './eventStatus'
 import { ASSIGNED_VOLUNTEER_EVENT_EDIT_ERROR, isAssignedVolunteerEventEditBlocked } from './assignedVolunteerEventEdit'
 import { isForeignShiftLeadEvent } from './foreignEventEdit'
+import { jointSaveDecision, type JointEventOrigin, type JointEventRow } from './jointEvents'
 import {
   EVENT_EDIT_LOCKED_TOOLTIP,
   isEventEditAgeLocked,
@@ -1238,6 +1239,8 @@ export type SameDayPoliceEventRow = {
   police_event_id: string | null
   is_cancelled?: boolean
   shift_lead_id?: string | null
+  /** Missing means a regular event. */
+  origin?: JointEventOrigin
 }
 
 /** Own same-day מספר אירוע after a create whose response never came back. */
@@ -1300,6 +1303,18 @@ export type PoliceEventIdSaveAction =
   /** Cockpit only: keep the partial save alive without the colliding number. */
   | { kind: 'strip'; policeEventId: string }
   | { kind: 'block' }
+  /** A manual and a shift event would share the number: ask before saving. */
+  | { kind: 'confirm_joint' }
+
+function withOrigin(row: SameDayPoliceEventRow): JointEventRow {
+  return {
+    id: row.id,
+    event_date: row.event_date,
+    police_event_id: row.police_event_id,
+    is_cancelled: row.is_cancelled,
+    origin: row.origin ?? 'manual',
+  }
+}
 
 /**
  * What to do with a מספר אירוע that already exists on the same date.
@@ -1317,25 +1332,31 @@ export function policeEventIdSaveAction(input: {
   viewerLeadId: string
   lastSavedPoliceEventId: string
   existing: SameDayPoliceEventRow[]
+  /** Origin of the event being saved. Missing means a regular event. */
+  origin?: JointEventOrigin
 }): PoliceEventIdSaveAction {
   if (!input.policeEventId.trim()) return { kind: 'proceed' }
+  const origin = input.origin ?? 'manual'
+  const rows = input.existing.map(withOrigin)
 
   if (input.variant === 'cockpit') {
     const ownId = ownResumableEventId({
       currentEventId: input.currentEventId,
       viewerLeadId: input.viewerLeadId,
-      existing: input.existing,
+      existing: input.existing.filter((row) => (row.origin ?? 'manual') === origin),
     })
     if (ownId) return { kind: 'resume', eventId: ownId }
   }
 
-  const collides = sameDayPoliceEventIdCollides({
+  const decision = jointSaveDecision({
     eventDate: input.eventDate,
     policeEventId: input.policeEventId,
+    origin,
     currentEventId: input.currentEventId,
-    existing: input.existing,
+    existing: rows,
   })
-  if (!collides) return { kind: 'proceed' }
+  if (decision === 'free') return { kind: 'proceed' }
+  if (decision === 'confirm') return { kind: 'confirm_joint' }
 
   if (input.variant === 'full') return { kind: 'block' }
   return {
@@ -1369,7 +1390,7 @@ export async function fetchSameDayPoliceEventIdRows(input: {
   if (!policeId || !eventDate) return []
   const { data, error } = await supabase
     .from('events')
-    .select('id, event_date, police_event_id, is_cancelled, shift_lead_id')
+    .select('id, event_date, police_event_id, is_cancelled, shift_lead_id, origin')
     .eq('event_date', eventDate)
     .eq('police_event_id', policeId)
     .eq('is_cancelled', false)

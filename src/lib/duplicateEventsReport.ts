@@ -12,6 +12,8 @@ export type DuplicateParticipationSource = {
   started_at: string | null
   is_cancelled: boolean
   police_event_id: string | null
+  /** Missing means a regular event. */
+  origin?: 'manual' | 'shift'
   event_type_name: string | null
   road_name: string | null
   full_name: string | null
@@ -51,10 +53,18 @@ function normalizeLocation(location: string | null): string | null {
   return trimmed === '' ? null : trimmed
 }
 
+/** A shift event and a regular event with one number and date are one joint event. */
+function isJointPair(a: DuplicateParticipationSource, b: DuplicateParticipationSource): boolean {
+  if ((a.origin ?? 'manual') === (b.origin ?? 'manual')) return false
+  const numberA = (a.police_event_id ?? '').trim()
+  return numberA !== '' && numberA === (b.police_event_id ?? '').trim()
+}
+
 function pairMatches(a: DuplicateParticipationSource, b: DuplicateParticipationSource): boolean {
   if (a.event_id === b.event_id) return false
   if (a.responder_id !== b.responder_id) return false
   if (a.event_date !== b.event_date) return false
+  if (isJointPair(a, b)) return false
 
   const locA = normalizeLocation(a.location)
   const locB = normalizeLocation(b.location)
@@ -148,6 +158,7 @@ type EventQueryRow = {
   event_date: string
   is_cancelled: boolean
   police_event_id: string | null
+  origin: 'manual' | 'shift'
   location: string | null
   frozen_over_60km?: boolean
   frozen_suspicious_duplicate?: boolean
@@ -183,6 +194,7 @@ function flattenEvents(events: EventQueryRow[]): DuplicateParticipationSource[] 
         started_at: responder.started_at,
         is_cancelled: event.is_cancelled,
         police_event_id: event.police_event_id,
+        origin: event.origin,
         event_type_name: eventType?.name ?? null,
         road_name: road?.name ?? null,
         full_name: profile?.full_name ?? null,
@@ -201,6 +213,7 @@ const DUPLICATE_SELECT = `
   event_date,
   is_cancelled,
   police_event_id,
+  origin,
   location,
   frozen_over_60km,
   frozen_suspicious_duplicate,

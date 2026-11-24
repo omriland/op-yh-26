@@ -45,6 +45,7 @@ on:
       - "supabase/migrations/20261113120000_unit_event_ids.sql"
       - "supabase/migrations/20261122120000_shift_live_events.sql"
       - "supabase/migrations/20261124120000_summary_reports.sql"
+      - "supabase/migrations/20261124140000_joint_events.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -225,6 +226,11 @@ jobs:
           # shows its load-failed state for both reports until these exist.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261124120000_summary_reports.sql
+          # Joint events: replaces events_reject_same_day_police_event_id (after
+          # 20260929082322 and 20261029120000) and report_activity_summary (after
+          # 20261124120000).
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261124140000_joint_events.sql
       - name: Reapply live shifts migration
         # Safety net: runs even when a migration above failed, so production
         # always ends on the live-shift versions (the three replays that touch

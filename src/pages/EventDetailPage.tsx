@@ -59,6 +59,7 @@ import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { mergeTreatedPlates } from '../lib/treatedPlates'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
 import { EventLeadLedgerRows } from '../components/events/EventShiftLeadsFields'
+import { JointEventLedgerRow } from '../components/events/JointEventLedgerRow'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
 import { EventFrozenNotice } from '../components/events/EventFrozenNotice'
 import { useFreezeViewer } from '../lib/freezeViewer'
@@ -515,6 +516,7 @@ export function EventDetailPage({
               numeric
               missing={missingLeadFields.has('police_event_id')}
             />
+            <JointEventLedgerRow eventId={event.id} />
             <LedgerRow
               label="שלוחה"
               value={event.district?.name}
