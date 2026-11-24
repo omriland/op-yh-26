@@ -1,7 +1,7 @@
 import { fetchDuplicateClusters } from '../duplicateEventsReport'
 import { approveEventFreeze, deleteEvent, eventDeleteConfirmBody } from '../events'
 import { eventFreezeFlagsFromRow } from '../eventFreeze'
-import { loadEventsByResponderReport } from '../eventsByResponderReport'
+import { loadEventsByResponderReport, type EventsByResponderRow } from '../eventsByResponderReport'
 import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
@@ -17,6 +17,24 @@ import {
   documentationFillLabel,
   loadOpenDocumentationReport,
 } from '../openDocumentationReport'
+import {
+  DEFAULT_INACTIVE_DAYS,
+  NEVER_SIGNED_IN_LABEL,
+  isValidInactiveDays,
+  lastSeenLabel,
+  loadInactiveMembers,
+} from './inactiveMembersReport'
+import {
+  DEFAULT_SUMMARY_GROUP,
+  SUMMARY_GROUP_OPTIONS,
+  loadActivitySummary,
+  sortSummaryTableRows,
+  summaryColumns,
+  summaryCsvFromTable,
+  summaryRowsToTable,
+  summaryTotalsFromTable,
+} from './summaryReport'
+import { loadSummaryDetailRows } from './summaryDetail'
 import type { ReportKind, ReportTableRow } from './types'
 
 function person(name: string | null | undefined, callsign: string | null | undefined): string {
@@ -46,6 +64,30 @@ function requireRange(inputs: { from?: string; to?: string }): { from: string; t
   const to = inputs.to ?? defaults.to
   if (!isValidFuelRefundRange(from, to)) return null
   return { from, to }
+}
+
+function eventsByResponderTableRow(row: EventsByResponderRow): ReportTableRow {
+  const responder = person(row.responder_name, row.responder_callsign)
+  const placeText = place(row.road_name, row.location)
+  const leadText = lead(row.shift_lead_callsign, row.shift_lead_name)
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    groupKey: row.responder_id,
+    groupLabel: responder,
+    searchText: [responder, row.police_event_id ?? '', placeText, row.district_name ?? ''].join(' '),
+    freeze: eventFreezeFlagsFromRow(row),
+    values: [
+      responder,
+      formatDate(row.event_date),
+      policeEventLabel(row.police_event_id, row.is_cancelled),
+      eventType(row.event_type_name),
+      row.district_name ?? '—',
+      placeText,
+      leadText,
+      km(row.total_km),
+    ],
+  }
 }
 
 const openDocumentation: ReportKind = {
@@ -113,29 +155,7 @@ const eventsByResponder: ReportKind = {
     const range = requireRange(inputs)
     if (!range) return []
     const rows = await loadEventsByResponderReport(range.from, range.to)
-    return rows.map((row): ReportTableRow => {
-      const responder = person(row.responder_name, row.responder_callsign)
-      const placeText = place(row.road_name, row.location)
-      const leadText = lead(row.shift_lead_callsign, row.shift_lead_name)
-      return {
-        id: row.id,
-        eventId: row.event_id,
-        groupKey: row.responder_id,
-        groupLabel: responder,
-        searchText: [responder, row.police_event_id ?? '', placeText, row.district_name ?? ''].join(' '),
-        freeze: eventFreezeFlagsFromRow(row),
-        values: [
-          responder,
-          formatDate(row.event_date),
-          policeEventLabel(row.police_event_id, row.is_cancelled),
-          eventType(row.event_type_name),
-          row.district_name ?? '—',
-          placeText,
-          leadText,
-          km(row.total_km),
-        ],
-      }
-    })
+    return rows.map(eventsByResponderTableRow)
   },
 }
 
@@ -335,12 +355,89 @@ const duplicateEvents: ReportKind = {
   ],
 }
 
+const activitySummary: ReportKind = {
+  id: 'activity_summary',
+  title: 'סיכום פעילות',
+  includes: 'אירועים, ק״מ ופעילות אחרונה, מקובצים לפי מתנדב, כביש, שלוחה, סוג אירוע או אחמ״ש',
+  audience: 'admin_and_shift_lead',
+  hasDateRange: true,
+  hasPeriodPicker: true,
+  searchPlaceholder: 'חיפוש בדוח',
+  csvFilename: 'סיכום-פעילות.csv',
+  columns: summaryColumns(DEFAULT_SUMMARY_GROUP),
+  grouping: {
+    options: SUMMARY_GROUP_OPTIONS,
+    defaultValue: DEFAULT_SUMMARY_GROUP,
+    columnsFor: summaryColumns,
+    sortRows: sortSummaryTableRows,
+    totalsValues: summaryTotalsFromTable,
+    toCsv: summaryCsvFromTable,
+    detailColumns: eventsByResponder.columns,
+    async loadDetail(row, group, range) {
+      if (!row.summaryRow) return []
+      const events = await loadSummaryDetailRows(range, group, row.summaryRow)
+      return events.map(eventsByResponderTableRow)
+    },
+  },
+  async load(inputs) {
+    const range = requireRange(inputs)
+    if (!range) return []
+    const group = inputs.group ?? DEFAULT_SUMMARY_GROUP
+    const rows = await loadActivitySummary(range.from, range.to, group)
+    return summaryRowsToTable(rows, group, range)
+  },
+}
+
+const inactiveMembers: ReportKind = {
+  id: 'inactive_members',
+  title: 'מתנדבים לא פעילים',
+  includes: 'מתנדבים פעילים שלא התחברו ולא השתמשו במערכת במשך מספר הימים שנבחר, ומי שמעולם לא התחבר',
+  audience: 'admin_and_shift_lead',
+  hasDateRange: false,
+  searchPlaceholder: 'שם, כינוי או טלפון',
+  csvFilename: 'מתנדבים-לא-פעילים.csv',
+  columns: [
+    { id: 'member', header: 'מתנדב' },
+    { id: 'phone', header: 'טלפון', numeric: true },
+    { id: 'last_seen', header: 'נראה לאחרונה', numeric: true },
+    { id: 'last_sign_in', header: 'כניסה אחרונה', numeric: true },
+    { id: 'last_active', header: 'פעילות אחרונה', numeric: true },
+  ],
+  daysInput: {
+    label: 'ימים ללא פעילות',
+    defaultValue: DEFAULT_INACTIVE_DAYS,
+    isValid: isValidInactiveDays,
+    errorText: 'יש להזין מספר שלם בין 1 ל־365',
+  },
+  async load(inputs) {
+    const days = inputs.days ?? DEFAULT_INACTIVE_DAYS
+    if (!isValidInactiveDays(days)) return []
+    const members = await loadInactiveMembers(days)
+    return members.map((member): ReportTableRow => {
+        const name = person(member.full_name, member.callsign)
+        return {
+          id: member.user_id,
+          searchText: [name, member.phone ?? ''].join(' '),
+          values: [
+            name,
+            member.phone ?? '—',
+            lastSeenLabel(member),
+            member.last_sign_in_at ? formatDate(member.last_sign_in_at) : NEVER_SIGNED_IN_LABEL,
+            member.last_active_at ? formatDate(member.last_active_at) : '—',
+          ],
+        }
+      })
+  },
+}
+
 export const REPORT_KINDS: ReportKind[] = [
   openDocumentation,
   eventsByResponder,
   kmDiscrepancy,
   kmExceptions,
   duplicateEvents,
+  activitySummary,
+  inactiveMembers,
 ]
 
 export function reportKindById(id: string): ReportKind | undefined {

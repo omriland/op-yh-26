@@ -5665,6 +5665,20 @@ html[data-keyboard-open] .event-form__footer {
   }
 }
 
+/* Period, search and group-by share one row on wider screens. */
+@media (min-width: 900px) {
+  .report-filters--with-group {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* Totals line: "720 אירועים · 55 משמרות", a dot between the items. */
+.report-totals__item + .report-totals__item::before {
+  content: '·';
+  margin-inline: var(--space-2);
+  color: var(--text-muted);
+}
+
 .search-field {
   display: flex;
   align-items: center;
@@ -10192,4 +10206,14 @@ fieldset.field {
 .new-event-tile:disabled,
 .new-event-more__button:disabled {
   opacity: 0.5;
+}
+
+.report-sort-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
 }

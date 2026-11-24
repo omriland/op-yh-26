@@ -7,10 +7,20 @@ import { EmptyState } from '../ui/EmptyState'
 import { HoverTip } from '../ui/HoverTip'
 import { EventListSkeleton, EventRowsSkeleton } from '../ui/Skeleton'
 import { DateField } from '../ui/DateField'
+import { SelectField } from '../ui/SelectField'
+import { TextField } from '../ui/TextField'
 import { useToast } from '../ui/Toast'
 import { downloadCsv, toCsv } from '../../lib/reports/csv'
 import { filterReportRows } from '../../lib/reports/search'
-import type { ReportKind, ReportRowCommand, ReportTableRow, ReportViewer } from '../../lib/reports/types'
+import type { SortDirection, SummaryGroup } from '../../lib/reports/summaryReport'
+import type {
+  ReportColumn,
+  ReportDateRange,
+  ReportKind,
+  ReportRowCommand,
+  ReportTableRow,
+  ReportViewer,
+} from '../../lib/reports/types'
 import { EventFrozenMark } from '../events/EventFrozenMark'
 import {
   defaultFuelRefundRange,
@@ -43,15 +53,26 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
     row: ReportTableRow
   } | null>(null)
   const [applying, setApplying] = useState(false)
+  const [group, setGroup] = useState<SummaryGroup>(kind.grouping?.defaultValue ?? 'responder')
+  const [sort, setSort] = useState<ReportSort | null>(null)
+  const [openGroupRow, setOpenGroupRow] = useState<ReportTableRow | null>(null)
+  const [daysText, setDaysText] = useState(String(kind.daysInput?.defaultValue ?? ''))
 
   const periodRange = periodToRange(period)
   const rangeFrom = kind.hasPeriodPicker ? periodRange.from : from
   const rangeTo = kind.hasPeriodPicker ? periodRange.to : to
   const rangeValid = !kind.hasDateRange || isValidFuelRefundRange(rangeFrom, rangeTo)
   const rangeError = kind.hasDateRange && rangeFrom && rangeTo && !rangeValid ? 'טווח תאריכים לא תקין' : undefined
+  const days = Number(daysText)
+  const daysValid = !kind.daysInput || (daysText.trim() !== '' && kind.daysInput.isValid(days))
+  const daysError = daysValid ? undefined : kind.daysInput?.errorText
+  const inputsValid = rangeValid && daysValid
+  const summaryRange = { from: rangeFrom, to: rangeTo }
+  const columns = kind.grouping ? kind.grouping.columnsFor(group, summaryRange) : kind.columns
+  const shownKind = useMemo(() => ({ ...kind, columns }), [kind, columns])
 
   useEffect(() => {
-    if (!rangeValid) {
+    if (!inputsValid) {
       setRows(null)
       setFailed(false)
       return
@@ -62,8 +83,11 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
     setFailed(false)
 
     const nextViewer = { userId, isAdmin }
+    const dateInputs = kind.hasDateRange ? { from: rangeFrom, to: rangeTo } : {}
+    const daysInputs = kind.daysInput ? { days } : {}
+    const groupInputs = kind.grouping ? { group } : {}
     void kind
-      .load(kind.hasDateRange ? { from: rangeFrom, to: rangeTo, viewer: nextViewer } : { viewer: nextViewer })
+      .load({ ...dateInputs, ...daysInputs, ...groupInputs, viewer: nextViewer })
       .then((next) => {
         if (active) setRows(next)
       })
@@ -74,10 +98,15 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
     return () => {
       active = false
     }
-  }, [kind, rangeFrom, rangeTo, rangeValid, reloadKey, userId, isAdmin])
+  }, [kind, rangeFrom, rangeTo, inputsValid, days, group, reloadKey, userId, isAdmin])
 
   const filtered = useMemo(() => (rows ? filterReportRows(rows, query) : []), [rows, query])
-  const sections = useMemo(() => groupRows(filtered), [filtered])
+  const sorted = useMemo(
+    () => (kind.grouping && sort ? kind.grouping.sortRows(filtered, sort.columnId, sort.direction) : filtered),
+    [kind.grouping, filtered, sort],
+  )
+  const sections = useMemo(() => groupRows(sorted), [sorted])
+  const totalsValues = kind.grouping && filtered.length > 0 ? kind.grouping.totalsValues(filtered, group, summaryRange) : null
 
   async function confirmReplace() {
     if (!kind.action || !pendingRow) return
@@ -111,6 +140,10 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
 
   function exportCsv() {
     if (filtered.length === 0) return
+    if (kind.grouping) {
+      downloadCsv(kind.csvFilename, kind.grouping.toCsv(sorted, group, summaryRange))
+      return
+    }
     downloadCsv(
       kind.csvFilename,
       toCsv(
@@ -120,7 +153,31 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
     )
   }
 
-  const loading = rangeValid && !failed && rows === null
+  function changeGroup(next: string) {
+    setGroup(next as SummaryGroup)
+    setSort(null)
+  }
+
+  function toggleSort(columnId: string) {
+    setSort((current) => nextSort(current, columnId))
+  }
+
+  const loading = inputsValid && !failed && rows === null
+
+  if (openGroupRow && kind.grouping) {
+    return (
+      <ReportGroupDetail
+        kind={kind}
+        viewer={viewer}
+        asTable={asTable}
+        row={openGroupRow}
+        group={group}
+        range={{ from: rangeFrom, to: rangeTo }}
+        onBack={() => setOpenGroupRow(null)}
+        onOpenEvent={onOpenEvent}
+      />
+    )
+  }
 
   return (
     <div className="stack-4">
@@ -149,7 +206,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
 
       {kind.hasPeriodPicker ? (
         <>
-          <div className="report-filters">
+          <div className={kind.grouping ? 'report-filters report-filters--with-group' : 'report-filters'}>
             <PeriodPicker value={period} onChange={setPeriod} />
             <label className="search-field">
               <Search size={20} strokeWidth={1.75} aria-hidden="true" />
@@ -161,6 +218,14 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
                 placeholder={kind.searchPlaceholder ?? 'חיפוש בדוח'}
               />
             </label>
+            {kind.grouping ? (
+              <SelectField
+                label="קיבוץ לפי"
+                options={kind.grouping.options}
+                value={group}
+                onChange={(event) => changeGroup(event.target.value)}
+              />
+            ) : null}
           </div>
           {rangeError ? <p className="t-caption text-danger">{rangeError}</p> : null}
         </>
@@ -206,6 +271,44 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
         </>
       )}
 
+      {kind.grouping && (!kind.hasPeriodPicker || !asTable) ? (
+        <div className="report-filters">
+          {kind.hasPeriodPicker ? null : (
+            <SelectField
+              label="קיבוץ לפי"
+              options={kind.grouping.options}
+              value={group}
+              onChange={(event) => changeGroup(event.target.value)}
+            />
+          )}
+          {asTable ? null : (
+            <SelectField
+              label="מיון"
+              options={sortOptions(columns)}
+              value={sort ? `${sort.columnId}:${sort.direction}` : ''}
+              placeholder="ללא מיון"
+              onChange={(event) => setSort(parseSort(event.target.value))}
+            />
+          )}
+        </div>
+      ) : null}
+
+      {kind.daysInput ? (
+        <div className="admin-toolbar">
+          <TextField
+            label={kind.daysInput.label}
+            type="number"
+            inputMode="numeric"
+            numeric
+            min={1}
+            max={365}
+            value={daysText}
+            error={daysError}
+            onChange={(event) => setDaysText(event.target.value)}
+          />
+        </div>
+      ) : null}
+
       {failed ? (
         <EmptyState
           icon={<BarChart3 size={40} strokeWidth={1.75} aria-hidden="true" />}
@@ -218,21 +321,25 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
         />
       ) : loading ? (
         asTable ? <EventRowsSkeleton /> : <EventListSkeleton />
-      ) : !rangeValid ? null : filtered.length === 0 ? (
+      ) : !inputsValid ? null : filtered.length === 0 ? (
         <EmptyState
           icon={<BarChart3 size={40} strokeWidth={1.75} aria-hidden="true" />}
           title="אין נתונים להצגה"
         />
       ) : (
         <div className="stack-4">
+          {totalsValues ? <ReportTotals columns={columns} values={totalsValues} /> : null}
           {sections.map((section) => (
             <section key={section.key || 'all'} className="stack-3">
               {section.label ? <h2 className="group-head">{section.label}</h2> : null}
               {asTable ? (
                 <ReportTable
-                  kind={kind}
+                  kind={shownKind}
                   viewer={viewer}
                   rows={section.rows}
+                  sort={kind.grouping ? sort : undefined}
+                  onSort={kind.grouping ? toggleSort : undefined}
+                  onOpenRow={kind.grouping ? setOpenGroupRow : undefined}
                   onOpenEvent={onOpenEvent}
                   onAction={kind.action ? setPendingRow : undefined}
                   onCommand={(command, row) => setPendingCommand({ command, row })}
@@ -242,9 +349,10 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
                   {section.rows.map((row) => (
                     <ReportCard
                       key={row.id}
-                      kind={kind}
+                      kind={shownKind}
                       viewer={viewer}
                       row={row}
+                      onOpenRow={kind.grouping ? setOpenGroupRow : undefined}
                       onOpenEvent={onOpenEvent}
                       onAction={kind.action ? setPendingRow : undefined}
                       onCommand={(command, nextRow) => setPendingCommand({ command, row: nextRow })}
@@ -419,6 +527,9 @@ function ReportTable({
   kind,
   viewer,
   rows,
+  sort,
+  onSort,
+  onOpenRow,
   onOpenEvent,
   onAction,
   onCommand,
@@ -426,6 +537,9 @@ function ReportTable({
   kind: ReportKind
   viewer: ReportViewer
   rows: ReportTableRow[]
+  sort?: ReportSort | null
+  onSort?: (columnId: string) => void
+  onOpenRow?: (row: ReportTableRow) => void
   onOpenEvent?: (eventId: string) => void
   onAction?: (row: ReportTableRow) => void
   onCommand?: (command: ReportRowCommand, row: ReportTableRow) => void
@@ -439,8 +553,12 @@ function ReportTable({
         <thead>
           <tr>
             {kind.columns.map((column) => (
-              <th key={column.id} scope="col">
-                {column.header}
+              <th key={column.id} scope="col" aria-sort={ariaSort(sort, column.id)}>
+                {onSort ? (
+                  <SortHeaderButton column={column} sort={sort} onSort={onSort} />
+                ) : (
+                  column.header
+                )}
               </th>
             ))}
             {showCommands ? <th scope="col">פעולות</th> : null}
@@ -452,7 +570,9 @@ function ReportTable({
             return (
             <tr
               key={row.id}
-              onClick={row.eventId && onOpenEvent ? () => onOpenEvent(row.eventId!) : undefined}
+              onClick={rowOpener(row, onOpenEvent, onOpenRow)}
+              onKeyDown={onOpenRow ? (event) => openRowOnEnter(event, row, onOpenRow) : undefined}
+              tabIndex={onOpenRow ? 0 : undefined}
             >
               {kind.columns.map((column, index) => {
                 const isActionCell = Boolean(kind.action && actionColumnId === column.id)
@@ -496,6 +616,7 @@ function ReportCard({
   kind,
   viewer,
   row,
+  onOpenRow,
   onOpenEvent,
   onAction,
   onCommand,
@@ -503,6 +624,7 @@ function ReportCard({
   kind: ReportKind
   viewer: ReportViewer
   row: ReportTableRow
+  onOpenRow?: (row: ReportTableRow) => void
   onOpenEvent?: (eventId: string) => void
   onAction?: (row: ReportTableRow) => void
   onCommand?: (command: ReportRowCommand, row: ReportTableRow) => void
@@ -565,6 +687,16 @@ function ReportCard({
     </>
   )
 
+  if (onOpenRow) {
+    return (
+      <li className="card stack-2">
+        <button type="button" className="event-card" onClick={() => onOpenRow(row)}>
+          {body}
+        </button>
+      </li>
+    )
+  }
+
   if (row.eventId && onOpenEvent) {
     return (
       <li className="card stack-2">
@@ -581,5 +713,184 @@ function ReportCard({
       {body}
       {commandBar}
     </li>
+  )
+}
+
+type ReportSort = { columnId: string; direction: SortDirection }
+
+function nextSort(current: ReportSort | null, columnId: string): ReportSort {
+  if (current?.columnId === columnId) {
+    return { columnId, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+  }
+  return { columnId, direction: 'asc' }
+}
+
+function parseSort(value: string): ReportSort | null {
+  const [columnId, direction] = value.split(':')
+  if (!columnId || (direction !== 'asc' && direction !== 'desc')) return null
+  return { columnId, direction }
+}
+
+function sortOptions(columns: ReportColumn[]): { value: string; label: string }[] {
+  return columns.flatMap((column) => [
+    { value: `${column.id}:asc`, label: `${column.header} · עולה` },
+    { value: `${column.id}:desc`, label: `${column.header} · יורד` },
+  ])
+}
+
+function ariaSort(sort: ReportSort | null | undefined, columnId: string) {
+  if (!sort || sort.columnId !== columnId) return undefined
+  return sort.direction === 'asc' ? 'ascending' : 'descending'
+}
+
+function rowOpener(
+  row: ReportTableRow,
+  onOpenEvent?: (eventId: string) => void,
+  onOpenRow?: (row: ReportTableRow) => void,
+) {
+  if (onOpenRow) return () => onOpenRow(row)
+  if (row.eventId && onOpenEvent) return () => onOpenEvent(row.eventId!)
+  return undefined
+}
+
+function openRowOnEnter(
+  event: { key: string; preventDefault: () => void },
+  row: ReportTableRow,
+  onOpenRow: (row: ReportTableRow) => void,
+) {
+  if (event.key !== 'Enter') return
+  event.preventDefault()
+  onOpenRow(row)
+}
+
+function SortHeaderButton({
+  column,
+  sort,
+  onSort,
+}: {
+  column: ReportColumn
+  sort?: ReportSort | null
+  onSort: (columnId: string) => void
+}) {
+  const mark = sort?.columnId === column.id ? (sort.direction === 'asc' ? ' ▲' : ' ▼') : ''
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(column.id)}
+      className="report-sort-button"
+    >
+      {column.header}
+      {mark}
+    </button>
+  )
+}
+
+function ReportTotals({ columns, values }: { columns: ReportColumn[]; values: string[] }) {
+  return (
+    <div className="card" role="group" aria-label="סיכום כולל">
+      <p className="t-caption report-totals">
+        <strong>{values[0]}:</strong>{' '}
+        {columns.slice(1).map((column, index) => {
+          const value = values[index + 1]
+          if (!value) return null
+          return (
+            <span key={column.id} className="report-totals__item">
+              <bdi className="mono">{value}</bdi> {column.header}
+            </span>
+          )
+        })}
+      </p>
+    </div>
+  )
+}
+
+function ReportGroupDetail({
+  kind,
+  viewer,
+  asTable,
+  row,
+  group,
+  range,
+  onBack,
+  onOpenEvent,
+}: {
+  kind: ReportKind
+  viewer: ReportViewer
+  asTable: boolean
+  row: ReportTableRow
+  group: SummaryGroup
+  range: ReportDateRange
+  onBack: () => void
+  onOpenEvent?: (eventId: string) => void
+}) {
+  const [events, setEvents] = useState<ReportTableRow[] | null>(null)
+  const [failed, setFailed] = useState(false)
+  const grouping = kind.grouping
+  const detailKind = useMemo(
+    () => ({
+      ...kind,
+      columns: grouping?.detailColumns ?? [],
+      grouping: undefined,
+      action: undefined,
+      commands: undefined,
+    }),
+    [kind, grouping],
+  )
+
+  useEffect(() => {
+    let active = true
+    setEvents(null)
+    setFailed(false)
+    void grouping
+      ?.loadDetail(row, group, range)
+      .then((next) => {
+        if (active) setEvents(next)
+      })
+      .catch(() => {
+        if (active) setFailed(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [grouping, row, group, range.from, range.to])
+
+  return (
+    <div className="stack-4">
+      <div className="detail__back">
+        <Button variant="ghost" onClick={onBack} icon={<ChevronRight size={20} strokeWidth={1.75} />}>
+          {kind.title}
+        </Button>
+      </div>
+      <div className="page-head">
+        <h1 className="t-title">{row.values[0]}</h1>
+      </div>
+      {failed ? (
+        <EmptyState
+          icon={<BarChart3 size={40} strokeWidth={1.75} aria-hidden="true" />}
+          title="טעינת האירועים נכשלה. בדקו את החיבור ונסו שוב."
+        />
+      ) : events === null ? (
+        asTable ? <EventRowsSkeleton /> : <EventListSkeleton />
+      ) : events.length === 0 ? (
+        <EmptyState
+          icon={<BarChart3 size={40} strokeWidth={1.75} aria-hidden="true" />}
+          title="אין אירועים להצגה"
+        />
+      ) : asTable ? (
+        <ReportTable kind={detailKind} viewer={viewer} rows={events} onOpenEvent={onOpenEvent} />
+      ) : (
+        <ul className="stack-3">
+          {events.map((event) => (
+            <ReportCard
+              key={event.id}
+              kind={detailKind}
+              viewer={viewer}
+              row={event}
+              onOpenEvent={onOpenEvent}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
