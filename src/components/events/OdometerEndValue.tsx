@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { odometerEndReading } from '../../lib/odometer'
 
-/** End odometer, with the responder's trip as `6 ק״מ סה״כ` when both readings exist. */
+/** End odometer, with the responder's trip as `(6 ק״מ סה״כ)` when both readings exist. */
 export function odometerEndValue(
   start: number | null | undefined,
   end: number | null | undefined,
@@ -11,7 +11,10 @@ export function odometerEndValue(
   if (parts.trip == null) return <span className="mono">{parts.end}</span>
   return (
     <>
-      <span className="mono">{parts.end}</span> <span className="mono">{parts.trip}</span> ק״מ סה״כ
+      <span className="mono">{parts.end}</span>
+      {' ('}
+      <span className="mono">{parts.trip}</span>
+      {' ק״מ סה״כ)'}
     </>
   )
 }
