@@ -44,6 +44,7 @@ on:
       - "supabase/migrations/20261109120000_feedback_card_title.sql"
       - "supabase/migrations/20261113120000_unit_event_ids.sql"
       - "supabase/migrations/20261122120000_shift_live_events.sql"
+      - "supabase/migrations/20261124120000_summary_reports.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -220,6 +221,10 @@ jobs:
           # אירוע יחידתי: unit ID ledger, issue RPC and claim trigger on events.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261113120000_unit_event_ids.sql
+          # Summary report and inactive volunteers RPCs. Idempotent; the front end
+          # shows its load-failed state for both reports until these exist.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261124120000_summary_reports.sql
       - name: Reapply live shifts migration
         # Safety net: runs even when a migration above failed, so production
         # always ends on the live-shift versions (the three replays that touch

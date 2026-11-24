@@ -88,6 +88,8 @@ the scripts).
 | admin_list_last_active, admin_list_last_sign_in, approve_event_freeze, user_ids_with_device_tokens | Admin-only; a demo account is never admin (role guard). Real admins still get demo ids with timestamps, which the UI never shows (rows come from profiles) |
 | ios_device_approve / reject / retire | Super-admin only |
 | list_shift_lead_profiles, search_highway_junctions, set_locked_event_lead_km | Lead/admin only |
+| report_inactive_members | Admin, super admin and shift lead only (role guard, so a demo account cannot call it). Skips demo profiles. Returns last sign-in and last activity for every real member |
+| report_activity_summary | SECURITY INVOKER: RLS applies, so the restrictive demo policies cover it |
 | delete_event | Lead/admin/super admin only; a responder always gets an error |
 | revoke_user_sessions | Refuses any signed-in caller (service only) |
 | clear_must_change_password, report_android_session, touch_last_active, set_default_vehicle | Caller's own row (vehicle: own or admin) |
