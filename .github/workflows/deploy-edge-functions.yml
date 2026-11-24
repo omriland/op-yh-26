@@ -45,6 +45,7 @@ on:
       - "supabase/migrations/20261113120000_unit_event_ids.sql"
       - "supabase/migrations/20261122120000_shift_live_events.sql"
       - "supabase/migrations/20261124120000_summary_reports.sql"
+      - "supabase/migrations/20261124140000_joint_events.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -75,6 +76,22 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
+          # Replayed files that put back the pre-joint-events trigger body (which
+          # rejects a confirmed joint pair) or the old report_activity_summary
+          # (which counts a pair twice) each run in one transaction together with
+          # the joint-events file, so production never sits on the old version.
+          replay_with_joint_events() {
+            combined="$RUNNER_TEMP/$(basename "$1" .sql)_with_joint_events.sql"
+            {
+              echo 'begin;'
+              cat "$1"
+              echo
+              cat supabase/migrations/20261124140000_joint_events.sql
+              echo
+              echo 'commit;'
+            } > "$combined"
+            supabase db query --linked --project-ref rtvizpsfvtjowbimugns -f "$combined"
+          }
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260905120000_partner_webhook_events.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
@@ -91,8 +108,7 @@ jobs:
             -f supabase/migrations/20260922143000_hold_assignment_webhook_until_police_event_id.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260929120000_set_locked_event_lead_km.sql
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20260929082322_events_same_day_police_event_id.sql
+          replay_with_joint_events supabase/migrations/20260929082322_events_same_day_police_event_id.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261005160000_fill_token_ttl_180d.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
@@ -106,8 +122,7 @@ jobs:
           # Keep after the files above: 20260929082322 replaces events_reject_same_day_police_event_id
           # and this file restores its demo-aware body. Must land before unit-broadcast
           # and responder-fill, which select profiles.is_app_review_demo.
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20261029120000_app_review_demo_isolation.sql
+          replay_with_joint_events supabase/migrations/20261029120000_app_review_demo_isolation.sql
           # After 20261029120000: it rewrites list_unit_contacts and
           # list_unit_map_pins, and this file adds the pre-launch check to both.
           # Inert from 2026-10-31T22:01:00Z. Must land before the frontend and
@@ -221,10 +236,9 @@ jobs:
           # אירוע יחידתי: unit ID ledger, issue RPC and claim trigger on events.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20261113120000_unit_event_ids.sql
-          # Summary report and inactive volunteers RPCs. Idempotent; the front end
-          # shows its load-failed state for both reports until these exist.
-          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20261124120000_summary_reports.sql
+          # Summary report and inactive volunteers RPCs, with the joint-events
+          # counting applied in the same transaction.
+          replay_with_joint_events supabase/migrations/20261124120000_summary_reports.sql
       - name: Reapply live shifts migration
         # Safety net: runs even when a migration above failed, so production
         # always ends on the live-shift versions (the three replays that touch

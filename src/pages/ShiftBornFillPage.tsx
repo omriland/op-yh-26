@@ -37,6 +37,10 @@ import {
   linkPendingMedia,
   type PendingMediaLink,
 } from '../lib/eventMedia'
+import { JointEventConfirmDialog } from '../components/events/JointEventConfirmDialog'
+import { JointEventLedgerRow } from '../components/events/JointEventLedgerRow'
+import { fetchSameDayPoliceEventIdRows, toJointEventRow } from '../lib/eventForm'
+import { JOINT_LOOKUP_FAILED_ERROR, jointConfirmKey, jointSaveDecision } from '../lib/jointEvents'
 import { EventSaveRulesDialog } from '../components/events/EventSaveRulesDialog'
 import {
   skippedPhotoDigits,
@@ -119,6 +123,10 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
   } | null>(null)
   /** Vehicles the user chose to save without a photo; a vehicle added later is still asked about. */
   const photoSkippedRef = useRef<Set<string>>(new Set())
+  /** Which action the joint-event confirm is holding back. */
+  const [jointPrompt, setJointPrompt] = useState<'save' | 'complete' | 'reopen' | null>(null)
+  /** The date and number the person already confirmed as a joint event. */
+  const jointConfirmedKey = useRef<string | null>(null)
   /** Someone else saved this event while it was open here; the local text is kept. */
   const [conflict, setConflict] = useState(false)
   const [errors, setErrors] = useState<ShiftBornFillErrors>({})
@@ -407,8 +415,51 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
     })
   }
 
+  function persistAction(complete: boolean, reopen: boolean): 'save' | 'complete' | 'reopen' {
+    if (reopen) return 'reopen'
+    return complete ? 'complete' : 'save'
+  }
+
+  /** True when the save must wait: the joint confirm opened, or the lookup failed. */
+  async function jointCheckStopsSave(action: 'save' | 'complete' | 'reopen'): Promise<boolean> {
+    if (!draft || !ctx || !draft.police_event_id.trim()) return false
+    if (jointConfirmedKey.current === jointConfirmKey(ctx.event.event_date, draft.police_event_id)) {
+      return false
+    }
+    try {
+      const existing = await fetchSameDayPoliceEventIdRows({
+        eventDate: ctx.event.event_date,
+        policeEventId: draft.police_event_id,
+      })
+      const decision = jointSaveDecision({
+        eventDate: ctx.event.event_date,
+        policeEventId: draft.police_event_id,
+        origin: 'shift',
+        currentEventId: eventId,
+        existing: existing.map(toJointEventRow),
+      })
+      if (decision !== 'confirm') return false
+    } catch {
+      show(JOINT_LOOKUP_FAILED_ERROR, 'alert')
+      return true
+    }
+    setJointPrompt(action)
+    return true
+  }
+
+  function proceedJointSave() {
+    if (!draft || !ctx || !jointPrompt) return
+    jointConfirmedKey.current = jointConfirmKey(ctx.event.event_date, draft.police_event_id)
+    const action = jointPrompt
+    setJointPrompt(null)
+    if (action === 'complete') void onComplete()
+    else if (action === 'reopen') void onReopen()
+    else void onSave()
+  }
+
   async function persist(complete: boolean, reopen = false) {
     if (!draft || !expectedAt) return
+    if (await jointCheckStopsSave(persistAction(complete, reopen))) return false
     const result = await saveShiftBornEventFill({
       eventId,
       expectedUpdatedAt: expectedAt,
@@ -564,6 +615,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
         <section className="card responder-fill__context stack-4">
           <Ledger>
             <LedgerRow label="תאריך" value={formatDate(ctx.event.event_date)} numeric />
+            <JointEventLedgerRow
+              eventId={eventId}
+              policeEventId={draft?.police_event_id}
+              refreshKey={expectedAt}
+            />
             {isSuperAdmin ? null : (
               <LedgerRow label="סוג אירוע" value={ctx.event.event_type?.name ?? undefined} />
             )}
@@ -720,6 +776,11 @@ export function ShiftBornFillPage({ eventId, onBack, onCompleted }: ShiftBornFil
           </FormStickyFooter>
         )}
       </div>
+      <JointEventConfirmDialog
+        open={jointPrompt !== null}
+        onProceed={proceedJointSave}
+        onCancel={() => setJointPrompt(null)}
+      />
       <EventSaveRulesDialog
         open={Boolean(photoPrompt)}
         issues={photoPrompt?.issues ?? []}

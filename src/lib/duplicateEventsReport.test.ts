@@ -180,3 +180,38 @@ describe('buildDuplicateClusters', () => {
     expect(remaining[0]!.members.every((member) => member.frozen_suspicious_duplicate)).toBe(true)
   })
 })
+
+describe('joint pairs', () => {
+  it('does not flag a shift event and a manual event sharing a number', () => {
+    expect(
+      buildDuplicateClusters([
+        part({ event_id: 'm1', responder_id: 'r1', police_event_id: '12345', origin: 'manual' }),
+        part({ event_id: 's1', responder_id: 'r1', police_event_id: '12345', origin: 'shift' }),
+      ]),
+    ).toEqual([])
+  })
+
+  it('still flags two manual events with the same number, person, place and time', () => {
+    const clusters = buildDuplicateClusters([
+      part({ event_id: 'm1', responder_id: 'r1', police_event_id: '12345', origin: 'manual' }),
+      part({ event_id: 'm2', responder_id: 'r1', police_event_id: '12345', origin: 'manual' }),
+    ])
+    expect(clusters).toHaveLength(1)
+  })
+
+  it('still flags two shift events with the same number, person, place and time', () => {
+    const clusters = buildDuplicateClusters([
+      part({ event_id: 's1', responder_id: 'r1', police_event_id: '12345', origin: 'shift' }),
+      part({ event_id: 's2', responder_id: 'r1', police_event_id: '12345', origin: 'shift' }),
+    ])
+    expect(clusters).toHaveLength(1)
+  })
+
+  it('still flags a manual and a shift event with different numbers, same person, place and time', () => {
+    const clusters = buildDuplicateClusters([
+      part({ event_id: 'm1', responder_id: 'r1', police_event_id: '12345', origin: 'manual' }),
+      part({ event_id: 's1', responder_id: 'r1', police_event_id: '999', origin: 'shift' }),
+    ])
+    expect(clusters).toHaveLength(1)
+  })
+})
