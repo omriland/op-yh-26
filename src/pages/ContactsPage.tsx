@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Phone, Search, UserRound } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Phone, Search, UserPlus, UserRound } from 'lucide-react'
 import {
   fetchUnitContacts,
   filterContacts,
@@ -11,6 +11,7 @@ import {
   type UnitContact,
 } from '../lib/contacts'
 import { formatPhone, monoClass } from '../lib/format'
+import { buildContactVCard, vCardFileName } from '../lib/vcard'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
@@ -267,8 +268,6 @@ function ContactActions({
 }) {
   const tel = toTelHref(contact.phone)
   const whatsapp = toWhatsAppHref(contact.phone)
-  if (!tel && !whatsapp) return null
-
   return (
     <div className={labeled ? 'contact-actions contact-actions--stack' : 'contact-actions'}>
       {tel ? (
@@ -292,40 +291,73 @@ function ContactActions({
           <WhatsAppIcon />
         </ContactActionLink>
       ) : null}
+      <ContactActionLink
+        onClick={() => downloadContactCard(contact)}
+        label="שמירה באנשי הקשר בטלפון"
+        caption="שמירה"
+        labeled={labeled}
+      >
+        <UserPlus size={20} strokeWidth={1.75} aria-hidden="true" />
+      </ContactActionLink>
     </div>
   )
 }
 
+function downloadContactCard(contact: UnitContact) {
+  const blob = new Blob([buildContactVCard(contact)], {
+    type: 'text/vcard;charset=utf-8',
+  })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = vCardFileName(contact)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  // Phones (iPhone Safari especially) read the file after click() returns.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
 function ContactActionLink({
   href,
+  onClick,
   label,
   caption,
   labeled,
   external,
   children,
 }: {
-  href: string
+  href?: string
+  onClick?: () => void
   label: string
   caption: string
   labeled: boolean
   external?: boolean
   children: ReactNode
 }) {
+  const className = ['btn', labeled ? 'btn--secondary' : 'btn--ghost btn--icon'].join(' ')
   return (
     <HoverTip
       text={label}
       mode="always"
       className="contact-actions__tip"
     >
-      <a
-        className={['btn', labeled ? 'btn--secondary' : 'btn--ghost btn--icon'].join(' ')}
-        href={href}
-        aria-label={label}
-        {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-      >
-        {children}
-        {labeled ? caption : null}
-      </a>
+      {href ? (
+        <a
+          className={className}
+          href={href}
+          aria-label={label}
+          {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+        >
+          {children}
+          {labeled ? caption : null}
+        </a>
+      ) : (
+        <button type="button" className={className} onClick={onClick} aria-label={label}>
+          {children}
+          {labeled ? caption : null}
+        </button>
+      )}
     </HoverTip>
   )
 }
