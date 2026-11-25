@@ -27,23 +27,27 @@ happening: "I am saving the work and opening a pull request."
 2. Run `npm test`, `npm run lint` and `npm run build` in the task folder (and `npm run
    contrast` when colours or screens changed). If any fails, stop. Explain in plain words
    what failed and what you will do.
-3. Stage only this task's files, each by name. Never `git add -A` or `git add .`. Never
+3. If the change alters what a person sees or can do, update `docs/platform-parity.md` as
+   its "How to keep it current" section says: the feature's line (web marked as live once
+   merged, Android and iPhone left as they are) and one dated line in its change log. Skip
+   this for harness, docs and invisible fixes.
+4. Stage only this task's files, each by name. Never `git add -A` or `git add .`. Never
    stage `.env*` or anything under `.claude/state/`. Never use `--no-verify`.
-4. Commit with a plain sentence that says what changed and why, as the history does, ending
+5. Commit with a plain sentence that says what changed and why, as the history does, ending
    with the attribution lines the session gives you.
-5. Review before the pull request. Run the `code-review` skill on this branch's changes
+6. Review before the pull request. Run the `code-review` skill on this branch's changes
    (`git diff origin/infra/bootstrap...HEAD`, or the previous pull request's branch for a
    stacked one). Fix what it finds, run step 2 again, and commit the fixes the same way.
-6. When nothing is left uncommitted, record the review:
+7. When nothing is left uncommitted, record the review:
    `python3 .claude/hooks/review_gate.py done --repo <task folder> "<one-line outcome>"`.
    The review gate stops the pull request until this is recorded for the latest commit.
-7. Before pushing, switch GitHub to the `omriland` account if `gh auth status` shows another
+8. Before pushing, switch GitHub to the `omriland` account if `gh auth status` shows another
    one active (`gh auth switch -u omriland`), and say so in one line.
-8. From the task folder, run `git push -u origin <branch>`.
-9. From the task folder, run `gh pr create --base infra/bootstrap --title "<plain title>"`.
+9. From the task folder, run `git push -u origin <branch>`.
+10. From the task folder, run `gh pr create --base infra/bootstrap --title "<plain title>"`.
    For stacked pull requests (yahpaz-build made a branch per pull request, named
    `<branch>-pr<n>`), ship them in order: `git switch <its branch>` in the task folder, run
-   steps 2 to 10 there with `--base <previous branch>` (the first one uses
+   steps 2 to 11 there with `--base <previous branch>` (the first one uses
    `--base infra/bootstrap`). After a lower pull request is merged, run
    `git merge origin/infra/bootstrap` in the next branch (never force push) before its push.
    Give it a body made of these headings, in plain language, ending with the pull request
@@ -60,7 +64,9 @@ happening: "I am saving the work and opening a pull request."
    - **Going live**: merging deploys the site (Netlify) and any changed edge function. List
      anything else the plan's live steps name (a migration to apply, a secret, a phone app
      release), or "Nothing else: the merge deploys it".
-10. Give the person the pull request link. Say that merging it puts it live on yahpz.com,
+   - **Phone apps**: whether Android and iPhone have it, from the parity list, or "Web
+     only by nature" or "Nothing changes on screen"
+11. Give the person the pull request link. Say that merging it puts it live on yahpz.com,
     and ask whether to merge it now. Run
     `python3 .claude/hooks/review_gate.py clear --repo <task folder>`. After the last pull
     request of the task, run `python3 .claude/hooks/plan_gate.py done --session <id>` once.
@@ -82,5 +88,5 @@ happening: "I am saving the work and opening a pull request."
 - Never commit to or push `infra/bootstrap`.
 - Never force push.
 - If the danger guard blocks a step, stop and tell the person. Do not work around it.
-- If the review gate blocks the pull request, do the review in step 5 and record it in
-  step 6. Do not work around it.
+- If the review gate blocks the pull request, do the review in step 6 and record it in
+  step 7. Do not work around it.

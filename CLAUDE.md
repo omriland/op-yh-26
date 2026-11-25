@@ -125,6 +125,10 @@ You run these; the person never does.
 - The phone apps read the same tables, RPCs and edge functions. A change that removes or
   renames something they use needs a phone release first; name it in the plan.
 - Never put a secret in code. Never touch `.env*` files.
+- `docs/platform-parity.md` says which features web, Android and iPhone each have, with a
+  dated change log. Keep it current: the `ship` skill updates it for web changes people
+  can see; when the person mentions a phone release or asks what is missing where, read
+  the phone repos' history since its "Last checked" commits and update it.
 - Android and iPhone releases still copy their installer and `version.json` into
   `public/android/` or `public/ios/`; in this repo that is a pull request like any other.
 
