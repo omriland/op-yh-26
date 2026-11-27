@@ -179,6 +179,7 @@ For iPhone, "has it" means "in build 19". origin/main of the iPhone repo is stal
 | KM exceptions | lead, admin | ✅ | ✅ | ✅ | |
 | KM discrepancy | lead, admin | ✅ | ✅ | ✅ | |
 | Duplicate events | lead, admin | ✅ | ✅ | ✅ | |
+| Event preview on hover in KM exceptions and duplicates | admin | ✅ | — | — | Desktop only, web since 2026-11-27 |
 | Fuel summary table | lead, admin | ✅ | ✅ | ✅ | |
 | Fuel quarter and allocation | admin | ✅ | ✅ | ❌ | iPhone has data code, no screen |
 | Activity summary report | admin | ✅ | ❌ | ❌ | Web 2026-11-24 |
@@ -209,6 +210,7 @@ For iPhone, "has it" means "in build 19". origin/main of the iPhone repo is stal
 ## Change log
 
 - 2026-11-27: web: my KM by month and quarter on the profile, shown to every user; lifetime KM and the handled-events count include frozen events.
+- 2026-11-27: web: event preview on hover in the KM exceptions and duplicate events reports.
 - 2026-11-25: web: save a contact to the phone from the contacts page.
 - 2026-11-25: first full sweep of all three apps.
 - 2026-11-24: web: trip next to end odometer, activity summary and inactive volunteers reports.
