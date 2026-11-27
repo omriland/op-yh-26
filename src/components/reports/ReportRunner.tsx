@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type HTMLAttributes } from 'react'
 import { ChevronRight, Download, Search, BarChart3 } from 'lucide-react'
 import { PeriodPicker } from '../admin/PeriodPicker'
 import { Button } from '../ui/Button'
@@ -22,6 +22,7 @@ import type {
   ReportViewer,
 } from '../../lib/reports/types'
 import { EventFrozenMark } from '../events/EventFrozenMark'
+import { useEventHoverPreview } from './useEventHoverPreview'
 import {
   defaultFuelRefundRange,
   isValidFuelRefundRange,
@@ -39,6 +40,11 @@ type ReportRunnerProps = {
 export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: ReportRunnerProps) {
   const { userId, isAdmin } = viewer
   const { show } = useToast()
+  const hoverPreview = useEventHoverPreview({
+    enabled: Boolean(kind.previewEventOnHover && isAdmin && asTable && onOpenEvent),
+    viewer,
+    onOpenEvent: (eventId) => onOpenEvent?.(eventId),
+  })
   const defaults = defaultFuelRefundRange()
   const [from, setFrom] = useState(defaults.from)
   const [to, setTo] = useState(defaults.to)
@@ -341,6 +347,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
                   onSort={kind.grouping ? toggleSort : undefined}
                   onOpenRow={kind.grouping ? setOpenGroupRow : undefined}
                   onOpenEvent={onOpenEvent}
+                  previewRowProps={hoverPreview.rowProps}
                   onAction={kind.action ? setPendingRow : undefined}
                   onCommand={(command, row) => setPendingCommand({ command, row })}
                 />
@@ -419,6 +426,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
           </p>
         </AlertDialog>
       ) : null}
+      {hoverPreview.previewCard}
     </div>
   )
 }
@@ -531,6 +539,7 @@ function ReportTable({
   onSort,
   onOpenRow,
   onOpenEvent,
+  previewRowProps,
   onAction,
   onCommand,
 }: {
@@ -541,6 +550,7 @@ function ReportTable({
   onSort?: (columnId: string) => void
   onOpenRow?: (row: ReportTableRow) => void
   onOpenEvent?: (eventId: string) => void
+  previewRowProps?: (rowKey: string, eventId: string | undefined) => HTMLAttributes<HTMLTableRowElement>
   onAction?: (row: ReportTableRow) => void
   onCommand?: (command: ReportRowCommand, row: ReportTableRow) => void
 }) {
@@ -573,6 +583,7 @@ function ReportTable({
               onClick={rowOpener(row, onOpenEvent, onOpenRow)}
               onKeyDown={onOpenRow ? (event) => openRowOnEnter(event, row, onOpenRow) : undefined}
               tabIndex={onOpenRow ? 0 : undefined}
+              {...previewRowProps?.(row.id, row.eventId)}
             >
               {kind.columns.map((column, index) => {
                 const isActionCell = Boolean(kind.action && actionColumnId === column.id)

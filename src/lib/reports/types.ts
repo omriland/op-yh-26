@@ -94,6 +94,8 @@ export type ReportKind = {
   daysInput?: ReportDaysInput
   action?: ReportRowAction
   commands?: ReportRowCommand[]
+  /** Desktop table rows show a floating preview of the event while hovered or focused. */
+  previewEventOnHover?: boolean
   load: (inputs: ReportInputs) => Promise<ReportTableRow[]>
 }
 
