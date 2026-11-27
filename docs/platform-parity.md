@@ -104,7 +104,7 @@ For iPhone, "has it" means "in build 19". origin/main of the iPhone repo is stal
 | Link a photo to a treated vehicle | responder | ✅ | ✅ | ✅ | Web 2026-11-03 |
 | Personal-vehicle prompt for photo with no vehicle | responder | ✅ | ✅ | ❌ | Android 0.3.62; no prompt code in build 19 |
 | Map pin on highway events | all | ✅ | ✅ | ✅ | |
-| העשרות (comments) with gold mark | all | ✅ | ❌ | ❌ | Web 2026-11-27 |
+| העשרות (comments) with gold mark | all | ✅ | ❌ | ❌ | Web 2026-11-27; not yet on the shift-born event screen |
 
 ## Responder fill (filling in the event report)
 

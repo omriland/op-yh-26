@@ -10343,6 +10343,11 @@ fieldset.field {
   color: var(--text-muted);
 }
 
+/* --text-muted is under 4.5:1 on the gold wash. */
+.enrichment[data-gold='true'] .enrichment__time {
+  color: var(--text-secondary);
+}
+
 .enrichment__star {
   flex-shrink: 0;
   margin-block: calc(var(--space-2) * -1);
@@ -10350,7 +10355,7 @@ fieldset.field {
   color: var(--text-muted);
 }
 
-.enrichment__star[aria-pressed='true'] {
+.enrichment[data-gold='true'] .enrichment__star {
   color: var(--enrichment-gold-star);
 }
 
@@ -10372,7 +10377,7 @@ fieldset.field {
   align-self: flex-end;
 }
 
-.enrichments__input {
+textarea.enrichments__input {
   min-height: 80px;
   max-height: 240px;
   overflow-y: auto;

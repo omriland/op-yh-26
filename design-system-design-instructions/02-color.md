@@ -87,6 +87,7 @@ Paper is always **cool** (blue-tinted). Never introduce warm/cream whites.
 | `--status-done` / `-tint` / `-on-tint` | `#2E7D5B` / `#E3F1EA` / `#215C43` | |
 | `--status-alert` / `-tint` / `-on-tint` | `#B3382F` / `#F9E9E7` / `#93291F` | |
 | `--status-partial` / `-tint` / `-on-tint` | `#B07C24` / `#F7EEDC` / `#7A5410` | |
+| `--enrichment-gold-bg` / `-star` | `#F7EEDC` / `#7A5410` | העשרת זהב row wash and star (the partial-stamp amber) |
 | `--status-pending` | `#1D4E89` | Pending/awaiting-me stamp ink |
 | `--status-draft` | `#5B6F86` | Draft stamp ink |
 
@@ -112,6 +113,7 @@ Paper is always **cool** (blue-tinted). Never introduce warm/cream whites.
 | `--status-alert` | `#EF8177` | Stamp/error ink |
 | `--status-alert-on-tint` | `#F6A29A` | Alert TEXT on alert tint |
 | `--status-partial` | `#E0B05C` | |
+| `--enrichment-gold-bg` / `-star` | `rgba(224, 176, 92, 0.18)` / `#E0B05C` | העשרת זהב row wash (stamp amber at 18%, stronger than the 8% stamp tint) and star |
 | `--status-pending` | `#8FBCEB` | |
 | `--status-draft` | `#9FB0C4` | |
 

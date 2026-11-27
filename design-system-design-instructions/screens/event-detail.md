@@ -47,6 +47,10 @@ One **responder card** per `event_responders` row (per `06-components.md`):
 
 Desktop: event block and responder column side by side — event block 5/12 at inline-start (sticky), responder cards stacked in the remaining 7/12. Mobile: single column, event block first.
 
+### העשרות (comments)
+
+Under the responder cards, in the main column: heading `העשרות (N)`, then the comments oldest first. Each row is a raised card with a hairline border: author `שם (אות קריאה)` (`משתמש שנמחק` when the account is gone), the time as `DD.MM.YYYY, HH:mm` in Israel time (mono caption), a star icon button (Lucide `Star`, 44px target) and the text as typed (plain text, line breaks kept, `dir="auto"`). A gold comment (העשרת זהב) has the `--status-partial` border, the `--enrichment-gold-bg` wash, bold text, a filled `--enrichment-gold-star` star and its time in `--text-secondary`. Anyone who can see the event may add a comment and set or clear the star (`סמנו כהעשרת זהב` / `בטלו העשרת זהב`); there is no edit or delete. Below the list: a labelled textarea `הוספת העשרה` that grows with the text up to 240px, and the primary button `הוספה` (`מוסיף…` while saving). Empty → `עדיין אין העשרות`. Loading → `טוען העשרות…`. Load failure → `לא הצלחנו לטעון את ההעשרות. נסו שוב.` with secondary `נסו שוב`. Toasts: `ההעשרה נוספה`, `ההעשרה לא נשמרה. הטקסט נשאר בתיבה, נסו שוב.`, `לא הצלחנו לעדכן את העשרת הזהב. נסו שוב.` Not shown on the shift-born event screen yet.
+
 ## Live status behavior
 
 When the last open responder completes (or the viewer completes their own section and returns), the header stamp updates with the **stamp-press animation** (`07-motion.md`). Event flips to `הושלם` automatically when all responders are done — no manual "close event" button exists.

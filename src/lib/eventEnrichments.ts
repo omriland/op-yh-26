@@ -57,13 +57,13 @@ export function canSubmitEnrichment(text: string, saving: boolean): boolean {
   return !saving && validateEnrichmentBody(text).ok
 }
 
-/** `DD.MM.YYYY HH:mm` in Israel time, or an empty string for an invalid date. */
+/** `DD.MM.YYYY, HH:mm` in Israel time, or an empty string for an invalid date. */
 export function formatEnrichmentTimestamp(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
   const parts = new Map(timestampFormatter.formatToParts(date).map((part) => [part.type, part.value]))
   const day = `${parts.get('day')}.${parts.get('month')}.${parts.get('year')}`
-  return `${day} ${parts.get('hour')}:${parts.get('minute')}`
+  return `${day}, ${parts.get('hour')}:${parts.get('minute')}`
 }
 
 export function enrichmentsHeading(count: number): string {
@@ -71,7 +71,7 @@ export function enrichmentsHeading(count: number): string {
 }
 
 export function goldToggleLabel(isGold: boolean): string {
-  return isGold ? 'בטל העשרת זהב' : 'סמן כהעשרת זהב'
+  return isGold ? 'בטלו העשרת זהב' : 'סמנו כהעשרת זהב'
 }
 
 /** Name and callsign as the author is known today; a neutral label when the name is gone. */
@@ -89,6 +89,20 @@ export function setEnrichmentGold(
   isGold: boolean,
 ): EventEnrichment[] {
   return items.map((item) => (item.id === id ? { ...item, is_gold: isGold } : item))
+}
+
+/**
+ * The list with every gold change that is still being saved laid over it, so a
+ * list that was requested before the change cannot undo the star on screen.
+ */
+export function applyPendingGold(
+  items: readonly EventEnrichment[],
+  pendingGold: ReadonlyMap<string, boolean>,
+): EventEnrichment[] {
+  return items.map((item) => {
+    const pending = pendingGold.get(item.id)
+    return pending === undefined || pending === item.is_gold ? item : { ...item, is_gold: pending }
+  })
 }
 
 export async function listEventEnrichments(eventId: string): Promise<EventEnrichment[] | null> {

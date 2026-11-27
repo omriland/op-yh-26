@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyPendingGold,
   canSubmitEnrichment,
   enrichmentAuthorLabel,
   enrichmentsHeading,
@@ -116,29 +117,29 @@ describe('canSubmitEnrichment', () => {
 })
 
 describe('formatEnrichmentTimestamp', () => {
-  it('shows DD.MM.YYYY HH:mm in Jerusalem winter time (UTC+2)', () => {
-    expect(formatEnrichmentTimestamp('2026-11-27T12:05:00.000Z')).toBe('27.11.2026 14:05')
+  it('shows DD.MM.YYYY, HH:mm in Jerusalem winter time (UTC+2)', () => {
+    expect(formatEnrichmentTimestamp('2026-11-27T12:05:00.000Z')).toBe('27.11.2026, 14:05')
   })
 
   it('shows Jerusalem summer time (UTC+3)', () => {
-    expect(formatEnrichmentTimestamp('2026-07-01T12:05:00.000Z')).toBe('01.07.2026 15:05')
+    expect(formatEnrichmentTimestamp('2026-07-01T12:05:00.000Z')).toBe('01.07.2026, 15:05')
   })
 
   it('moves to the next day when Jerusalem is past midnight', () => {
-    expect(formatEnrichmentTimestamp('2026-11-27T22:30:00.000Z')).toBe('28.11.2026 00:30')
+    expect(formatEnrichmentTimestamp('2026-11-27T22:30:00.000Z')).toBe('28.11.2026, 00:30')
   })
 
   it('uses a 24 hour clock', () => {
-    expect(formatEnrichmentTimestamp('2026-11-27T11:30:00.000Z')).toBe('27.11.2026 13:30')
+    expect(formatEnrichmentTimestamp('2026-11-27T11:30:00.000Z')).toBe('27.11.2026, 13:30')
   })
 
   it('pads single-digit day, month, hour and minute with zeros', () => {
-    expect(formatEnrichmentTimestamp('2026-01-05T07:03:00.000Z')).toBe('05.01.2026 09:03')
+    expect(formatEnrichmentTimestamp('2026-01-05T07:03:00.000Z')).toBe('05.01.2026, 09:03')
   })
 
   it('follows the clock change at the end of summer time (25 Oct 2026)', () => {
-    expect(formatEnrichmentTimestamp('2026-10-24T20:30:00.000Z')).toBe('24.10.2026 23:30')
-    expect(formatEnrichmentTimestamp('2026-10-25T20:30:00.000Z')).toBe('25.10.2026 22:30')
+    expect(formatEnrichmentTimestamp('2026-10-24T20:30:00.000Z')).toBe('24.10.2026, 23:30')
+    expect(formatEnrichmentTimestamp('2026-10-25T20:30:00.000Z')).toBe('25.10.2026, 22:30')
   })
 
   it('returns an empty string for an invalid date', () => {
@@ -155,11 +156,11 @@ describe('enrichmentsHeading', () => {
 
 describe('goldToggleLabel', () => {
   it('offers to mark a normal comment', () => {
-    expect(goldToggleLabel(false)).toBe('סמן כהעשרת זהב')
+    expect(goldToggleLabel(false)).toBe('סמנו כהעשרת זהב')
   })
 
   it('offers to unmark a gold comment', () => {
-    expect(goldToggleLabel(true)).toBe('בטל העשרת זהב')
+    expect(goldToggleLabel(true)).toBe('בטלו העשרת זהב')
   })
 })
 
@@ -226,5 +227,36 @@ describe('setEnrichmentGold', () => {
 
   it('returns an equal list for an unknown id', () => {
     expect(setEnrichmentGold(list, 'zzz', true)).toEqual(list)
+  })
+})
+
+describe('applyPendingGold', () => {
+  const list = [
+    makeEnrichment({ id: 'a' }),
+    makeEnrichment({ id: 'b', is_gold: true }),
+    makeEnrichment({ id: 'c' }),
+  ]
+
+  it('keeps a star that is still being saved when an older list arrives', () => {
+    const next = applyPendingGold(list, new Map([['a', true]]))
+    expect(next.map((item) => item.is_gold)).toEqual([true, true, false])
+  })
+
+  it('keeps a star removal that is still being saved', () => {
+    const next = applyPendingGold(list, new Map([['b', false]]))
+    expect(next.map((item) => item.is_gold)).toEqual([false, false, false])
+  })
+
+  it('leaves the list as fetched when nothing is being saved', () => {
+    expect(applyPendingGold(list, new Map())).toEqual(list)
+  })
+
+  it('ignores a pending change for a comment that is not in the list', () => {
+    expect(applyPendingGold(list, new Map([['zzz', true]]))).toEqual(list)
+  })
+
+  it('does not change the fetched items', () => {
+    applyPendingGold(list, new Map([['a', true]]))
+    expect(list[0].is_gold).toBe(false)
   })
 })

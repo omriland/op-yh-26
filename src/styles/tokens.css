@@ -160,7 +160,7 @@
   --status-draft-tint: transparent;
   --status-draft-on-tint: var(--ink-400);
 
-  /* העשרת זהב: a stronger wash than a stamp tint, so the comment stands out in a list. */
+  /* העשרת זהב: the partial-stamp amber on Field; a stronger 18% wash on Command, so the comment stands out in a list. */
   --enrichment-gold-bg: var(--amber-field-tint);
   --enrichment-gold-star: var(--amber-field-on-tint);
 

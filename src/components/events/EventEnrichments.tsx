@@ -13,6 +13,7 @@ import {
   ENRICHMENTS_LOAD_ERROR,
   ENRICHMENTS_RETRY_LABEL,
   addEventEnrichment,
+  applyPendingGold,
   canSubmitEnrichment,
   enrichmentAuthorLabel,
   enrichmentsHeading,
@@ -40,12 +41,13 @@ export function EventEnrichments({ eventId }: { eventId: string }) {
   const [saving, setSaving] = useState(false)
   const [busyGoldIds, setBusyGoldIds] = useState<ReadonlySet<string>>(new Set())
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const pendingGoldRef = useRef(new Map<string, boolean>())
 
   useEffect(() => {
     let cancelled = false
     void listEventEnrichments(eventId).then((rows) => {
       if (cancelled) return
-      if (rows) setItems(rows)
+      if (rows) setItems(applyPendingGold(rows, pendingGoldRef.current))
       setLoadState(rows ? 'ready' : 'error')
     })
     return () => {
@@ -60,7 +62,8 @@ export function EventEnrichments({ eventId }: { eventId: string }) {
 
   function growInput(element: HTMLTextAreaElement) {
     element.style.height = 'auto'
-    element.style.height = `${element.scrollHeight}px`
+    const borders = element.offsetHeight - element.clientHeight
+    element.style.height = `${element.scrollHeight + borders}px`
   }
 
   async function submit(event: FormEvent) {
@@ -93,8 +96,10 @@ export function EventEnrichments({ eventId }: { eventId: string }) {
     if (busyGoldIds.has(item.id)) return
     const next = !item.is_gold
     markGoldBusy(item.id, true)
+    pendingGoldRef.current.set(item.id, next)
     setItems((current) => setEnrichmentGold(current, item.id, next))
     const saved = await setEventEnrichmentGold(item.id, next)
+    pendingGoldRef.current.delete(item.id)
     markGoldBusy(item.id, false)
     if (!saved) {
       setItems((current) => setEnrichmentGold(current, item.id, item.is_gold))
@@ -146,7 +151,6 @@ export function EventEnrichments({ eventId }: { eventId: string }) {
                 </p>
                 <IconButton
                   label={goldToggleLabel(item.is_gold)}
-                  aria-pressed={item.is_gold}
                   disabled={busyGoldIds.has(item.id)}
                   className="enrichment__star"
                   onClick={() => void toggleGold(item)}
