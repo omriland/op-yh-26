@@ -59,6 +59,7 @@ import { odometerEndValue } from '../components/events/OdometerEndValue'
 import { TreatedPlateStack } from '../components/events/TreatedPlateStack'
 import { mergeTreatedPlates } from '../lib/treatedPlates'
 import { EventMediaGallery } from '../components/events/EventMediaGallery'
+import { EventEnrichments } from '../components/events/EventEnrichments'
 import { EventLeadLedgerRows } from '../components/events/EventShiftLeadsFields'
 import { JointEventLedgerRow } from '../components/events/JointEventLedgerRow'
 import { EventFrozenMark } from '../components/events/EventFrozenMark'
@@ -594,72 +595,75 @@ export function EventDetailPage({
           />
         </section>
 
-        <section className="stack-4">
-          <div className="row-between">
-            <h2 className="t-section">מתנדבים ({event.responders.length})</h2>
-            {event.origin === 'shift' ? null : (
-              <p className="t-caption text-muted">
-                <span className="mono">
-                  {doneCount}/{event.responders.length}
-                </span>{' '}
-                הושלמו
-              </p>
-            )}
-          </div>
-
-          {eventLead && !eventReleasedFromEvent(event) ? (
-            <p className="t-caption text-muted" role="note">
-              {RESPONDERS_HELD_FOR_POLICE_ID_NOTE}
-            </p>
-          ) : null}
-          {event.responders.length === 0 ? (
-            <p className="card t-body text-secondary">לא שובצו מתנדבים לאירוע זה.</p>
-          ) : (
-            <div className="stack-4">
-              {event.responders.map((responder) => {
-                const isViewer = responder.responder_id === user?.id
-                return (
-                  <ResponderCard
-                    key={responder.id}
-                    responder={responder}
-                    isViewer={isViewer}
-                    defaultOpen={responderCardStartsOpen({
-                      isViewer,
-                      manages: eventLead,
-                    })}
-                    onFillOwn={
-                      isViewer &&
-                      responder.status !== 'done' &&
-                      onFillOwn &&
-                      eventReleasedFromEvent(event)
-                        ? onFillOwn
-                        : undefined
-                    }
-                    fillLabel={
-                      isViewer ? (mineFillCtaLabel(responder.status) ?? undefined) : undefined
-                    }
-                    onEditLeadFields={
-                      onEditLeadFields
-                        ? () => requestLeadFieldsEdit(responder.responder_id)
-                        : undefined
-                    }
-                    showLeadKm={showLeadKm}
-                    leadKmMissing={eventLead && responderKmMissing(responder)}
-                    leadEntered={leadEntered != null}
-                    showOdometers={responderCardShowsOdometers({
-                      isViewer,
-                      manages: managesEvent,
-                    })}
-                    showTreatedPlates={event.origin !== 'shift'}
-                    origin={event.origin}
-                    freezeViewer={freezeViewer}
-                    missingLeadDetails={missingLeadDetails}
-                  />
-                )
-              })}
+        <div className="detail__main">
+          <section className="stack-4">
+            <div className="row-between">
+              <h2 className="t-section">מתנדבים ({event.responders.length})</h2>
+              {event.origin === 'shift' ? null : (
+                <p className="t-caption text-muted">
+                  <span className="mono">
+                    {doneCount}/{event.responders.length}
+                  </span>{' '}
+                  הושלמו
+                </p>
+              )}
             </div>
-          )}
-        </section>
+
+            {eventLead && !eventReleasedFromEvent(event) ? (
+              <p className="t-caption text-muted" role="note">
+                {RESPONDERS_HELD_FOR_POLICE_ID_NOTE}
+              </p>
+            ) : null}
+            {event.responders.length === 0 ? (
+              <p className="card t-body text-secondary">לא שובצו מתנדבים לאירוע זה.</p>
+            ) : (
+              <div className="stack-4">
+                {event.responders.map((responder) => {
+                  const isViewer = responder.responder_id === user?.id
+                  return (
+                    <ResponderCard
+                      key={responder.id}
+                      responder={responder}
+                      isViewer={isViewer}
+                      defaultOpen={responderCardStartsOpen({
+                        isViewer,
+                        manages: eventLead,
+                      })}
+                      onFillOwn={
+                        isViewer &&
+                        responder.status !== 'done' &&
+                        onFillOwn &&
+                        eventReleasedFromEvent(event)
+                          ? onFillOwn
+                          : undefined
+                      }
+                      fillLabel={
+                        isViewer ? (mineFillCtaLabel(responder.status) ?? undefined) : undefined
+                      }
+                      onEditLeadFields={
+                        onEditLeadFields
+                          ? () => requestLeadFieldsEdit(responder.responder_id)
+                          : undefined
+                      }
+                      showLeadKm={showLeadKm}
+                      leadKmMissing={eventLead && responderKmMissing(responder)}
+                      leadEntered={leadEntered != null}
+                      showOdometers={responderCardShowsOdometers({
+                        isViewer,
+                        manages: managesEvent,
+                      })}
+                      showTreatedPlates={event.origin !== 'shift'}
+                      origin={event.origin}
+                      freezeViewer={freezeViewer}
+                      missingLeadDetails={missingLeadDetails}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </section>
+          <EventEnrichments eventId={event.id} />
+        </div>
       </div>
 
       <AssignedVolunteerEditBlockedDialog

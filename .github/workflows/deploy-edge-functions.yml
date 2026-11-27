@@ -47,6 +47,7 @@ on:
       - "supabase/migrations/20261124120000_summary_reports.sql"
       - "supabase/migrations/20261124140000_joint_events.sql"
       - "supabase/migrations/20261125120000_profile_km_monthly.sql"
+      - "supabase/migrations/20261127122000_event_enrichments.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -251,6 +252,11 @@ jobs:
           # Summary report and inactive volunteers RPCs, with the joint-events
           # counting applied in the same transaction.
           replay_with_joint_events supabase/migrations/20261124120000_summary_reports.sql
+          # העשרות on events: new table, policies and RPCs that no replay above
+          # recreates. Last, after 20261029120000, whose demo helpers its
+          # restrictive policy and RPCs call.
+          supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
+            -f supabase/migrations/20261127122000_event_enrichments.sql
       - name: Reapply live shifts migration
         # Safety net: runs even when a migration above failed, so production
         # always ends on the live-shift versions (the three replays that touch

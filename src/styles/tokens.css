@@ -160,6 +160,10 @@
   --status-draft-tint: transparent;
   --status-draft-on-tint: var(--ink-400);
 
+  /* העשרת זהב: a stronger wash than a stamp tint, so the comment stands out in a list. */
+  --enrichment-gold-bg: var(--amber-field-tint);
+  --enrichment-gold-star: var(--amber-field-on-tint);
+
   color-scheme: light;
 }
 
@@ -204,6 +208,9 @@
   --status-draft: #9fb0c4;
   --status-draft-tint: rgba(159, 176, 196, 0.08);
   --status-draft-on-tint: #9fb0c4;
+
+  --enrichment-gold-bg: rgba(224, 176, 92, 0.18);
+  --enrichment-gold-star: var(--amber-command);
 
   color-scheme: dark;
 }

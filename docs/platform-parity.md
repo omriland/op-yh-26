@@ -104,6 +104,7 @@ For iPhone, "has it" means "in build 19". origin/main of the iPhone repo is stal
 | Link a photo to a treated vehicle | responder | ✅ | ✅ | ✅ | Web 2026-11-03 |
 | Personal-vehicle prompt for photo with no vehicle | responder | ✅ | ✅ | ❌ | Android 0.3.62; no prompt code in build 19 |
 | Map pin on highway events | all | ✅ | ✅ | ✅ | |
+| העשרות (comments) with gold mark | all | ✅ | ❌ | ❌ | Web 2026-11-27 |
 
 ## Responder fill (filling in the event report)
 
@@ -209,6 +210,7 @@ For iPhone, "has it" means "in build 19". origin/main of the iPhone repo is stal
 
 ## Change log
 
+- 2026-11-27: web: העשרות (comments) on the event page, with a gold mark anyone who sees the event can set.
 - 2026-11-27: web: my KM by month and quarter on the profile, shown to every user; lifetime KM and the handled-events count include frozen events.
 - 2026-11-27: web: event preview on hover in the KM exceptions and duplicate events reports.
 - 2026-11-25: web: save a contact to the phone from the contacts page.
