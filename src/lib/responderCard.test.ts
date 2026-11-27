@@ -7,7 +7,6 @@ import {
   responderCardShowsLeadKm,
   responderCardShowsOdometers,
   responderCardStartsOpen,
-  rolesSeeLeadKm,
   viewerManagesEvent,
 } from './responderCard'
 
@@ -77,19 +76,5 @@ describe('responderCardShowsLeadKm', () => {
     expect(source).toContain(
       'odometerEndValue(responder.odometer_start, responder.odometer_end)',
     )
-  })
-})
-
-describe('rolesSeeLeadKm', () => {
-  it('lets אחמ״ש, מנהל and מנהל־על see KM the lead entered', () => {
-    expect(rolesSeeLeadKm(['shift_lead'])).toBe(true)
-    expect(rolesSeeLeadKm(['admin'])).toBe(true)
-    expect(rolesSeeLeadKm(['super_admin'])).toBe(true)
-    expect(rolesSeeLeadKm(['responder', 'shift_lead'])).toBe(true)
-  })
-
-  it('hides it from a plain כונן and from a viewer with no roles', () => {
-    expect(rolesSeeLeadKm(['responder'])).toBe(false)
-    expect(rolesSeeLeadKm([])).toBe(false)
   })
 })

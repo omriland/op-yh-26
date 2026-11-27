@@ -7,6 +7,7 @@ type FilterChipsProps<T extends string> = {
   value: T
   onChange: (value: T) => void
   label: string
+  className?: string
 }
 
 export function FilterChips<T extends string>({
@@ -14,9 +15,10 @@ export function FilterChips<T extends string>({
   value,
   onChange,
   label,
+  className,
 }: FilterChipsProps<T>) {
   return (
-    <div className="chips" role="group" aria-label={label}>
+    <div className={className ? `chips ${className}` : 'chips'} role="group" aria-label={label}>
       {options.map((option) => {
         const chip = (
           <button
