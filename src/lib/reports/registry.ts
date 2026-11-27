@@ -220,6 +220,7 @@ const kmDiscrepancy: ReportKind = {
 
 const kmExceptions: ReportKind = {
   id: 'km_exceptions',
+  previewEventOnHover: true,
   title: 'חריגי ק״מ',
   includes: `אירועים עם ${KM_EXCEPTION_THRESHOLD} ק״מ ומעלה`,
   audience: 'admin_and_shift_lead',
@@ -281,6 +282,7 @@ const kmExceptions: ReportKind = {
 
 const duplicateEvents: ReportKind = {
   id: 'duplicate_events',
+  previewEventOnHover: true,
   title: 'אירועים כפולים',
   includes: 'אירועים עם אותו המתנדב, באותו מקום בחלון זמן של חצי שעה',
   audience: 'admin_and_shift_lead',
