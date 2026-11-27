@@ -4788,6 +4788,13 @@ html[data-keyboard-open] .event-form__footer {
   margin-block-end: 0;
 }
 
+.detail__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
 .detail__grid {
   display: grid;
   gap: var(--space-6);
@@ -10271,4 +10278,108 @@ fieldset.field {
   .event-preview {
     animation: none;
   }
+}
+
+
+/* ============================================================
+   העשרות (event comments)
+   ============================================================ */
+
+.enrichments__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.enrichments__empty {
+  margin: 0;
+}
+
+.enrichment {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--stroke-hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.enrichment[data-gold='true'] {
+  border-color: var(--status-partial);
+  background: var(--enrichment-gold-bg);
+}
+
+.enrichment[data-gold='true'] .enrichment__body {
+  font-weight: 700;
+}
+
+.enrichment__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-1);
+}
+
+.enrichment__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+  /* Centre the two lines on the 44px star button. */
+  min-height: 44px;
+  justify-content: center;
+}
+
+.enrichment__author {
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.enrichment__time {
+  color: var(--text-muted);
+}
+
+/* --text-muted is under 4.5:1 on the gold wash. */
+.enrichment[data-gold='true'] .enrichment__time {
+  color: var(--text-secondary);
+}
+
+.enrichment__star {
+  flex-shrink: 0;
+  margin-block: calc(var(--space-2) * -1);
+  margin-inline-end: calc(var(--space-2) * -1);
+  color: var(--text-muted);
+}
+
+.enrichment[data-gold='true'] .enrichment__star {
+  color: var(--enrichment-gold-star);
+}
+
+.enrichment__body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.enrichments__form {
+  align-items: flex-end;
+}
+
+.enrichments__form .field {
+  align-self: stretch;
+}
+
+.enrichments__form .btn {
+  align-self: flex-end;
+}
+
+textarea.enrichments__input {
+  min-height: 80px;
+  max-height: 240px;
+  overflow-y: auto;
+  resize: none;
 }

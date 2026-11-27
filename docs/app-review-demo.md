@@ -49,6 +49,7 @@ the scripts).
 | events | events_select, events_insert_lead_admin, events_update_lead_admin, events_delete_admin, events_delete_cockpit_draft_lead | Restrictive on `is_demo`; link guard |
 | event_responders | event_responders_select, _lead_admin_insert/update/delete, _self_update | Restrictive on event; link guard |
 | event_media | event_media_select/insert/update/delete | Restrictive on event |
+| event_enrichments | event_enrichments_select/insert | Restrictive on event (`event_enrichments_app_review_demo_scope`) |
 | event_media_plates | event_media_plates_select/insert/delete | Covered through event_media: every policy requires a visible event_media row, and that subquery runs under event_media's RLS (tested) |
 | event_treated_plates | treated_plates_select, treated_plates_event_write, treated_plates_responder_write | Restrictive on event or assignment |
 | event_treated_vehicles | treated_vehicles_select, treated_vehicles_event_select, _lead_admin_insert/update/delete | Restrictive on event or assignment |
@@ -98,6 +99,7 @@ the scripts).
 | derived_event_status, event_missing_lead_km, shift_born_event_is_empty, has_role, profile_is_active, super_admin_row_locked, is_event_edit_unlocked, is_event_id_edit_unlocked, is_event_responder_edit_unlocked, refresh_shift_log_status | Take an id, return a boolean or status (or recompute a shift's own status). No row data, and the demo account cannot read any real UUID |
 | ios_budget_used, apply_due_availability | Aggregate count / housekeeping, no personal data |
 | count_events_missing_lead_km, search_unit_event_ids, search_unit_shift_ids | SECURITY INVOKER: RLS applies, so the restrictive policies cover them (searches are also lead/admin-only) |
+| list_event_enrichments, set_event_enrichment_gold, can_see_event_enrichments | Security definer: each checks the caller can see the event and applies the demo scope itself (a demo caller reaches only demo events) |
 | event_media_path_event_id, user_feedback_path_user_id, normalize_plate_number, split_patrol_callsign, ios_membership_year_now | Pure helpers |
 | is_app_review_demo_caller, app_review_demo_user_ids / event_ids / shift_ids / assignment_ids | New helpers used by the policies; not granted to anon |
 

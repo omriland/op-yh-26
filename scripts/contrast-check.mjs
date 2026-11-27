@@ -54,6 +54,7 @@ const ACCENT_SUBTLE_COMMAND = rgba(143, 188, 235, 0.14)
 
 /** Command status tints are exactly 8% of the ink over the local surface. */
 const tint8 = (ink, surface) => over(withAlpha(ink, 0.08), surface)
+const tintAlpha = (ink, alpha, surface) => over(withAlpha(ink, alpha), surface)
 
 // ---------- color math ----------
 
@@ -141,6 +142,10 @@ pair('field', 'stamp alert: on-tint text', P.redFieldOnTint, P.redFieldTint, TEX
 pair('field', 'stamp alert: ink border', P.redField, P.redFieldTint, UI)
 pair('field', 'stamp partial: on-tint text', P.amberFieldOnTint, P.amberFieldTint, TEXT)
 pair('field', 'stamp partial: ink border', P.amberField, P.amberFieldTint, UI)
+// העשרת זהב: comment on the amber tint (--enrichment-gold-bg), star and border.
+pair('field', 'gold enrichment: text-primary on gold', P.ink900, P.amberFieldTint, TEXT)
+pair('field', 'gold enrichment: text-secondary on gold', P.ink500, P.amberFieldTint, TEXT)
+pair('field', 'gold enrichment: star on gold', P.amberFieldOnTint, P.amberFieldTint, UI)
 pair('field', 'stamp pending: text', P.blue700, P.blue50, TEXT)
 pair('field', 'stamp pending: ink border', P.blue700, P.blue50, UI)
 pair('field', 'stamp draft: text on raised', P.ink400, F.raised, TEXT)
@@ -178,6 +183,9 @@ for (const [surface, bg] of [
   // Stamps: ink text on its own 8% tint (alert swaps to the dedicated lighter value).
   pair('command', `stamp done on ${surface}`, P.greenCommand, tint8(P.greenCommand, bg), TEXT)
   pair('command', `stamp partial on ${surface}`, P.amberCommand, tint8(P.amberCommand, bg), TEXT)
+  pair('command', `gold enrichment text-primary on ${surface}`, P.commandText, tintAlpha(P.amberCommand, 0.18, bg), TEXT)
+  pair('command', `gold enrichment text-secondary on ${surface}`, P.commandTextSecondary, tintAlpha(P.amberCommand, 0.18, bg), TEXT)
+  pair('command', `gold enrichment star on ${surface}`, P.amberCommand, tintAlpha(P.amberCommand, 0.18, bg), UI)
   pair('command', `stamp alert on ${surface}`, P.redCommandOnTint, tint8(P.redCommand, bg), TEXT)
   pair('command', `stamp alert border on ${surface}`, P.redCommand, tint8(P.redCommand, bg), UI)
   pair('command', `stamp pending on ${surface}`, P.blue300, tint8(P.blue300, bg), TEXT)
