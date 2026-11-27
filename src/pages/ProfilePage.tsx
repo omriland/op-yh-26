@@ -27,7 +27,7 @@ import { DeleteAccountSection } from '../components/DeleteAccountSection'
 import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
-import { rolesSeeLeadKm } from '../lib/responderCard'
+import { ProfileKmBreakdown } from '../components/ProfileKmBreakdown'
 
 const ROLE_LABELS: Partial<Record<AppRole, string>> = {
   admin: 'מנהל',
@@ -297,18 +297,17 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
                 {formatNumber(profile.lifetime_event_count)}
               </span>
             </div>
-            {rolesSeeLeadKm(roles) ? (
-              <div className="profile-stats__cell">
-                <p className="t-label text-secondary">קילומטרים</p>
-                <span className="profile-stats__value t-num-lg">
-                  {formatNumber(profile.lifetime_km)}
-                </span>
-              </div>
-            ) : null}
+            <div className="profile-stats__cell">
+              <p className="t-label text-secondary">קילומטרים</p>
+              <span className="profile-stats__value t-num-lg">
+                {formatNumber(profile.lifetime_km)}
+              </span>
+            </div>
           </div>
           {statsUpdated ? (
             <p className="profile-stats__caption t-caption text-muted">{statsUpdated}</p>
           ) : null}
+          <ProfileKmBreakdown profileId={profile.id} />
         </section>
 
         <section className="card">

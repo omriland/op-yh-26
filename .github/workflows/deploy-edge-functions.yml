@@ -46,6 +46,7 @@ on:
       - "supabase/migrations/20261122120000_shift_live_events.sql"
       - "supabase/migrations/20261124120000_summary_reports.sql"
       - "supabase/migrations/20261124140000_joint_events.sql"
+      - "supabase/migrations/20261125120000_profile_km_monthly.sql"
       - ".github/workflows/deploy-edge-functions.yml"
   workflow_dispatch:
 
@@ -96,8 +97,19 @@ jobs:
             -f supabase/migrations/20260905120000_partner_webhook_events.sql
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
             -f supabase/migrations/20260908040000_partner_webhook_cron_auth.sql
+          # The freeze file puts back the older refresh_profile_lifetime_stats()
+          # without the monthly rebuild, so the monthly km file runs in the same
+          # transaction and production never sits on the old function.
+          {
+            echo 'begin;'
+            cat supabase/migrations/20260910140000_responder_level_event_freeze.sql
+            echo
+            cat supabase/migrations/20261125120000_profile_km_monthly.sql
+            echo
+            echo 'commit;'
+          } > "$RUNNER_TEMP/freeze_with_profile_km_monthly.sql"
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
-            -f supabase/migrations/20260910140000_responder_level_event_freeze.sql
+            -f "$RUNNER_TEMP/freeze_with_profile_km_monthly.sql"
           # Must land before the frontend: the client now derives הושלם for a
           # ללא-רכב volunteer, which the old guard rejects.
           supabase db query --linked --project-ref rtvizpsfvtjowbimugns \
