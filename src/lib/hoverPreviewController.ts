@@ -57,7 +57,11 @@ export function createHoverPreviewController(): HoverPreviewController {
   function closeAfterGrace() {
     if (openId === null) return
     cancelClose()
-    closeTimer = setTimeout(closeNow, HOVER_PREVIEW_CLOSE_GRACE_MS)
+    // Only the card closes: a row the pointer has moved on to still opens after its delay.
+    closeTimer = setTimeout(() => {
+      closeTimer = null
+      setOpen(null)
+    }, HOVER_PREVIEW_CLOSE_GRACE_MS)
   }
 
   function openAfterDelay(rowKey: string) {
@@ -85,17 +89,19 @@ export function createHoverPreviewController(): HoverPreviewController {
     },
     pointerEnterRow(rowKey) {
       if (disposed) return
-      cancelClose()
       if (openId === rowKey) {
         cancelOpen()
+        cancelClose()
         return
       }
+      // A close already under way keeps running, so another row's card does not
+      // stay up while the pointer travels across the table.
       openAfterDelay(rowKey)
     },
-    pointerLeaveRow() {
+    pointerLeaveRow(rowKey) {
       if (disposed) return
       cancelOpen()
-      closeAfterGrace()
+      if (openId === rowKey) closeAfterGrace()
     },
     pointerEnterCard: ifActive(cancelClose),
     pointerLeaveCard: ifActive(closeAfterGrace),
@@ -143,8 +149,8 @@ const ERROR_ENTRY = { status: 'error' } as const
 const MISSING_ENTRY = { status: 'missing' } as const
 
 /**
- * One fetch per event id for the life of the cache. Concurrent loads share one
- * request, a failed load can be retried, and `load` never rejects.
+ * One fetch per event id until `clear`. Concurrent loads share one request, a
+ * failed load can be retried, and `load` never rejects.
  */
 export function createEventDetailCache<Detail>(
   fetchDetail: (eventId: string) => Promise<Detail | null>,
@@ -193,8 +199,10 @@ export function createEventDetailCache<Detail>(
     },
     clear() {
       generation += 1
+      const forgottenIds = [...entries.keys()]
       entries.clear()
       inFlight.clear()
+      forgottenIds.forEach((eventId) => listeners.forEach((listener) => listener(eventId)))
     },
   }
 }

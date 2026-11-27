@@ -141,16 +141,43 @@ describe("createHoverPreviewController", () => {
     expect(controller.openRowKey()).toBeNull();
   });
 
-  it("moves to another row without a closed state in between", () => {
+  it("closes the old card after the grace, then opens the row the pointer rests on", () => {
     const { controller, seen } = setup();
     controller.pointerEnterRow("e1");
     vi.advanceTimersByTime(HOVER_PREVIEW_OPEN_DELAY_MS);
     controller.pointerLeaveRow("e1");
     controller.pointerEnterRow("e2");
-    vi.advanceTimersByTime(HOVER_PREVIEW_OPEN_DELAY_MS);
+    vi.advanceTimersByTime(HOVER_PREVIEW_CLOSE_GRACE_MS);
+    expect(controller.openRowKey()).toBeNull();
 
+    vi.advanceTimersByTime(HOVER_PREVIEW_OPEN_DELAY_MS - HOVER_PREVIEW_CLOSE_GRACE_MS);
     expect(controller.openRowKey()).toBe("e2");
-    expect(seen).toEqual(["e1", "e2"]);
+    expect(seen).toEqual(["e1", null, "e2"]);
+  });
+
+  it("closes the open card while the pointer keeps crossing other rows", () => {
+    const { controller } = setup();
+    controller.pointerEnterRow("e1");
+    vi.advanceTimersByTime(HOVER_PREVIEW_OPEN_DELAY_MS);
+    controller.pointerLeaveRow("e1");
+    for (const id of ["e2", "e3", "e4"]) {
+      controller.pointerEnterRow(id);
+      vi.advanceTimersByTime(150);
+      controller.pointerLeaveRow(id);
+    }
+
+    expect(controller.openRowKey()).toBeNull();
+  });
+
+  it("keeps a keyboard-opened card when the pointer only passes over another row", () => {
+    const { controller } = setup();
+    controller.focusRow("e1");
+    controller.pointerEnterRow("e2");
+    vi.advanceTimersByTime(100);
+    controller.pointerLeaveRow("e2");
+    vi.advanceTimersByTime(5000);
+
+    expect(controller.openRowKey()).toBe("e1");
   });
 
   it("shows only one preview at a time", () => {
@@ -387,5 +414,16 @@ describe("createEventDetailCache", () => {
 
     await cache.load("e1");
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("tells subscribers which ids were forgotten on clear", async () => {
+    const cache = createEventDetailCache(async (id: string) => detail(id));
+    await cache.load("e1");
+    const notified: string[] = [];
+    cache.subscribe((id) => notified.push(id));
+
+    cache.clear();
+
+    expect(notified).toEqual(["e1"]);
   });
 });

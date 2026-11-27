@@ -120,6 +120,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
     try {
       await kind.action.apply(pendingRow)
       setRows((current) => (current ?? []).filter((row) => row.id !== pendingRow.id))
+      hoverPreview.forgetEventDetails()
       show('הקילומטרים עודכנו', 'done')
     } catch {
       show('עדכון הקילומטרים נכשל. בדקו את החיבור ונסו שוב.', 'alert')
@@ -135,6 +136,7 @@ export function ReportRunner({ kind, viewer, asTable, onBack, onOpenEvent }: Rep
     try {
       await pendingCommand.command.apply(pendingCommand.row)
       show(pendingCommand.command.successToast, 'done')
+      hoverPreview.forgetEventDetails()
       setReloadKey((key) => key + 1)
     } catch {
       show(pendingCommand.command.failToast, 'alert')

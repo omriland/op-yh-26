@@ -10224,8 +10224,10 @@ fieldset.field {
   z-index: 60;
   box-sizing: border-box;
   width: min(380px, calc(100vw - 16px));
-  max-height: min(70vh, 480px);
+  /* --event-preview-room is the space beside the row, set when the card is placed. */
+  max-height: min(var(--event-preview-room, 100vh), 70vh, 480px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--stroke-hairline);
   border-radius: var(--radius-md);

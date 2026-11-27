@@ -36,6 +36,8 @@ type PreviewSession = {
 type EventHoverPreview = {
   rowProps: (rowKey: string, eventId: string | undefined) => HTMLAttributes<HTMLTableRowElement>
   previewCard: ReactNode
+  /** Call after the report changes an event, so the next preview fetches it again. */
+  forgetEventDetails: () => void
 }
 
 /** What a row opens and which element the card is placed next to. */
@@ -43,6 +45,8 @@ type RowTarget = { eventId: string; element: HTMLElement }
 
 const IDLE_ENTRY: EventDetailCacheEntry<EventPreviewSource> = { status: 'idle' }
 const HIDDEN_STYLE: CSSProperties = { top: 0, left: 0, visibility: 'hidden' }
+const ROOM_PROPERTY = '--event-preview-room'
+const ARROW_SCROLL_STEP_PX = 48
 const NO_ROW_PROPS: HTMLAttributes<HTMLTableRowElement> = {}
 const subscribeNothing = () => () => {}
 
@@ -99,15 +103,18 @@ function isKeyboardFocused(element: HTMLElement | null): boolean {
   return element !== null && document.activeElement === element && element.matches(':focus-visible')
 }
 
-/** Closes the open preview on Escape and when the page scrolls outside the card. */
+/**
+ * Closes the preview, or cancels one about to open, on Escape and when the page
+ * scrolls outside the card. `getOpenRow` must read the controller, not the last
+ * render, because a scroll can arrive before React has rendered the open card.
+ */
 function useCloseTriggers(
   session: PreviewSession | null,
-  isOpen: boolean,
   cardRef: RefObject<HTMLDivElement | null>,
-  getAnchor: () => HTMLElement | null,
+  getOpenRow: () => HTMLElement | null,
 ) {
   useEffect(() => {
-    if (!session || !isOpen) return
+    if (!session) return
     const { controller } = session
 
     function onKeyDown(event: KeyboardEvent) {
@@ -117,7 +124,7 @@ function useCloseTriggers(
       const target = event.target
       if (target instanceof Node && cardRef.current?.contains(target)) return
       // The browser scrolls a keyboard-focused row into view; that must not close its card.
-      if (isKeyboardFocused(getAnchor())) return
+      if (isKeyboardFocused(getOpenRow())) return
       controller.scroll()
     }
 
@@ -127,7 +134,16 @@ function useCloseTriggers(
       document.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('scroll', onScroll, true)
     }
-  }, [session, isOpen, cardRef, getAnchor])
+  }, [session, cardRef, getOpenRow])
+}
+
+/** The card's height with only the stylesheet cap, ignoring the room set by the last placement. */
+function unconstrainedCardHeight(card: HTMLElement): number {
+  const placedRoom = card.style.getPropertyValue(ROOM_PROPERTY)
+  card.style.removeProperty(ROOM_PROPERTY)
+  const height = card.offsetHeight
+  if (placedRoom) card.style.setProperty(ROOM_PROPERTY, placedRoom)
+  return height
 }
 
 function usePreviewPlacement(
@@ -138,24 +154,36 @@ function usePreviewPlacement(
   cardRef: RefObject<HTMLDivElement | null>,
 ) {
   const [style, setStyle] = useState<CSSProperties>(HIDDEN_STYLE)
+  const openedAtRef = useRef<{ rowKey: string; pointerX: number | undefined } | null>(null)
 
   useLayoutEffect(() => {
     const anchor = getAnchor()
     const card = cardRef.current
     if (!openKey || !anchor || !card) {
+      openedAtRef.current = null
       setStyle(HIDDEN_STYLE)
       return
     }
+    // The card keeps the side it opened on: the pointer may since have moved into it.
+    if (openedAtRef.current?.rowKey !== openKey) {
+      openedAtRef.current = { rowKey: openKey, pointerX: pointerXRef.current }
+    }
+    const pointerX = openedAtRef.current.pointerX
     function place() {
       if (!anchor || !card) return
       const spot = placePreviewCard({
         anchor: anchor.getBoundingClientRect(),
-        card: { width: card.offsetWidth, height: card.offsetHeight },
+        card: { width: card.offsetWidth, height: unconstrainedCardHeight(card) },
         viewport: { width: window.innerWidth, height: window.innerHeight },
         direction: getComputedStyle(anchor).direction === 'rtl' ? 'rtl' : 'ltr',
-        pointerX: pointerXRef.current,
+        pointerX,
       })
-      setStyle({ top: spot.top, left: spot.left, maxHeight: spot.maxHeight, visibility: 'visible' })
+      setStyle({
+        top: spot.top,
+        left: spot.left,
+        visibility: 'visible',
+        [ROOM_PROPERTY]: `${spot.maxHeight}px`,
+      } as CSSProperties)
     }
     function placeAgainWhenFocused() {
       if (isKeyboardFocused(anchor)) place()
@@ -197,15 +225,22 @@ export function useEventHoverPreview({
     () => (openKey ? (targetsRef.current.get(openKey)?.element ?? null) : null),
     [openKey],
   )
+  const getOpenRow = useCallback(() => {
+    const liveOpenKey = session?.controller.openRowKey()
+    return liveOpenKey ? (targetsRef.current.get(liveOpenKey)?.element ?? null) : null
+  }, [session])
   const openEventId = openKey ? (targetsRef.current.get(openKey)?.eventId ?? null) : null
   const entry = useCacheEntry(session, openEventId)
   const style = usePreviewPlacement(openKey, entry.status, getAnchor, pointerXRef, cardRef)
 
-  useCloseTriggers(session, openKey !== null, cardRef, getAnchor)
+  useCloseTriggers(session, cardRef, getOpenRow)
 
+  // Also runs when the entry goes back to idle, after `forgetEventDetails`.
   useEffect(() => {
-    if (session && openEventId) void session.cache.load(openEventId)
-  }, [session, openEventId])
+    if (session && openEventId && entry.status === 'idle') void session.cache.load(openEventId)
+  }, [session, openEventId, entry.status])
+
+  const forgetEventDetails = useCallback(() => session?.cache.clear(), [session])
 
   const rowProps = (rowKey: string, eventId: string | undefined): HTMLAttributes<HTMLTableRowElement> => {
     if (!session || !eventId) return NO_ROW_PROPS
@@ -236,11 +271,20 @@ export function useEventHoverPreview({
       onBlur: () => controller.blurRow(rowKey),
       onClickCapture: () => controller.rowClicked(),
       onKeyDown: (event: ReactKeyboardEvent<HTMLTableRowElement>) => {
-        // Enter on the row itself, not on a button inside it.
-        if (event.key !== 'Enter' || event.target !== event.currentTarget) return
+        // Keys on the row itself, not on a button inside it.
+        if (event.target !== event.currentTarget) return
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          controller.rowClicked()
+          onOpenEvent(eventId)
+          return
+        }
+        // Arrows scroll a card taller than its room, which the keyboard cannot reach otherwise.
+        const card = cardRef.current
+        const isArrow = event.key === 'ArrowDown' || event.key === 'ArrowUp'
+        if (!isArrow || openKey !== rowKey || !card || card.scrollHeight <= card.clientHeight) return
         event.preventDefault()
-        controller.rowClicked()
-        onOpenEvent(eventId)
+        card.scrollBy({ top: event.key === 'ArrowDown' ? ARROW_SCROLL_STEP_PX : -ARROW_SCROLL_STEP_PX })
       },
     }
   }
@@ -261,5 +305,5 @@ export function useEventHoverPreview({
         )
       : null
 
-  return { rowProps, previewCard }
+  return { rowProps, previewCard, forgetEventDetails }
 }

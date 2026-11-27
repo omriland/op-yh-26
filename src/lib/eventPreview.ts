@@ -1,10 +1,10 @@
-import { isEventFrozen, type EventFreezeFlags } from './eventFreeze'
+import type { EventFreezeFlags } from './eventFreeze'
 import type { EventDetail, EventResponderDetail } from './events'
 import { formatDate, formatEndTime, formatNumber, formatTime } from './format'
 
 export type EventPreviewResponderSource = Pick<
   EventResponderDetail,
-  'id' | 'responder_id' | 'total_km' | 'frozen_over_60km' | 'frozen_suspicious_duplicate'
+  'id' | 'total_km' | 'frozen_over_60km' | 'frozen_suspicious_duplicate'
 > & {
   profile: { full_name: string; callsign: string } | null
 }
@@ -17,7 +17,6 @@ export type EventPreviewSource = Pick<
   | 'ended_at'
   | 'police_event_id'
   | 'location'
-  | 'status'
   | 'is_cancelled'
   | 'frozen_over_60km'
   | 'frozen_suspicious_duplicate'
@@ -42,7 +41,6 @@ export type EventPreviewResponder = {
 export type EventPreview = {
   title: string
   rows: EventPreviewRow[]
-  frozen: boolean
   freezeFlags: Required<EventFreezeFlags>
   responders: EventPreviewResponder[]
   responderCount: number
@@ -114,7 +112,6 @@ export function buildEventPreview(source: EventPreviewSource): EventPreview {
   return {
     title: textOrNull(source.event_type?.name) ?? DEFAULT_TITLE,
     rows: previewRows(source),
-    frozen: isEventFrozen(source),
     freezeFlags: {
       frozen_over_60km: Boolean(source.frozen_over_60km),
       frozen_suspicious_duplicate: Boolean(source.frozen_suspicious_duplicate),

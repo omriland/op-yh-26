@@ -15,7 +15,6 @@ function source(
     ended_at: "2026-03-05T11:40:00",
     police_event_id: "48213",
     location: "צומת גולני",
-    status: "closed",
     is_cancelled: false,
     frozen_over_60km: false,
     frozen_suspicious_duplicate: false,
@@ -37,7 +36,6 @@ function responder(
 ) {
   return {
     id,
-    responder_id: `user-${id}`,
     total_km: totalKm,
     frozen_over_60km: frozen.over ?? false,
     frozen_suspicious_duplicate: frozen.dup ?? false,
@@ -144,40 +142,44 @@ describe("buildEventPreview rows", () => {
 });
 
 describe("buildEventPreview frozen state", () => {
-  it("is not frozen when no flag is set", () => {
-    expect(buildEventPreview(source()).frozen).toBe(false);
+  it("reports no freeze flag when none is set", () => {
+    expect(buildEventPreview(source()).freezeFlags).toEqual({
+      frozen_over_60km: false,
+      frozen_suspicious_duplicate: false,
+    });
   });
 
-  it("is frozen when the event aggregate says over 60 km", () => {
-    expect(buildEventPreview(source({ frozen_over_60km: true })).frozen).toBe(
-      true,
+  it("reports the suspicious duplicate flag on its own", () => {
+    const preview = buildEventPreview(
+      source({ frozen_suspicious_duplicate: true }),
     );
+
+    expect(preview.freezeFlags).toEqual({
+      frozen_over_60km: false,
+      frozen_suspicious_duplicate: true,
+    });
   });
 
-  it("is frozen when the event aggregate says suspicious duplicate", () => {
-    expect(
-      buildEventPreview(source({ frozen_suspicious_duplicate: true })).frozen,
-    ).toBe(true);
-  });
-
-  it("is frozen when both flags are set", () => {
+  it("reports both flags when both are set", () => {
     const preview = buildEventPreview(
       source({ frozen_over_60km: true, frozen_suspicious_duplicate: true }),
     );
 
-    expect(preview.frozen).toBe(true);
     expect(preview.freezeFlags).toEqual({
       frozen_over_60km: true,
       frozen_suspicious_duplicate: true,
     });
   });
 
-  it("does not call the event frozen only because a responder is frozen", () => {
+  it("does not flag the event only because a responder is frozen", () => {
     const preview = buildEventPreview(
       source({ responders: [responder("a", "אבי", "2", 90, { over: true })] }),
     );
 
-    expect(preview.frozen).toBe(false);
+    expect(preview.freezeFlags).toEqual({
+      frozen_over_60km: false,
+      frozen_suspicious_duplicate: false,
+    });
     expect(preview.responders[0]?.frozen).toBe(true);
   });
 
