@@ -141,7 +141,7 @@ For iPhone, "has it" means "in build 19". origin/main of the iPhone repo is stal
 |---|---|---|---|---|---|
 | Profile with activity summary | volunteer | ✅ | ✅ | ✅ | |
 | Lifetime KM hidden for responder-only | responder | ❌ | ✅ | ✅ | Web shows every user their own KM since 2026-11-27 |
-| My KM by month and quarter, frozen events counted | all | ✅ | ❌ | ❌ | Web since 2026-11-27; lifetime KM now counts frozen events in all apps |
+| My KM by month and quarter, frozen events counted | all | ✅ | ❌ | ❌ | Web since 2026-11-27; lifetime KM and the handled-events count now include frozen events in all apps |
 | My vehicles: add, edit, star default | responder | ✅ | ✅ | ✅ | |
 | Availability with return date | responder | ✅ | ✅ | ✅ | Web: not checked in detail |
 | Telegram bot link | volunteer | ✅ | ❌ | ❌ | Web since 2026-09-04 |
@@ -208,7 +208,7 @@ For iPhone, "has it" means "in build 19". origin/main of the iPhone repo is stal
 
 ## Change log
 
-- 2026-11-27: web: my KM by month and quarter on the profile, shown to every user; lifetime KM counts frozen events.
+- 2026-11-27: web: my KM by month and quarter on the profile, shown to every user; lifetime KM and the handled-events count include frozen events.
 - 2026-11-25: web: save a contact to the phone from the contacts page.
 - 2026-11-25: first full sweep of all three apps.
 - 2026-11-24: web: trip next to end odometer, activity summary and inactive volunteers reports.

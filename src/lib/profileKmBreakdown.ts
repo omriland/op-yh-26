@@ -13,8 +13,6 @@ export type KmMonth = {
 export type KmQuarter = {
   key: string
   label: string
-  year: number
-  quarter: number
   km: number
 }
 
@@ -80,13 +78,9 @@ function buildMonths(kmByMonthKey: Map<string, number>): KmMonth[] {
 function buildQuarters(kmByQuarterKey: Map<string, number>): KmQuarter[] {
   return sortKeysNewestFirst(kmByQuarterKey.keys()).map((key) => {
     const [yearText, quarterText] = key.split('-Q')
-    const year = Number(yearText)
-    const quarter = Number(quarterText)
     return {
       key,
-      label: quarterLabelHe(year, quarter),
-      year,
-      quarter,
+      label: quarterLabelHe(Number(yearText), Number(quarterText)),
       km: roundKm(kmByQuarterKey.get(key)!),
     }
   })

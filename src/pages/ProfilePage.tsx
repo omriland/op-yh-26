@@ -28,6 +28,7 @@ import { Ledger, LedgerRow } from '../components/ui/Ledger'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useToast } from '../components/ui/Toast'
 import { ProfileKmBreakdown } from '../components/ProfileKmBreakdown'
+import { useOwnKmBreakdown } from '../lib/useOwnKmBreakdown'
 
 const ROLE_LABELS: Partial<Record<AppRole, string>> = {
   admin: 'מנהל',
@@ -91,6 +92,7 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
   const [revoking, setRevoking] = useState(false)
   const [starringId, setStarringId] = useState<string | null>(null)
   const profileId = profile?.id
+  const kmBreakdownState = useOwnKmBreakdown(profileId)
 
   useEffect(() => {
     if (!profileId) return
@@ -190,6 +192,10 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
   }
 
   const statsUpdated = formatLifetimeStatsUpdatedAt(profile.lifetime_stats_updated_at)
+  // The profile row is cached at sign-in and can be older than the monthly rows,
+  // so once they load the total is their sum and the list always adds up to it.
+  const totalKm =
+    kmBreakdownState.status === 'ready' ? kmBreakdownState.breakdown.totalKm : profile.lifetime_km
   const canStar = vehicles ? canChooseDefaultVehicle(vehicles) : false
 
   return (
@@ -300,14 +306,14 @@ export function ProfilePage({ onOpenBotSettings }: { onOpenBotSettings?: () => v
             <div className="profile-stats__cell">
               <p className="t-label text-secondary">קילומטרים</p>
               <span className="profile-stats__value t-num-lg">
-                {formatNumber(profile.lifetime_km)}
+                {formatNumber(totalKm)}
               </span>
             </div>
           </div>
           {statsUpdated ? (
             <p className="profile-stats__caption t-caption text-muted">{statsUpdated}</p>
           ) : null}
-          <ProfileKmBreakdown profileId={profile.id} />
+          <ProfileKmBreakdown state={kmBreakdownState} />
         </section>
 
         <section className="card">

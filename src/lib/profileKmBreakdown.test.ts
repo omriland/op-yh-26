@@ -111,10 +111,10 @@ describe('buildProfileKmBreakdown', () => {
     ])
   })
 
-  it('labels quarters in Hebrew and carries year and quarter', () => {
+  it('labels quarters in Hebrew', () => {
     const { quarters } = buildProfileKmBreakdown([row('2026-11-01', 300)])
     expect(quarters).toEqual([
-      { key: '2026-Q4', label: 'רבעון 4, 2026', year: 2026, quarter: 4, km: 300 },
+      { key: '2026-Q4', label: 'רבעון 4, 2026', km: 300 },
     ])
   })
 

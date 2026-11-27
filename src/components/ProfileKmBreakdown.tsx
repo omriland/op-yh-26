@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
-import { buildProfileKmBreakdown, type ProfileKmBreakdown as Breakdown } from '../lib/profileKmBreakdown'
-import { fetchOwnKmMonthly } from '../lib/profileKmMonthly'
+import { useState } from 'react'
+import type { OwnKmBreakdownState } from '../lib/useOwnKmBreakdown'
 import { formatNumber } from '../lib/format'
 import { FilterChips } from './ui/FilterChips'
 import { Ledger, LedgerRow } from './ui/Ledger'
@@ -13,30 +12,10 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: 'month', label: 'לפי חודש' },
 ]
 
-const NOT_FINAL_NOTE = 'הנתונים מתעדכנים פעם ביום. הם אינם סופיים, והחזר הדלק בפועל עשוי להיות שונה.'
+const NOT_FINAL_NOTE = 'הנתונים מתעדכנים פעמיים ביום. הם אינם סופיים, והחזר הדלק בפועל עשוי להיות שונה.'
 
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'error' }
-  | { status: 'ready'; breakdown: Breakdown }
-
-export function ProfileKmBreakdown({ profileId }: { profileId: string }) {
+export function ProfileKmBreakdown({ state }: { state: OwnKmBreakdownState }) {
   const [groupBy, setGroupBy] = useState<GroupBy>('quarter')
-  const [state, setState] = useState<LoadState>({ status: 'loading' })
-
-  useEffect(() => {
-    let active = true
-    fetchOwnKmMonthly(profileId)
-      .then((rows) => {
-        if (active) setState({ status: 'ready', breakdown: buildProfileKmBreakdown(rows) })
-      })
-      .catch(() => {
-        if (active) setState({ status: 'error' })
-      })
-    return () => {
-      active = false
-    }
-  }, [profileId])
 
   return (
     <div className="stack-3" style={{ marginBlockStart: 'var(--space-4)' }}>

@@ -29,6 +29,8 @@ grant select on public.profile_km_monthly to authenticated;
 -- 25 Nov 2026): 20260910140000_responder_level_event_freeze.sql excluded them from
 -- the lifetime totals, this puts them back. The fuel refund still excludes frozen
 -- participations in its own report. Cancelled and demo events are not filtered.
+-- lifetime_event_count shares the same join, so frozen participations are back in
+-- the handled-events number as well, in all three apps.
 -- The monthly rows use the same conditions, so they add up to lifetime_km.
 create or replace function public.refresh_profile_lifetime_stats()
 returns void
@@ -37,6 +39,10 @@ security definer
 set search_path = public
 as $$
 begin
+  -- One run at a time: a second run that started before the first committed would
+  -- not see its new monthly rows, skip them in the delete and fail on the primary key.
+  perform pg_advisory_xact_lock(hashtext('yahpaz.refresh_profile_lifetime_stats'));
+
   perform set_config('yahpaz.refreshing_lifetime_stats', '1', true);
 
   update public.profiles as p
